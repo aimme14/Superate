@@ -1,18 +1,15 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-  background: url('gif/fondito.gif') no-repeat center center fixed;
-  background-size: cover;
-  color: white;
-}
-.container {
+.dashboard-container {
   display: flex;
+  width: calc(100% - 200px);
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
+  backdrop-filter: blur(10px);
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
   padding: 20px;
 }
+
 .header {
   display: flex;
   justify-content: space-between;
@@ -20,27 +17,34 @@ body {
   width: 100%;
   margin-bottom: 20px;
 }
+
 .header img {
   height: 150px;
 }
+
 .header-title {
   text-align: center;
   flex-grow: 1;
+  color: white;
 }
+
 .header-title h1 {
   margin: 0;
   font-size: 2em;
 }
+
 .header-title p {
   margin: 5px 0;
   font-size: 1.2em;
 }
+
 .test-buttons {
   margin-top: 10px;
   display: flex;
   gap: 80px;
   justify-content: center;
 }
+
 .test-buttons button {
   background-color: #ffffff;
   color: rgb(0, 0, 0);
@@ -49,14 +53,17 @@ body {
   border-radius: 5px;
   cursor: pointer;
 }
+
 .test-buttons button:hover {
   background-color: #eeeeee;
 }
+
 .main-content {
   display: flex;
   width: 100%;
   margin-top: 20px;
 }
+
 .card-container {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -64,6 +71,7 @@ body {
   flex: 1;
   align-self: flex-start;
 }
+
 .card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(0, 0, 0, 0.6));
   padding: 10px;
@@ -73,35 +81,44 @@ body {
   max-width: 200px;
   max-height: 150px;
 }
+
 .card:nth-child(1) {
   background: linear-gradient(135deg, rgba(255, 0, 0, 0.7), rgba(0, 0, 0, 0.6));
 }
+
 .card:nth-child(2) {
   background: linear-gradient(135deg, rgba(3, 255, 238, 0.7), rgba(0, 0, 0, 0.6));
 }
+
 .card:nth-child(3) {
   background: linear-gradient(135deg, rgba(255, 213, 3, 0.7), rgba(0, 0, 0, 0.6));
 }
+
 .card:nth-child(4) {
   background: linear-gradient(135deg, rgba(5, 219, 252, 0.7), rgba(0, 0, 0, 0.6));
 }
+
 .card:nth-child(5) {
   background: linear-gradient(135deg, rgba(250, 26, 6, 0.7), rgba(0, 0, 0, 0.6));
 }
+
 .card h3 {
   margin: 0 0 5px 0;
   font-size: 0.9em;
 }
+
 .card span {
   font-size: 1em;
   font-weight: bold;
 }
+
 .actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-left: 20px;
 }
+
 .actions button {
   background-color: #0066cc;
   color: white;
@@ -113,12 +130,14 @@ body {
   display: flex;
   align-items: center;
 }
+
 .actions button:hover {
   background-color: #005bb5;
 }
+
 .actions button img {
-  width: 16px; /* Tamaño del icono */
-  height: auto; /* Mantiene la proporción */
-  margin-left: 10px; /* Espaciado entre texto e icono */
-  vertical-align: middle; /* Alineación vertical */
+  width: 16px;/* Tamaño del icono */
+  height: auto;/* Mantiene la proporción */
+  margin-left: 10px;/* Espaciado entre texto e icono */
+  vertical-align: middle;/* Alineación vertical */
 }

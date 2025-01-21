@@ -1,19 +1,17 @@
 import { useLoginForm } from '../hooks/auth/useLoginForm'
 import { useAuthContext } from '../context/AuthContext'
+import { Link, Navigate } from 'react-router-dom'
 import { FormProvider } from 'react-hook-form'
-import { Link } from 'react-router-dom'
 import '@/styles/Home.css'
 
 const HomePage = () => {
   const { methods, onSubmit } = useLoginForm()
-  const { user, signout } = useAuthContext()
+  const { user } = useAuthContext()
 
-  console.log(user)
-
-  // if (user) {return <Navigate to="/dashboard" />}
+  if (user?.uid) { return <Navigate to="/dashboard" /> }
 
   return (
-    <>
+    <div className='home-container'>
       {/* <!-- Contenedor de las imágenes (izquierda) --> */}
       <div className="images-container">
         {/* <!-- Imagen superior con texto "SUPÉRATE" --> */}
@@ -31,18 +29,18 @@ const HomePage = () => {
         <h1>SUPÉRATE</h1>
         <p>¡Bienvenido!</p>
 
-        <div className="form-group">
-          <label htmlFor="document-type">Tipo de documento</label>
-          <select id="document-type" name="document-type">
-            <option value="">Selecciona</option>
-            <option value="cc">Cédula de ciudadanía</option>
-            <option value="ti">Tarjeta de identidad</option>
-            <option value="pp">Pasaporte</option>
-          </select>
-        </div>
-
         <FormProvider {...methods}>
           <form onSubmit={onSubmit}>
+            <div className="form-group">
+              <label htmlFor="document-type">Tipo de documento</label>
+              <select id="document-type" name="document-type">
+                <option value="">Selecciona</option>
+                <option value="cc">Cédula de ciudadanía</option>
+                <option value="ti">Tarjeta de identidad</option>
+                <option value="pp">Pasaporte</option>
+              </select>
+            </div>
+
             <div className="form-group">
               <input {...methods.register('email')} type="text" id="document" name="email" placeholder="Correo electrónico" />
             </div>
@@ -57,11 +55,9 @@ const HomePage = () => {
             <p>O</p>
             <Link to="/registro">Regístrate</Link>
           </div>
-
-          <button onClick={() => signout()}>Cerrar sesión</button>
         </FormProvider>
       </div>
-    </>
+    </div>
   )
 }
 

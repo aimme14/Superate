@@ -1,10 +1,13 @@
-import fondoAnimado from '../../public/assets/gif/fondito.gif';
+import { useAuthContext } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import "../styles/Dashboard.css";
 
 const DashboardPage = () => {
-  document.body.style.backgroundImage = `url(${fondoAnimado})`;
+  const { signout } = useAuthContext()
+  const navigate = useNavigate()
+
   return (
-    <div className="container">
+    <div className="dashboard-container">
       <div className="header">
         <img src="assets/img/cerebro_white_only.png" alt="Left Logo" />
         <div className="header-title">
@@ -47,6 +50,8 @@ const DashboardPage = () => {
           <button>Recomendaciones<img src="assets/img/logotipo.png" alt="Icono" /></button>
         </div>
       </div>
+
+      <button className='btn' onClick={() => {signout(); navigate('/')}}>Cerrar sesión</button>
     </div>
   )
 }

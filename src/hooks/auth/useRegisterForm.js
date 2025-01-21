@@ -16,7 +16,7 @@ export const useRegisterForm = () => {
 
   const methods = useForm({
     resolver: zodResolver(registerSchema),
-    mode: 'onSubmit',
+    mode: 'onChange',
     defaultValues
   })
 
