@@ -1,4 +1,5 @@
 /** Este módulo proporciona funciones para la autenticación y gestión de usuarios */
+import { databaseService as databaseFB } from "../services/firebase/database.service"
 import { authService as authFB } from "../services/firebase/auth.service"
 import { success, failure } from "../interfaces/db.interface"
 import ErrorAPI, { Unauthorized } from "../errors/index"
@@ -27,9 +28,17 @@ export const login = async ({ email, password }) => {
  */
 export const register = async (user) => {
   try {
-    const { email, password } = user.accessCredentials
-    const userAccount = await authFB.registerAccount(user.businessData.name, email, password)
+    const { email, document, name, lastName, typeDocument } = user
+    const userAccount = await authFB.registerAccount(name, email, document + '0')
+
     if (!userAccount.success) throw userAccount.error
+
+    const userData = await databaseFB.createUser({
+      typeDocument,
+      lastName
+    })
+
+    if (!userData.success) throw userData.error
 
     const emailVerification = await authFB.sendEmailVerification()
     if (!emailVerification.success) throw emailVerification.error
