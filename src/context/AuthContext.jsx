@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import { login, register, logout, forgotPassword } from "@/controllers/auth.controller";
 import { authService as authFB } from "@/services/firebase/auth.service";
 import { createContext, useContext, useState, useEffect } from "react";
+import { getUserById } from "@/controllers/user.controller";
 
 const Auth = createContext(undefined)
 
@@ -87,6 +88,22 @@ export const AuthProvider = ({ children }) => {
   }
   /*---------------------------------------------------------------------------------------------------------*/
 
+  /*--------------------------------------------------user--------------------------------------------------*/
+  /**
+   * Obtiene un usuario por su id
+   * @param {string} id - El id del usuario.
+   */
+  const getUser = async (id) => {
+    try {
+      const result = await getUserById(id)
+      if (!result.success) throw result.error
+      return result.data
+    } catch (e) {
+      console.log(e)
+    }
+  }
+
+
   /*--------------------------------------------------verification--------------------------------------------------*/
   /**
    * Envía un correo de restablecimiento de contraseña
@@ -145,6 +162,7 @@ export const AuthProvider = ({ children }) => {
       user,
       isAuth,
       loading,
+      getUser,
       signin,
       signup,
       signout,

@@ -1,3 +1,17 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100vh;
+  background: url('assets/img/fondo.png') no-repeat center center fixed;
+  background-size: cover;
+  color: #f5ebeb;
+  padding-right: 90px;
+  position: relative;
+}
+
 .home-container {
   width: calc(100% - 200px);
   display: flex;

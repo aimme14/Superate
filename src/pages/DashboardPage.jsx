@@ -1,17 +1,23 @@
 import { useAuthContext } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import "../styles/Dashboard.css";
 
 const DashboardPage = () => {
-  const { signout } = useAuthContext()
+  const { signout, user, getUser } = useAuthContext()
+  const [userData, setUserData] = useState(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    user?.uid && getUser(user.uid).then((user) => setUserData(user))
+  }, [user])
 
   return (
     <div className="dashboard-container">
       <div className="header">
         <img src="assets/img/cerebro_white_only.png" alt="Left Logo" />
         <div className="header-title">
-          <h1>Estudiante:</h1>
+          <h1>Estudiante: {userData ? userData.name + ' ' + userData.lastName : 'usuario no encontrado'}</h1>
           <p>Puntuación Total: <span>0</span></p>
           <div className="test-buttons">
             <button>PRUEBA 1</button>
@@ -51,7 +57,7 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      <button className='btn' onClick={() => {signout(); navigate('/')}}>Cerrar sesión</button>
+      <button className='btn' onClick={() => { signout(); navigate('/') }}>Cerrar sesión</button>
     </div>
   )
 }

@@ -30,13 +30,9 @@ export const register = async (user) => {
   try {
     const { email, document, name, lastName, typeDocument } = user
     const userAccount = await authFB.registerAccount(name, email, document + '0')
-
     if (!userAccount.success) throw userAccount.error
 
-    const userData = await databaseFB.createUser({
-      typeDocument,
-      lastName
-    })
+    const userData = await databaseFB.createUser(userAccount.data, { typeDocument, lastName })
 
     if (!userData.success) throw userData.error
 

@@ -64,9 +64,9 @@ class DatabaseService {
   async getUserById(id) {
     try {
       const docSnap = await getDoc(doc(this.getCollection('users'), id))
-      if (!docSnap.exists()) return failure(new NotFound({ message: 'Negocio no encontrado' }))
+      if (!docSnap.exists()) return failure(new NotFound({ message: 'Usuario no encontrado' }))
       return success({ id: docSnap.id, ...docSnap.data() })
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener negocio'))) }
+    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener usuario'))) }
   }
 
   /**
