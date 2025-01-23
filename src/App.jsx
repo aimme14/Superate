@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import DashboardPage from "./pages/DashboardPage";
 import RegisterPage from "./pages/RegisterPage";
 import HomePage from "./pages/HomePage";
+import Welcome from "./pages/Welcome";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
             {/* auth routes */}
             <Route path="/registro" element={<RegisterPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/welcome" element={<Welcome />} />
           </Route>
         </Routes>
       </BrowserRouter>

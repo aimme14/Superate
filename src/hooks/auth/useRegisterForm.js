@@ -30,7 +30,7 @@ export const useRegisterForm = () => {
       text: 'Usuario registrado correctamente',
       icon: 'success'
     })
-    navigate('/dashboard')
+    navigate('/welcome')
   })
   return { methods, onSubmit }
 }
