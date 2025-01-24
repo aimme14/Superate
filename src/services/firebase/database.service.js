@@ -44,7 +44,7 @@ class DatabaseService {
     return DatabaseService.instance
   }
 
-  /*-----------------> business <-----------------*/
+  /*-----------------> users <-----------------*/
   /**
    * Obtiene todos los negocios
    * @returns {Promise<Result<Business[]>>} Una lista de negocios.
@@ -122,6 +122,39 @@ class DatabaseService {
     try {
       return await deleteDoc(doc(this.getCollection('users'), id)).then(() => success(undefined))
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'eliminar usuario'))) }
+  }
+  /*----------------------------------------------------*/
+
+  /*-----------------> test <-----------------*/
+  async setInitialTestState() {
+    try {
+      return await setDoc(doc(this.getCollection('test'), 'global'), { test_1: false, test_2: false, test_3: false }).then(() => success(undefined))
+    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'inicializar estado de pruebas'))) }
+  }
+
+  async getTestState() {
+    try {
+      const docSnap = await getDoc(doc(this.getCollection('test'), 'global'))
+      if (!docSnap.exists()) {// Inicializar estado por defecto si no existe
+        await this.setInitialTestState()
+        return success({ test_1: false, test_2: false, test_3: false })
+      }
+      return success(docSnap.data())
+    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener estado de pruebas'))) }
+  }
+
+  async toggleTest(testNumber) {
+    try {
+      const currentState = await this.getTestState()
+      if (!currentState.success) throw currentState.error
+
+      const testKey = `test_${testNumber}`
+      const newState = {
+        ...currentState.data,
+        [testKey]: !currentState.data[testKey]
+      }
+      return await setDoc(doc(this.getCollection('test'), 'global'), newState).then(() => success(newState))
+    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'actualizar estado de prueba'))) }
   }
   /*----------------------------------------------------*/
 

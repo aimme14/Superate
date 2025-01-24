@@ -8,7 +8,9 @@ const HomePage = () => {
   const { methods, onSubmit } = useLoginForm()
   const { user } = useAuthContext()
 
-  if (user?.uid) { return <Navigate to="/dashboard" /> }
+  console.log(user)
+  if (user?.email === 'aylopezm@ufpso.edu.co') return <Navigate to="/dashboard-admin" />
+  else if (user?.uid) return <Navigate to="/dashboard" />
 
   return (
     <div className='home-container'>

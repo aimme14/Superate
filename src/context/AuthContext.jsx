@@ -4,6 +4,7 @@ import { login, register, logout, forgotPassword } from "@/controllers/auth.cont
 import { authService as authFB } from "@/services/firebase/auth.service";
 import { createContext, useContext, useState, useEffect } from "react";
 import { getUserById } from "@/controllers/user.controller";
+import { setTest, getTestState, toggleTest } from "@/controllers/test.controller";
 
 const Auth = createContext(undefined)
 
@@ -27,6 +28,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [isAuth, setIsAuth] = useState(false)
   const [user, setUser] = useState()
+  const [testState, setTestState] = useState({
+    test_1: false,
+    test_2: false,
+    test_3: false
+  })
 
   /** Observa el estado de autenticación del negocio en sesión */
   useEffect(() => {
@@ -36,6 +42,15 @@ export const AuthProvider = ({ children }) => {
       setLoading(false)
     })
   }, [])
+
+  // Cargar estado inicial de pruebas
+  useEffect(() => {
+    if (isAuth) {
+      getTestState().then(state => {
+        if (state?.success) setTestState(state.data)
+      })
+    }
+  }, [isAuth])
 
   /*--------------------------------------------------authentication--------------------------------------------------*/
   /**
@@ -102,6 +117,29 @@ export const AuthProvider = ({ children }) => {
       console.log(e)
     }
   }
+  /*---------------------------------------------------------------------------------------------------------*/
+
+  /*--------------------------------------------------stateTest--------------------------------------------------*/
+  const getStateTest = async (id) => {
+    try {
+      const result = await getStateTestById(id)
+      if (!result.success) throw result.error
+      return result.data
+    } catch (e) {
+      console.log(e)
+    }
+  }
+
+  const setStateTest = async (data) => {
+    try {
+      const result = await setTest(data)
+      if (!result.success) throw result.error
+      return result.data
+    } catch (e) {
+      console.log(e)
+    }
+  }
+  /*---------------------------------------------------------------------------------------------------------*/
 
 
   /*--------------------------------------------------verification--------------------------------------------------*/
@@ -156,6 +194,17 @@ export const AuthProvider = ({ children }) => {
     }
   }
   /*---------------------------------------------------------------------------------------------------------*/
+  const toggleTestState = async (testNumber) => {
+    try {
+      const result = await toggleTest(testNumber)
+      if (!result.success) throw result.error
+      setTestState(result.data)
+      return result.data
+    } catch (e) {
+      console.error(e)
+      return null
+    }
+  }
 
   return (
     <Auth.Provider value={{
@@ -166,7 +215,10 @@ export const AuthProvider = ({ children }) => {
       signin,
       signup,
       signout,
-      sendResetEmail
+      setStateTest,
+      sendResetEmail,
+      testState,
+      toggleTestState
     }}>
       {children}
     </Auth.Provider>

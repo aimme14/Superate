@@ -18,7 +18,6 @@ export const useLoginForm = () => {
   })
 
   const onSubmit = methods.handleSubmit(async (data) => {
-    console.log(data)
     await signin(data)
   })
   return { methods, onSubmit }
