@@ -114,30 +114,52 @@
 
 .actions {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-left: 20px;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  padding: 2rem;
 }
 
 .actions button {
-  background-color: #0066cc;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 1em;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  border: none;
+  border-radius: 8px;
+  background: #1a73e8;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.3s ease, background 0.3s ease;
 }
 
+.toggle-button {
+  background-color: #ffffff;
+  color: rgb(0, 0, 0);
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.toggle-button.active {
+  background-color: #1a73e8;
+  color: white;
+} 
+
 .actions button:hover {
-  background-color: #005bb5;
+  transform: translateY(-2px);
+  background: #1557b0;
 }
 
 .actions button img {
-  width: 16px;/* Tamaño del icono */
-  height: auto;/* Mantiene la proporción */
-  margin-left: 10px;/* Espaciado entre texto e icono */
-  vertical-align: middle;/* Alineación vertical */
+  width: 24px;
+  height: 24px;
+}
+
+.quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  padding: 2rem;
 }

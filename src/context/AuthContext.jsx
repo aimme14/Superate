@@ -4,7 +4,7 @@ import { login, register, logout, forgotPassword } from "@/controllers/auth.cont
 import { authService as authFB } from "@/services/firebase/auth.service";
 import { createContext, useContext, useState, useEffect } from "react";
 import { getUserById } from "@/controllers/user.controller";
-import { setTest, getTestState, toggleTest } from "@/controllers/test.controller";
+import { setTest, toggleTest, getTestState } from "@/controllers/test.controller";
 
 const Auth = createContext(undefined)
 
@@ -120,10 +120,11 @@ export const AuthProvider = ({ children }) => {
   /*---------------------------------------------------------------------------------------------------------*/
 
   /*--------------------------------------------------stateTest--------------------------------------------------*/
-  const getStateTest = async (id) => {
+  const getStateTest = async () => {
     try {
-      const result = await getStateTestById(id)
+      const result = await getTestState()
       if (!result.success) throw result.error
+      setTestState(result.data)
       return result.data
     } catch (e) {
       console.log(e)
@@ -216,6 +217,7 @@ export const AuthProvider = ({ children }) => {
       signup,
       signout,
       setStateTest,
+      getStateTest,
       sendResetEmail,
       testState,
       toggleTestState

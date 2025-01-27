@@ -4,13 +4,7 @@ import { useState, useEffect } from 'react'
 import "../styles/DashboardAdmin.css";
 
 const DashboardAdminPage = () => {
-  const { 
-    signout, 
-    user, 
-    getUser, 
-    testState, 
-    toggleTestState 
-  } = useAuthContext()
+  const { signout, user, getUser, testState, toggleTestState,  } = useAuthContext()
   const [userData, setUserData] = useState(null)
   const navigate = useNavigate()
 
