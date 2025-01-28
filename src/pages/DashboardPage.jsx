@@ -15,7 +15,6 @@ const DashboardPage = () => {
         setUserData(userData)
       })
       getStateTest().then((state) => {
-        console.log(state)
         setTestState(state)
       })
     }
@@ -24,7 +23,6 @@ const DashboardPage = () => {
   const handleToggleTest = async (testNumber) => {
     const key = `test_${testNumber}`
     const access = testState[key]
-    console.log(access)
   }
 
 
@@ -48,22 +46,27 @@ const DashboardPage = () => {
       <div className="main-content">
         <div className="card-container">
           <div className="card">
+            <button></button>
             <h3>Matemáticas</h3>
             <span>0</span>
           </div>
           <div className="card">
+            <button></button>
             <h3>Naturales</h3>
             <span>0</span>
           </div>
           <div className="card">
+            <button></button>
             <h3>Lectura Crítica</h3>
             <span>0</span>
           </div>
           <div className="card">
+            <button></button>
             <h3>Competencias Ciudadanas</h3>
             <span>0</span>
           </div>
           <div className="card">
+            <button></button>
             <h3>Inglés</h3>
             <span>0</span>
           </div>
