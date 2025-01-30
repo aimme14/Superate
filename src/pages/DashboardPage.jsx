@@ -46,29 +46,24 @@ const DashboardPage = () => {
       <div className="main-content">
         <div className="card-container">
           <div className="card">
-            <button></button>
-            <h3>Matemáticas</h3>
-            <span>0</span>
+            <button>Matemáticas</button>
+            <h5>0</h5>
           </div>
           <div className="card">
-            <button></button>
-            <h3>Naturales</h3>
-            <span>0</span>
+            <button>Naturales</button>
+            <h5>0</h5>
           </div>
           <div className="card">
-            <button></button>
-            <h3>Lectura Crítica</h3>
-            <span>0</span>
+            <button>Lectura Crítica</button>
+            <h5>0</h5>
           </div>
           <div className="card">
-            <button></button>
-            <h3>Competencias Ciudadanas</h3>
-            <span>0</span>
+            <button>Competencias Ciudadanas</button>
+            <h5>0</h5>
           </div>
           <div className="card">
-            <button></button>
-            <h3>Inglés</h3>
-            <span>0</span>
+            <button>Inglés</button>
+            <h5>0</h5>
           </div>
         </div>
         <div className="actions">
