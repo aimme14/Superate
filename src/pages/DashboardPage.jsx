@@ -44,27 +44,30 @@ const DashboardPage = () => {
       </div>
 
       <div className="main-content">
-        <div className="card-container">
-          <div className="card">
-            <button>Matemáticas</button>
-            <h5>0</h5>
-          </div>
-          <div className="card">
-            <button>Naturales</button>
-            <h5>0</h5>
-          </div>
-          <div className="card">
-            <button>Lectura Crítica</button>
-            <h5>0</h5>
-          </div>
-          <div className="card">
-            <button>Competencias Ciudadanas</button>
-            <h5>0</h5>
-          </div>
-          <div className="card">
-            <button>Inglés</button>
-            <h5>0</h5>
-          </div>
+        
+          <div className="card-buttons">
+          <div className="card-container">
+           <div className="card">
+             <button>Matemáticas</button>
+             <h5>0</h5>
+           </div>
+           <div className="card">
+             <button>Naturales</button>
+             <h5>0</h5>
+           </div>
+           <div className="card">
+             <button>Lectura Crítica</button>
+             <h5>0</h5>
+           </div>
+           <div className="card">
+             <button>Competencias Ciudadanas</button>
+             <h5>0</h5>
+           </div>
+           <div className="card">
+             <button>Inglés</button>
+             <h5>0</h5>
+           </div>
+         </div>
         </div>
         <div className="actions">
           <button onClick={() => navigate('/analysis')}>
