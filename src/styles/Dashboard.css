@@ -88,8 +88,8 @@
   border-radius: 5px;
   text-align: center;
   color: white;
-  max-width: 200px;
-  max-height: 150px;
+  max-width: flex;
+  max-height: flex;
 }
 
 .card:nth-child(1) {

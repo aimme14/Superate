@@ -48,7 +48,7 @@ const DashboardPage = () => {
           <div className="card-buttons">
           <div className="card-container">
            <div className="card">
-             <button>Matemáticas</button>
+             <button onClick={() => navigate('/mate')}>Matemáticas</button>
              <h5>0</h5>
            </div>
            <div className="card">
@@ -56,7 +56,7 @@ const DashboardPage = () => {
              <h5>0</h5>
            </div>
            <div className="card">
-             <button>Lectura Crítica</button>
+            <button>Lectura Crítica</button>
              <h5>0</h5>
            </div>
            <div className="card">

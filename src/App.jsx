@@ -5,6 +5,7 @@ import DashboardPage from "./pages/DashboardPage";
 import RegisterPage from "./pages/RegisterPage";
 import HomePage from "./pages/HomePage";
 import Welcome from "./pages/Welcome";
+import Mate from "./pages/mate";
 import DashboardAdmin from "./pages/DashboardAdminPage";
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/welcome" element={<Welcome />} />
             <Route path="/dashboard-admin" element={<DashboardAdmin />} />
+            <Route path="/mate" element={<Mate />} />
           </Route>
         </Routes>
       </BrowserRouter>
