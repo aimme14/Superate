@@ -30,7 +30,7 @@ const DashboardPage = () => {
   return (
     <div className="dashboard-container">
       <div className="header">
-        <img src="assets/img/cerebro_white_only.png" alt="Left Logo" />
+        <img src="public/assets/img/cerebro_negro.png" alt="Left Logo" />
         <div className="header-title">
           <h1>Estudiante: {userData ? userData.name + ' ' + userData.lastName : 'usuario no encontrado'}</h1>
           <p>Puntuación Total: <span>{0}</span></p>
@@ -49,23 +49,25 @@ const DashboardPage = () => {
           <div className="card-container">
            <div className="card">
              <button onClick={() => navigate('/mate')}>Matemáticas</button>
-             <h5>0</h5>
+             <h3>0</h3>
            </div>
            <div className="card">
              <button>Naturales</button>
-             <h5>0</h5>
+             <h3>0</h3>
            </div>
            <div className="card">
+            <h5>Lectura Crítica</h5>  
+            <p>en esta prueba se evaluará la capacidad de los estudiantes para comprender y analizar textos de diversos géneros y estilos, así como para identificar y evaluar argumentos y evidencias.</p>
             <button>Lectura Crítica</button>
-             <h5>0</h5>
+             <h3>0</h3>
            </div>
            <div className="card">
              <button>Competencias Ciudadanas</button>
-             <h5>0</h5>
+             <h3>0</h3>
            </div>
            <div className="card">
              <button>Inglés</button>
-             <h5>0</h5>
+             <h3>0</h3>
            </div>
          </div>
         </div>

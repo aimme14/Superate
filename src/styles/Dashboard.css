@@ -3,9 +3,7 @@
   width: calc(100% - 200px);
   flex-direction: column;
   align-items: flex-start;
-  justify-content: flex-start;
-  backdrop-filter: blur(10px);
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(255, 255, 255, 0.897);
   border-radius: 10px;
   padding: 20px;
 }
@@ -25,17 +23,19 @@
 .header-title {
   text-align: center;
   flex-grow: 1;
-  color: white;
+  color: black;
 }
 
 .header-title h1 {
   margin: 0;
   font-size: 2em;
+  color:#000000;
 }
 
 .header-title p {
   margin: 5px 0;
   font-size: 1.2em;
+  color:#000000;
 }
 
 .test-buttons {
@@ -46,7 +46,7 @@
 }
 
 .test-buttons button {
-  background-color: #ffffff;
+  background-color: #c41e1e;
   color: rgb(0, 0, 0);
   border: none;
   padding: 10px 15px;
@@ -55,7 +55,7 @@
 }
 
 .test-buttons button:hover {
-  background-color: #eeeeee;
+  background-color: #000000;
 }
 
 .main-content {
@@ -88,12 +88,12 @@
   border-radius: 5px;
   text-align: center;
   color: white;
-  max-width: flex;
-  max-height: flex;
+  width: auto;
+  height: auto;
 }
 
 .card:nth-child(1) {
-  background: linear-gradient(135deg, rgba(255, 0, 0, 0.7), rgba(0, 0, 0, 0.6));
+  background: linear-gradient(135deg, rgba(231, 228, 228, 0.7), rgba(0, 0, 0, 0.6));
 }
 
 .card:nth-child(2) {
@@ -113,6 +113,18 @@
 }
 
 .card h3 {
+  margin: 0 0 5px 0;
+  font-size: 0.9em;
+  color:black;
+}
+
+.card h5 {
+  margin: 0 0 5px 0;
+  font-size: 0.9em;
+  color:black;
+}
+
+.card p {
   margin: 0 0 5px 0;
   font-size: 0.9em;
 }
