@@ -48,10 +48,14 @@ const DashboardPage = () => {
           <div className="card-buttons">
           <div className="card-container">
            <div className="card">
+           <h5>Lectura Crítica</h5>  
+           <p>en esta prueba se evaluará la capacidad de los estudiantes para comprender y analizar textos de diversos géneros y estilos, así como para identificar y evaluar argumentos y evidencias.</p>
              <button onClick={() => navigate('/mate')}>Matemáticas</button>
              <h3>0</h3>
            </div>
            <div className="card">
+           <h5>Lectura Crítica</h5>  
+           <p>en esta prueba se evaluará la capacidad de los estudiantes para comprender y analizar textos de diversos géneros y estilos, así como para identificar y evaluar argumentos y evidencias.</p>
              <button>Naturales</button>
              <h3>0</h3>
            </div>
@@ -62,10 +66,14 @@ const DashboardPage = () => {
              <h3>0</h3>
            </div>
            <div className="card">
+           <h5>Lectura Crítica</h5>  
+           <p>en esta prueba se evaluará la capacidad de los estudiantes para comprender y analizar textos de diversos géneros y estilos, así como para identificar y evaluar argumentos y evidencias.</p>
              <button>Competencias Ciudadanas</button>
              <h3>0</h3>
            </div>
            <div className="card">
+           <h5>Lectura Crítica</h5>  
+           <p>en esta prueba se evaluará la capacidad de los estudiantes para comprender y analizar textos de diversos géneros y estilos, así como para identificar y evaluar argumentos y evidencias.</p>
              <button>Inglés</button>
              <h3>0</h3>
            </div>

@@ -46,7 +46,7 @@
 }
 
 .test-buttons button {
-  background-color: #c41e1e;
+  background-color: #ad8c8c;
   color: rgb(0, 0, 0);
   border: none;
   padding: 10px 15px;
@@ -127,6 +127,7 @@
 .card p {
   margin: 0 0 5px 0;
   font-size: 0.9em;
+  color:#000000;
 }
 
 .card span {
