@@ -30,7 +30,7 @@ const DashboardPage = () => {
   return (
     <div className="dashboard-container">
       <div className="header">
-        <img src="public/assets/img/cerebro_negro.png" alt="Left Logo" />
+        <img src="/assets/img/cerebro_negro.png" alt="Left Logo" />
         <div className="header-title">
           <h1>Estudiante: {userData ? userData.name + ' ' + userData.lastName : 'usuario no encontrado'}</h1>
           <p>Puntuación Total: <span>{0}</span></p>
