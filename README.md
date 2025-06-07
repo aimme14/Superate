@@ -1,8 +1,71 @@
-# React + Vite
+### --------------------------------------Description-------------------------------------- ###
+## E-commerce
+### Vite + TypeScript
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+### --------------------------------------Typescript documentation-------------------------------------- ###
+````ts
+// client/tsconfig.app.json
+"include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
+  ] 
 
-Currently, two official plugins are available:
+// cors.json to allow methods get (googleCloud)
+[
+  {
+    "method": ["GET"],
+    "maxAgeSeconds": 3600,
+    "origin": ["*"]
+  }
+]
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+//default config for github actions (qiita-cli)
+```yaml
+name: Publish articles
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish_articles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: increments/qiita-cli/actions/publish@v1
+        with:
+          qiita-token: ${{ secrets.QIITA_TOKEN }}
+          root: "."
+```
+
+//deploy config for github actions (qiita-cli)
+```yaml
+jobs:
+  deploy:
+    environment: Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: increments/qiita-cli/actions/publish@v1
+        with:
+          qiita-token: ${{ secrets.QIITA_TOKEN }}
+          root: "."
+```
