@@ -92,17 +92,3 @@ export type FormItems = {
   email: string
   name: string
 }
-
-// Calendar (engineer)
-export interface Event {
-  startTime: string
-  endTime: string
-  title: string
-  color: string
-  id: number
-  date: Date
-  location: string
-  description: string
-  attendees: string[]
-  organizer: string
-}

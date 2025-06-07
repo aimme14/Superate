@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 
-import CalendarPage from "@/pages/dashboard/user/CalendarPage";
 import NewDasboard from "@/pages/dashboard/NewDashboard";
 import ProtectedRoute from "@/layouts/ProtectedRoute";
 import RegisterPage from "@/pages/RegisterPage";
@@ -31,8 +30,6 @@ function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/quiz/:id" element={<QuizPage />} />
 
-                {/* user routes */}
-                <Route path="/calendar" element={<CalendarPage />} />
               </Route>
 
             </Route>
