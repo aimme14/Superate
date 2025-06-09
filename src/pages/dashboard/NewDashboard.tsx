@@ -49,10 +49,10 @@ export default function Home() {
             </div>
 
             <div className="md:w-3/4 md:pl-8">
-              <h1 className="text-5xl font-bold mb-4">Esfuerzate y se el mejor</h1>
-              <p className="text-lg mb-2">Conoce cómo son las preguntas del examen gracias a ejemplos explicados</p>
-              <p className="text-lg mb-2">para cada una de las cinco pruebas. Todo esta listo para que practiques</p>
-              <p className="text-lg">respondiendo preguntas reales de exámenes anteriores.</p>
+              <h1 className="text-5xl font-bold mb-4">Desafía tus límites</h1>
+              <p className="text-lg mb-2">Aprende, practica y mejora</p>
+              <p className="text-lg mb-2">Transforma tu manera de estudiar, con el uso de este software podrás mejorar </p>
+              <p className="text-lg">y fortalecer tus debilidades y al mismo tiempo potenciar al máximo tus fortalezas.</p>
             </div>
           </div>
         </section>
@@ -88,18 +88,20 @@ export default function Home() {
                 title="Lectura Crítica"
                 buttonLink="/quiz/lectura"
                 status={userFound?.statusExams?.lectura}
-                buttonText="Cuadernillo preguntas explicadas"
+                buttonText="Cuestionario"
                 icon={<BookOpen className="w-16 h-16 text-purple-500" />}
-                description="En este cuadernillo encuentras la explicación de las preguntas de los exámenes, te ayudará a comprender la estructura y la forma en la que se puede considerar la respuesta."
+                description="Con este formulario pondrás a prueba tu capacidad para analizar y comprender textos. 
+                Desarrolla tu pensamiento crítico enfrentándote a situaciones donde deberás interpretar, argumentar y decidir con claridad."
               />
 
               {/* Tarjeta 3 */}
               <ContentCard
                 title="Matemáticas"
                 buttonLink="/quiz/matematicas"
-                buttonText="Cuadernillo preguntas explicadas"
+                buttonText="Cuestionario"
                 icon={<Calculator className="w-16 h-16 text-purple-500" />}
-                description="En este cuadernillo encuentras la explicación de las preguntas de los exámenes, te ayudará a comprender la estructura y la forma en la que se puede considerar la respuesta."
+                description="Con este formulario pondrás a prueba tu razonamiento lógico y tus habilidades numéricas.
+                Aplica fórmulas, analiza datos y resuelve problemas que retarán tu mente paso a paso."
               /**buttons={[
                 { text: "Cuadernillo preguntas explicadas", link: "#" },
                 { text: "Cuadernillo preguntas práctica", link: "#" },
@@ -110,9 +112,10 @@ export default function Home() {
               <ContentCard
                 buttonLink="/quiz/sociales"
                 title="Ciencias Sociales"
-                buttonText="Cuadernillo preguntas explicadas"
+                buttonText="Cuestionario"
                 icon={<BookMarked className="w-16 h-16 text-purple-500" />}
-                description="En este cuadernillo encuentras la explicación de las preguntas de los exámenes, te ayudará a comprender la estructura y la forma en la que se puede considerar la respuesta."
+                description="Con este formulario pondrás a prueba tu conocimiento sobre historia, sociedad y ciudadanía.
+                Interpreta contextos, toma decisiones informadas y demuestra tu comprensión del mundo que te rodea."
               /**buttons={[
                 { text: "Cuadernillo preguntas explicadas", link: "https://v0.dev/chat/pdf-table-layout-XUif7nKCHQW?b=b_CoSNJCWnSOU" },
                 { text: "Cuadernillo preguntas práctica", link: "#" },
@@ -123,9 +126,10 @@ export default function Home() {
               <ContentCard
                 buttonLink="/quiz/naturales"
                 title="Ciencias Naturales"
-                buttonText="Cuadernillo preguntas explicadas"
+                buttonText="Cuestionario"
                 icon={<Leaf className="w-16 h-16 text-purple-500" />}
-                description="En este cuadernillo encuentras la explicación de las preguntas de los exámenes, te ayudará a comprender la estructura y la forma en la que se puede considerar la respuesta."
+                description="Con este formulario pondrás a prueba tu entendimiento de la ciencia y sus fenómenos.
+                Reta tus conocimientos de biología, física y química a través de situaciones que requieren análisis y lógica."
               /**buttons={[
                 { text: "Cuadernillo preguntas explicadas", link: "https://v0.dev/chat/pdf-table-layout-XUif7nKCHQW?b=b_CoSNJCWnSOU" },
                 { text: "Cuadernillo preguntas práctica", link: "#" },
@@ -136,9 +140,10 @@ export default function Home() {
               <ContentCard
                 buttonLink="/quiz/ingles"
                 title="Inglés"
-                buttonText="Cuadernillo preguntas explicadas"
+                buttonText="Cuestionario"
                 icon={<BookCheck className="w-16 h-16 text-purple-500" />}
-                description="En este cuadernillo encuentras la explicación de las preguntas de los exámenes, te ayudará a comprender la estructura y la forma en la que se puede considerar la respuesta."
+                description="Con este formulario pondrás a prueba tu comprensión lectora en inglés.
+                Interpreta textos, identifica ideas clave y toma decisiones acertadas en otro idioma."
               /**buttons={[
                 { text: "Cuadernillo preguntas explicadas", link: "https://v0.dev/chat/pdf-table-layout-XUif7nKCHQW?b=b_CoSNJCWnSOU" },
                 { text: "Cuadernillo preguntas práctica", link: "#" },
