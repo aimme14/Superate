@@ -97,15 +97,11 @@ export default function Home() {
               {/* Tarjeta 3 */}
               <ContentCard
                 title="Matemáticas"
-                buttonLink="/quiz/matematicas"
+                buttonLink="/quiz/quiz"
                 buttonText="Cuestionario"
                 icon={<Calculator className="w-16 h-16 text-purple-500" />}
                 description="Con este formulario pondrás a prueba tu razonamiento lógico y tus habilidades numéricas.
                 Aplica fórmulas, analiza datos y resuelve problemas que retarán tu mente paso a paso."
-              /**buttons={[
-                { text: "Cuadernillo preguntas explicadas", link: "#" },
-                { text: "Cuadernillo preguntas práctica", link: "#" },
-              ] as any}**/
               />
 
               {/* Tarjeta 4 */}
@@ -116,10 +112,6 @@ export default function Home() {
                 icon={<BookMarked className="w-16 h-16 text-purple-500" />}
                 description="Con este formulario pondrás a prueba tu conocimiento sobre historia, sociedad y ciudadanía.
                 Interpreta contextos, toma decisiones informadas y demuestra tu comprensión del mundo que te rodea."
-              /**buttons={[
-                { text: "Cuadernillo preguntas explicadas", link: "https://v0.dev/chat/pdf-table-layout-XUif7nKCHQW?b=b_CoSNJCWnSOU" },
-                { text: "Cuadernillo preguntas práctica", link: "#" },
-              ] as any}**/
               />
 
               {/* Tarjeta 5 */}
@@ -130,10 +122,6 @@ export default function Home() {
                 icon={<Leaf className="w-16 h-16 text-purple-500" />}
                 description="Con este formulario pondrás a prueba tu entendimiento de la ciencia y sus fenómenos.
                 Reta tus conocimientos de biología, física y química a través de situaciones que requieren análisis y lógica."
-              /**buttons={[
-                { text: "Cuadernillo preguntas explicadas", link: "https://v0.dev/chat/pdf-table-layout-XUif7nKCHQW?b=b_CoSNJCWnSOU" },
-                { text: "Cuadernillo preguntas práctica", link: "#" },
-              ] as any}**/
               />
 
               {/* Tarjeta 6 */}
@@ -144,10 +132,6 @@ export default function Home() {
                 icon={<BookCheck className="w-16 h-16 text-purple-500" />}
                 description="Con este formulario pondrás a prueba tu comprensión lectora en inglés.
                 Interpreta textos, identifica ideas clave y toma decisiones acertadas en otro idioma."
-              /**buttons={[
-                { text: "Cuadernillo preguntas explicadas", link: "https://v0.dev/chat/pdf-table-layout-XUif7nKCHQW?b=b_CoSNJCWnSOU" },
-                { text: "Cuadernillo preguntas práctica", link: "#" },
-              ] as any}**/
               />
             </div>
           </div>

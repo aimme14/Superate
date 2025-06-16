@@ -8,8 +8,7 @@ import { useNavigate } from "react-router-dom"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
-import { useQueryUser } from '@/hooks/query/useAuthQuery'
-import { useAuthContext } from "@/context/AuthContext"
+
 
 
 const ExamForm = () => {

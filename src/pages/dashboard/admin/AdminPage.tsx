@@ -1,4 +1,3 @@
-import { OverviewSection } from '@/sections/dashboard/admin/OverviewSection'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/ui/tabs'
 import { useThemeContext } from '@/context/ThemeContext'
 import { useState } from 'react'
@@ -17,10 +16,6 @@ const AdminDashboardPage = () => {
         <TabsList>
           <TabsTrigger value="overview">Resumen</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="overview">
-          <OverviewSection />
-        </TabsContent>
       </Tabs>
     </div>
   )

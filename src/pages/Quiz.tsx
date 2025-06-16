@@ -15,7 +15,7 @@ const Quiz = () => {
       <main className="container mx-auto py-8 px-4">
         {id === 'lectura' ? (
           <ExamFormLecture />
-        ) : id === 'matematica' ? (
+        ) : id === 'quiz' ? (
           <ExamFormMath />
         ) : id === 'sociales' ? (
           <ExamFormSociales />

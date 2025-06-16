@@ -52,15 +52,15 @@ const ItemInfo = ({ image, title, description, theme }: ItemInfoProps) => {
             : 'bg-opacity-25'
         )}
       >
-        <h2 className={cn(
-          'text-4xl font-bold mb-4',
+        <h1 className={cn(
+          'text-4xl md:text-6xl font-bold mb-4',
           theme === 'dark'
             ? 'text-gray-200'
             : 'text-white'
-        )}>{title}</h2>
+        )}>{title}</h1>
 
         <p className={cn(
-          'text-xl',
+          'text-lg md:text-xl max-w-2xl mx-auto',
           theme === 'dark'
             ? 'text-gray-200'
             : 'text-white'

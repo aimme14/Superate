@@ -213,7 +213,7 @@ const ExamForm = () => {
               </div>
             </CardContent>
             <CardFooter className="flex justify-center">
-              <Button onClick={() => navigate('/newDashboard')} className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600">
+              <Button onClick={() => navigate('/new-dashboard')} className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600">
                 Volver al inicio
               </Button>
             </CardFooter>
