@@ -1,4 +1,4 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '#/ui/tabs'
 import { useThemeContext } from '@/context/ThemeContext'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
