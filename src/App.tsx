@@ -10,6 +10,7 @@ import LoginPage from "@/pages/LoginPage";
 import RootLayout from "@/layouts/Root";
 import HomePage from "@/pages/HomePage";
 import QuizPage from "@/pages/Quiz";
+import AboutPage from "@/sections/about/page";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
               <Route path="/auth/login" element={<LoginPage />} />
               <Route path="/auth/register" element={<RegisterPage />} />
               <Route path="/new-dashboard" element={<NewDasboard />} />
+              <Route path="/about" element={<AboutPage />} />
 
               {/* protected routes */}
               <Route element={<ProtectedRoute />}>
