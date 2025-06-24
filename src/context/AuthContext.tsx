@@ -1,13 +1,13 @@
 import { login as loginFB, logout as logoutFB, register, forgotPassword } from "@/controllers/auth.controller"
 import { getUsers, getUserById, updateUser, deleteUser } from "@/controllers/user.controller"
-import { AuthContext, User } from "@/interfaces/context.interface"
 import { useNotification } from "@/hooks/ui/useNotification"
 import { Props } from "@/interfaces/props.interface"
 import { useLoading } from "@/hooks/ui/useLoading"
 import { User as UserFB } from "firebase/auth"
 import { txt } from "@/utils/format"
+import { AuthContext, User } from "@/interfaces/context.interface"
 
-import { authService as authFB } from "@/services/firebase/auth.service";
+import { authService as authFB } from "@/services/firebase/auth.service"
 import { createContext, useContext, useEffect, useState, } from "react"
 import { Result } from "@/interfaces/db.interface"
 import { LoginFormProps, RegisterFormProps } from "@/schemas/auth.schema"
@@ -194,9 +194,11 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
     return {
       uid: user.uid,
       email: user.email || '',
-      photoURL: user.photoURL || '',
       displayName: user.displayName || '',
       emailVerified: user.emailVerified,
+      inst: user.inst || '',
+      userdoc: user.userdoc || '',
+      grade: user.grade || '',
     }
   }
   /*---------------------------------------------------------------------------------------------------------*/

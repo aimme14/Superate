@@ -30,14 +30,16 @@ export type DialogConfirmContext = {
 /*---------------------------------------------------------------------------------------------------------*/
 
 /*--------------------------------------------------AuthContext--------------------------------------------------*/
-export type RoleProps = 'client' | 'company' | 'engineer' | 'admin'
+
 export type User = {
   statusExams?: Record<string, boolean>
   displayName: string | null
-  photoURL: string | null
   emailVerified: boolean
   email: string
   uid: string
+  inst: string
+  userdoc: string
+  grade: string
 }
 
 export type AuthContext = {
@@ -52,7 +54,7 @@ export type AuthContext = {
   //user handlers
   getAll: <T>() => Promise<T[]>
   getById: <T>(id: string, enabled?: boolean) => Promise<T | undefined>
-  update: (id: string, data: object) => Promise<any>
+  update: (id: string, data: object) => Promise<any> 
   delete: (id: string) => Promise<any>
 } | undefined
 /*---------------------------------------------------------------------------------------------------------*/

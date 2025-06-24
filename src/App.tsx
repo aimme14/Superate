@@ -11,6 +11,9 @@ import RootLayout from "@/layouts/Root";
 import HomePage from "@/pages/HomePage";
 import QuizPage from "@/pages/Quiz";
 import AboutPage from "@/sections/about/page";
+import InformacionPage from "@/pages/informacion";
+import ResultadosPage from "@/pages/resultados";
+import PromedioPage from "@/pages/promedio";
 
 function App() {
   return (
@@ -26,12 +29,14 @@ function App() {
               <Route path="/auth/register" element={<RegisterPage />} />
               <Route path="/new-dashboard" element={<NewDasboard />} />
               <Route path="/about" element={<AboutPage />} />
+              <Route path="/informacionPage" element={<InformacionPage />} />
+              <Route path="/resultados" element={<ResultadosPage />} />
+              <Route path="/promedio" element={<PromedioPage />} />
 
               {/* protected routes */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/quiz/:id" element={<QuizPage />} />
-
               </Route>
 
             </Route>

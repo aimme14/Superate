@@ -1,4 +1,4 @@
-import { BookOpen, Calculator, CheckCircle, XCircle, HelpCircle, FileText, BarChart2, BookCheck, BookMarked, Leaf } from "lucide-react"
+import { BookOpen, HousePlug, ContactRound, Calculator, CheckCircle, XCircle, NotepadText, BarChart2, BookCheck, BookMarked, Leaf } from "lucide-react"
 import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { useAuthContext } from "@/context/AuthContext"
 import { User } from "@/interfaces/context.interface"
@@ -23,10 +23,10 @@ export default function Home() {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="#" icon={<HomeIcon />} text="Inicio" />
-            <NavItem href="#" icon={<HelpCircle className="w-5 h-5" />} text="¿Qué se evalúa?" />
-            <NavItem href="#" icon={<FileText className="w-5 h-5" />} text="Practica" active />
-            <NavItem href="#" icon={<BarChart2 className="w-5 h-5" />} text="Interpreta tus resultados" />
+            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
+            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
+            <NavItem href="/dashboard" icon={<HousePlug className="w-5 h-5" />} text="Presenta tus evaluaciones" active/>
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="promedio" />
           </nav>
         </div>
       </header>
