@@ -14,6 +14,7 @@ import AboutPage from "@/sections/about/page";
 import InformacionPage from "@/pages/informacion";
 import ResultadosPage from "@/pages/resultados";
 import PromedioPage from "@/pages/promedio";
+import InnovativeHero from "@/pages/inovativeGero";
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
               <Route path="/informacionPage" element={<InformacionPage />} />
               <Route path="/resultados" element={<ResultadosPage />} />
               <Route path="/promedio" element={<PromedioPage />} />
+              <Route path="/innovative-hero" element={<InnovativeHero />} />
 
               {/* protected routes */}
               <Route element={<ProtectedRoute />}>

@@ -4,6 +4,7 @@ import { useAuthContext } from "@/context/AuthContext"
 import { User } from "@/interfaces/context.interface"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import InnovativeHero from "../inovativeGero"
 
 export default function Home() {
   const { user } = useAuthContext()
@@ -35,26 +36,7 @@ export default function Home() {
       <main className="flex-grow">
         {/* Banner de Práctica */}
         <section className="bg-[#e8f5d9] py-12">
-          <div className="container mx-auto px-4 flex flex-col md:flex-row items-center">
-            <div className="md:w-1/4 mb-6 md:mb-0 flex justify-center">
-              <div className="bg-white rounded-full p-8 shadow-md">
-                <div className="flex flex-col items-center">
-                  <CheckCircle className="w-16 h-16 text-green-500" />
-                  <div className="h-1 w-12 bg-green-500 my-1"></div>
-                  <CheckCircle className="w-16 h-16 text-green-500" />
-                  <div className="h-1 w-12 bg-green-500 my-1"></div>
-                  <XCircle className="w-16 h-16 text-green-500" />
-                </div>
-              </div>
-            </div>
-
-            <div className="md:w-3/4 md:pl-8">
-              <h1 className="text-5xl font-bold mb-4">Desafía tus límites</h1>
-              <p className="text-lg mb-2">Aprende, practica y mejora</p>
-              <p className="text-lg mb-2">Transforma tu manera de estudiar, con el uso de este software podrás mejorar </p>
-              <p className="text-lg">y fortalecer tus debilidades y al mismo tiempo potenciar al máximo tus fortalezas.</p>
-            </div>
-          </div>
+          <InnovativeHero />
         </section>
 
         {/* Alerta Informativa */}
