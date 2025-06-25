@@ -1,8 +1,7 @@
 import { ReactNode, useState } from "react"
 import { motion } from "framer-motion"
 import { Link } from "react-router-dom"
-import { Brain, Zap, Award, TrendingUp, ChevronRight, Lightbulb } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Brain, Zap, Award, TrendingUp, Lightbulb } from "lucide-react"
 
 export default function Dashboard() {
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})

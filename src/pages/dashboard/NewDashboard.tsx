@@ -8,6 +8,7 @@ import InnovativeHero from "../inovativeGero"
 import { motion } from "framer-motion"
 import { AlertCircle } from "lucide-react"
 import Prueba from "../prueba"
+import Intento from "../Intento"
 
 export default function Home() {
   const { user } = useAuthContext()
@@ -79,70 +80,9 @@ export default function Home() {
                 Selecciona un módulo para comenzar tu evaluación. Nuestra IA analizará tus respuestas en tiempo real.
               </p>
             </motion.div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Tarjeta 1 */}
-              <ContentCard
-                title="Objetivos de la prueba"
-                icon={<CheckCircle className="w-16 h-16 text-amber-500" />}
-                description="Poder prepararte a la hora de presentar el examen saber 11°"
-                buttonLink="#"
-                buttonText="Clic aquí"
-              />
-
-              {/* Tarjeta 2 */}
-              <ContentCard
-                title="Lectura Crítica"
-                buttonLink="/quiz/lectura"
-                status={userFound?.statusExams?.lectura}
-                buttonText="Cuestionario"
-                icon={<BookOpen className="w-16 h-16 text-purple-500" />}
-                description="Con este formulario pondrás a prueba tu capacidad para analizar y comprender textos. 
-                Desarrolla tu pensamiento crítico enfrentándote a situaciones donde deberás interpretar, argumentar y decidir con claridad."
-              />
-
-              {/* Tarjeta 3 */}
-              <ContentCard
-                title="Matemáticas"
-                buttonLink="/quiz/quiz"
-                buttonText="Cuestionario"
-                icon={<Calculator className="w-16 h-16 text-purple-500" />}
-                description="Con este formulario pondrás a prueba tu razonamiento lógico y tus habilidades numéricas.
-                Aplica fórmulas, analiza datos y resuelve problemas que retarán tu mente paso a paso."
-              />
-
-              {/* Tarjeta 4 */}
-              <ContentCard
-                buttonLink="/quiz/sociales"
-                title="Ciencias Sociales"
-                buttonText="Cuestionario"
-                icon={<BookMarked className="w-16 h-16 text-purple-500" />}
-                description="Con este formulario pondrás a prueba tu conocimiento sobre historia, sociedad y ciudadanía.
-                Interpreta contextos, toma decisiones informadas y demuestra tu comprensión del mundo que te rodea."
-              />
-
-              {/* Tarjeta 5 */}
-              <ContentCard
-                buttonLink="/quiz/naturales"
-                title="Ciencias Naturales"
-                buttonText="Cuestionario"
-                icon={<Leaf className="w-16 h-16 text-purple-500" />}
-                description="Con este formulario pondrás a prueba tu entendimiento de la ciencia y sus fenómenos.
-                Reta tus conocimientos de biología, física y química a través de situaciones que requieren análisis y lógica."
-              />
-
-              {/* Tarjeta 6 */}
-              <ContentCard
-                buttonLink="/quiz/ingles"
-                title="Inglés"
-                buttonText="Cuestionario"
-                icon={<BookCheck className="w-16 h-16 text-purple-500" />}
-                description="Con este formulario pondrás a prueba tu comprensión lectora en inglés.
-                Interpreta textos, identifica ideas clave y toma decisiones acertadas en otro idioma."
-              />
-            </div>
-            <Prueba />
+            <Intento />
           </div>
+          <Prueba />
         </section>
       </main>
     </div>

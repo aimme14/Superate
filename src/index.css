@@ -79,17 +79,6 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
-.rdp-vhidden { @apply hidden }
-
-@layer base {
-  * {
-    @apply border-border;
-    @apply font-montserrat;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
 
 /* canvas signature */
 .signature-canvas {
@@ -97,4 +86,21 @@
   width: 100% !important;
   height: 100% !important;
   background-color: #fff;
+}
+
+/* Estilos para las tarjetas 3D */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotateY-180 {
+  transform: rotateY(180deg);
 }
