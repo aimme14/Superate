@@ -15,9 +15,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
+    <div className="min-h-screen flex flex-col">
       {/* Main Content */}
-      <main className="ml-64">
+      <main className="flex-grow">
         {/* Sección Principal de Módulos */}
         <section className="py-16 bg-gradient-to-br from-gray-50/50 via-white to-blue-50/50">
           <div className="max-w-6xl mx-auto px-8">
@@ -77,10 +77,6 @@ export default function Dashboard() {
                     <div className="text-3xl font-bold mb-2">98.5%</div>
                     <div className="text-emerald-100">Precisión de análisis</div>
                   </motion.div>
-                  <Button className="bg-white text-emerald-600 hover:bg-emerald-50 px-8 py-3 rounded-xl font-semibold shadow-lg">
-                    Generar Mi Plan IA
-                    <ChevronRight className="ml-2 w-4 h-4" />
-                  </Button>
                 </div>
               </div>
             </motion.div>
