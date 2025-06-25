@@ -1,10 +1,13 @@
-import { BookOpen, HousePlug, ContactRound, Calculator, CheckCircle, XCircle, NotepadText, BarChart2, BookCheck, BookMarked, Leaf } from "lucide-react"
+import { BookOpen, HousePlug, ContactRound, Calculator, CheckCircle, NotepadText, BarChart2, BookCheck, BookMarked, Leaf, ChevronRight, Brain, Award, TrendingUp, Zap, Lightbulb } from "lucide-react"
 import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { useAuthContext } from "@/context/AuthContext"
 import { User } from "@/interfaces/context.interface"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import InnovativeHero from "../inovativeGero"
+import { motion } from "framer-motion"
+import { AlertCircle } from "lucide-react"
+import Prueba from "../prueba"
 
 export default function Home() {
   const { user } = useAuthContext()
@@ -39,22 +42,44 @@ export default function Home() {
           <InnovativeHero />
         </section>
 
-        {/* Alerta Informativa */}
-        <section className="py-8">
-          <div className="container mx-auto px-4">
-            <div className="border border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 text-center">
-              <p className="text-lg">
-                ¡Recuerda! El examen Saber 11.° evalúa tus competencias. Por tanto, en las preguntas encontrarás una
-                situación (que debes tratar de entender) en la que tendrás que aplicar tus conocimientos para tomar
-                decisiones y elegir la respuesta correcta.
-              </p>
-            </div>
+        {/* Alert Section Mejorado */}
+        <section className="py-8 bg-gradient-to-r from-blue-50/50 to-indigo-50/50">
+          <div className="max-w-6xl mx-auto px-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/80 backdrop-blur-sm border border-blue-200/50 rounded-xl p-6 shadow-lg"
+            >
+              <div className="flex items-start space-x-4">
+                <AlertCircle className="w-6 h-6 text-blue-500 mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Información Importante</h3>
+                  <p className="text-gray-700 leading-relaxed">
+                    El examen Saber 11.° evalúa competencias. En las preguntas encontrarás situaciones donde deberás
+                    aplicar tus conocimientos para tomar decisiones y elegir la respuesta correcta.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </section>
 
         {/* Tarjetas de Contenido */}
         <section className="py-12">
           <div className="container mx-auto px-4">
+            {/* Título Principal */}
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                Módulos de{" "}
+                <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                  Evaluación
+                </span>
+              </h2>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                Selecciona un módulo para comenzar tu evaluación. Nuestra IA analizará tus respuestas en tiempo real.
+              </p>
+            </motion.div>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Tarjeta 1 */}
               <ContentCard
@@ -116,6 +141,7 @@ export default function Home() {
                 Interpreta textos, identifica ideas clave y toma decisiones acertadas en otro idioma."
               />
             </div>
+            <Prueba />
           </div>
         </section>
       </main>

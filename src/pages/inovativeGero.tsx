@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Brain, Target, Zap, TrendingUp, Star, Lightbulb, Rocket, Award, ChevronRight, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Brain, Target, Zap, TrendingUp, Star, Lightbulb, Rocket, Award, Sparkles } from "lucide-react"
 
 const motivationalPhrases = [
   "Tu potencial es ilimitado",
