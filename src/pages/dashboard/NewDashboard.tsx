@@ -1,9 +1,8 @@
-import { BookOpen, HousePlug, ContactRound, Calculator, CheckCircle, NotepadText, BarChart2, BookCheck, BookMarked, Leaf, ChevronRight, Brain, Award, TrendingUp, Zap, Lightbulb } from "lucide-react"
+import { HousePlug, ContactRound, NotepadText, BarChart2 } from "lucide-react"
 import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { useAuthContext } from "@/context/AuthContext"
 import { User } from "@/interfaces/context.interface"
 import { Link } from "react-router-dom"
-import { cn } from "@/lib/utils"
 import InnovativeHero from "../inovativeGero"
 import { motion } from "framer-motion"
 import { AlertCircle } from "lucide-react"
@@ -109,65 +108,6 @@ function NavItem({ href, icon, text, active = false }: NavItemProps) {
   )
 }
 
-function HomeIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
 
-interface ContentCardProps {
-  buttons?: { text: string; link: string }[]
-  icon: React.ReactNode
-  description: string
-  buttonLink: string
-  buttonText: string
-  status?: boolean
-  title: string
-}
-function ContentCard({ title, icon, description, buttonText, buttonLink, buttons = [], status }: ContentCardProps) {
-  console.log(status)
-  return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden border">
-      <div className="p-6">
-        <div className="flex items-center mb-4">
-          <h2 className="text-xl font-bold flex-grow">{title}</h2>
-          <div className="bg-blue-100 rounded-full p-4">{icon}</div>
-        </div>
 
-        <p className="text-gray-700 mb-6">{description}</p>
-
-        {buttonText && buttonLink && (
-          <Link
-            to={buttonLink}
-            className="inline-block bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-6 rounded-full transition-colors"
-          >
-            {buttonText}
-          </Link>
-        )}
-
-        {buttons.length > 0 && (
-          <div className="space-y-3">
-            {buttons.map((button, index) => (
-              <Link
-                key={index}
-                to={button.link}
-                className={cn(status ? "hidden" : "block", "w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-lg text-center transition-colors")}
-              >
-                {button.text}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
