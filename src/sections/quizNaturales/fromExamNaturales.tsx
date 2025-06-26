@@ -1,4 +1,4 @@
-import { Clock, ChevronLeft, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Leaf, Timer, Users, Play, HelpCircle, BookOpen   } from "lucide-react"
+import { Clock, ChevronLeft, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Leaf, Timer, Users, Play, HelpCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
