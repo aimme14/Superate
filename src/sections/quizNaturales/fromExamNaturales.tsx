@@ -216,7 +216,7 @@ const ExamWithWelcome = () => {
               <div className="h-20 w-20 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
                 <Brain className="h-10 w-10 text-white" />
               </div>
-              <div className="absolute -top-2 -right-2 h-8 w-8 bg-amber-400 rounded-full flex items-center justify-center">
+              <div className="absolute -top-2 -right-2 h-8 w-8 bg-pink-400 rounded-full flex items-center justify-center">
                 <Leaf className="h-4 w-4 text-white" />
               </div>
             </div>
@@ -405,7 +405,7 @@ const ExamWithWelcome = () => {
         <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden">
-              <Leaf className="w-16 h-16 text-amber-500" />
+              <Leaf className="w-16 h-16 text-pink-500" />
             </div>
             <div>
               <h3 className="text-sm text-gray-500 font-medium">Estás realizando:</h3>
