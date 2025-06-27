@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Target, BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck } from 'lucide-react'
+import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
 
