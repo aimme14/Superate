@@ -113,18 +113,6 @@ export default function InteractiveCards() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 p-8">
-      {/* Objetivos de la prueba */}
-      <FlipCard
-        title="Objetivos"
-        subtitle="de la prueba"
-        icon={<Target className="w-6 h-6" />}
-        description="Conoce los objetivos específicos y competencias evaluadas en el examen Saber 11°."
-        color="orange"
-        isFlipped={flippedCards.objectives}
-        onFlip={() => toggleCard("objectives")}
-        link="/objetivos"
-      />
-
       {/* Lectura Crítica */}
       <FlipCard
         title="Lectura"
