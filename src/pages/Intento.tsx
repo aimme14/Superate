@@ -164,7 +164,7 @@ export default function InteractiveCards() {
       {/* Inglés */}
       <FlipCard
         title="Inglés"
-        subtitle=" "
+        subtitle="e idiomas "
         icon={<BookCheck className="w-6 h-6" />}
         description="Fortalece tu razonamiento lógico y habilidades numéricas con problemas adaptativos."
         color="emerald"
