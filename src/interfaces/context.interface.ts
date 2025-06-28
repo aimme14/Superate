@@ -37,9 +37,6 @@ export type User = {
   emailVerified: boolean
   email: string
   uid: string
-  inst: string
-  userdoc: string
-  grade: string
 }
 
 export type AuthContext = {

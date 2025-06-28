@@ -196,9 +196,6 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       email: user.email || '',
       displayName: user.displayName || '',
       emailVerified: user.emailVerified,
-      inst: user.inst || '',
-      userdoc: user.userdoc || '',
-      grade: user.grade || '',
     }
   }
   /*---------------------------------------------------------------------------------------------------------*/

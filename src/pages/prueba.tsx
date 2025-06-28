@@ -1,17 +1,7 @@
-import { ReactNode, useState } from "react"
 import { motion } from "framer-motion"
-import { Link } from "react-router-dom"
 import { Brain, Zap, Award, TrendingUp, Lightbulb } from "lucide-react"
 
 export default function Dashboard() {
-  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
-
-  const toggleCard = (cardId: string) => {
-    setFlippedCards((prev) => ({
-      ...prev,
-      [cardId]: !prev[cardId],
-    }))
-  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -83,33 +73,5 @@ export default function Dashboard() {
         </section>
       </main>
     </div>
-  )
-}
-
-
-
-// Componente para items de navegación
-function NavItem({
-  icon,
-  text,
-  active = false,
-}: {
-  icon: ReactNode
-  text: string
-  active?: boolean
-}) {
-  return (
-    <motion.div whileHover={{ scale: 1.05 }}>
-      <Link
-        to="#"
-        className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 ${active
-            ? "text-emerald-600 bg-emerald-50 font-medium"
-            : "text-gray-600 hover:text-emerald-600 hover:bg-emerald-50"
-          }`}
-      >
-        {icon}
-        <span className="font-medium text-sm">{text}</span>
-      </Link>
-    </motion.div>
   )
 }

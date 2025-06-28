@@ -41,18 +41,6 @@ export default function InfoTab() {
             <Label htmlFor="name">Nombre</Label>
             <Input id="name" value={user?.displayName || ''} readOnly />
           </div>
-          <div>
-            <Label htmlFor="inst">Institución</Label>
-            <Input id="inst" value={user?.inst || ''} readOnly />
-          </div>
-          <div>
-            <Label htmlFor="userdoc">Documento</Label>
-            <Input id="userdoc" value={user?.userdoc || ''} readOnly />
-          </div>
-          <div>
-            <Label htmlFor="grade">Grado</Label>
-            <Input id="grade" value={user?.grade || ''} readOnly />
-          </div>
         </div>
       </CardContent>
     </Card>

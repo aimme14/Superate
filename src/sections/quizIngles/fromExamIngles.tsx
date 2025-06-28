@@ -55,12 +55,17 @@ const ExamWithWelcome = () => {
   // Función para entrar en pantalla completa
   const enterFullscreen = async () => {
     try {
+      // Check for the standard requestFullscreen method
       if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen()
-      } else if (document.documentElement.webkitRequestFullscreen) {
-        await document.documentElement.webkitRequestFullscreen()
-      } else if (document.documentElement.msRequestFullscreen) {
-        await document.documentElement.msRequestFullscreen()
+        document.documentElement.requestFullscreen();
+      }
+      // Use the vendor-prefixed webkitRequestFullscreen method for Safari
+      else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
+      // Use the vendor-prefixed msRequestFullscreen method for Internet Explorer
+      else if ((document.documentElement as any).msRequestFullscreen) {
+        (document.documentElement as any).msRequestFullscreen();
       }
     } catch (error) {
       console.error('Error entering fullscreen:', error)
