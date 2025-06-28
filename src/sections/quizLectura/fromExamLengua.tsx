@@ -36,160 +36,160 @@ const examData = {
       correctAnswer: "c",
     },
 
-   /**  {
-      id: 2,
-      text: "“A pesar de los avances en acceso a Internet, muchos niños de zonas rurales siguen teniendo dificultades para conectarse. María, por ejemplo, debe caminar 4 kilómetros para llegar a una señal estable. Esto limita no solo su acceso a clases, sino también su oportunidad de aprender por cuenta propia.” ¿Cuál es la principal limitación educativa que enfrenta María?",
-      options: [
-        { id: "a", text: "No tiene computador." },
-        { id: "b", text: "No sabe leer." },
-        { id: "c", text: "Tiene mala señal de internet." },
-        { id: "d", text: "No va a la escuela." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 3,
-      text: "“En su ensayo, el sociólogo Manuel Castells afirma que el conocimiento ha dejado de ser una posesión exclusiva de las élites. Gracias a Internet, cualquiera puede acceder a información antes reservada para unos pocos. Sin embargo, Castells también advierte que el exceso de datos sin orientación crítica puede generar confusión en lugar de sabiduría.¿Qué advertencia hace el autor sobre el acceso libre al conocimiento?”",
-      options: [
-        { id: "a", text: "Que todos son sabios ahora." },
-        { id: "b", text: "Que se pierde tiempo en Internet." },
-        { id: "c", text: "Que el conocimiento masivo no garantiza pensamiento crítico." },
-        { id: "d", text: "Que la élite aún tiene el control." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 4,
-      text: "“Apenas salió del consultorio, Camilo llamó a su madre. Tenía la voz temblorosa, pero intentó sonar tranquilo. —‘Todo bien, ma... solo fue un chequeo’—, dijo, mientras sostenía en la otra mano una orden de exámenes urgentes.”¿Qué se puede inferir sobre Camilo?",
-      options: [
-        { id: "a", text: "Está feliz con los resultados." },
-        { id: "b", text: "Engaña a su mamá." },
-        { id: "c", text: "Está preocupado pero no lo quiere demostrar." },
-        { id: "d", text: "Tiene gripa." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 5,
-      text: "“El cielo estaba gris, y el viento agitaba con fuerza las cortinas. Marta cerró el libro, se puso su impermeable y salió sin mirar atrás.” ¿Qué elemento del ambiente condiciona la acción de Marta?",
-      options: [
-        { id: "a", text: "La temperatura del día." },
-        { id: "b", text: "El clima lluvioso." },
-        { id: "c", text: "La falta de luz." },
-        { id: "d", text: "El ruido exterior." },
-      ],
-      correctAnswer: "b",
-    },
-    {
-      id: 6,
-      text: "“Durante la pandemia, Andrés aprendió a cocinar viendo videos en línea. Hoy, prepara platos típicos con más precisión que muchos adultos de su familia. Aunque no ha salido de su ciudad, se ha vuelto experto en recetas tailandesas, mexicanas y japonesas. Su mamá dice que, gracias a Internet, su hijo ha ‘viajado con el paladar’.” ¿Qué se puede inferir de la frase “viajado con el paladar”?",
-      options: [
-        { id: "a", text: "Andrés es un viajero profesional." },
-        { id: "b", text: "Solo cocina comida colombiana." },
-        { id: "c", text: "Su aprendizaje culinario le ha permitido explorar otras culturas." },
-        { id: "d", text: "No sabe nada de cocina." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 7,
-      text: "“Todos los mamíferos son vertebrados. Las ballenas son mamíferos. Por tanto, las ballenas son vertebrados.” ¿Qué tipo de razonamiento se emplea en este texto?",
-      options: [
-        { id: "a", text: "Analogía" },
-        { id: "b", text: "Inducción" },
-        { id: "c", text: "Deducción" },
-        { id: "d", text: "Hipótesis" },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 8,
-      text: "“Algunos padres prohíben el uso del celular entre semana. Argumentan que los estudiantes se distraen más y duermen menos. Otros, en cambio, permiten su uso como parte del proceso educativo. Ambos grupos coinciden en que el control debe estar guiado por criterios claros y objetivos.”¿Cuál es el punto de coincidencia entre ambos grupos?",
-      options: [
-        { id: "a", text: "Que el celular solo debe usarse el fin de semana." },
-        { id: "b", text: "Que los padres deben castigar más." },
-        { id: "c", text: "Que el uso del celular debe tener reglas claras." },
-        { id: "d", text: "Que el celular solo debe usarse en clase." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 9,
-      text: "“La paradoja de la educación moderna es que tenemos acceso a más información que nunca, pero menos tiempo para pensarla. Leemos más titulares que artículos, más opiniones que argumentos. Tal vez la sobreinformación ha generado una especie de ‘analfabetismo crítico’: sabemos leer, pero no siempre entendemos lo que leemos.¿Cuál es la conclusión implícita del texto?”",
-      options: [
-        { id: "a", text: "Que hay que reducir el uso del celular." },
-        { id: "b", text: "Que todos deberían estudiar filosofía." },
-        { id: "c", text: "Que el exceso de información ha debilitado la comprensión crítica." },
-        { id: "d", text: "Que es mejor ver televisión que leer." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 10,
-      text: "“Un youtuber dijo: ‘Los videojuegos hacen que los niños se vuelvan violentos’. Sin embargo, no presentó estudios ni pruebas. Solo compartió su opinión.”¿Qué le falta al argumento del youtuber para ser válido?",
-      options: [
-        { id: "a", text: "Más suscriptores." },
-        { id: "b", text: "Evidencia que lo respalde." },
-        { id: "c", text: "Comentarios positivos." },
-        { id: "d", text: "Lenguaje más técnico." },
-      ],
-      correctAnswer: "b",
-    },
-    {
-      id: 11,
-      text: "“Una campaña publicitaria afirma que su bebida es ‘más natural que el agua’. Sin embargo, contiene colorantes artificiales, conservantes y altos niveles de azúcar.”¿Cuál es la conclusión implícita del texto?",
-      options: [
-        { id: "a", text: "Falsa causa" },
-        { id: "b", text: "Generalización apresurada" },
-        { id: "c", text: "Apelación emocional" },
-        { id: "d", text: "Publicidad engañosa" },
-      ],
-      correctAnswer: "d",
-    },
-    {
-      id: 12,
-      text: "“Una senadora afirmó que los jóvenes no leen porque tienen muchos videojuegos. Pero los datos del Ministerio muestran que el promedio de lectura entre adolescentes ha aumentado en los últimos cinco años, especialmente en formatos digitales.”¿Qué crítica hace el texto a la afirmación de la senadora?",
-      options: [
-        { id: "a", text: "Que los videojuegos son peligrosos." },
-        { id: "b", text: "Que los jóvenes no saben leer." },
-        { id: "c", text: "Que sus declaraciones no se ajustan a los datos reales." },
-        { id: "d", text: "Que debería regular los videojuegos." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 13,
-      text: "“La lectura fortalece la empatía porque permite ponerse en el lugar de otros personajes y vivir distintas realidades.”¿Qué afirmación refuerza esta idea?",
-      options: [
-        { id: "a", text: "Leer hace que uno se distraiga más." },
-        { id: "b", text: "Los libros ayudan a entender emociones ajenas." },
-        { id: "c", text: "La empatía se aprende viendo películas." },
-        { id: "d", text: "Leer es obligatorio en la escuela." },
-      ],
-      correctAnswer: "b",
-    },
-    {
-      id: 14,
-      text: "“Los estudiantes que practican la escritura argumentativa desde jóvenes tienden a razonar mejor, analizar posturas y construir ideas con lógica.”¿Cuál de estas propuestas respalda la idea del texto?",
-      options: [
-        { id: "a", text: "Que los videojuegos son peligrosos." },
-        { id: "b", text: "Que los jóvenes no saben leer." },
-        { id: "c", text: "Que sus declaraciones no se ajustan a los datos reales." },
-        { id: "d", text: "Que debería regular los videojuegos." },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 15,
-      text: "“Para fomentar la lectura crítica, se sugiere que los estudiantes analicen fake news reales. Esta estrategia no solo mejora su comprensión, sino también su criterio frente a lo que consumen en redes sociales.”¿Qué afirmación complementa y fortalece esta propuesta?",
-      options: [
-        { id: "a", text: "El análisis de fake news permite detectar errores argumentativos comunes." },
-        { id: "b", text: "Las redes sociales son malas para los estudiantes." },
-        { id: "c", text: "Todas las noticias en Internet son falsas." },
-        { id: "d", text: "Es mejor no usar tecnología en clase." },
-      ],
-      correctAnswer: "a",
-    },*/
+    /**  {
+       id: 2,
+       text: "“A pesar de los avances en acceso a Internet, muchos niños de zonas rurales siguen teniendo dificultades para conectarse. María, por ejemplo, debe caminar 4 kilómetros para llegar a una señal estable. Esto limita no solo su acceso a clases, sino también su oportunidad de aprender por cuenta propia.” ¿Cuál es la principal limitación educativa que enfrenta María?",
+       options: [
+         { id: "a", text: "No tiene computador." },
+         { id: "b", text: "No sabe leer." },
+         { id: "c", text: "Tiene mala señal de internet." },
+         { id: "d", text: "No va a la escuela." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 3,
+       text: "“En su ensayo, el sociólogo Manuel Castells afirma que el conocimiento ha dejado de ser una posesión exclusiva de las élites. Gracias a Internet, cualquiera puede acceder a información antes reservada para unos pocos. Sin embargo, Castells también advierte que el exceso de datos sin orientación crítica puede generar confusión en lugar de sabiduría.¿Qué advertencia hace el autor sobre el acceso libre al conocimiento?”",
+       options: [
+         { id: "a", text: "Que todos son sabios ahora." },
+         { id: "b", text: "Que se pierde tiempo en Internet." },
+         { id: "c", text: "Que el conocimiento masivo no garantiza pensamiento crítico." },
+         { id: "d", text: "Que la élite aún tiene el control." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 4,
+       text: "“Apenas salió del consultorio, Camilo llamó a su madre. Tenía la voz temblorosa, pero intentó sonar tranquilo. —‘Todo bien, ma... solo fue un chequeo’—, dijo, mientras sostenía en la otra mano una orden de exámenes urgentes.”¿Qué se puede inferir sobre Camilo?",
+       options: [
+         { id: "a", text: "Está feliz con los resultados." },
+         { id: "b", text: "Engaña a su mamá." },
+         { id: "c", text: "Está preocupado pero no lo quiere demostrar." },
+         { id: "d", text: "Tiene gripa." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 5,
+       text: "“El cielo estaba gris, y el viento agitaba con fuerza las cortinas. Marta cerró el libro, se puso su impermeable y salió sin mirar atrás.” ¿Qué elemento del ambiente condiciona la acción de Marta?",
+       options: [
+         { id: "a", text: "La temperatura del día." },
+         { id: "b", text: "El clima lluvioso." },
+         { id: "c", text: "La falta de luz." },
+         { id: "d", text: "El ruido exterior." },
+       ],
+       correctAnswer: "b",
+     },
+     {
+       id: 6,
+       text: "“Durante la pandemia, Andrés aprendió a cocinar viendo videos en línea. Hoy, prepara platos típicos con más precisión que muchos adultos de su familia. Aunque no ha salido de su ciudad, se ha vuelto experto en recetas tailandesas, mexicanas y japonesas. Su mamá dice que, gracias a Internet, su hijo ha ‘viajado con el paladar’.” ¿Qué se puede inferir de la frase “viajado con el paladar”?",
+       options: [
+         { id: "a", text: "Andrés es un viajero profesional." },
+         { id: "b", text: "Solo cocina comida colombiana." },
+         { id: "c", text: "Su aprendizaje culinario le ha permitido explorar otras culturas." },
+         { id: "d", text: "No sabe nada de cocina." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 7,
+       text: "“Todos los mamíferos son vertebrados. Las ballenas son mamíferos. Por tanto, las ballenas son vertebrados.” ¿Qué tipo de razonamiento se emplea en este texto?",
+       options: [
+         { id: "a", text: "Analogía" },
+         { id: "b", text: "Inducción" },
+         { id: "c", text: "Deducción" },
+         { id: "d", text: "Hipótesis" },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 8,
+       text: "“Algunos padres prohíben el uso del celular entre semana. Argumentan que los estudiantes se distraen más y duermen menos. Otros, en cambio, permiten su uso como parte del proceso educativo. Ambos grupos coinciden en que el control debe estar guiado por criterios claros y objetivos.”¿Cuál es el punto de coincidencia entre ambos grupos?",
+       options: [
+         { id: "a", text: "Que el celular solo debe usarse el fin de semana." },
+         { id: "b", text: "Que los padres deben castigar más." },
+         { id: "c", text: "Que el uso del celular debe tener reglas claras." },
+         { id: "d", text: "Que el celular solo debe usarse en clase." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 9,
+       text: "“La paradoja de la educación moderna es que tenemos acceso a más información que nunca, pero menos tiempo para pensarla. Leemos más titulares que artículos, más opiniones que argumentos. Tal vez la sobreinformación ha generado una especie de ‘analfabetismo crítico’: sabemos leer, pero no siempre entendemos lo que leemos.¿Cuál es la conclusión implícita del texto?”",
+       options: [
+         { id: "a", text: "Que hay que reducir el uso del celular." },
+         { id: "b", text: "Que todos deberían estudiar filosofía." },
+         { id: "c", text: "Que el exceso de información ha debilitado la comprensión crítica." },
+         { id: "d", text: "Que es mejor ver televisión que leer." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 10,
+       text: "“Un youtuber dijo: ‘Los videojuegos hacen que los niños se vuelvan violentos’. Sin embargo, no presentó estudios ni pruebas. Solo compartió su opinión.”¿Qué le falta al argumento del youtuber para ser válido?",
+       options: [
+         { id: "a", text: "Más suscriptores." },
+         { id: "b", text: "Evidencia que lo respalde." },
+         { id: "c", text: "Comentarios positivos." },
+         { id: "d", text: "Lenguaje más técnico." },
+       ],
+       correctAnswer: "b",
+     },
+     {
+       id: 11,
+       text: "“Una campaña publicitaria afirma que su bebida es ‘más natural que el agua’. Sin embargo, contiene colorantes artificiales, conservantes y altos niveles de azúcar.”¿Cuál es la conclusión implícita del texto?",
+       options: [
+         { id: "a", text: "Falsa causa" },
+         { id: "b", text: "Generalización apresurada" },
+         { id: "c", text: "Apelación emocional" },
+         { id: "d", text: "Publicidad engañosa" },
+       ],
+       correctAnswer: "d",
+     },
+     {
+       id: 12,
+       text: "“Una senadora afirmó que los jóvenes no leen porque tienen muchos videojuegos. Pero los datos del Ministerio muestran que el promedio de lectura entre adolescentes ha aumentado en los últimos cinco años, especialmente en formatos digitales.”¿Qué crítica hace el texto a la afirmación de la senadora?",
+       options: [
+         { id: "a", text: "Que los videojuegos son peligrosos." },
+         { id: "b", text: "Que los jóvenes no saben leer." },
+         { id: "c", text: "Que sus declaraciones no se ajustan a los datos reales." },
+         { id: "d", text: "Que debería regular los videojuegos." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 13,
+       text: "“La lectura fortalece la empatía porque permite ponerse en el lugar de otros personajes y vivir distintas realidades.”¿Qué afirmación refuerza esta idea?",
+       options: [
+         { id: "a", text: "Leer hace que uno se distraiga más." },
+         { id: "b", text: "Los libros ayudan a entender emociones ajenas." },
+         { id: "c", text: "La empatía se aprende viendo películas." },
+         { id: "d", text: "Leer es obligatorio en la escuela." },
+       ],
+       correctAnswer: "b",
+     },
+     {
+       id: 14,
+       text: "“Los estudiantes que practican la escritura argumentativa desde jóvenes tienden a razonar mejor, analizar posturas y construir ideas con lógica.”¿Cuál de estas propuestas respalda la idea del texto?",
+       options: [
+         { id: "a", text: "Que los videojuegos son peligrosos." },
+         { id: "b", text: "Que los jóvenes no saben leer." },
+         { id: "c", text: "Que sus declaraciones no se ajustan a los datos reales." },
+         { id: "d", text: "Que debería regular los videojuegos." },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 15,
+       text: "“Para fomentar la lectura crítica, se sugiere que los estudiantes analicen fake news reales. Esta estrategia no solo mejora su comprensión, sino también su criterio frente a lo que consumen en redes sociales.”¿Qué afirmación complementa y fortalece esta propuesta?",
+       options: [
+         { id: "a", text: "El análisis de fake news permite detectar errores argumentativos comunes." },
+         { id: "b", text: "Las redes sociales son malas para los estudiantes." },
+         { id: "c", text: "Todas las noticias en Internet son falsas." },
+         { id: "d", text: "Es mejor no usar tecnología en clase." },
+       ],
+       correctAnswer: "a",
+     },*/
   ]
 
 }
@@ -210,107 +210,105 @@ const ExamWithWelcome = () => {
   // Función para entrar en pantalla completa
   const enterFullscreen = async () => {
     try {
-      // Check for the standard requestFullscreen method
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen();
-      }
-      // Use the vendor-prefixed webkitRequestFullscreen method for Safari
-      else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      // Use the vendor-prefixed msRequestFullscreen method for Internet Explorer
-      else if ((document.documentElement as any).msRequestFullscreen) {
-        (document.documentElement as any).msRequestFullscreen();
+      const el = document.documentElement;
+
+      if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else if ((el as any).webkitRequestFullscreen) {
+        await (el as any).webkitRequestFullscreen();
+      } else if ((el as any).msRequestFullscreen) {
+        await (el as any).msRequestFullscreen();
       }
     } catch (error) {
-      console.error('Error entering fullscreen:', error)
+      console.error("Error entering fullscreen:", error);
     }
-  }
+  };
 
   // Función para salir de pantalla completa
   const exitFullscreen = async () => {
     try {
       if (document.exitFullscreen) {
-        await document.exitFullscreen()
-      } else if (document.webkitExitFullscreen) {
-        await document.webkitExitFullscreen()
-      } else if (document.msExitFullscreen) {
-        await document.msExitFullscreen()
+        await document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        await (document as any).webkitExitFullscreen();
+      } else if ((document as any).msExitFullscreen) {
+        await (document as any).msExitFullscreen();
       }
     } catch (error) {
-      console.error('Error exiting fullscreen:', error)
+      console.error("Error exiting fullscreen:", error);
     }
-  }
+  };
 
   // Detectar cambios de pestaña y pérdida de foco
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (examState === 'active' && document.hidden) {
-        setTabChangeCount(prev => prev + 1)
-        setShowTabChangeWarning(true)
-        
-        // Si es la tercera vez, bloquear el examen
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
+
         if (tabChangeCount >= 2) {
-          setExamLocked(true)
-          handleSubmit(true) // Finalizar automáticamente
+          setExamLocked(true);
+          handleSubmit(true);
         }
       }
-    }
+    };
 
     const handleWindowBlur = () => {
       if (examState === 'active') {
-        setTabChangeCount(prev => prev + 1)
-        setShowTabChangeWarning(true)
-        
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
+
         if (tabChangeCount >= 2) {
-          setExamLocked(true)
-          handleSubmit(true)
+          setExamLocked(true);
+          handleSubmit(true);
         }
       }
-    }
+    };
 
     const handleWindowFocus = () => {
       if (examState === 'active' && showTabChangeWarning && !examLocked) {
-        // El warning se mantiene visible hasta que el usuario decida
+        // El warning se mantiene visible
       }
-    }
+    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('blur', handleWindowBlur)
-    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('blur', handleWindowBlur)
-      window.removeEventListener('focus', handleWindowFocus)
-    }
-  }, [examState, tabChangeCount, showTabChangeWarning, examLocked])
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [examState, tabChangeCount, showTabChangeWarning, examLocked]);
+
+  // Detectar cambios de pantalla completa
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
+      const fullscreenElement =
         document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        document.msFullscreenElement
-      )
-      
-      setIsFullscreen(isCurrentlyFullscreen)
-      
-      // Si el examen está activo y se sale de pantalla completa, mostrar alerta
-      if (examState === 'active' && !isCurrentlyFullscreen) {
-        setShowFullscreenExit(true)
-      }
-    }
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement;
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
-    document.addEventListener('msfullscreenchange', handleFullscreenChange)
+      const isCurrentlyFullscreen = !!fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
+
+      if (examState === 'active' && !isCurrentlyFullscreen) {
+        setShowFullscreenExit(true);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange)
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
-      document.removeEventListener('msfullscreenchange', handleFullscreenChange)
-    }
-  }, [examState])
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, [examState]);
+
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
@@ -468,7 +466,7 @@ const ExamWithWelcome = () => {
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
           </p>
           <p className="text-sm text-red-600 font-medium">
-            {tabChangeCount >= 2 
+            {tabChangeCount >= 2
               ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
               : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
             }
@@ -581,14 +579,14 @@ const ExamWithWelcome = () => {
   }
 
   const goToNextQuestion = () => {
-    if (currentQuestion < examData.questions.length - 1) { 
-      setCurrentQuestion(currentQuestion + 1) 
+    if (currentQuestion < examData.questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1)
     }
   }
 
   const goToPreviousQuestion = () => {
-    if (currentQuestion > 0) { 
-      setCurrentQuestion(currentQuestion - 1) 
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1)
     }
   }
 
@@ -600,7 +598,7 @@ const ExamWithWelcome = () => {
 
     setExamState('completed')
     await exitFullscreen()
-    
+
     // Aquí iría la lógica para enviar las respuestas
     console.log("Respuestas enviadas:", answers)
   }
@@ -640,7 +638,7 @@ const ExamWithWelcome = () => {
             </p>
           </CardContent>
           <CardFooter className="flex justify-center">
-          <Button 
+            <Button
               onClick={() => navigate('/new-dashboard')}
               className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
             >
@@ -657,7 +655,7 @@ const ExamWithWelcome = () => {
     <>
       {showFullscreenExit && <FullscreenExitModal />}
       {showTabChangeWarning && <TabChangeWarningModal />}
-      
+
       <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-50 p-4">
         {/* Contenido principal del examen */}
         <div className="flex-1">
@@ -807,7 +805,7 @@ const ExamWithWelcome = () => {
                     <div className="text-xs text-gray-500 flex items-center gap-1">
                       {answers ? (
                         <>
-                          <CheckCircle2 className="h-3 w-3 text-green-500" /> 
+                          <CheckCircle2 className="h-3 w-3 text-green-500" />
                           <span>Respondida</span>
                         </>
                       ) : (

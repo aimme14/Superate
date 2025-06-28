@@ -34,115 +34,115 @@ const examData = {
       ],
       correctAnswer: "b",
     },
-   /** {
-      id: 2,
-      text: "En una fábrica, el doble del número de operarios menos tres es igual a 11. ¿Cuántos operarios hay?",
-      options: [
-        { id: "a", text: "6" },
-        { id: "b", text: "7" },
-        { id: "c", text: "8" },
-        { id: "d", text: "9" },
-      ],
-      correctAnswer: "a",
-    },
-    {
-      id: 3,
-      text: "Un jardín rectangular tiene un área representada por \( x^2 - 5x + 6 \). ¿Cuál sería la factorización de esta expresión para conocer sus dimensiones?",
-      options: [
-        { id: "a", text: "(x-3)(x-2)" },
-        { id: "b", text: "(x+3)(x+2)" },
-        { id: "c", text: "(x+3)(x-2)" },
-        { id: "d", text: "(x-3)(x+2)" },
-      ],
-      correctAnswer: "a",
-    },
-    {
-      id: 4,
-      text: "La diferencia de edades entre Ana y su hijo es de 49 años. Si esa diferencia se representa como \( x^2 = 49 \), ¿cuántos años tiene Ana más que su hijo?",
-      options: [
-        { id: "a", text: "7" },
-        { id: "b", text: "-7" },
-        { id: "c", text: "7 y -7" },
-        { id: "d", text: "0" },
-
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 5,
-      text: "En una cuenta bancaria, al retirar 4 dólares de una cuenta con \( 3x \) dólares se obtiene lo mismo que en otra cuenta con \( 2x + 5 \) dólares. ¿Cuál es el valor de \( x \)?",
-      options: [
-        { id: "a", text: "1" },
-        { id: "b", text: "-9" },
-        { id: "c", text: "9" },
-        { id: "d", text: "-1" },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 6,
-      text: "Un jardinero quiere cubrir un triángulo de césped con fertilizante. Si la base del triángulo es de 6 m y la altura es de 8 m, ¿cuál es el área a cubrir?",
-      options: [
-        { id: "a", text: "24 m²" },
-        { id: "b", text: "36 m²" },
-        { id: "c", text: "48 m²" },
-        { id: "d", text: "96 m²" },
-
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 7,
-      text: "Un terreno cuadrado tiene un perímetro de 20 m. ¿Cuánto mide cada lado?",
-      options: [
-        { id: "a", text: "4 m" },
-        { id: "b", text: "5 m" },
-        { id: "c", text: "10 m" },
-        { id: "d", text: "20 m" },
-      ],
-      correctAnswer: "b",
-    },
-
-    {
-      id: 8,
-      text: "Una caja cúbica de regalos mide 3 cm de lado. ¿Cuál es su volumen?",
-      options: [
-        { id: "a", text: "6 cm³" },
-        { id: "b", text: "9 cm³" },
-        { id: "c", text: "27 cm³" },
-        { id: "d", text: "81 cm³" },
-
-
-      ],
-      correctAnswer: "c",
-    },
-
-    {
-      id: 9,
-      text: "Se quiere cubrir completamente el interior de una figura hexagonal. ¿Cuánto suman todos sus ángulos internos?",
-      options: [
-        { id: "a", text: "360°" },
-        { id: "b", text: "540°" },
-        { id: "c", text: "720°" },
-        { id: "d", text: "900°" },
-
-      ],
-      correctAnswer: "c",
-    },
-
-    {
-      id: 10,
-      text: "Dos faroles están colocados de forma que el ángulo entre sus haces de luz es de 65°. ¿Cuál es el ángulo que completa los 180°?",
-      options: [
-        { id: "a", text: "25°" },
-        { id: "b", text: "105°" },
-        { id: "c", text: "115°" },
-        { id: "d", text: "135°" },
-
-
-      ],
-      correctAnswer: "c",
-    },**/
+    /** {
+       id: 2,
+       text: "En una fábrica, el doble del número de operarios menos tres es igual a 11. ¿Cuántos operarios hay?",
+       options: [
+         { id: "a", text: "6" },
+         { id: "b", text: "7" },
+         { id: "c", text: "8" },
+         { id: "d", text: "9" },
+       ],
+       correctAnswer: "a",
+     },
+     {
+       id: 3,
+       text: "Un jardín rectangular tiene un área representada por \( x^2 - 5x + 6 \). ¿Cuál sería la factorización de esta expresión para conocer sus dimensiones?",
+       options: [
+         { id: "a", text: "(x-3)(x-2)" },
+         { id: "b", text: "(x+3)(x+2)" },
+         { id: "c", text: "(x+3)(x-2)" },
+         { id: "d", text: "(x-3)(x+2)" },
+       ],
+       correctAnswer: "a",
+     },
+     {
+       id: 4,
+       text: "La diferencia de edades entre Ana y su hijo es de 49 años. Si esa diferencia se representa como \( x^2 = 49 \), ¿cuántos años tiene Ana más que su hijo?",
+       options: [
+         { id: "a", text: "7" },
+         { id: "b", text: "-7" },
+         { id: "c", text: "7 y -7" },
+         { id: "d", text: "0" },
+ 
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 5,
+       text: "En una cuenta bancaria, al retirar 4 dólares de una cuenta con \( 3x \) dólares se obtiene lo mismo que en otra cuenta con \( 2x + 5 \) dólares. ¿Cuál es el valor de \( x \)?",
+       options: [
+         { id: "a", text: "1" },
+         { id: "b", text: "-9" },
+         { id: "c", text: "9" },
+         { id: "d", text: "-1" },
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 6,
+       text: "Un jardinero quiere cubrir un triángulo de césped con fertilizante. Si la base del triángulo es de 6 m y la altura es de 8 m, ¿cuál es el área a cubrir?",
+       options: [
+         { id: "a", text: "24 m²" },
+         { id: "b", text: "36 m²" },
+         { id: "c", text: "48 m²" },
+         { id: "d", text: "96 m²" },
+ 
+       ],
+       correctAnswer: "c",
+     },
+     {
+       id: 7,
+       text: "Un terreno cuadrado tiene un perímetro de 20 m. ¿Cuánto mide cada lado?",
+       options: [
+         { id: "a", text: "4 m" },
+         { id: "b", text: "5 m" },
+         { id: "c", text: "10 m" },
+         { id: "d", text: "20 m" },
+       ],
+       correctAnswer: "b",
+     },
+ 
+     {
+       id: 8,
+       text: "Una caja cúbica de regalos mide 3 cm de lado. ¿Cuál es su volumen?",
+       options: [
+         { id: "a", text: "6 cm³" },
+         { id: "b", text: "9 cm³" },
+         { id: "c", text: "27 cm³" },
+         { id: "d", text: "81 cm³" },
+ 
+ 
+       ],
+       correctAnswer: "c",
+     },
+ 
+     {
+       id: 9,
+       text: "Se quiere cubrir completamente el interior de una figura hexagonal. ¿Cuánto suman todos sus ángulos internos?",
+       options: [
+         { id: "a", text: "360°" },
+         { id: "b", text: "540°" },
+         { id: "c", text: "720°" },
+         { id: "d", text: "900°" },
+ 
+       ],
+       correctAnswer: "c",
+     },
+ 
+     {
+       id: 10,
+       text: "Dos faroles están colocados de forma que el ángulo entre sus haces de luz es de 65°. ¿Cuál es el ángulo que completa los 180°?",
+       options: [
+         { id: "a", text: "25°" },
+         { id: "b", text: "105°" },
+         { id: "c", text: "115°" },
+         { id: "d", text: "135°" },
+ 
+ 
+       ],
+       correctAnswer: "c",
+     },**/
 
   ],
 
@@ -164,107 +164,105 @@ const ExamWithWelcome = () => {
   // Función para entrar en pantalla completa
   const enterFullscreen = async () => {
     try {
-      // Check for the standard requestFullscreen method
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen();
-      }
-      // Use the vendor-prefixed webkitRequestFullscreen method for Safari
-      else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      // Use the vendor-prefixed msRequestFullscreen method for Internet Explorer
-      else if ((document.documentElement as any).msRequestFullscreen) {
-        (document.documentElement as any).msRequestFullscreen();
+      const el = document.documentElement;
+
+      if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else if ((el as any).webkitRequestFullscreen) {
+        await (el as any).webkitRequestFullscreen();
+      } else if ((el as any).msRequestFullscreen) {
+        await (el as any).msRequestFullscreen();
       }
     } catch (error) {
-      console.error('Error entering fullscreen:', error)
+      console.error("Error entering fullscreen:", error);
     }
-  }
+  };
 
   // Función para salir de pantalla completa
   const exitFullscreen = async () => {
     try {
       if (document.exitFullscreen) {
-        await document.exitFullscreen()
-      } else if (document.webkitExitFullscreen) {
-        await document.webkitExitFullscreen()
-      } else if (document.msExitFullscreen) {
-        await document.msExitFullscreen()
+        await document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        await (document as any).webkitExitFullscreen();
+      } else if ((document as any).msExitFullscreen) {
+        await (document as any).msExitFullscreen();
       }
     } catch (error) {
-      console.error('Error exiting fullscreen:', error)
+      console.error("Error exiting fullscreen:", error);
     }
-  }
+  };
 
   // Detectar cambios de pestaña y pérdida de foco
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (examState === 'active' && document.hidden) {
-        setTabChangeCount(prev => prev + 1)
-        setShowTabChangeWarning(true)
-        
-        // Si es la tercera vez, bloquear el examen
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
+
         if (tabChangeCount >= 2) {
-          setExamLocked(true)
-          handleSubmit(true) // Finalizar automáticamente
+          setExamLocked(true);
+          handleSubmit(true);
         }
       }
-    }
+    };
 
     const handleWindowBlur = () => {
       if (examState === 'active') {
-        setTabChangeCount(prev => prev + 1)
-        setShowTabChangeWarning(true)
-        
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
+
         if (tabChangeCount >= 2) {
-          setExamLocked(true)
-          handleSubmit(true)
+          setExamLocked(true);
+          handleSubmit(true);
         }
       }
-    }
+    };
 
     const handleWindowFocus = () => {
       if (examState === 'active' && showTabChangeWarning && !examLocked) {
-        // El warning se mantiene visible hasta que el usuario decida
+        // El warning se mantiene visible
       }
-    }
+    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('blur', handleWindowBlur)
-    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('blur', handleWindowBlur)
-      window.removeEventListener('focus', handleWindowFocus)
-    }
-  }, [examState, tabChangeCount, showTabChangeWarning, examLocked])
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [examState, tabChangeCount, showTabChangeWarning, examLocked]);
+
+  // Detectar cambios de pantalla completa
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
+      const fullscreenElement =
         document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        document.msFullscreenElement
-      )
-      
-      setIsFullscreen(isCurrentlyFullscreen)
-      
-      // Si el examen está activo y se sale de pantalla completa, mostrar alerta
-      if (examState === 'active' && !isCurrentlyFullscreen) {
-        setShowFullscreenExit(true)
-      }
-    }
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement;
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
-    document.addEventListener('msfullscreenchange', handleFullscreenChange)
+      const isCurrentlyFullscreen = !!fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
+
+      if (examState === 'active' && !isCurrentlyFullscreen) {
+        setShowFullscreenExit(true);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange)
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
-      document.removeEventListener('msfullscreenchange', handleFullscreenChange)
-    }
-  }, [examState])
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, [examState]);
+
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
@@ -422,7 +420,7 @@ const ExamWithWelcome = () => {
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
           </p>
           <p className="text-sm text-red-600 font-medium">
-            {tabChangeCount >= 2 
+            {tabChangeCount >= 2
               ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
               : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
             }
@@ -535,14 +533,14 @@ const ExamWithWelcome = () => {
   }
 
   const goToNextQuestion = () => {
-    if (currentQuestion < examData.questions.length - 1) { 
-      setCurrentQuestion(currentQuestion + 1) 
+    if (currentQuestion < examData.questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1)
     }
   }
 
   const goToPreviousQuestion = () => {
-    if (currentQuestion > 0) { 
-      setCurrentQuestion(currentQuestion - 1) 
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1)
     }
   }
 
@@ -554,7 +552,7 @@ const ExamWithWelcome = () => {
 
     setExamState('completed')
     await exitFullscreen()
-    
+
     // Aquí iría la lógica para enviar las respuestas
     console.log("Respuestas enviadas:", answers)
   }
@@ -594,7 +592,7 @@ const ExamWithWelcome = () => {
             </p>
           </CardContent>
           <CardFooter className="flex justify-center">
-          <Button 
+            <Button
               onClick={() => navigate('/new-dashboard')}
               className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
             >
@@ -611,7 +609,7 @@ const ExamWithWelcome = () => {
     <>
       {showFullscreenExit && <FullscreenExitModal />}
       {showTabChangeWarning && <TabChangeWarningModal />}
-      
+
       <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-50 p-4">
         {/* Contenido principal del examen */}
         <div className="flex-1">
@@ -761,7 +759,7 @@ const ExamWithWelcome = () => {
                     <div className="text-xs text-gray-500 flex items-center gap-1">
                       {answers ? (
                         <>
-                          <CheckCircle2 className="h-3 w-3 text-green-500" /> 
+                          <CheckCircle2 className="h-3 w-3 text-green-500" />
                           <span>Respondida</span>
                         </>
                       ) : (

@@ -214,107 +214,105 @@ const ExamWithWelcome = () => {
   // Función para entrar en pantalla completa
   const enterFullscreen = async () => {
     try {
-      // Check for the standard requestFullscreen method
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen();
-      }
-      // Use the vendor-prefixed webkitRequestFullscreen method for Safari
-      else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      // Use the vendor-prefixed msRequestFullscreen method for Internet Explorer
-      else if ((document.documentElement as any).msRequestFullscreen) {
-        (document.documentElement as any).msRequestFullscreen();
+      const el = document.documentElement;
+
+      if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else if ((el as any).webkitRequestFullscreen) {
+        await (el as any).webkitRequestFullscreen();
+      } else if ((el as any).msRequestFullscreen) {
+        await (el as any).msRequestFullscreen();
       }
     } catch (error) {
-      console.error('Error entering fullscreen:', error)
+      console.error("Error entering fullscreen:", error);
     }
-  }
+  };
 
   // Función para salir de pantalla completa
   const exitFullscreen = async () => {
     try {
       if (document.exitFullscreen) {
-        await document.exitFullscreen()
-      } else if (document.webkitExitFullscreen) {
-        await document.webkitExitFullscreen()
-      } else if (document.msExitFullscreen) {
-        await document.msExitFullscreen()
+        await document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        await (document as any).webkitExitFullscreen();
+      } else if ((document as any).msExitFullscreen) {
+        await (document as any).msExitFullscreen();
       }
     } catch (error) {
-      console.error('Error exiting fullscreen:', error)
+      console.error("Error exiting fullscreen:", error);
     }
-  }
+  };
 
   // Detectar cambios de pestaña y pérdida de foco
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (examState === 'active' && document.hidden) {
-        setTabChangeCount(prev => prev + 1)
-        setShowTabChangeWarning(true)
-        
-        // Si es la tercera vez, bloquear el examen
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
+
         if (tabChangeCount >= 2) {
-          setExamLocked(true)
-          handleSubmit(true) // Finalizar automáticamente
+          setExamLocked(true);
+          handleSubmit(true);
         }
       }
-    }
+    };
 
     const handleWindowBlur = () => {
       if (examState === 'active') {
-        setTabChangeCount(prev => prev + 1)
-        setShowTabChangeWarning(true)
-        
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
+
         if (tabChangeCount >= 2) {
-          setExamLocked(true)
-          handleSubmit(true)
+          setExamLocked(true);
+          handleSubmit(true);
         }
       }
-    }
+    };
 
     const handleWindowFocus = () => {
       if (examState === 'active' && showTabChangeWarning && !examLocked) {
-        // El warning se mantiene visible hasta que el usuario decida
+        // El warning se mantiene visible
       }
-    }
+    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('blur', handleWindowBlur)
-    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('blur', handleWindowBlur)
-      window.removeEventListener('focus', handleWindowFocus)
-    }
-  }, [examState, tabChangeCount, showTabChangeWarning, examLocked])
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [examState, tabChangeCount, showTabChangeWarning, examLocked]);
+
+  // Detectar cambios de pantalla completa
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
+      const fullscreenElement =
         document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        document.msFullscreenElement
-      )
-      
-      setIsFullscreen(isCurrentlyFullscreen)
-      
-      // Si el examen está activo y se sale de pantalla completa, mostrar alerta
-      if (examState === 'active' && !isCurrentlyFullscreen) {
-        setShowFullscreenExit(true)
-      }
-    }
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement;
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
-    document.addEventListener('msfullscreenchange', handleFullscreenChange)
+      const isCurrentlyFullscreen = !!fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
+
+      if (examState === 'active' && !isCurrentlyFullscreen) {
+        setShowFullscreenExit(true);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange)
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
-      document.removeEventListener('msfullscreenchange', handleFullscreenChange)
-    }
-  }, [examState])
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, [examState]);
+
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
@@ -472,7 +470,7 @@ const ExamWithWelcome = () => {
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
           </p>
           <p className="text-sm text-red-600 font-medium">
-            {tabChangeCount >= 2 
+            {tabChangeCount >= 2
               ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
               : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
             }
@@ -585,14 +583,14 @@ const ExamWithWelcome = () => {
   }
 
   const goToNextQuestion = () => {
-    if (currentQuestion < examData.questions.length - 1) { 
-      setCurrentQuestion(currentQuestion + 1) 
+    if (currentQuestion < examData.questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1)
     }
   }
 
   const goToPreviousQuestion = () => {
-    if (currentQuestion > 0) { 
-      setCurrentQuestion(currentQuestion - 1) 
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1)
     }
   }
 
@@ -604,7 +602,7 @@ const ExamWithWelcome = () => {
 
     setExamState('completed')
     await exitFullscreen()
-    
+
     // Aquí iría la lógica para enviar las respuestas
     console.log("Respuestas enviadas:", answers)
   }
@@ -644,7 +642,7 @@ const ExamWithWelcome = () => {
             </p>
           </CardContent>
           <CardFooter className="flex justify-center">
-          <Button 
+            <Button
               onClick={() => navigate('/new-dashboard')}
               className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
             >
@@ -661,7 +659,7 @@ const ExamWithWelcome = () => {
     <>
       {showFullscreenExit && <FullscreenExitModal />}
       {showTabChangeWarning && <TabChangeWarningModal />}
-      
+
       <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-50 p-4">
         {/* Contenido principal del examen */}
         <div className="flex-1">
@@ -811,7 +809,7 @@ const ExamWithWelcome = () => {
                     <div className="text-xs text-gray-500 flex items-center gap-1">
                       {answers ? (
                         <>
-                          <CheckCircle2 className="h-3 w-3 text-green-500" /> 
+                          <CheckCircle2 className="h-3 w-3 text-green-500" />
                           <span>Respondida</span>
                         </>
                       ) : (
