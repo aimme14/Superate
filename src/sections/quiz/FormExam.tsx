@@ -161,8 +161,8 @@ const ExamWithWelcome = () => {
   const [tabChangeCount, setTabChangeCount] = useState(0)
   const [examLocked, setExamLocked] = useState(false)
 
-  // Función para entrar en pantalla completa
-  const enterFullscreen = async () => {
+   // Función para entrar en pantalla completa
+   const enterFullscreen = async () => {
     try {
       const el = document.documentElement;
 
@@ -171,7 +171,7 @@ const ExamWithWelcome = () => {
       } else if ((el as any).webkitRequestFullscreen) {
         await (el as any).webkitRequestFullscreen();
       } else if ((el as any).msRequestFullscreen) {
-        await (el as any).msRequestFullscreen();
+        (el as any).msRequestFullscreen();
       }
     } catch (error) {
       console.error("Error entering fullscreen:", error);
@@ -183,10 +183,10 @@ const ExamWithWelcome = () => {
     try {
       if (document.exitFullscreen) {
         await document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        await (document as any).webkitExitFullscreen();
-      } else if ((document as any).msExitFullscreen) {
-        await (document as any).msExitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        await document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        await document.msExitFullscreen();
       }
     } catch (error) {
       console.error("Error exiting fullscreen:", error);
@@ -241,12 +241,12 @@ const ExamWithWelcome = () => {
     const handleFullscreenChange = () => {
       const fullscreenElement =
         document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).msFullscreenElement;
-
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement;
+    
       const isCurrentlyFullscreen = !!fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
-
+    
       if (examState === 'active' && !isCurrentlyFullscreen) {
         setShowFullscreenExit(true);
       }
