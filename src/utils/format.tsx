@@ -1,5 +1,4 @@
 import { Fragment, ReactElement, cloneElement } from "react"
-import { RoleProps } from "@/interfaces/context.interface"
 import { useThemeContext } from "@/context/ThemeContext"
 import { Separator } from "#/ui/separator"
 import ErrorAPI from "@/errors"
@@ -15,15 +14,6 @@ export const formatDate = (date: Date | string | undefined): string => date ? ne
 /** To convert on plural */
 export const toPlural = (str: string) => str.slice(-1) === 'y' ? str.slice(0, -1) + 'ies' : str + 's'
 /** To convert context to spanish */
-export const convertRole = (str: RoleProps) => {
-  switch (str) {
-    case "client": return "cliente"
-    case "company": return "proveedor de servicios"
-    case "engineer": return "ingeniero"
-    case "admin": return "administrador"
-    default: return str
-  }
-}
 /** To render format components dynamically */
 export const RenderFormat = ({ format }: { format: ReactElement[] }) => {
   const { theme } = useThemeContext()
