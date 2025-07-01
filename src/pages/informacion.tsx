@@ -59,7 +59,7 @@ export default function InfoTab() {
           </div>
           <div>
             <Label htmlFor="doc">Documento</Label>
-            <Input id="doc" value={userData?.userdoc || ''} readOnly />
+            <Input id="doc" value={(userData?.userdoc || '').replace(/0$/, '')} readOnly />
           </div>
         </div>
       </CardContent>
