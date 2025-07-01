@@ -44,7 +44,7 @@ function FlipCard({
       >
         {/* Frente de la tarjeta */}
         <div
-          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-emerald-100 border border-white/50 shadow-lg p-6 flex flex-col items-center justify-center text-center`}
+          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-white/50 shadow-lg p-6 flex flex-col items-center justify-center text-center`}
         >
           {isAI && (
             <motion.div
@@ -73,7 +73,7 @@ function FlipCard({
 
         {/* Reverso de la tarjeta */}
         <div
-          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-emerald-100 border border-gray-200 shadow-lg p-6 flex flex-col justify-between transform rotateY-180`}
+          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-gray-200 shadow-lg p-6 flex flex-col justify-between transform rotateY-180`}
         >
           <div>
             <h4 className="font-bold text-gray-900 mb-3">
@@ -82,17 +82,17 @@ function FlipCard({
             <p className="text-sm text-gray-600 leading-relaxed mb-4">{description}</p>
           </div>
           <Link to={link}>
-          <Button
-            className={`w-full bg-gradient-to-r ${colorClasses[color].split(" ")[0]} text-white py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300`}
-            onClick={(e) => {
-              e.stopPropagation()
-              // Aquí iría la lógica para iniciar la prueba
-              console.log(`Iniciando prueba: ${title}`)
-            }}
-          >
-            <Play className="w-4 h-4 mr-2" />
-            {isAI ? "Generar Plan" : "Presentar Prueba"}
-          </Button>
+            <Button
+              className={`w-full bg-gradient-to-r ${colorClasses[color].split(" ")[0]} text-white py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300`}
+              onClick={(e) => {
+                e.stopPropagation()
+                // Aquí iría la lógica para iniciar la prueba
+                console.log(`Iniciando prueba: ${title}`)
+              }}
+            >
+              <Play className="w-4 h-4 mr-2" />
+              {isAI ? "Generar Plan" : "Presentar Prueba"}
+            </Button>
           </Link>
         </div>
       </motion.div>
