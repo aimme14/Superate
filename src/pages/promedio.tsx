@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ContactRound, NotepadText, HousePlug, BarChart2 } from "lucide-react"
+import { ContactRound, NotepadText, HousePlug, BarChart2, Apple } from "lucide-react"
 import { Link } from "react-router-dom"
 
 export default function PromedioPage() {
@@ -14,10 +14,11 @@ export default function PromedioPage() {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="resultados" />
-            <NavItem href="/dashboard" icon={<HousePlug className="w-5 h-5" />} text="Presenta tus evaluaciones" />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Promedio" active />
+          <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
+            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
+            <NavItem href="" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso"/>
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" active/>
+            <NavItem href="/dashboard" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
           </nav>
         </div>
       </header>

@@ -36,7 +36,7 @@ function FlipCard({
   };
 
   return (
-    <motion.div className="h-64 perspective-1000" whileHover={{ scale: 1.02 }}>
+    <motion.div className="h-64 perspective-1000">
       <motion.div
         className="relative w-full h-full transition-transform duration-700 transform-style-preserve-3d cursor-pointer"
         animate={{ rotateY: isFlipped ? 180 : 0 }}
@@ -44,7 +44,7 @@ function FlipCard({
       >
         {/* Frente de la tarjeta */}
         <div
-          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl ${colorClasses[color].split(" ")[1]} border border-white/50 shadow-lg p-6 flex flex-col items-center justify-center text-center`}
+          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-emerald-100 border border-white/50 shadow-lg p-6 flex flex-col items-center justify-center text-center`}
         >
           {isAI && (
             <motion.div
@@ -73,7 +73,7 @@ function FlipCard({
 
         {/* Reverso de la tarjeta */}
         <div
-          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-white border border-gray-200 shadow-lg p-6 flex flex-col justify-between transform rotateY-180`}
+          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-emerald-100 border border-gray-200 shadow-lg p-6 flex flex-col justify-between transform rotateY-180`}
         >
           <div>
             <h4 className="font-bold text-gray-900 mb-3">

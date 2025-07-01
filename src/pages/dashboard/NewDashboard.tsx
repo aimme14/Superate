@@ -1,4 +1,4 @@
-import { HousePlug, ContactRound, NotepadText, BarChart2 } from "lucide-react"
+import { HousePlug, ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
 import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { useAuthContext } from "@/context/AuthContext"
 import { User } from "@/interfaces/context.interface"
@@ -29,8 +29,9 @@ export default function Home() {
           <nav className="hidden md:flex items-center space-x-8">
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-            <NavItem href="/dashboard" icon={<HousePlug className="w-5 h-5" />} text="Presenta tus evaluaciones" active/>
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="promedio" />
+            <NavItem href="" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso"/>
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
+            <NavItem href="#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" active/>
           </nav>
         </div>
       </header>
@@ -38,7 +39,7 @@ export default function Home() {
       {/* Sección 2: Contenido Principal */}
       <main className="flex-grow">
         {/* Banner de Práctica */}
-        <section className="bg-[#e8f5d9] py-12">
+        <section>
           <InnovativeHero />
         </section>
 
@@ -65,7 +66,7 @@ export default function Home() {
         </section>
 
         {/* Tarjetas de Contenido */}
-        <section className="py-12">
+        <section id="evaluacion" className="py-12">
           <div className="container mx-auto px-4">
             {/* Título Principal */}
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
@@ -78,10 +79,10 @@ export default function Home() {
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                 Selecciona un módulo para comenzar tu evaluación. Nuestra IA analizará tus respuestas en tiempo real.
               </p>
+              <Intento />
+              <Prueba />
             </motion.div>
-            <Intento />
           </div>
-          <Prueba />
         </section>
       </main>
     </div>

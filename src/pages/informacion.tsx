@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {HousePlug, ContactRound, NotepadText, BarChart2 } from "lucide-react"
+import {HousePlug, ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
 import { useAuthContext } from "@/context/AuthContext"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,10 +20,11 @@ export default function InfoTab() {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" active/>
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="resultados" />
-            <NavItem href="/dashboard" icon={<HousePlug className="w-5 h-5" />} text="Presenta tus evaluaciones" />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Promedio" />
+          <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" active/>
+            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
+            <NavItem href="" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso"/>
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
+            <NavItem href="/dashboard" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
           </nav>
         </div>
       </header>
