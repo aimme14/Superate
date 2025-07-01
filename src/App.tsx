@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 
-import NewDasboard from "@/pages/dashboard/NewDashboard";
+import { Home as NewDasboard } from "@/pages/dashboard/NewDashboard";
 import ProtectedRoute from "@/layouts/ProtectedRoute";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/dashboard";

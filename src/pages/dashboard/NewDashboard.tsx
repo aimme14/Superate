@@ -9,8 +9,9 @@ import { AlertCircle } from "lucide-react"
 import Prueba from "../prueba"
 import Intento from "../Intento"
 import { useEffect } from "react"
+  
 
-export default function Home() {
+export function Home() {
   useEffect(() => {
     const hash = window.location.hash
     if (hash) {

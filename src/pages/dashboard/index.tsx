@@ -2,7 +2,7 @@ import { useThemeContext } from '@/context/ThemeContext'
 import Skeleton from '#/common/skeletons/SkeletonLarge'
 import { useAuthContext } from '@/context/AuthContext'
 import AdminSection from './admin/AdminPage'
-import NewDashboard from './NewDashboard'
+import { Home as NewDashboard } from './NewDashboard'
 import { Suspense } from 'react'
 
 const DashboardPage = () => {

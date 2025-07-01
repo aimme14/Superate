@@ -31,10 +31,14 @@ export const login = async ({ email, password }: { email: string, password: stri
 export const register = async (user: RegisterFormProps): Promise<Result<void>> => {
   try {
     const { role, userdoc, email, grade, inst, username } = user
-    const userAccount = await authFB.registerAccount(username, email, userdoc + '0')
+    // Generamos la contraseña automáticamente a partir del documento más un 0
+    const generatedPassword = userdoc + '0'
+
+    const userAccount = await authFB.registerAccount(username, email, generatedPassword)
     if (!userAccount.success) throw userAccount.error
 
-    const userData = await dbService.createUser(userAccount.data, { role, grade, inst })
+    // También almacenamos el documento+0 en la base de datos para futuras consultas
+    const userData = await dbService.createUser(userAccount.data, { role, grade, inst, userdoc: generatedPassword })
     if (!userData.success) throw userData.error
 
     const emailVerification = await authFB.sendEmailVerification()

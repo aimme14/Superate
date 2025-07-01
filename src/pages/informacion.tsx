@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {HousePlug, ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
 import { useAuthContext } from "@/context/AuthContext"
+import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Link } from "react-router-dom"
@@ -8,6 +9,8 @@ import { Link } from "react-router-dom"
 
 export default function InfoTab() {
   const { user } = useAuthContext()
+  const userId = user?.uid
+  const { data: userData } = useQueryUser().fetchUserById<any>(userId as string, !!userId)
 
   return (
     <div>
@@ -41,6 +44,22 @@ export default function InfoTab() {
           <div>
             <Label htmlFor="name">Nombre</Label>
             <Input id="name" value={user?.displayName || ''} readOnly />
+          </div>
+          <div>
+            <Label htmlFor="inst">Institución</Label>
+            <Input id="inst" value={userData?.inst || ''} readOnly />
+          </div>
+          <div>
+            <Label htmlFor="grade">Grado</Label>
+            <Input id="grade" value={userData?.grade || ''} readOnly />
+          </div>
+          <div>
+            <Label htmlFor="role">tipo de documento</Label>
+            <Input id="role" value={userData?.role || ''} readOnly />
+          </div>
+          <div>
+            <Label htmlFor="doc">Documento</Label>
+            <Input id="doc" value={userData?.userdoc || ''} readOnly />
           </div>
         </div>
       </CardContent>
