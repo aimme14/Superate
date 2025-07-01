@@ -8,8 +8,18 @@ import { motion } from "framer-motion"
 import { AlertCircle } from "lucide-react"
 import Prueba from "../prueba"
 import Intento from "../Intento"
+import { useEffect } from "react"
 
 export default function Home() {
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash) {
+      const target = document.querySelector(hash)
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth" })
+      }
+    }
+  }, [])
   const { user } = useAuthContext()
 
   const userId = user?.uid
