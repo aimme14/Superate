@@ -21,7 +21,7 @@ const FormSection = ({ theme }: FormSectionProps) => {
         label='Documento'
         placeholder='Seleccionar documento'
         options={[
-          { label: 'Cédula', value: 'cedula' },
+          { label: 'Cédula', value: 'cédula' },
           { label: 'Pasaporte', value: 'pasaporte' },
           { label: 'Tarjeta de identidad', value: 'tarjeta_identidad' },
         ]}
@@ -34,8 +34,8 @@ const FormSection = ({ theme }: FormSectionProps) => {
       />
       <InputField
         name="username"
-        label="Nombre del estudiante"
-        placeholder="Nombre del estudiante"
+        label="Nombre completo del estudiante"
+        placeholder="Nombre completo del estudiante"
         theme={theme}
       />
       <InputField
