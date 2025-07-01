@@ -24,7 +24,7 @@ export default function InfoTab() {
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
             <NavItem href="" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso"/>
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-            <NavItem href="#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
           </nav>
         </div>
       </header>
