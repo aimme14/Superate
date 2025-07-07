@@ -1,19 +1,52 @@
-import { Clock, ChevronLeft, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookMarked, Timer, HelpCircle, Users, Play, Maximize, X } from "lucide-react"
+import { Clock, ChevronLeft, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookMarked, Timer, HelpCircle, Users, Play, Maximize, X, Database } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
+import { useNavigate } from "react-router-dom"
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { firebaseApp } from "@/services/firebase/db.service";
+import { useAuthContext } from "@/context/AuthContext";
+
+const db = getFirestore(firebaseApp);
+
+// Verifica si el usuario ya presentó el examen
+const checkExamStatus = async (userId: string, examId: string) => {
+  const docRef = doc(db, "results", userId);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    return data[examId] || null;
+  }
+  return null;
+};
+
+// Guarda los resultados del examen
+const saveExamResults = async (userId: string, examId: string, examData: any) => {
+  const docRef = doc(db, "results", userId);
+  await setDoc(
+    docRef,
+    {
+      [examId]: {
+        ...examData,
+        timestamp: Date.now(),
+      },
+    },
+    { merge: true }
+  );
+  return { success: true, id: `${userId}_${examId}` };
+};
 
 // Datos de ejemplo para el examen
 const examData = {
-  title: "Examen de Sociales",
+  id: "exam_english_001", // ID único del examen
+  title: "Examen de Inglés",
   description: "Evaluación de habilidades de pensamiento crítico y comprensión lectora",
   timeLimit: 30, // minutos
-  module: "Módulo de Sociales",
+  module: "Módulo de Inglés",
   totalQuestions: 25,
   instructions: [
     "Lee cuidadosamente cada pregunta antes de responder",
@@ -25,23 +58,44 @@ const examData = {
   questions: [
     {
       id: 1,
-      text: "La Revolución Industrial se originó con la invención de la máquina de vapor y la concentración del capital, lo que permitió la producción mecanizada. Esto llevó a que muchas personas se trasladaran del campo a las ciudades para trabajar en fábricas ¿Cuál fue una consecuencia social de la Revolución Industrial?",
+      text: "María tiene 7 manzanas más que Pedro. Si Pedro tiene \\( x \\) manzanas, y entre los dos tienen 17, ¿cuántas manzanas tiene Pedro?",
       options: [
-        { id: "a", text: "Regreso masivo a actividades agrícolas." },
-        { id: "b", text: "Migración del campo a las ciudades y surgimiento del proletariado." },
-        { id: "c", text: "Reducción del trabajo urbano." },
-        { id: "d", text: "Aumento inmediato de salarios rurales." },
+        { id: "a", text: "3" },
+        { id: "b", text: "5" },
+        { id: "c", text: "7" },
+        { id: "d", text: "10" },
       ],
       correctAnswer: "b",
     },
-  ]
-
+    {
+      id: 2,
+      text: "What is the past tense of 'go'?",
+      options: [
+        { id: "a", text: "goed" },
+        { id: "b", text: "went" },
+        { id: "c", text: "gone" },
+        { id: "d", text: "going" },
+      ],
+      correctAnswer: "b",
+    },
+    {
+      id: 3,
+      text: "Choose the correct sentence:",
+      options: [
+        { id: "a", text: "She don't like coffee" },
+        { id: "b", text: "She doesn't likes coffee" },
+        { id: "c", text: "She doesn't like coffee" },
+        { id: "d", text: "She not like coffee" },
+      ],
+      correctAnswer: "c",
+    }
+  ],
 }
 
-const ExamWithWelcome = () => {
+const ExamWithFirebase = () => {
   const navigate = useNavigate()
-  const [examState, setExamState] = useState('welcome')
-  const [answers, setAnswers] = useState<Record<number, string>>({})
+  const [answers, setAnswers] = useState<{ [key: string]: string }>({});
+  const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
   const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
@@ -50,9 +104,102 @@ const ExamWithWelcome = () => {
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
   const [examLocked, setExamLocked] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { user } = useAuthContext();
+  const userId = user?.uid;
+  const [existingExamData, setExistingExamData] = useState<ExamData | null>(null);
+  
 
-   // Función para entrar en pantalla completa
-   const enterFullscreen = async () => {
+  // Verificar al cargar si el examen ya fue presentado
+  useEffect(() => {
+    if (!userId) return; // Don't run if userId is undefined
+  
+    const fetchExamStatus = async () => {
+      try {
+        const existingExam = await checkExamStatus(userId, examData.id);
+        if (existingExam) {
+          setExistingExamData(existingExam)
+          setExamState('already_taken')
+        } else {
+          setExamState('welcome')
+        }
+      } catch (error) {
+        console.error('Error verificando estado del examen:', error)
+        setExamState('welcome') // Permitir continuar en caso de error
+      }
+    }
+  
+    fetchExamStatus()
+  }, [userId])
+
+  // Función para calcular la puntuación
+  const calculateScore = () => {
+    let correctAnswers = 0
+    let totalAnswered = 0
+
+    examData.questions.forEach(question => {
+      if (answers[question.id]) {
+        totalAnswered++
+        if (answers[question.id] === question.correctAnswer) {
+          correctAnswers++
+        }
+      }
+    })
+
+    return {
+      correctAnswers,
+      totalAnswered,
+      totalQuestions: examData.questions.length,
+      percentage: totalAnswered > 0 ? Math.round((correctAnswers / totalAnswered) * 100) : 0,
+      overallPercentage: Math.round((correctAnswers / examData.questions.length) * 100)
+    }
+  }
+
+  // Función para guardar resultados en Firebase
+  const saveToFirebase = async (timeExpired = false, lockedByTabChange = false) => {
+    setIsSubmitting(true)
+    try {
+      const score = calculateScore()
+      const examResult = {
+        userId,
+        examId: examData.id,
+        examTitle: examData.title,
+        answers,
+        score,
+        timeExpired,
+        lockedByTabChange,
+        tabChangeCount,
+        startTime: new Date(Date.now() - (examData.timeLimit * 60 - timeLeft) * 1000).toISOString(),
+        endTime: new Date().toISOString(),
+        timeSpent: examData.timeLimit * 60 - timeLeft, // en segundos
+        completed: true,
+        // Detalles por pregunta
+        questionDetails: examData.questions.map(question => ({
+          questionId: question.id,
+          questionText: question.text,
+          userAnswer: answers[question.id] || null,
+          correctAnswer: question.correctAnswer,
+          isCorrect: answers[question.id] === question.correctAnswer,
+          answered: !!answers[question.id]
+        }))
+      }
+
+      if (!userId || !examData.id) {
+        throw new Error("Falta userId o examData.id");
+      }
+      const result = await saveExamResults(userId, examData.id, examResult);
+      console.log('Examen guardado exitosamente:', result)
+      return result
+    } catch (error) {
+      console.error('Error guardando examen:', error)
+      throw error
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Función para entrar en pantalla completa
+  const enterFullscreen = async () => {
     try {
       const el = document.documentElement;
 
@@ -92,7 +239,7 @@ const ExamWithWelcome = () => {
 
         if (tabChangeCount >= 2) {
           setExamLocked(true);
-          handleSubmit(true);
+          handleSubmit(true, true);
         }
       }
     };
@@ -104,7 +251,7 @@ const ExamWithWelcome = () => {
 
         if (tabChangeCount >= 2) {
           setExamLocked(true);
-          handleSubmit(true);
+          handleSubmit(true, true);
         }
       }
     };
@@ -133,10 +280,10 @@ const ExamWithWelcome = () => {
         document.fullscreenElement ||
         document.webkitFullscreenElement ||
         document.msFullscreenElement;
-    
+
       const isCurrentlyFullscreen = !!fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
-    
+
       if (examState === 'active' && !isCurrentlyFullscreen) {
         setShowFullscreenExit(true);
       }
@@ -151,8 +298,7 @@ const ExamWithWelcome = () => {
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('msfullscreenchange', handleFullscreenChange);
     };
-  }, [examState]);  
-
+  }, [examState]);
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
@@ -163,7 +309,7 @@ const ExamWithWelcome = () => {
   // Manejar salida de pantalla completa durante el examen
   const handleExitFullscreen = async () => {
     setShowFullscreenExit(false)
-    setExamState('completed')
+    await handleSubmit(false, false)
     await exitFullscreen()
   }
 
@@ -182,8 +328,102 @@ const ExamWithWelcome = () => {
   const finishExamByTabChange = async () => {
     setShowTabChangeWarning(false)
     setExamLocked(true)
-    await handleSubmit(true)
+    await handleSubmit(true, true)
   }
+
+  // Pantalla de carga
+  const LoadingScreen = () => (
+    <div className="max-w-2xl mx-auto">
+      <Card className="shadow-lg">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
+              <Database className="h-8 w-8 text-blue-600" />
+            </div>
+          </div>
+          <CardTitle className="text-xl">Verificando estado del examen...</CardTitle>
+          <CardDescription>
+            Por favor espera mientras verificamos si ya has presentado este examen
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    </div>
+  )
+
+  // Pantalla cuando ya se presentó el examen
+  const AlreadyTakenScreen = () => (
+    <div className="max-w-2xl mx-auto">
+      <Card className="shadow-lg border-amber-200">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-amber-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-amber-600" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl text-amber-800">Examen Ya Presentado</CardTitle>
+          <CardDescription className="text-lg">
+            Ya has completado este examen anteriormente
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Información del Examen</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              Solo se permite una presentación por examen. Tu intento anterior ya fue registrado.
+            </AlertDescription>
+          </Alert>
+
+          {existingExamData && (
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <h4 className="font-medium text-gray-900">Detalles de tu presentación:</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-600">Fecha:</span>
+                  <div className="font-medium">
+                    {new Date(existingExamData.endTime).toLocaleDateString('es-ES', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Puntuación:</span>
+                  <div className="font-medium text-lg">
+                    {existingExamData.score.correctAnswers}/{existingExamData.score.totalQuestions}
+                    <span className="text-sm text-gray-500 ml-1">
+                      ({existingExamData.score.overallPercentage}%)
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Tiempo usado:</span>
+                  <div className="font-medium">
+                    {Math.floor(existingExamData.timeSpent / 60)}:{(existingExamData.timeSpent % 60).toString().padStart(2, '0')} min
+                  </div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Estado:</span>
+                  <div className="font-medium text-green-600">Completado</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button
+            onClick={() => navigate('/dashboard')}
+            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+          >
+            Volver a las demas pruebas
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
 
   // Componente de Bienvenida
   const WelcomeScreen = () => (
@@ -262,6 +502,15 @@ const ExamWithWelcome = () => {
             </AlertDescription>
           </Alert>
 
+          {/* Advertencia de una sola presentación */}
+          <Alert className="border-green-200 bg-green-50">
+            <Database className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-800">Una Sola Oportunidad</AlertTitle>
+            <AlertDescription className="text-green-700">
+              Solo puedes presentar este examen una vez. Tus respuestas se guardarán automáticamente y no podrás volver a intentarlo.
+            </AlertDescription>
+          </Alert>
+
           {/* Advertencia general */}
           <Alert className="border-amber-200 bg-amber-50">
             <AlertCircle className="h-4 w-4 text-amber-600" />
@@ -336,6 +585,7 @@ const ExamWithWelcome = () => {
       </Card>
     </div>
   )
+
   const FullscreenExitModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className="w-full max-w-md mx-4">
@@ -387,7 +637,7 @@ const ExamWithWelcome = () => {
       }, 1000)
       return () => clearTimeout(timer)
     } else if (timeLeft === 0 && examState === 'active') {
-      handleSubmit(true)
+      handleSubmit(true, false)
     }
   }, [timeLeft, examState])
 
@@ -414,9 +664,6 @@ const ExamWithWelcome = () => {
     }
   }, [])
 
-  const minutes = Math.floor(timeLeft / 60)
-  const seconds = timeLeft % 60
-
   const handleAnswer = (value: string) => {
     setAnswers({ ...answers, [examData.questions[currentQuestion].id]: value })
     setShowWarning(false)
@@ -434,59 +681,140 @@ const ExamWithWelcome = () => {
     }
   }
 
-  const handleSubmit = async (timeExpired = false) => {
-    if (!timeExpired && Object.keys(answers).length < examData.questions.length) {
+  const handleSubmit = async (timeExpired = false, lockedByTabChange = false) => {
+    if (!timeExpired && !lockedByTabChange && Object.keys(answers).length < examData.questions.length) {
       setShowWarning(true)
       return
     }
 
-    setExamState('completed')
-    await exitFullscreen()
-
-    // Aquí iría la lógica para enviar las respuestas
-    console.log("Respuestas enviadas:", answers)
+    try {
+      await saveToFirebase(timeExpired, lockedByTabChange)
+      setExamState('completed')
+      await exitFullscreen()
+    } catch (error) {
+      console.error('Error al guardar el examen:', error)
+      // Aquí puedes mostrar un mensaje de error al usuario
+      alert('Error al guardar el examen. Por favor, inténtalo de nuevo.')
+    }
   }
-
   const progress = ((currentQuestion + 1) / examData.questions.length) * 100
-  const question = examData.questions[currentQuestion]
-  const answeredQuestions = Object.keys(answers).length
 
-  // Pantalla de bienvenida
-  if (examState === 'welcome') {
-    return <WelcomeScreen />
-  }
-
-  // Pantalla de examen completado
-  if (examState === 'completed') {
+  // Pantalla de resultados
+  const ResultsScreen = () => {
+    const score = calculateScore()
+    
     return (
-      <div className="max-w-2xl mx-auto">
-        <Card className="shadow-lg">
-          <CardHeader className="text-center">
+      <div className="max-w-4xl mx-auto">
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-green-50 to-emerald-50">
+          <CardHeader className="text-center pb-6">
             <div className="flex justify-center mb-4">
-              <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="h-8 w-8 text-green-600" />
+              <div className="h-20 w-20 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+                <CheckCircle2 className="h-10 w-10 text-white" />
               </div>
             </div>
-            <CardTitle className="text-2xl text-green-800">¡Examen Completado!</CardTitle>
-            <CardDescription className="text-lg">
-              Has finalizado el {examData.title} exitosamente
+            <CardTitle className="text-3xl font-bold text-green-800 mb-2">
+              ¡Examen Completado!
+            </CardTitle>
+            <CardDescription className="text-lg text-gray-600">
+              Tus respuestas han sido guardadas exitosamente
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Preguntas respondidas</div>
-              <div className="text-2xl font-bold text-gray-900">{answeredQuestions} de {examData.questions.length}</div>
+
+          <CardContent className="space-y-6">
+            {/* Puntuación principal */}
+            <div className="bg-white rounded-lg p-6 border shadow-sm text-center">
+              <div className="text-4xl font-bold text-green-600 mb-2">
+                {score.correctAnswers}/{score.totalQuestions}
+              </div>
+              <div className="text-xl text-gray-700 mb-1">Respuestas correctas</div>
+              <div className="text-lg text-gray-500">
+                Puntuación: {score.overallPercentage}%
+              </div>
             </div>
-            <p className="text-gray-600">
-              Tus respuestas han sido registradas. Los resultados serán procesados y podrás consultarlos próximamente en tu perfil.
-            </p>
+
+            {/* Estadísticas detalladas */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                <div className="font-semibold text-2xl text-blue-600">{score.totalAnswered}</div>
+                <div className="text-sm text-gray-500">Preguntas respondidas</div>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                <div className="font-semibold text-2xl text-green-600">{score.correctAnswers}</div>
+                <div className="text-sm text-gray-500">Respuestas correctas</div>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                <div className="font-semibold text-2xl text-orange-600">
+                  {Math.floor((examData.timeLimit * 60 - timeLeft) / 60)}:{((examData.timeLimit * 60 - timeLeft) % 60).toString().padStart(2, '0')}
+                </div>
+                <div className="text-sm text-gray-500">Tiempo utilizado</div>
+              </div>
+            </div>
+
+            {/* Desglose por pregunta */}
+            <div className="bg-white rounded-lg p-6 border shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Desglose de respuestas
+              </h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {examData.questions.map((question, index) => {
+                  const userAnswer = answers[question.id]
+                  const isCorrect = userAnswer === question.correctAnswer
+                  const wasAnswered = !!userAnswer
+                  
+                  return (
+                    <div key={question.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          !wasAnswered ? 'bg-gray-300 text-gray-600' :
+                          isCorrect ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="text-sm text-gray-700">
+                          Pregunta {index + 1}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!wasAnswered ? (
+                          <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                            Sin responder
+                          </span>
+                        ) : isCorrect ? (
+                          <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+                            Correcta
+                          </span>
+                        ) : (
+                          <span className="text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
+                            Incorrecta
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Información adicional si hubo problemas */}
+            {(tabChangeCount > 0 || examLocked) && (
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800">Información adicional</AlertTitle>
+                <AlertDescription className="text-amber-700">
+                  {examLocked && "El examen fue finalizado automáticamente por superar el límite de cambios de pestaña. "}
+                  {tabChangeCount > 0 && `Cambios de pestaña detectados: ${tabChangeCount}`}
+                </AlertDescription>
+              </Alert>
+            )}
           </CardContent>
-          <CardFooter className="flex justify-center">
+
+          <CardFooter className="flex justify-center pt-6">
             <Button
-              onClick={() => navigate('/new-dashboard')}
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+              onClick={() => navigate('/dashboard')}
+              size="lg"
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold"
             >
-              Volver al Inicio
+              Volver a las demas pruebas
             </Button>
           </CardFooter>
         </Card>
@@ -494,12 +822,14 @@ const ExamWithWelcome = () => {
     )
   }
 
-  // Pantalla del examen activo
-  return (
-    <>
-      {showFullscreenExit && <FullscreenExitModal />}
-      {showTabChangeWarning && <TabChangeWarningModal />}
+  // Pantalla principal del examen con diseño mejorado
+  const ExamScreen = () => {
+    const minutes = Math.floor(timeLeft / 60)
+    const seconds = timeLeft % 60
+    const question = examData.questions[currentQuestion]
+    const answeredQuestions = Object.keys(answers).length
 
+    return (
       <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-50 p-4">
         {/* Contenido principal del examen */}
         <div className="flex-1">
@@ -511,7 +841,7 @@ const ExamWithWelcome = () => {
               </div>
               <div>
                 <h3 className="text-sm text-gray-500 font-medium">Estás realizando:</h3>
-                <h2 className="text-lg font-bold">{examData.module}</h2>
+                <h2 className="text-lg font-bold">{examData.module || examData.title}</h2>
                 <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
                   <Clock className="h-4 w-4" />
                   <span>{examData.timeLimit} minutos</span>
@@ -549,9 +879,13 @@ const ExamWithWelcome = () => {
                   </span>
                 </div>
               )}
-              <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border shadow-sm">
-                <Clock className="h-4 w-4 text-orange-500" />
-                <span className="text-sm font-medium">
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border shadow-sm ${
+                timeLeft < 300 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white'
+              }`}>
+                <Clock className={`h-4 w-4 ${timeLeft < 300 ? 'text-red-500' : 'text-orange-500'}`} />
+                <span className={`text-sm font-medium font-mono ${
+                  timeLeft < 300 ? 'text-red-700' : ''
+                }`}>
                   {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
                 </span>
               </div>
@@ -568,28 +902,33 @@ const ExamWithWelcome = () => {
             </div>
           </div>
 
-          {showWarning && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Preguntas sin responder</AlertTitle>
-              <AlertDescription>Debes responder todas las preguntas antes de enviar el examen.</AlertDescription>
-            </Alert>
-          )}
-
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-lg">Pregunta {question.id}</CardTitle>
-              <CardDescription className="text-base font-medium text-gray-800 mt-2">{question.text}</CardDescription>
+              <CardTitle className="text-lg">Pregunta {currentQuestion + 1}</CardTitle>
+              <CardDescription className="text-base font-medium text-gray-800 mt-2">
+                {question.text}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <RadioGroup value={answers[question.id] || ""} onValueChange={handleAnswer} className="space-y-3">
+              <RadioGroup 
+                value={answers[question.id] || ""} 
+                onValueChange={handleAnswer} 
+                className="space-y-3"
+              >
                 {question.options.map((option) => (
                   <div
                     key={option.id}
-                    className="flex items-start space-x-2 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                    className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
                   >
-                    <RadioGroupItem value={option.id} id={`option-${option.id}`} className="mt-1" />
-                    <Label htmlFor={`option-${option.id}`} className="flex-1 cursor-pointer">
+                    <RadioGroupItem 
+                      value={option.id} 
+                      id={`option-${option.id}`} 
+                      className="mt-1" 
+                    />
+                    <Label 
+                      htmlFor={`option-${option.id}`} 
+                      className="flex-1 cursor-pointer"
+                    >
                       <span className="font-semibold">{option.id.toUpperCase()}.</span> {option.text}
                     </Label>
                   </div>
@@ -601,20 +940,34 @@ const ExamWithWelcome = () => {
                 variant="outline"
                 onClick={goToPreviousQuestion}
                 disabled={currentQuestion === 0}
-                className="flex items-center gap-1"
+                className="flex items-center gap-2"
               >
                 <ChevronLeft className="h-4 w-4" /> Anterior
               </Button>
               {currentQuestion < examData.questions.length - 1 ? (
-                <Button onClick={goToNextQuestion} className="flex items-center gap-1">
+                <Button 
+                  onClick={goToNextQuestion} 
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                >
                   Siguiente <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : (
                 <Button
-                  onClick={() => handleSubmit(false)}
-                  className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 flex items-center gap-1"
+                  onClick={() => handleSubmit()}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600"
                 >
-                  Enviar <Send className="h-4 w-4" />
+                  {isSubmitting ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Enviar Examen
+                    </>
+                  )}
                 </Button>
               )}
             </CardFooter>
@@ -633,21 +986,25 @@ const ExamWithWelcome = () => {
                 <button
                   key={q.id}
                   onClick={() => setCurrentQuestion(index)}
-                  className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${currentQuestion === index ? "bg-purple-50 border-purple-200 border" : "border hover:bg-gray-50"
-                    }`}
+                  className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${
+                    currentQuestion === index 
+                      ? "bg-purple-50 border-purple-200 border" 
+                      : "border hover:bg-gray-50"
+                  }`}
                 >
                   <div
-                    className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${answers
-                      ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
-                      : "bg-gray-100 text-gray-700 border"
-                      }`}
+                    className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                      answers[q.id]
+                        ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
+                        : "bg-gray-100 text-gray-700 border"
+                    }`}
                   >
-                    {q.id}
+                    {index + 1}
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm font-medium truncate">Pregunta {q.id}</div>
+                    <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
                     <div className="text-xs text-gray-500 flex items-center gap-1">
-                      {answers ? (
+                      {answers[q.id] ? (
                         <>
                           <CheckCircle2 className="h-3 w-3 text-green-500" />
                           <span>Respondida</span>
@@ -677,24 +1034,100 @@ const ExamWithWelcome = () => {
               <Progress value={(answeredQuestions / examData.questions.length) * 100} className="h-2" />
 
               <Button
-                onClick={() => handleSubmit(false)}
-                disabled={Object.keys(answers).length < examData.questions.length}
+                onClick={() => handleSubmit()}
+                disabled={isSubmitting}
                 className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
               >
-                Finalizar examen
+                {isSubmitting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Finalizar examen'
+                )}
               </Button>
 
-              {Object.keys(answers).length < examData.questions.length && (
+              {answeredQuestions < examData.questions.length && (
                 <p className="text-xs text-center mt-2 text-orange-500">
-                  Debes responder todas las preguntas para finalizar
+                  Tienes {examData.questions.length - answeredQuestions} preguntas sin responder
                 </p>
               )}
             </div>
           </div>
         </div>
       </div>
-    </>
+    )
+  }
+
+  // Warning modal actualizado
+  const WarningModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader>
+          <CardTitle className="text-center text-amber-800">
+            ¿Enviar examen incompleto?
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-gray-700 mb-4">
+            Tienes {examData.questions.length - Object.keys(answers).length} preguntas sin responder.
+          </p>
+          <p className="text-center text-sm text-gray-600">
+            ¿Estás seguro que deseas enviar el examen?
+          </p>
+        </CardContent>
+        <CardFooter className="flex gap-3">
+          <Button
+            onClick={() => setShowWarning(false)}
+            variant="outline"
+            className="flex-1"
+          >
+            Continuar respondiendo
+          </Button>
+          <Button
+            onClick={() => {
+              setShowWarning(false)
+              handleSubmit()
+            }}
+            className="flex-1 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+          >
+            Enviar ahora
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
   )
+
+  // Renderizado principal basado en el estado
+  if (examState === 'loading') {
+    return <LoadingScreen />
+  }
+
+  if (examState === 'already_taken') {
+    return <AlreadyTakenScreen />
+  }
+
+  if (examState === 'welcome') {
+    return <WelcomeScreen />
+  }
+
+  if (examState === 'completed') {
+    return <ResultsScreen />
+  }
+
+  if (examState === 'active') {
+    return (
+      <>
+        <ExamScreen />
+        {showWarning && <WarningModal />}
+        {showTabChangeWarning && <TabChangeWarningModal />}
+        {showFullscreenExit && <FullscreenExitModal />}
+      </>
+    )
+  }
+
+  return null
 }
 
-export default ExamWithWelcome
+export default ExamWithFirebase
