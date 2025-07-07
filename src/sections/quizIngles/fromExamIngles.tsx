@@ -837,7 +837,7 @@ const ExamWithFirebase = () => {
           <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
             <div className="flex items-center gap-4">
               <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden">
-                <BookCheck className="w-16 h-16 text-purple-500" />
+                <BookCheck className="w-16 h-16 text-emerald-500" />
               </div>
               <div>
                 <h3 className="text-sm text-gray-500 font-medium">Estás realizando:</h3>
