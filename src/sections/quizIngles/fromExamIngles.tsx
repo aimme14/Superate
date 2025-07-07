@@ -418,7 +418,7 @@ const ExamWithFirebase = () => {
             onClick={() => navigate('/dashboard')}
             className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
           >
-            Volver a las demas preubas
+            Volver a las demas pruebas
           </Button>
         </CardFooter>
       </Card>
@@ -816,7 +816,7 @@ const ExamWithFirebase = () => {
               size="lg"
               className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold"
             >
-              Volver al Dashboard
+              Volver a las demas pruebas
             </Button>
           </CardFooter>
         </Card>
