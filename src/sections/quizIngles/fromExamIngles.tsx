@@ -664,9 +664,6 @@ const ExamWithFirebase = () => {
     }
   }, [])
 
-  const minutes = Math.floor(timeLeft / 60)
-  const seconds = timeLeft % 60
-
   const handleAnswer = (value: string) => {
     setAnswers({ ...answers, [examData.questions[currentQuestion].id]: value })
     setShowWarning(false)
