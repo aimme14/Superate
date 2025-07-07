@@ -13,6 +13,17 @@ declare global {
     mozRequestFullScreen?: (options?: FullscreenOptions) => Promise<void>;
     msRequestFullscreen?: (options?: FullscreenOptions) => Promise<void>;
   }
+
+  type ExamData = {
+    endTime: string | number | Date;
+    score: {
+      correctAnswers: number;
+      totalQuestions: number;
+      overallPercentage: number;
+    };
+    timeSpent: number;
+    // Agrega aquí cualquier otro campo que uses de existingExamData
+  };
 }
 
 export {};

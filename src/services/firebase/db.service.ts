@@ -19,6 +19,8 @@ import {
 } from "firebase/firestore"
 import { User } from "firebase/auth";
 
+export { firebaseApp };
+
 /**
  * @argument uid(auth) represent the id of the user authenticate
  */
