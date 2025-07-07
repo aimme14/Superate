@@ -42,11 +42,11 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
 
 // Datos de ejemplo para el examen
 const examData = {
-  id: "exam_english_001", // ID único del examen
-  title: "Examen de Inglés",
+  id: "exam_sociales_001", // ID único del examen
+  title: "Examen de Sociales",
   description: "Evaluación de habilidades de pensamiento crítico y comprensión lectora",
   timeLimit: 30, // minutos
-  module: "Módulo de Inglés",
+  module: "Módulo de Sociales",
   totalQuestions: 25,
   instructions: [
     "Lee cuidadosamente cada pregunta antes de responder",
@@ -69,12 +69,12 @@ const examData = {
     },
     {
       id: 2,
-      text: "What is the past tense of 'go'?",
+      text: "¿Cuál es el pasado del verbo 'ir'?",
       options: [
-        { id: "a", text: "goed" },
-        { id: "b", text: "went" },
-        { id: "c", text: "gone" },
-        { id: "d", text: "going" },
+        { id: "a", text: "iré" },
+        { id: "b", text: "iré" },
+        { id: "c", text: "iré" },
+        { id: "d", text: "iré" },
       ],
       correctAnswer: "b",
     },
