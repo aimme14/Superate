@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { HousePlug, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User } from "lucide-react";
+import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { doc, getDoc, getFirestore } from "firebase/firestore";
@@ -125,6 +125,23 @@ export default function EvaluationsTab() {
     return "bg-red-100 text-red-800";
   };
 
+  // Función para determinar si fue intento de fraude
+  const isFraudAttempt = (evaluation: ExamResult) => {
+    return evaluation.lockedByTabChange && evaluation.tabChangeCount > 0;
+  };
+
+  // Función para obtener el badge de estado de seguridad
+  const getSecurityBadge = (evaluation: ExamResult) => {
+    if (evaluation.tabChangeCount > 0) {
+      return (
+        <Badge variant="outline" className="text-orange-600 border-orange-200">
+          Intento de fraude
+        </Badge>
+      );
+    }
+    return null;
+  };
+
   const showExamDetails = (exam: ExamResult) => {
     setSelectedExam(exam);
     setShowDetails(true);
@@ -203,15 +220,41 @@ export default function EvaluationsTab() {
                       {selectedExam.completed ? "Completado" : "Incompleto"}
                     </Badge>
                   </div>
-                  {selectedExam.tabChangeCount > 0 && (
+                  {isFraudAttempt(selectedExam) ? (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Cambios de pestaña:</span>
+                      <span className="text-gray-600">Seguridad:</span>
+                      <Badge className="bg-red-100 text-red-800 border-red-200">
+                        <Shield className="h-3 w-3 mr-1" />
+                        Intento de fraude detectado
+                      </Badge>
+                    </div>
+                  ) : selectedExam.tabChangeCount > 0 ? (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Advertencias:</span>
                       <span className="font-medium text-orange-600">{selectedExam.tabChangeCount}</span>
                     </div>
-                  )}
+                  ) : null}
                 </CardContent>
               </Card>
             </div>
+
+            {/* Mensaje de intento de fraude */}
+            {isFraudAttempt(selectedExam) && (
+              <Card className="mb-6 border-red-200 bg-red-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3 text-red-800">
+                    <Shield className="h-6 w-6" />
+                    <div>
+                      <h3 className="font-semibold">Intento de fraude detectado</h3>
+                      <p className="text-sm mt-1">
+                        El examen fue cerrado automáticamente debido a cambios repetidos de pestaña o ventana. 
+                        Esto se considera una violación de las reglas del examen.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Detalles por pregunta */}
             <Card>
@@ -289,7 +332,7 @@ export default function EvaluationsTab() {
           <nav className="hidden md:flex items-center space-x-8">
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" active />
-            <NavItem href="" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso" />
+            <NavItem href="" icon={<Home className="w-5 h-5" />} text="Mi progreso" />
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
             <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
           </nav>
@@ -346,11 +389,7 @@ export default function EvaluationsTab() {
                           <Badge className={getScoreBadgeColor(evaluation.score.overallPercentage)}>
                             {evaluation.score.overallPercentage}%
                           </Badge>
-                          {evaluation.tabChangeCount > 0 && (
-                            <Badge variant="outline" className="text-orange-600 border-orange-200">
-                              {evaluation.tabChangeCount} advertencias
-                            </Badge>
-                          )}
+                          {getSecurityBadge(evaluation)}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-2">
