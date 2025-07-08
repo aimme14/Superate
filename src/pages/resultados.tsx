@@ -58,7 +58,7 @@ export default function EvaluationsTab() {
       setLoading(true);
       const auth = getAuth();
       const user = auth.currentUser;
-      
+
       if (!user) {
         setEvaluations([]);
         setLoading(false);
@@ -69,19 +69,19 @@ export default function EvaluationsTab() {
         // Obtenemos los resultados del documento "results" usando el userId
         const docRef = doc(db, "results", user.uid);
         const docSnap = await getDoc(docRef);
-        
+
         if (docSnap.exists()) {
           const data = docSnap.data() as UserResults;
-          
+
           // Convertimos el objeto a array de evaluaciones
           const evaluationsArray = Object.entries(data).map(([examId, examData]) => ({
             ...examData,
             examId, // Asegurar que el examId esté presente
           }));
-          
+
           // Ordenamos por fecha (más reciente primero)
           evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          
+
           setEvaluations(evaluationsArray);
         } else {
           setEvaluations([]);
@@ -169,8 +169,8 @@ export default function EvaluationsTab() {
                     <div className="text-gray-600 mt-2">
                       {selectedExam.score.correctAnswers} de {selectedExam.score.totalQuestions} correctas
                     </div>
-                    <Progress 
-                      value={selectedExam.score.overallPercentage} 
+                    <Progress
+                      value={selectedExam.score.overallPercentage}
                       className="mt-4"
                     />
                   </div>
@@ -229,10 +229,9 @@ export default function EvaluationsTab() {
                   {selectedExam.questionDetails.map((question, index) => (
                     <div key={question.questionId} className="border rounded-lg p-4 hover:bg-gray-50">
                       <div className="flex items-start gap-3">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                          !question.answered ? 'bg-gray-200 text-gray-600' :
-                          question.isCorrect ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                        }`}>
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${!question.answered ? 'bg-gray-200 text-gray-600' :
+                            question.isCorrect ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                          }`}>
                           {index + 1}
                         </div>
                         <div className="flex-1">
@@ -252,10 +251,9 @@ export default function EvaluationsTab() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                             <div>
                               <span className="text-gray-500">Tu respuesta: </span>
-                              <span className={`font-medium ${
-                                !question.answered ? 'text-gray-400' :
-                                question.isCorrect ? 'text-green-600' : 'text-red-600'
-                              }`}>
+                              <span className={`font-medium ${!question.answered ? 'text-gray-400' :
+                                  question.isCorrect ? 'text-green-600' : 'text-red-600'
+                                }`}>
                                 {question.userAnswer ? question.userAnswer.toUpperCase() : 'Sin responder'}
                               </span>
                             </div>
@@ -312,7 +310,7 @@ export default function EvaluationsTab() {
               Historial de Evaluaciones
             </CardTitle>
             <CardDescription>
-              {evaluations.length > 0 
+              {evaluations.length > 0
                 ? `Has presentado ${evaluations.length} evaluación${evaluations.length > 1 ? 'es' : ''}`
                 : "Aún no has presentado ninguna evaluación"
               }
@@ -376,13 +374,13 @@ export default function EvaluationsTab() {
                           <div className={`text-3xl font-bold ${getScoreColor(evaluation.score.overallPercentage)}`}>
                             {evaluation.score.overallPercentage}%
                           </div>
-                          <Progress 
-                            value={evaluation.score.overallPercentage} 
+                          <Progress
+                            value={evaluation.score.overallPercentage}
                             className="w-24 mt-1"
                           />
                         </div>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => showExamDetails(evaluation)}
                         >
