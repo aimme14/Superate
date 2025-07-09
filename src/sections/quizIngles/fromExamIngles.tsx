@@ -1,4 +1,4 @@
-import { Clock, ChevronLeft, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookCheck, Timer, HelpCircle, Users, Play, Maximize, X, Database } from "lucide-react"
+import { Clock, ChevronLeft, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookCheck, Timer, HelpCircle, Users, Play, Maximize, X, Database, Flag, Eye } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
@@ -52,6 +52,7 @@ const examData = {
     "Lee cuidadosamente cada pregunta antes de responder",
     "Solo hay una respuesta correcta por pregunta",
     "Puedes navegar entre preguntas usando los botones o el panel lateral",
+    "Puedes marcar preguntas para revisar más tarde usando el botón de bandera",
     "El tiempo es limitado, administra bien tu tiempo",
     "Una vez enviado el examen, no podrás modificar tus respuestas"
   ],
@@ -94,7 +95,7 @@ const examData = {
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
-  const [answers, setAnswers] = useState<{ [key: string]: string }>({});
+  const [answers, setAnswers] = useState<{ [key: number]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
   const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -105,14 +106,122 @@ const ExamWithFirebase = () => {
   const [tabChangeCount, setTabChangeCount] = useState(0)
   const [examLocked, setExamLocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [markedForReview, setMarkedForReview] = useState<{ [key: number]: boolean }>({})
+  const [questionTimes, setQuestionTimes] = useState<{ [key: number]: number }>({})
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now())
   const { user } = useAuthContext();
   const userId = user?.uid;
-  const [existingExamData, setExistingExamData] = useState<ExamData | null>(null);
-  
+  const [existingExamData, setExistingExamData] = useState<any>(null);
+
+  // Registro de tiempo por pregunta
+  useEffect(() => {
+    if (examState === 'active') {
+      const currentQuestionId = examData.questions[currentQuestion].id;
+      const startTime = Date.now();
+      setQuestionStartTime(startTime);
+
+      return () => {
+        const endTime = Date.now();
+        const timeSpent = Math.floor((endTime - startTime) / 1000);
+        setQuestionTimes(prev => ({
+          ...prev,
+          [currentQuestionId]: (prev[currentQuestionId] || 0) + timeSpent
+        }));
+      };
+    }
+  }, [currentQuestion, examState]);
+
+  // Función para marcar pregunta para revisar
+  const toggleMarkForReview = (questionId: number) => {
+    setMarkedForReview(prev => ({
+      ...prev,
+      [questionId]: !prev[questionId]
+    }));
+  };
+
+  // Función para obtener el estado de una pregunta
+  const getQuestionStatus = (questionId: number) => {
+    const isAnswered = !!answers[questionId];
+    const isMarked = !!markedForReview[questionId];
+    
+    if (isAnswered && isMarked) return 'answered-marked';
+    if (isAnswered) return 'answered';
+    if (isMarked) return 'marked';
+    return 'unanswered';
+  };
+
+  // Función para obtener las clases de color según el estado
+  const getQuestionStatusStyles = (questionId: number, isCurrent: boolean) => {
+    const status = getQuestionStatus(questionId);
+    const baseClasses = "w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors";
+    
+    if (isCurrent) {
+      return `${baseClasses} bg-purple-50 border-purple-200 border`;
+    }
+    
+    switch (status) {
+      case 'answered-marked':
+        return `${baseClasses} bg-orange-50 border-orange-200 border hover:bg-orange-100`;
+      case 'answered':
+        return `${baseClasses} bg-green-50 border-green-200 border hover:bg-green-100`;
+      case 'marked':
+        return `${baseClasses} bg-yellow-50 border-yellow-200 border hover:bg-yellow-100`;
+      default:
+        return `${baseClasses} border hover:bg-gray-50`;
+    }
+  };
+
+  // Función para obtener el color del círculo de número de pregunta
+  const getQuestionNumberStyles = (questionId: number) => {
+    const status = getQuestionStatus(questionId);
+    
+    switch (status) {
+      case 'answered-marked':
+        return "bg-orange-500 text-white";
+      case 'answered':
+        return "bg-green-500 text-white";
+      case 'marked':
+        return "bg-yellow-500 text-white";
+      default:
+        return "bg-gray-100 text-gray-700 border";
+    }
+  };
+
+  // Función para obtener el ícono de estado
+  const getStatusIcon = (questionId: number) => {
+    const status = getQuestionStatus(questionId);
+    
+    switch (status) {
+      case 'answered-marked':
+        return <Flag className="h-3 w-3 text-orange-500" />;
+      case 'answered':
+        return <CheckCircle2 className="h-3 w-3 text-green-500" />;
+      case 'marked':
+        return <Flag className="h-3 w-3 text-yellow-500" />;
+      default:
+        return <AlertCircle className="h-3 w-3 text-orange-500" />;
+    }
+  };
+
+  // Función para obtener el texto de estado
+  const getStatusText = (questionId: number) => {
+    const status = getQuestionStatus(questionId);
+    
+    switch (status) {
+      case 'answered-marked':
+        return 'Respondida y marcada';
+      case 'answered':
+        return 'Respondida';
+      case 'marked':
+        return 'Marcada para revisar';
+      default:
+        return 'Sin responder';
+    }
+  };
 
   // Verificar al cargar si el examen ya fue presentado
   useEffect(() => {
-    if (!userId) return; // Don't run if userId is undefined
+    if (!userId) return;
   
     const fetchExamStatus = async () => {
       try {
@@ -125,7 +234,7 @@ const ExamWithFirebase = () => {
         }
       } catch (error) {
         console.error('Error verificando estado del examen:', error)
-        setExamState('welcome') // Permitir continuar en caso de error
+        setExamState('welcome')
       }
     }
   
@@ -156,7 +265,16 @@ const ExamWithFirebase = () => {
   }
 
   // Función para guardar resultados en Firebase
-  const saveToFirebase = async (timeExpired = false, lockedByTabChange = false) => {
+  const saveToFirebase = async (timeExpired = false, lockedByFraud = false) => {
+    // Registrar tiempo de la pregunta actual antes de guardar
+    const currentQuestionId = examData.questions[currentQuestion].id;
+    const currentTime = Date.now();
+    const timeSpent = Math.floor((currentTime - questionStartTime) / 1000);
+    const finalQuestionTimes = {
+      ...questionTimes,
+      [currentQuestionId]: (questionTimes[currentQuestionId] || 0) + timeSpent
+    };
+
     setIsSubmitting(true)
     try {
       const score = calculateScore()
@@ -167,20 +285,23 @@ const ExamWithFirebase = () => {
         answers,
         score,
         timeExpired,
-        lockedByTabChange,
-        tabChangeCount,
+        lockedByFraud,
+        fraudAttempts: tabChangeCount,
+        markedForReview,
+        questionTimes: finalQuestionTimes,
         startTime: new Date(Date.now() - (examData.timeLimit * 60 - timeLeft) * 1000).toISOString(),
         endTime: new Date().toISOString(),
-        timeSpent: examData.timeLimit * 60 - timeLeft, // en segundos
+        timeSpent: examData.timeLimit * 60 - timeLeft,
         completed: true,
-        // Detalles por pregunta
         questionDetails: examData.questions.map(question => ({
           questionId: question.id,
           questionText: question.text,
           userAnswer: answers[question.id] || null,
           correctAnswer: question.correctAnswer,
           isCorrect: answers[question.id] === question.correctAnswer,
-          answered: !!answers[question.id]
+          answered: !!answers[question.id],
+          markedForReview: !!markedForReview[question.id],
+          timeSpent: finalQuestionTimes[question.id] || 0
         }))
       }
 
@@ -486,14 +607,15 @@ const ExamWithFirebase = () => {
             </ul>
           </div>
 
-          {/* Advertencia cambio de pestaña */}
+          {/* Advertencia de intento de fraude */}
           <Alert className="border-red-200 bg-red-50">
             <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-800">Control de Pestañas</AlertTitle>
+            <AlertTitle className="text-red-800">Detección de Intento de Fraude</AlertTitle>
             <AlertDescription className="text-red-700">
-              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 3 intentos, el examen se finalizará automáticamente.
+              El sistema detectará intentos de fraude como cambio de pestaña, minimizar la ventana, o perder el foco. Después de 3 intentos, el examen se finalizará automáticamente.
             </AlertDescription>
           </Alert>
+
           <Alert className="border-purple-200 bg-purple-50">
             <Maximize className="h-4 w-4 text-purple-600" />
             <AlertTitle className="text-purple-800">Modo Pantalla Completa</AlertTitle>
@@ -517,7 +639,7 @@ const ExamWithFirebase = () => {
             <AlertTitle className="text-amber-800">¡Importante!</AlertTitle>
             <AlertDescription className="text-amber-700">
               Una vez que inicies el examen, el cronómetro comenzará a correr. Asegúrate de tener una conexión estable a internet y un ambiente tranquilo para concentrarte.
-            </AlertDescription>
+            </ AlertDescription>
           </Alert>
         </CardContent>
 
@@ -535,58 +657,8 @@ const ExamWithFirebase = () => {
     </div>
   )
 
-  // Modal de advertencia de cambio de pestaña
-  const TabChangeWarningModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 bg-orange-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="h-8 w-8 text-orange-600" />
-            </div>
-          </div>
-          <CardTitle className="text-xl text-orange-800">¡Advertencia!</CardTitle>
-          <CardDescription className="text-base">
-            Cambio de pestaña detectado
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <div className="bg-orange-50 rounded-lg p-4 mb-4">
-            <div className="text-sm text-orange-600 mb-1">Intentos restantes</div>
-            <div className="text-2xl font-bold text-orange-800">{3 - tabChangeCount}</div>
-          </div>
-          <p className="text-gray-700 mb-2">
-            Has cambiado de pestaña o perdido el foco de la ventana del examen.
-          </p>
-          <p className="text-sm text-red-600 font-medium">
-            {tabChangeCount >= 2
-              ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
-              : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
-            }
-          </p>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-3">
-          <Button
-            onClick={continueExam}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Continuar Examen
-          </Button>
-          <Button
-            onClick={finishExamByTabChange}
-            variant="outline"
-            className="w-full border-red-300 text-red-600 hover:bg-red-50"
-          >
-            <X className="h-4 w-4 mr-2" />
-            Finalizar Examen
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  )
-
-  const FullscreenExitModal = () => (
+  // Modal de advertencia de intento de fraude
+  const FraudWarningModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className="w-full max-w-md mx-4">
         <CardHeader className="text-center">
@@ -595,109 +667,410 @@ const ExamWithFirebase = () => {
               <AlertCircle className="h-8 w-8 text-red-600" />
             </div>
           </div>
-          <CardTitle className="text-xl text-red-800">¡Atención!</CardTitle>
+          <CardTitle className="text-xl text-red-800">¡Intento de Fraude Detectado!</CardTitle>
           <CardDescription className="text-base">
-            Has salido del modo pantalla completa
+            Comportamiento sospechoso detectado
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
-          <p className="text-gray-700 mb-4">
-            Salir de la pantalla completa durante el examen puede considerarse como finalización de la prueba.
+          <div className="bg-red-50 rounded-lg p-4 mb-4">
+            <div className="text-sm text-red-600 mb-1">Intentos restantes</div>
+            <div className="text-2xl font-bold text-red-800">{3 - tabChangeCount}</div>
+          </div>
+          <p className="text-gray-700 mb-2">
+            Has intentado cambiar de pestaña, minimizar la ventana o perder el foco del examen.
           </p>
-          <p className="text-sm text-gray-600">
-            ¿Qué deseas hacer?
+          <p className="text-sm text-red-600 font-medium">
+          {tabChangeCount >= 2
+              ? "¡Último aviso! El próximo intento finalizará el examen automáticamente."
+              : "Tienes pocas oportunidades restantes."}
           </p>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3">
+        <CardFooter className="flex gap-2">
           <Button
-            onClick={returnToExam}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            onClick={continueExam}
+            className="flex-1 bg-blue-500 hover:bg-blue-600"
+            disabled={tabChangeCount >= 2}
           >
-            <Maximize className="h-4 w-4 mr-2" />
-            Volver al Examen
+            Continuar Examen
           </Button>
           <Button
-            onClick={handleExitFullscreen}
+            onClick={finishExamByTabChange}
             variant="outline"
-            className="w-full border-red-300 text-red-600 hover:bg-red-50"
+            className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
           >
-            <X className="h-4 w-4 mr-2" />
-            Salir y Finalizar
+            Finalizar Examen
           </Button>
         </CardFooter>
       </Card>
     </div>
   )
 
-  // Timer effect
+  // Modal de salida de pantalla completa
+  const FullscreenExitModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-orange-100 rounded-full flex items-center justify-center">
+              <Maximize className="h-8 w-8 text-orange-600" />
+            </div>
+          </div>
+          <CardTitle className="text-xl text-orange-800">Pantalla Completa Requerida</CardTitle>
+          <CardDescription>
+            Has salido del modo pantalla completa
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <p className="text-gray-700 mb-4">
+            El examen debe realizarse en modo pantalla completa por políticas de seguridad.
+          </p>
+          <p className="text-sm text-orange-600">
+            ¿Qué deseas hacer?
+          </p>
+        </CardContent>
+        <CardFooter className="flex gap-2">
+          <Button
+            onClick={returnToExam}
+            className="flex-1 bg-green-500 hover:bg-green-600"
+          >
+            Volver al Examen
+          </Button>
+          <Button
+            onClick={handleExitFullscreen}
+            variant="outline"
+            className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
+          >
+            Finalizar Examen
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+
+  // Temporizador
   useEffect(() => {
-    if (timeLeft > 0 && examState === 'active') {
-      const timer = setTimeout(() => {
-        setTimeLeft(timeLeft - 1)
+    let interval: NodeJS.Timeout | null = null
+    if (examState === 'active' && timeLeft > 0 && !examLocked) {
+      interval = setInterval(() => {
+        setTimeLeft(time => {
+          if (time <= 1) {
+            handleSubmit(true)
+            return 0
+          }
+          return time - 1
+        })
       }, 1000)
-      return () => clearTimeout(timer)
     } else if (timeLeft === 0 && examState === 'active') {
-      handleSubmit(true, false)
+      handleSubmit(true)
     }
-  }, [timeLeft, examState])
-
-  // Prevent page reload
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (examState === 'active') {
-        e.preventDefault()
-        e.returnValue = "¿Estás seguro que deseas salir? Tu progreso se perderá."
-        return e.returnValue
-      }
-    }
-
-    window.addEventListener("beforeunload", handleBeforeUnload)
-    return () => { window.removeEventListener("beforeunload", handleBeforeUnload) }
-  }, [examState])
-
-  // Cleanup fullscreen on component unmount
-  useEffect(() => {
     return () => {
-      if (isFullscreen) {
-        exitFullscreen()
-      }
+      if (interval) clearInterval(interval)
     }
-  }, [])
+  }, [examState, timeLeft, examLocked])
 
-  const handleAnswer = (value: string) => {
-    setAnswers({ ...answers, [examData.questions[currentQuestion].id]: value })
+  // Función para manejar el envío
+  const handleSubmit = async (timeExpired = false, lockedByFraud = false) => {
+    if (examState !== 'active') return
+
+    setShowWarning(true)
+    try {
+      await saveToFirebase(timeExpired, lockedByFraud)
+      setExamState('completed')
+    } catch (error) {
+      console.error('Error al enviar el examen:', error)
+      alert('Error al enviar el examen. Por favor, inténtalo de nuevo.')
+    } finally {
+      setShowWarning(false)
+    }
+  }
+
+  // Función para confirmar envío
+  const confirmSubmit = () => {
+    setShowWarning(false)
+    handleSubmit()
+  }
+
+  // Función para cancelar envío
+  const cancelSubmit = () => {
     setShowWarning(false)
   }
 
-  const goToNextQuestion = () => {
+  // Función para manejar respuestas
+  const handleAnswerChange = (questionId: number, answer: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }))
+  }
+
+  // Función para navegar a pregunta específica
+  const goToQuestion = (questionIndex: number) => {
+    setCurrentQuestion(questionIndex)
+  }
+
+  // Función para navegar a siguiente pregunta
+  const nextQuestion = () => {
     if (currentQuestion < examData.questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1)
     }
   }
 
-  const goToPreviousQuestion = () => {
+  // Función para navegar a pregunta anterior
+  const prevQuestion = () => {
     if (currentQuestion > 0) {
       setCurrentQuestion(currentQuestion - 1)
     }
   }
 
-  const handleSubmit = async (timeExpired = false, lockedByTabChange = false) => {
-    if (!timeExpired && !lockedByTabChange && Object.keys(answers).length < examData.questions.length) {
-      setShowWarning(true)
-      return
+  // Formatear tiempo
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainingSeconds = seconds % 60
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
     }
-
-    try {
-      await saveToFirebase(timeExpired, lockedByTabChange)
-      setExamState('completed')
-      await exitFullscreen()
-    } catch (error) {
-      console.error('Error al guardar el examen:', error)
-      // Aquí puedes mostrar un mensaje de error al usuario
-      alert('Error al guardar el examen. Por favor, inténtalo de nuevo.')
-    }
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
   }
-  const progress = ((currentQuestion + 1) / examData.questions.length) * 100
+
+  // Pantalla de examen activo
+  const ActiveExamScreen = () => (
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Panel lateral de navegación */}
+      <div className="w-80 bg-white shadow-lg border-r overflow-y-auto">
+        <div className="p-4 border-b bg-gradient-to-r from-purple-600 to-blue-500">
+          <h2 className="text-white font-semibold text-lg">Panel de Navegación</h2>
+          <div className="text-purple-100 text-sm mt-1">
+            {examData.questions.length} preguntas en total
+          </div>
+        </div>
+        
+        {/* Resumen de estado */}
+        <div className="p-4 border-b bg-gray-50">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {Object.keys(answers).length}
+              </div>
+              <div className="text-gray-600">Respondidas</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-yellow-600">
+                {Object.values(markedForReview).filter(Boolean).length}
+              </div>
+              <div className="text-gray-600">Marcadas</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Leyenda de colores */}
+        <div className="p-4 border-b">
+          <h3 className="font-medium text-gray-900 mb-3">Leyenda</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+              <span>Respondida</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
+              <span>Marcada para revisar</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
+              <span>Respondida y marcada</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-gray-200 rounded-full border"></div>
+              <span>Sin responder</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-purple-200 rounded-full border-2 border-purple-500"></div>
+              <span>Pregunta actual</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Lista de preguntas */}
+        <div className="p-4 space-y-2">
+          {examData.questions.map((question, index) => (
+            <button
+              key={question.id}
+              onClick={() => goToQuestion(index)}
+              className={getQuestionStatusStyles(question.id, index === currentQuestion)}
+            >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${getQuestionNumberStyles(question.id)}`}>
+                {index + 1}
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-medium text-gray-900 truncate">
+                  Pregunta {index + 1}
+                </div>
+                <div className="text-xs text-gray-500 flex items-center gap-1">
+                  {getStatusIcon(question.id)}
+                  {getStatusText(question.id)}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Contenido principal */}
+      <div className="flex-1 flex flex-col">
+        {/* Header con temporizador */}
+        <div className="bg-white shadow-sm border-b p-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-semibold text-gray-900">{examData.title}</h1>
+            <div className="text-sm text-gray-500">
+              Pregunta {currentQuestion + 1} de {examData.questions.length}
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+              timeLeft < 300 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+            }`}>
+              <Clock className="h-4 w-4" />
+              {formatTime(timeLeft)}
+            </div>
+            <Button
+              onClick={() => setShowWarning(true)}
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Enviar Examen
+            </Button>
+          </div>
+        </div>
+
+        {/* Contenido de la pregunta */}
+        <div className="flex-1 p-8 overflow-y-auto">
+          <div className="max-w-4xl mx-auto">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xl">
+                    Pregunta {currentQuestion + 1}
+                  </CardTitle>
+                  <Button
+                    onClick={() => toggleMarkForReview(examData.questions[currentQuestion].id)}
+                    variant="outline"
+                    size="sm"
+                    className={`gap-2 ${
+                      markedForReview[examData.questions[currentQuestion].id]
+                        ? 'border-yellow-500 text-yellow-700 bg-yellow-50'
+                        : 'border-gray-300 text-gray-600'
+                    }`}
+                  >
+                    <Flag className="h-4 w-4" />
+                    {markedForReview[examData.questions[currentQuestion].id] ? 'Desmarcaar' : 'Marcar para revisar'}
+                  </Button>
+                </div>
+                <CardDescription className="text-lg leading-relaxed">
+                  {examData.questions[currentQuestion].text}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup
+                  value={answers[examData.questions[currentQuestion].id] || ""}
+                  onValueChange={(value) => handleAnswerChange(examData.questions[currentQuestion].id, value)}
+                >
+                  {examData.questions[currentQuestion].options.map((option) => (
+                    <div key={option.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200">
+                      <RadioGroupItem value={option.id} id={option.id} />
+                      <Label htmlFor={option.id} className="flex-1 cursor-pointer text-base">
+                        {option.text}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <Button
+                  onClick={prevQuestion}
+                  disabled={currentQuestion === 0}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Progress 
+                    value={((currentQuestion + 1) / examData.questions.length) * 100} 
+                    className="w-32"
+                  />
+                  <span className="text-sm text-gray-500 min-w-max">
+                    {currentQuestion + 1} / {examData.questions.length}
+                  </span>
+                </div>
+                <Button
+                  onClick={nextQuestion}
+                  disabled={currentQuestion === examData.questions.length - 1}
+                  className="flex items-center gap-2"
+                >
+                  Siguiente
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Modal de confirmación de envío
+  const SubmitWarningModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-amber-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-amber-600" />
+            </div>
+          </div>
+          <CardTitle className="text-xl text-amber-800">¿Enviar Examen?</CardTitle>
+          <CardDescription>
+            Esta acción no se puede deshacer
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <div className="bg-amber-50 rounded-lg p-4 mb-4">
+            <div className="text-sm text-amber-600 mb-2">Progreso actual</div>
+            <div className="text-2xl font-bold text-amber-800 mb-1">
+              {Object.keys(answers).length} / {examData.questions.length}
+            </div>
+            <div className="text-sm text-amber-600">preguntas respondidas</div>
+          </div>
+          <p className="text-gray-700 mb-2">
+            Una vez enviado, no podrás modificar tus respuestas.
+          </p>
+          <p className="text-sm text-amber-600">
+            ¿Estás seguro de que quieres enviar el examen?
+          </p>
+        </CardContent>
+        <CardFooter className="flex gap-2">
+          <Button
+            onClick={cancelSubmit}
+            variant="outline"
+            className="flex-1"
+            disabled={isSubmitting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={confirmSubmit}
+            className="flex-1 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Enviando...' : 'Enviar Examen'}
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
 
   // Pantalla de resultados
   const ResultsScreen = () => {
@@ -705,116 +1078,81 @@ const ExamWithFirebase = () => {
     
     return (
       <div className="max-w-4xl mx-auto">
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-green-50 to-emerald-50">
-          <CardHeader className="text-center pb-6">
+        <Card className="shadow-lg">
+          <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-              <div className="h-20 w-20 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+              <div className="h-20 w-20 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full flex items-center justify-center">
                 <CheckCircle2 className="h-10 w-10 text-white" />
               </div>
             </div>
-            <CardTitle className="text-3xl font-bold text-green-800 mb-2">
-              ¡Examen Completado!
-            </CardTitle>
-            <CardDescription className="text-lg text-gray-600">
-              Tus respuestas han sido guardadas exitosamente
+            <CardTitle className="text-3xl text-green-600 mb-2">¡Examen Completado!</CardTitle>
+            <CardDescription className="text-lg">
+              Tus respuestas han sido enviadas correctamente
             </CardDescription>
           </CardHeader>
-
           <CardContent className="space-y-6">
-            {/* Puntuación principal */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm text-center">
-              <div className="text-4xl font-bold text-green-600 mb-2">
-                {score.correctAnswers}/{score.totalQuestions}
+            {/* Puntuación */}
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 text-center">
+              <div className="text-4xl font-bold text-purple-600 mb-2">
+                {score.correctAnswers} / {score.totalQuestions}
               </div>
-              <div className="text-xl text-gray-700 mb-1">Respuestas correctas</div>
-              <div className="text-lg text-gray-500">
-                Puntuación: {score.overallPercentage}%
+              <div className="text-lg text-gray-600 mb-1">Respuestas correctas</div>
+              <div className="text-3xl font-bold text-blue-600">
+                {score.overallPercentage}%
               </div>
+              <div className="text-sm text-gray-500">Puntuación total</div>
             </div>
 
             {/* Estadísticas detalladas */}
             <div className="grid md:grid-cols-3 gap-4">
               <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
-                <div className="font-semibold text-2xl text-blue-600">{score.totalAnswered}</div>
-                <div className="text-sm text-gray-500">Preguntas respondidas</div>
-              </div>
-              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
-                <div className="font-semibold text-2xl text-green-600">{score.correctAnswers}</div>
-                <div className="text-sm text-gray-500">Respuestas correctas</div>
-              </div>
-              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
-                <div className="font-semibold text-2xl text-orange-600">
-                  {Math.floor((examData.timeLimit * 60 - timeLeft) / 60)}:{((examData.timeLimit * 60 - timeLeft) % 60).toString().padStart(2, '0')}
+                <div className="text-2xl font-bold text-green-600">
+                  {score.correctAnswers}
                 </div>
-                <div className="text-sm text-gray-500">Tiempo utilizado</div>
+                <div className="text-sm text-gray-500">Correctas</div>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                <div className="text-2xl font-bold text-red-600">
+                  {score.totalQuestions - score.correctAnswers}
+                </div>
+                <div className="text-sm text-gray-500">Incorrectas</div>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatTime(examData.timeLimit * 60 - timeLeft)}
+                </div>
+                <div className="text-sm text-gray-500">Tiempo usado</div>
               </div>
             </div>
 
-            {/* Desglose por pregunta */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Desglose de respuestas
-              </h3>
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                {examData.questions.map((question, index) => {
-                  const userAnswer = answers[question.id]
-                  const isCorrect = userAnswer === question.correctAnswer
-                  const wasAnswered = !!userAnswer
-                  
-                  return (
-                    <div key={question.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                          !wasAnswered ? 'bg-gray-300 text-gray-600' :
-                          isCorrect ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-                        }`}>
-                          {index + 1}
-                        </div>
-                        <div className="text-sm text-gray-700">
-                          Pregunta {index + 1}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!wasAnswered ? (
-                          <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
-                            Sin responder
-                          </span>
-                        ) : isCorrect ? (
-                          <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
-                            Correcta
-                          </span>
-                        ) : (
-                          <span className="text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
-                            Incorrecta
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+            {/* Preguntas marcadas para revisar */}
+            {Object.values(markedForReview).filter(Boolean).length > 0 && (
+              <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                <div className="flex items-center gap-2 text-yellow-800 mb-2">
+                  <Flag className="h-5 w-5" />
+                  <span className="font-medium">Preguntas marcadas para revisar</span>
+                </div>
+                <div className="text-sm text-yellow-700">
+                  Marcaste {Object.values(markedForReview).filter(Boolean).length} preguntas para revisar durante el examen.
+                </div>
               </div>
-            </div>
-
-            {/* Información adicional si hubo problemas */}
-            {(tabChangeCount > 0 || examLocked) && (
-              <Alert className="border-amber-200 bg-amber-50">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertTitle className="text-amber-800">Información adicional</AlertTitle>
-                <AlertDescription className="text-amber-700">
-                  {examLocked && "El examen fue finalizado automáticamente por superar el límite de cambios de pestaña. "}
-                  {tabChangeCount > 0 && `Cambios de pestaña detectados: ${tabChangeCount}`}
-                </AlertDescription>
-              </Alert>
             )}
-          </CardContent>
 
-          <CardFooter className="flex justify-center pt-6">
+            {/* Información adicional */}
+            <Alert className="border-blue-200 bg-blue-50">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-800">Información</AlertTitle>
+              <AlertDescription className="text-blue-700">
+                Tus resultados han sido guardados automáticamente. No es necesario realizar ninguna acción adicional.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+          <CardFooter className="flex justify-center">
             <Button
               onClick={() => navigate('/dashboard')}
-              size="lg"
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold"
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
             >
-              Volver a las demas pruebas
+              Volver al Dashboard
             </Button>
           </CardFooter>
         </Card>
@@ -822,312 +1160,27 @@ const ExamWithFirebase = () => {
     )
   }
 
-  // Pantalla principal del examen con diseño mejorado
-  const ExamScreen = () => {
-    const minutes = Math.floor(timeLeft / 60)
-    const seconds = timeLeft % 60
-    const question = examData.questions[currentQuestion]
-    const answeredQuestions = Object.keys(answers).length
-
-    return (
-      <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-50 p-4">
-        {/* Contenido principal del examen */}
-        <div className="flex-1">
-          {/* Módulo con miniatura */}
-          <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden">
-                <BookCheck className="w-16 h-16 text-emerald-500" />
-              </div>
-              <div>
-                <h3 className="text-sm text-gray-500 font-medium">Estás realizando:</h3>
-                <h2 className="text-lg font-bold">{examData.module || examData.title}</h2>
-                <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                  <Clock className="h-4 w-4" />
-                  <span>{examData.timeLimit} minutos</span>
-                  <span className="mx-1">•</span>
-                  <span>{examData.questions.length} preguntas</span>
-                  {tabChangeCount > 0 && (
-                    <>
-                      <span className="mx-1">•</span>
-                      <span className="text-orange-600 font-medium">
-                        Advertencias: {tabChangeCount}/3
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              <h2 className="text-lg font-semibold">{examData.title}</h2>
-              {examLocked && (
-                <div className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                  BLOQUEADO
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              {tabChangeCount > 0 && (
-                <div className="flex items-center gap-2 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
-                  <AlertCircle className="h-4 w-4 text-orange-500" />
-                  <span className="text-sm font-medium text-orange-700">
-                    {3 - tabChangeCount} intentos restantes
-                  </span>
-                </div>
-              )}
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border shadow-sm ${
-                timeLeft < 300 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white'
-              }`}>
-                <Clock className={`h-4 w-4 ${timeLeft < 300 ? 'text-red-500' : 'text-orange-500'}`} />
-                <span className={`text-sm font-medium font-mono ${
-                  timeLeft < 300 ? 'text-red-700' : ''
-                }`}>
-                  {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <Progress value={progress} className="h-2" />
-            <div className="flex justify-between mt-2 text-sm text-gray-500">
-              <span>
-                Pregunta {currentQuestion + 1} de {examData.questions.length}
-              </span>
-              <span>{answeredQuestions} respondidas</span>
-            </div>
-          </div>
-
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Pregunta {currentQuestion + 1}</CardTitle>
-              <CardDescription className="text-base font-medium text-gray-800 mt-2">
-                {question.text}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RadioGroup 
-                value={answers[question.id] || ""} 
-                onValueChange={handleAnswer} 
-                className="space-y-3"
-              >
-                {question.options.map((option) => (
-                  <div
-                    key={option.id}
-                    className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
-                  >
-                    <RadioGroupItem 
-                      value={option.id} 
-                      id={`option-${option.id}`} 
-                      className="mt-1" 
-                    />
-                    <Label 
-                      htmlFor={`option-${option.id}`} 
-                      className="flex-1 cursor-pointer"
-                    >
-                      <span className="font-semibold">{option.id.toUpperCase()}.</span> {option.text}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button
-                variant="outline"
-                onClick={goToPreviousQuestion}
-                disabled={currentQuestion === 0}
-                className="flex items-center gap-2"
-              >
-                <ChevronLeft className="h-4 w-4" /> Anterior
-              </Button>
-              {currentQuestion < examData.questions.length - 1 ? (
-                <Button 
-                  onClick={goToNextQuestion} 
-                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
-                >
-                  Siguiente <ChevronRight className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => handleSubmit()}
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      Enviar Examen
-                    </>
-                  )}
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        </div>
-
-        {/* Panel lateral derecho con navegación de preguntas */}
-        <div className="w-full lg:w-64 flex-shrink-0">
-          <div className="bg-white border rounded-lg p-4 sticky top-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <Brain className="h-4 w-4 text-purple-600" />
-              Navegación
-            </h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {examData.questions.map((q, index) => (
-                <button
-                  key={q.id}
-                  onClick={() => setCurrentQuestion(index)}
-                  className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${
-                    currentQuestion === index 
-                      ? "bg-purple-50 border-purple-200 border" 
-                      : "border hover:bg-gray-50"
-                  }`}
-                >
-                  <div
-                    className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                      answers[q.id]
-                        ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
-                        : "bg-gray-100 text-gray-700 border"
-                    }`}
-                  >
-                    {index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1">
-                      {answers[q.id] ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 text-green-500" />
-                          <span>Respondida</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="h-3 w-3 text-orange-500" />
-                          <span>Sin responder</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-4 pt-4 border-t">
-              <div className="text-sm text-gray-500 mb-2">Progreso del examen</div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">
-                  {answeredQuestions}/{examData.questions.length}
-                </span>
-                <span className="text-sm text-gray-500">
-                  {Math.round((answeredQuestions / examData.questions.length) * 100)}%
-                </span>
-              </div>
-              <Progress value={(answeredQuestions / examData.questions.length) * 100} className="h-2" />
-
-              <Button
-                onClick={() => handleSubmit()}
-                disabled={isSubmitting}
-                className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
-                    Guardando...
-                  </>
-                ) : (
-                  'Finalizar examen'
-                )}
-              </Button>
-
-              {answeredQuestions < examData.questions.length && (
-                <p className="text-xs text-center mt-2 text-orange-500">
-                  Tienes {examData.questions.length - answeredQuestions} preguntas sin responder
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Warning modal actualizado
-  const WarningModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader>
-          <CardTitle className="text-center text-amber-800">
-            ¿Enviar examen incompleto?
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-center text-gray-700 mb-4">
-            Tienes {examData.questions.length - Object.keys(answers).length} preguntas sin responder.
-          </p>
-          <p className="text-center text-sm text-gray-600">
-            ¿Estás seguro que deseas enviar el examen?
-          </p>
-        </CardContent>
-        <CardFooter className="flex gap-3">
-          <Button
-            onClick={() => setShowWarning(false)}
-            variant="outline"
-            className="flex-1"
-          >
-            Continuar respondiendo
-          </Button>
-          <Button
-            onClick={() => {
-              setShowWarning(false)
-              handleSubmit()
-            }}
-            className="flex-1 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
-          >
-            Enviar ahora
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  )
-
-  // Renderizado principal basado en el estado
-  if (examState === 'loading') {
-    return <LoadingScreen />
-  }
-
-  if (examState === 'already_taken') {
-    return <AlreadyTakenScreen />
-  }
-
-  if (examState === 'welcome') {
-    return <WelcomeScreen />
-  }
-
-  if (examState === 'completed') {
+  // Renderizado condicional
+  if (examLocked) {
     return <ResultsScreen />
   }
 
-  if (examState === 'active') {
-    return (
-      <>
-        <ExamScreen />
-        {showWarning && <WarningModal />}
-        {showTabChangeWarning && <TabChangeWarningModal />}
+  return (
+    <div className="min-h-screen bg-gray-100 py-8">
+      <div className="container mx-auto px-4">
+        {examState === 'loading' && <LoadingScreen />}
+        {examState === 'already_taken' && <AlreadyTakenScreen />}
+        {examState === 'welcome' && <WelcomeScreen />}
+        {examState === 'active' && <ActiveExamScreen />}
+        {examState === 'completed' && <ResultsScreen />}
+        
+        {/* Modales */}
+        {showWarning && <SubmitWarningModal />}
+        {showTabChangeWarning && <FraudWarningModal />}
         {showFullscreenExit && <FullscreenExitModal />}
-      </>
-    )
-  }
-
-  return null
+      </div>
+    </div>
+  )
 }
 
 export default ExamWithFirebase
