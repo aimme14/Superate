@@ -107,12 +107,13 @@ const ExamWithFirebase = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { user } = useAuthContext();
   const userId = user?.uid;
-  const [existingExamData, setExistingExamData] = useState<ExamData | null>(null)
+  const [existingExamData, setExistingExamData] = useState<ExamData | null>(null);
+  
 
   // Verificar al cargar si el examen ya fue presentado
   useEffect(() => {
     if (!userId) return; // Don't run if userId is undefined
-
+  
     const fetchExamStatus = async () => {
       try {
         const existingExam = await checkExamStatus(userId, examData.id);
@@ -127,7 +128,7 @@ const ExamWithFirebase = () => {
         setExamState('welcome') // Permitir continuar en caso de error
       }
     }
-
+  
     fetchExamStatus()
   }, [userId])
 
@@ -552,7 +553,7 @@ const ExamWithFirebase = () => {
         <CardContent className="text-center">
           <div className="bg-orange-50 rounded-lg p-4 mb-4">
             <div className="text-sm text-orange-600 mb-1">Intentos restantes</div>
-            <div className="text-2xl font-bold text-orange-800">{2 - tabChangeCount}</div>
+            <div className="text-2xl font-bold text-orange-800">{3 - tabChangeCount}</div>
           </div>
           <p className="text-gray-700 mb-2">
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
@@ -560,7 +561,7 @@ const ExamWithFirebase = () => {
           <p className="text-sm text-red-600 font-medium">
             {tabChangeCount >= 2
               ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
-              : `Después de ${2 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
+              : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
             }
           </p>
         </CardContent>
@@ -628,7 +629,7 @@ const ExamWithFirebase = () => {
     </div>
   )
 
-  // Efecto del temporizador
+  // Timer effect
   useEffect(() => {
     if (timeLeft > 0 && examState === 'active') {
       const timer = setTimeout(() => {
@@ -640,7 +641,7 @@ const ExamWithFirebase = () => {
     }
   }, [timeLeft, examState])
 
-  // Evitar la recarga de la página
+  // Prevent page reload
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (examState === 'active') {
@@ -654,7 +655,7 @@ const ExamWithFirebase = () => {
     return () => { window.removeEventListener("beforeunload", handleBeforeUnload) }
   }, [examState])
 
-  // Limpieza de pantalla completa al desmontar el componente
+  // Cleanup fullscreen on component unmount
   useEffect(() => {
     return () => {
       if (isFullscreen) {
@@ -701,7 +702,7 @@ const ExamWithFirebase = () => {
   // Pantalla de resultados
   const ResultsScreen = () => {
     const score = calculateScore()
-
+    
     return (
       <div className="max-w-4xl mx-auto">
         <Card className="shadow-lg border-0 bg-gradient-to-br from-green-50 to-emerald-50">
@@ -759,13 +760,14 @@ const ExamWithFirebase = () => {
                   const userAnswer = answers[question.id]
                   const isCorrect = userAnswer === question.correctAnswer
                   const wasAnswered = !!userAnswer
-
+                  
                   return (
                     <div key={question.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${!wasAnswered ? 'bg-gray-300 text-gray-600' :
+                        <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          !wasAnswered ? 'bg-gray-300 text-gray-600' :
                           isCorrect ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-                          }`}>
+                        }`}>
                           {index + 1}
                         </div>
                         <div className="text-sm text-gray-700">
@@ -799,7 +801,7 @@ const ExamWithFirebase = () => {
                 <AlertCircle className="h-4 w-4 text-amber-600" />
                 <AlertTitle className="text-amber-800">Información adicional</AlertTitle>
                 <AlertDescription className="text-amber-700">
-                  {examLocked && "El examen fue finalizado automáticamente por intento de fraude."}
+                  {examLocked && "El examen fue finalizado automáticamente por superar el límite de cambios de pestaña. "}
                   {tabChangeCount > 0 && `Cambios de pestaña detectados: ${tabChangeCount}`}
                 </AlertDescription>
               </Alert>
@@ -877,11 +879,13 @@ const ExamWithFirebase = () => {
                   </span>
                 </div>
               )}
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border shadow-sm ${timeLeft < 300 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white'
-                }`}>
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border shadow-sm ${
+                timeLeft < 300 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white'
+              }`}>
                 <Clock className={`h-4 w-4 ${timeLeft < 300 ? 'text-red-500' : 'text-orange-500'}`} />
-                <span className={`text-sm font-medium font-mono ${timeLeft < 300 ? 'text-red-700' : ''
-                  }`}>
+                <span className={`text-sm font-medium font-mono ${
+                  timeLeft < 300 ? 'text-red-700' : ''
+                }`}>
                   {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
                 </span>
               </div>
@@ -906,9 +910,9 @@ const ExamWithFirebase = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <RadioGroup
-                value={answers[question.id] || ""}
-                onValueChange={handleAnswer}
+              <RadioGroup 
+                value={answers[question.id] || ""} 
+                onValueChange={handleAnswer} 
                 className="space-y-3"
               >
                 {question.options.map((option) => (
@@ -916,13 +920,13 @@ const ExamWithFirebase = () => {
                     key={option.id}
                     className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
                   >
-                    <RadioGroupItem
-                      value={option.id}
-                      id={`option-${option.id}`}
-                      className="mt-1"
+                    <RadioGroupItem 
+                      value={option.id} 
+                      id={`option-${option.id}`} 
+                      className="mt-1" 
                     />
-                    <Label
-                      htmlFor={`option-${option.id}`}
+                    <Label 
+                      htmlFor={`option-${option.id}`} 
                       className="flex-1 cursor-pointer"
                     >
                       <span className="font-semibold">{option.id.toUpperCase()}.</span> {option.text}
@@ -941,8 +945,8 @@ const ExamWithFirebase = () => {
                 <ChevronLeft className="h-4 w-4" /> Anterior
               </Button>
               {currentQuestion < examData.questions.length - 1 ? (
-                <Button
-                  onClick={goToNextQuestion}
+                <Button 
+                  onClick={goToNextQuestion} 
                   className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
                 >
                   Siguiente <ChevronRight className="h-4 w-4" />
@@ -982,16 +986,18 @@ const ExamWithFirebase = () => {
                 <button
                   key={q.id}
                   onClick={() => setCurrentQuestion(index)}
-                  className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${currentQuestion === index
-                    ? "bg-purple-50 border-purple-200 border"
-                    : "border hover:bg-gray-50"
-                    }`}
+                  className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${
+                    currentQuestion === index 
+                      ? "bg-purple-50 border-purple-200 border" 
+                      : "border hover:bg-gray-50"
+                  }`}
                 >
                   <div
-                    className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${answers[q.id]
-                      ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
-                      : "bg-gray-100 text-gray-700 border"
-                      }`}
+                    className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                      answers[q.id]
+                        ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
+                        : "bg-gray-100 text-gray-700 border"
+                    }`}
                   >
                     {index + 1}
                   </div>
