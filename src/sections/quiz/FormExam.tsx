@@ -50,11 +50,11 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
 
 // Datos de ejemplo para el examen
 const examData = {
-  id: "exam_english_001", // ID único del examen
-  title: "Examen de Inglés",
-  description: "Evaluación de habilidades de pensamiento crítico y comprensión lectora",
+  id: "exam_mat_001", // ID único del examen
+  title: "Examen de Matemáticas",
+  description: "Evaluación de habilidades cognitivas",
   timeLimit: 30, // minutos
-  module: "Módulo de Inglés",
+  module: "Módulo de Matemáticas",
   totalQuestions: 25,
   instructions: [
     "Lee cuidadosamente cada pregunta antes de responder",
@@ -77,18 +77,18 @@ const examData = {
     },
     {
       id: 2,
-      text: "What is the past tense of 'go'?",
+      text: "¿Cuál es el pretérito de 'ir'?",
       options: [
-        { id: "a", text: "goed" },
-        { id: "b", text: "went" },
-        { id: "c", text: "gone" },
-        { id: "d", text: "going" },
+        { id: "a", text: "iré" },
+        { id: "b", text: "iré" },
+        { id: "c", text: "iré" },
+        { id: "d", text: "iré" },
       ],
       correctAnswer: "b",
     },
     {
       id: 3,
-      text: "Choose the correct sentence:",
+      text: "¿Cuál es la forma correcta de la oración?",
       options: [
         { id: "a", text: "She don't like coffee" },
         { id: "b", text: "She doesn't likes coffee" },
