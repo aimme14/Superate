@@ -32,18 +32,20 @@ function App() {
               <Route path="/auth/register" element={<RegisterPage />} />
               <Route path="/new-dashboard" element={<NewDasboard />} />
               <Route path="/about" element={<AboutPage />} />
+
+              {/* rutas protegidas */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/quiz/:id" element={<QuizPage />} />
+              </Route>
+
+              {/* rutas publicas */}
               <Route path="/informacionPage" element={<InformacionPage />} />
               <Route path="/resultados" element={<ResultadosPage />} />
               <Route path="/promedio" element={<PromedioPage />} />
               <Route path="/innovative-hero" element={<InnovativeHero />} />
               <Route path="/prueba" element={<Prueba />} />
               <Route path="/Intento" element={<Intento />} />
-
-              {/* protected routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/quiz/:id" element={<QuizPage />} />
-              </Route>
 
             </Route>
           </Routes>
