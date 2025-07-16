@@ -77,6 +77,164 @@ const examData = {
 
     },
 
+    /**{ 
+      id: 2,
+      text: "Una persona tiene una dieta rica en grasas y azúcares, pero baja en fibra y vitaminas. Su médico detecta altos niveles de colesterol y obesidad. ¿Cuál es la consecuencia biológica más probable de esta dieta?",
+      options: [
+        { id: "a", text: "Mejora del sistema inmune." },
+        { id: "b", text: "Problemas circulatorios y metabólicos." },
+        { id: "c", text: "Mayor agilidad física." },
+        { id: "d", text: "Fortalecimiento óseo." },
+      ],
+      correctAnswer: "b",
+    },
+
+    {
+      id: 3,
+      text: "Se propone que los colegios promuevan el consumo de frutas y verduras en las cafeterías para mejorar la salud de los estudiantes. ¿Cuál sería un argumento biológico que respalde esta propuesta?",
+      options: [
+        { id: "a", text: "Las frutas son más baratas." },
+        { id: "b", text: "Las verduras no se echan a perder fácilmente." },
+        { id: "c", text: "Aportan nutrientes que fortalecen el sistema inmunológico." },
+        { id: "d", text: "Evitan que los estudiantes compren gaseosas." },
+      ],
+      correctAnswer: "c"
+    },
+
+    {
+      id: 4,
+      text: "Un ciclista desciende por una colina. A medida que baja, su velocidad aumenta. ¿Qué tipo de fuerza actúa para aumentar su velocidad?",
+      options: [
+        { id: "a", text: "Fricción." },
+        { id: "b", text: "Gravedad." },
+        { id: "c", text: "Resistencia del aire." },
+        { id: "d", text: "Fuerza centrífuga." },
+      ],
+      correctAnswer: "b",
+    },
+
+    {
+      id: 5,
+      text: "Cuando un balón es lanzado hacia arriba, disminuye su velocidad hasta detenerse, luego cae. ¿Qué fenómeno explica este comportamiento?",
+      options: [
+        { id: "a", text: "La ausencia de gravedad." },
+        { id: "b", text: "La acción del impulso." },
+        { id: "c", text: "La aceleración negativa provocada por la gravedad." },
+        { id: "d", text: "La fuerza centrífuga terrestre." },
+      ],
+      correctAnswer: "c",
+    },
+
+
+    {
+      id: 6,
+      text: "Se desea reducir el consumo de energía en una escuela. Se propone reemplazar bombillos tradicionales por luces LED. ¿Cuál es una razón física que respalda esta medida?",
+      options: [
+        { id: "a", text: "Las luces LED emiten calor." },
+        { id: "b", text: "Las luces LED iluminan menos." },
+        { id: "c", text: "Las luces LED consumen menos energía al producir la misma cantidad de luz." },
+        { id: "d", text: "Las luces LED cambian de color." },
+      ],
+      correctAnswer: "c",
+    },
+
+    {
+      id: 7,
+      text: "Al hervir agua, esta se convierte en vapor. El volumen aumenta y se observa vapor saliendo de la olla. ¿Qué tipo de cambio ocurre al hervir el agua?",
+      options: [
+        { id: "a", text: "Cambio químico." },
+        { id: "b", text: "Fusión." },
+        { id: "c", text: "Evaporación (cambio físico)." },
+        { id: "d", text: "Combustión." },
+      ],
+      correctAnswer: "c",
+    },
+
+    {
+      id: 8,
+      text: "En un laboratorio, un estudiante mezcla vinagre y bicarbonato. La reacción genera burbujas y libera gas. ¿Qué evidencia indica que ocurrió una reacción química?",
+      options: [
+        { id: "a", text: "El cambio de estado." },
+        { id: "b", text: "El burbujeo y la formación de gas." },
+        { id: "c", text: "El color del recipiente." },
+        { id: "d", text: "La temperatura del ambiente." },
+      ],
+      correctAnswer: "b",
+    },
+
+    {
+      id: 9,
+      text: "Para disminuir la contaminación, se propone reemplazar plásticos convencionales por materiales biodegradables como el almidón de maíz. ¿Qué propiedad química hace que esta propuesta sea viable?",
+      options: [
+        { id: "a", text: "El almidón resiste el calor." },
+        { id: "b", text: "El almidón no conduce electricidad." },
+        { id: "c", text: "El almidón se degrada más fácilmente por acción de microorganismos." },
+        { id: "d", text: "El almidón es inflamable." },
+      ],
+      correctAnswer: "c",
+    },
+
+    {
+      id: 10,
+      text: "Un ecosistema equilibrado tiene múltiples especies que se alimentan unas de otras. Si desaparece una especie clave, otras pueden disminuir o desaparecer. ¿Qué puede causar la desaparición de varias especies?",
+      options: [
+        { id: "a", text: "El aumento de la biodiversidad." },
+        { id: "b", text: "La extinción de una especie fundamental." },
+        { id: "c", text: "La llegada del invierno." },
+        { id: "d", text: "La contaminación visual." },
+      ],
+      correctAnswer: "b",
+    },
+
+    {
+      id: 11,
+      text: "En una comunidad, se eliminó el uso de bolsas plásticas y se promovieron bolsas de tela reutilizables. ¿Qué beneficio ecológico tiene esta medida?",
+      options: [
+        { id: "a", text: "Mejora el aspecto de los supermercados." },
+        { id: "b", text: "Aumenta el consumo de ropa." },
+        { id: "c", text: "Reduce la contaminación de suelos y mares." },
+        { id: "d", text: "Aumenta la venta de telas." },
+      ],
+      correctAnswer: "c",
+    },
+
+    {
+      id: 12,
+      text: "Se desea restaurar una zona deforestada. Se plantea sembrar especies nativas en lugar de árboles exóticos. ¿Cuál es una razón ecológica que respalda esta decisión?",
+      options: [
+        { id: "a", text: "Las especies nativas son más bonitas." },
+        { id: "b", text: "Las especies nativas requieren más agua." },
+        { id: "c", text: "Las especies nativas se integran mejor al ecosistema." },
+        { id: "d", text: "Las especies exóticas crecen más rápido." },
+      ],
+      correctAnswer: "c",
+    },
+
+    {
+      id: 13,
+      text: "El descubrimiento de la penicilina permitió tratar infecciones bacterianas y salvó millones de vidas. ¿Cómo influyó este descubrimiento en la sociedad?",
+      options: [
+        { id: "a", text: "Generó nuevas epidemias." },
+        { id: "b", text: "Aumentó la resistencia bacteriana." },
+        { id: "c", text: "Mejoró la esperanza de vida." },
+        { id: "d", text: "Reemplazó todas las medicinas." },
+      ],
+      correctAnswer: "c",
+    },
+
+
+    {
+      id: 15,
+      text: "En un proyecto escolar se propone diseñar un filtro casero para purificar agua usando materiales como arena, carbón activado y grava. ¿Qué principio científico fundamenta esta propuesta?",
+      options: [
+        { id: "a", text: "El filtrado permite separar sólidos suspendidos en líquidos." },
+        { id: "b", text: "El agua es inflamable." },
+        { id: "c", text: "El carbón absorbe olores." },
+        { id: "d", text: "La arena acelera la evaporación." },
+      ],
+      correctAnswer: "a",
+    },**/
+
   ],
 }
 
