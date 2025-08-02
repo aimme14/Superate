@@ -2,46 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ContactRound, 
-  NotepadText, 
-  BarChart2, 
-  Apple, 
-  TrendingUp, 
-  ArrowUp, 
-  Target, 
-  Award, 
-  Minus, 
-  ArrowDown,
-  CheckCircle2,
-  AlertTriangle,
-  Loader2,
-  Home,
-  BookOpen,
-  Clock,
-  User
-} from "lucide-react";
+import { ContactRound, NotepadText, BarChart2, Apple, TrendingUp, ArrowUp, Target, Award, Minus, ArrowDown, CheckCircle2, AlertTriangle, Loader2, Home, BookOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { doc, getDoc, getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseApp } from "@/services/firebase/db.service";
-import { 
-  CartesianGrid, 
-  Bar, 
-  ResponsiveContainer, 
-  XAxis, 
-  YAxis, 
-  LineChart, 
-  Line, 
-  Legend, 
-  RadarChart, 
-  PolarGrid, 
-  PolarAngleAxis, 
-  PolarRadiusAxis, 
-  Radar,
-  BarChart,
-  Tooltip
-} from "recharts";
+import { CartesianGrid, Bar, ResponsiveContainer, XAxis, YAxis, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Tooltip } from "recharts";
 
 const db = getFirestore(firebaseApp);
 
@@ -259,26 +225,6 @@ const ExamAnalyzer = () => {
       return <ArrowDown className="h-4 w-4 text-red-500" />;
     }
     return <Minus className="h-4 w-4 text-gray-500" />;
-  };
-
-  const getScoreColor = (percentage: number) => {
-    if (percentage >= 80) return "text-green-600";
-    if (percentage >= 60) return "text-yellow-600";
-    return "text-red-600";
-  };
-
-  const getScoreBadgeColor = (percentage: number) => {
-    if (percentage >= 80) return "bg-green-100 text-green-800";
-    if (percentage >= 60) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
-  };
-
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   if (loading) {
