@@ -66,6 +66,7 @@ const examData = {
   questions: [
     {
       id: 1,
+      topic: "Historia",
       text: "¿Cuál es el nombre del presidente de la República?",
       options: [
         { id: "a", text: "Pedro" },
@@ -77,6 +78,7 @@ const examData = {
     },
     {
       id: 2,
+      topic: "Historia",
       text: "¿Cuál es el nombre del presidente de la República?",
       options: [
         { id: "a", text: "Pedro" },
@@ -88,6 +90,7 @@ const examData = {
     },
     {
       id: 3,
+      topic: "Historia",
       text: "¿Cuál es el nombre del presidente de la República?",
       options: [
         { id: "a", text: "Pedro" },
@@ -248,6 +251,7 @@ const ExamWithFirebase = () => {
         examTitle: examData.title,
         answers,
         score,
+        topic: examData.questions[currentQuestion].topic,
         timeExpired,
         lockedByTabChange,
         tabChangeCount,
@@ -264,6 +268,7 @@ const ExamWithFirebase = () => {
           questionText: question.text,
           userAnswer: answers[question.id] || null,
           correctAnswer: question.correctAnswer,
+          topic: question.topic,
           isCorrect: answers[question.id] === question.correctAnswer,
           answered: !!answers[question.id],
           timeSpent: questionTimeData[question.id]?.timeSpent || 0,

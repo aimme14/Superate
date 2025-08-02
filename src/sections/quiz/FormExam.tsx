@@ -66,6 +66,7 @@ const examData = {
   questions: [
     {
       id: 1,
+      topic: "Matemáticas",
       text: "María tiene 7 manzanas más que Pedro. Si Pedro tiene \\( x \\) manzanas, y entre los dos tienen 17, ¿cuántas manzanas tiene Pedro?",
       options: [
         { id: "a", text: "3" },
@@ -77,23 +78,25 @@ const examData = {
     },
     {
       id: 2,
-      text: "¿Cuál es el pretérito de 'ir'?",
+      topic: "Geometría",
+      text: "¿Cuál es el área de un círculo con un radio de 5 cm?",
       options: [
-        { id: "a", text: "iré" },
-        { id: "b", text: "iré" },
-        { id: "c", text: "iré" },
-        { id: "d", text: "iré" },
+        { id: "a", text: "78.5 cm²" },
+        { id: "b", text: "100 cm²" },
+        { id: "c", text: "150 cm²" },
+        { id: "d", text: "200 cm²" },
       ],
-      correctAnswer: "b",
+      correctAnswer: "a",
     },
     {
       id: 3,
-      text: "¿Cuál es la forma correcta de la oración?",
+      topic: " Algebra",
+      text: "¿Cuál es el resultado de \\( 2x + 3 = 11 \\)?",
       options: [
-        { id: "a", text: "She don't like coffee" },
-        { id: "b", text: "She doesn't likes coffee" },
-        { id: "c", text: "She doesn't like coffee" },
-        { id: "d", text: "She not like coffee" },
+        { id: "a", text: "4" },
+        { id: "b", text: "5" },
+        { id: "c", text: "6" },
+        { id: "d", text: "7" },
       ],
       correctAnswer: "c",
     }
@@ -248,6 +251,7 @@ const ExamWithFirebase = () => {
         examTitle: examData.title,
         answers,
         score,
+        topic: examData.questions[currentQuestion].topic,
         timeExpired,
         lockedByTabChange,
         tabChangeCount,
@@ -264,6 +268,7 @@ const ExamWithFirebase = () => {
           questionText: question.text,
           userAnswer: answers[question.id] || null,
           correctAnswer: question.correctAnswer,
+          topic: question.topic,
           isCorrect: answers[question.id] === question.correctAnswer,
           answered: !!answers[question.id],
           timeSpent: questionTimeData[question.id]?.timeSpent || 0,

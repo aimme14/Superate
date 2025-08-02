@@ -66,17 +66,19 @@ const examData = {
   questions: [
     {
       id: 1,
-      text: "María tiene 7 manzanas más que Pedro. Si Pedro tiene \\( x \\) manzanas, y entre los dos tienen 17, ¿cuántas manzanas tiene Pedro?",
+      topic: "write",
+      text: "What is the past tense of 'go'?",
       options: [
-        { id: "a", text: "3" },
-        { id: "b", text: "5" },
-        { id: "c", text: "7" },
-        { id: "d", text: "10" },
+        { id: "a", text: "goed" },
+        { id: "b", text: "went" },
+        { id: "c", text: "gone" },
+        { id: "d", text: "going" },
       ],
       correctAnswer: "b",
     },
     {
       id: 2,
+      topic: "read",
       text: "What is the past tense of 'go'?",
       options: [
         { id: "a", text: "goed" },
@@ -88,6 +90,7 @@ const examData = {
     },
     {
       id: 3,
+      topic: "write",
       text: "Choose the correct sentence:",
       options: [
         { id: "a", text: "She don't like coffee" },
@@ -248,6 +251,7 @@ const ExamWithFirebase = () => {
         examTitle: examData.title,
         answers,
         score,
+        topic: examData.questions[currentQuestion].topic,
         timeExpired,
         lockedByTabChange,
         tabChangeCount,
@@ -264,6 +268,7 @@ const ExamWithFirebase = () => {
           questionText: question.text,
           userAnswer: answers[question.id] || null,
           correctAnswer: question.correctAnswer,
+          topic: question.topic,
           isCorrect: answers[question.id] === question.correctAnswer,
           answered: !!answers[question.id],
           timeSpent: questionTimeData[question.id]?.timeSpent || 0,

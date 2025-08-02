@@ -40,7 +40,7 @@ export function Home() {
           <nav className="hidden md:flex items-center space-x-8">
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-            <NavItem href="" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso"/>
+            <NavItem href="/exam-analyzer" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso"/>
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
             <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" active/>
           </nav>

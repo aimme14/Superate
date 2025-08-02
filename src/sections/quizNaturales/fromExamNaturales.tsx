@@ -66,6 +66,7 @@ const examData = {
   questions: [
     {
       id: 1,
+      topic: "Biología",
       text: "El sistema respiratorio permite el intercambio de gases entre el cuerpo y el ambiente. Los pulmones absorben oxígeno y liberan dióxido de carbono durante la respiración. ¿Cuál es la función principal de los pulmones?",
       options: [
         { id: "a", text: "Transportar la sangre." },
@@ -77,8 +78,9 @@ const examData = {
 
     },
 
-    /**{ 
+    { 
       id: 2,
+      topic: "Biología",
       text: "Una persona tiene una dieta rica en grasas y azúcares, pero baja en fibra y vitaminas. Su médico detecta altos niveles de colesterol y obesidad. ¿Cuál es la consecuencia biológica más probable de esta dieta?",
       options: [
         { id: "a", text: "Mejora del sistema inmune." },
@@ -91,6 +93,7 @@ const examData = {
 
     {
       id: 3,
+      topic: "Biología",
       text: "Se propone que los colegios promuevan el consumo de frutas y verduras en las cafeterías para mejorar la salud de los estudiantes. ¿Cuál sería un argumento biológico que respalde esta propuesta?",
       options: [
         { id: "a", text: "Las frutas son más baratas." },
@@ -101,8 +104,9 @@ const examData = {
       correctAnswer: "c"
     },
 
-    {
+    /**{
       id: 4,
+      topic: "Física",
       text: "Un ciclista desciende por una colina. A medida que baja, su velocidad aumenta. ¿Qué tipo de fuerza actúa para aumentar su velocidad?",
       options: [
         { id: "a", text: "Fricción." },
@@ -115,6 +119,7 @@ const examData = {
 
     {
       id: 5,
+      topic: "Física",
       text: "Cuando un balón es lanzado hacia arriba, disminuye su velocidad hasta detenerse, luego cae. ¿Qué fenómeno explica este comportamiento?",
       options: [
         { id: "a", text: "La ausencia de gravedad." },
@@ -128,6 +133,7 @@ const examData = {
 
     {
       id: 6,
+      topic: "Física",
       text: "Se desea reducir el consumo de energía en una escuela. Se propone reemplazar bombillos tradicionales por luces LED. ¿Cuál es una razón física que respalda esta medida?",
       options: [
         { id: "a", text: "Las luces LED emiten calor." },
@@ -140,6 +146,7 @@ const examData = {
 
     {
       id: 7,
+      topic: "Química",
       text: "Al hervir agua, esta se convierte en vapor. El volumen aumenta y se observa vapor saliendo de la olla. ¿Qué tipo de cambio ocurre al hervir el agua?",
       options: [
         { id: "a", text: "Cambio químico." },
@@ -152,6 +159,7 @@ const examData = {
 
     {
       id: 8,
+      topic: "Química",
       text: "En un laboratorio, un estudiante mezcla vinagre y bicarbonato. La reacción genera burbujas y libera gas. ¿Qué evidencia indica que ocurrió una reacción química?",
       options: [
         { id: "a", text: "El cambio de estado." },
@@ -164,6 +172,7 @@ const examData = {
 
     {
       id: 9,
+      topic: "Química",
       text: "Para disminuir la contaminación, se propone reemplazar plásticos convencionales por materiales biodegradables como el almidón de maíz. ¿Qué propiedad química hace que esta propuesta sea viable?",
       options: [
         { id: "a", text: "El almidón resiste el calor." },
@@ -176,6 +185,7 @@ const examData = {
 
     {
       id: 10,
+      topic: "Ecología",
       text: "Un ecosistema equilibrado tiene múltiples especies que se alimentan unas de otras. Si desaparece una especie clave, otras pueden disminuir o desaparecer. ¿Qué puede causar la desaparición de varias especies?",
       options: [
         { id: "a", text: "El aumento de la biodiversidad." },
@@ -188,6 +198,7 @@ const examData = {
 
     {
       id: 11,
+      topic: "Ecología",
       text: "En una comunidad, se eliminó el uso de bolsas plásticas y se promovieron bolsas de tela reutilizables. ¿Qué beneficio ecológico tiene esta medida?",
       options: [
         { id: "a", text: "Mejora el aspecto de los supermercados." },
@@ -200,6 +211,7 @@ const examData = {
 
     {
       id: 12,
+      topic: "Ecología",
       text: "Se desea restaurar una zona deforestada. Se plantea sembrar especies nativas en lugar de árboles exóticos. ¿Cuál es una razón ecológica que respalda esta decisión?",
       options: [
         { id: "a", text: "Las especies nativas son más bonitas." },
@@ -212,6 +224,7 @@ const examData = {
 
     {
       id: 13,
+      topic: "Química",
       text: "El descubrimiento de la penicilina permitió tratar infecciones bacterianas y salvó millones de vidas. ¿Cómo influyó este descubrimiento en la sociedad?",
       options: [
         { id: "a", text: "Generó nuevas epidemias." },
@@ -225,6 +238,7 @@ const examData = {
 
     {
       id: 15,
+      topic: "Química",
       text: "En un proyecto escolar se propone diseñar un filtro casero para purificar agua usando materiales como arena, carbón activado y grava. ¿Qué principio científico fundamenta esta propuesta?",
       options: [
         { id: "a", text: "El filtrado permite separar sólidos suspendidos en líquidos." },
@@ -386,6 +400,7 @@ const ExamWithFirebase = () => {
         examTitle: examData.title,
         answers,
         score,
+        topic: examData.questions[currentQuestion].topic,
         timeExpired,
         lockedByTabChange,
         tabChangeCount,
@@ -402,6 +417,7 @@ const ExamWithFirebase = () => {
           questionText: question.text,
           userAnswer: answers[question.id] || null,
           correctAnswer: question.correctAnswer,
+          topic: question.topic,
           isCorrect: answers[question.id] === question.correctAnswer,
           answered: !!answers[question.id],
           timeSpent: questionTimeData[question.id]?.timeSpent || 0,

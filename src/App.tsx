@@ -17,6 +17,7 @@ import PromedioPage from "@/pages/promedio";
 import InnovativeHero from "@/pages/inovativeGero";
 import Prueba from "@/pages/prueba";
 import Intento from "@/pages/Intento";
+import ExamAnalyzer from "@/pages/ExamAnalyzer";
 
 function App() {
   return (
@@ -47,6 +48,9 @@ function App() {
               <Route path="/prueba" element={<Prueba />} />
               <Route path="/Intento" element={<Intento />} />
 
+              {/* rutas publicas */}
+              <Route path="/exam-analyzer" element={<ExamAnalyzer />} />
+              
             </Route>
           </Routes>
         </BrowserRouter>
