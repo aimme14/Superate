@@ -39,9 +39,17 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
 
   /** Observa el estado de autenticación del negocio en sesión */
   useEffect(() => {
-    return authFB.observeAuth((auth) => {
+    return authFB.observeAuth(async (auth) => {
       setIsAuth(Boolean(auth))
-      setUser(mapAuth(auth))
+      
+      if (auth) {
+        // Cargar datos completos del usuario incluyendo el rol
+        const userData = await fetchUserData(auth.uid)
+        setUser(userData || mapAuth(auth))
+      } else {
+        setUser(undefined)
+      }
+      
       setLoading(false)
     })
   }, [])
@@ -196,6 +204,33 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       email: user.email || '',
       displayName: user.displayName || '',
       emailVerified: user.emailVerified,
+    }
+  }
+
+  /**
+   * Obtiene los datos completos del usuario desde la base de datos
+   * @param {string} uid - El UID del usuario
+   * @returns {Promise<User | undefined>} - Los datos completos del usuario
+   */
+  const fetchUserData = async (uid: string): Promise<User | undefined> => {
+    try {
+      const userData = await getById(uid, true)
+      if (userData) {
+        return {
+          uid: uid,
+          email: userData.email || '',
+          displayName: userData.name || '',
+          emailVerified: true, // Asumimos que si está en la DB, el email está verificado
+          role: userData.role,
+          grade: userData.grade,
+          institution: userData.inst,
+          userdoc: userData.userdoc,
+        }
+      }
+      return undefined
+    } catch (error) {
+      console.error('Error fetching user data:', error)
+      return undefined
     }
   }
   /*---------------------------------------------------------------------------------------------------------*/

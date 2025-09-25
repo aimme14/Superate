@@ -19,7 +19,7 @@ const FooterSection = () => {
           'text-lg font-semibold',
           theme === 'dark' ? 'text-zinc-100' : 'text-gray-900'
         )}>
-          Superate
+          Superate.IA
         </h3>
         <p className={cn(
           'text-sm',

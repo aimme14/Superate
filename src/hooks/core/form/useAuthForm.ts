@@ -56,7 +56,7 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
   const methods = useForm<RegisterFormProps>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      role: '',
+      role: 'student' as const,
       userdoc: '',
       email: '',
       username: '',
@@ -67,7 +67,14 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
   })
 
   useEffect(() => {
-    id && user && methods.reset({ ...user })
+    id && user && methods.reset({ 
+      role: 'student' as const,
+      userdoc: user.userdoc || '',
+      email: user.email,
+      username: user.displayName || '',
+      inst: user.institution || '',
+      grade: user.grade || ''
+    })
   }, [id, user])
 
   const handleSubmit = useFormSubmit({

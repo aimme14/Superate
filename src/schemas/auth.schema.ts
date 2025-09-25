@@ -8,12 +8,25 @@ export const loginSchema = z.object({
 
 /*--------------------------------------------------registerSchema--------------------------------------------------*/
 export const registerSchema = z.object({
-  role: z.string().min(1, "El tipo de documento es requerido"),
+  role: z.literal('student', {
+    errorMap: () => ({ message: "Solo los estudiantes pueden registrarse públicamente" })
+  }),
   userdoc: z.string().min(10, "El documento debe tener al menos 10 caracteres"),
   username: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
   email: z.string().email("Correo electronico invalido"),
   inst: z.string().min(1, "La institución educativa es requerida"),
   grade: z.string().min(1, "El grado es requerido"),
+})
+
+/*--------------------------------------------------adminRegisterSchema--------------------------------------------------*/
+export const adminRegisterSchema = z.object({
+  role: z.enum(['teacher', 'principal'], {
+    errorMap: () => ({ message: "Debe seleccionar un rol válido (docente o rector)" })
+  }),
+  username: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
+  email: z.string().email("Correo electronico invalido"),
+  institution: z.string().min(1, "La institución educativa es requerida"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 })
 /*--------------------------------------------------registerSchema--------------------------------------------------*/
 export const forgotPasswordSchema = z.object({
@@ -23,4 +36,5 @@ export const forgotPasswordSchema = z.object({
 
 export type LoginFormProps = z.infer<typeof loginSchema>
 export type RegisterFormProps = z.infer<typeof registerSchema>
+export type AdminRegisterFormProps = z.infer<typeof adminRegisterSchema>
 export type ForgotPasswordFormProps = z.infer<typeof forgotPasswordSchema>

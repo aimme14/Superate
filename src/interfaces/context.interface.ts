@@ -31,12 +31,18 @@ export type DialogConfirmContext = {
 
 /*--------------------------------------------------AuthContext--------------------------------------------------*/
 
+export type UserRole = 'student' | 'teacher' | 'principal' | 'admin'
+
 export type User = {
   statusExams?: Record<string, boolean>
   displayName: string | null
   emailVerified: boolean
   email: string
   uid: string
+  role?: UserRole
+  grade?: string
+  institution?: string
+  userdoc?: string
 }
 
 export type AuthContext = {

@@ -31,6 +31,12 @@ export const login = async ({ email, password }: { email: string, password: stri
 export const register = async (user: RegisterFormProps): Promise<Result<void>> => {
   try {
     const { role, userdoc, email, grade, inst, username } = user
+    
+    // Verificar que solo se registren estudiantes
+    if (role !== 'student') {
+      return failure(new Unauthorized({ message: 'Solo los estudiantes pueden registrarse públicamente. Los docentes y rectores deben ser creados por un administrador.' }))
+    }
+    
     // Generamos la contraseña automáticamente a partir del documento más un 0
     const generatedPassword = userdoc + '0'
 

@@ -4,6 +4,7 @@ import { AuthProvider } from "@/context/AuthContext";
 
 import { Home as NewDasboard } from "@/pages/dashboard/NewDashboard";
 import ProtectedRoute from "@/layouts/ProtectedRoute";
+import RoleProtectedRoute from "@/layouts/RoleProtectedRoute";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/dashboard";
 import LoginPage from "@/pages/LoginPage";
@@ -18,6 +19,11 @@ import InnovativeHero from "@/pages/inovativeGero";
 import Prueba from "@/pages/prueba";
 import Intento from "@/pages/Intento";
 import ExamAnalyzer from "@/pages/ExamAnalyzer";
+
+// Dashboards específicos por rol
+import TeacherDashboard from "@/pages/dashboard/teacher/TeacherDashboard";
+import PrincipalDashboard from "@/pages/dashboard/principal/PrincipalDashboard";
+import AdminDashboard from "@/pages/dashboard/admin/AdminDashboard";
 
 function App() {
   return (
@@ -38,6 +44,31 @@ function App() {
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/quiz/:id" element={<QuizPage />} />
+                
+                {/* Rutas protegidas por rol */}
+                <Route path="/dashboard/student" element={
+                  <RoleProtectedRoute allowedRoles={['student']}>
+                    <DashboardPage />
+                  </RoleProtectedRoute>
+                } />
+                
+                <Route path="/dashboard/teacher" element={
+                  <RoleProtectedRoute allowedRoles={['teacher']}>
+                    <TeacherDashboard theme="light" />
+                  </RoleProtectedRoute>
+                } />
+                
+                <Route path="/dashboard/principal" element={
+                  <RoleProtectedRoute allowedRoles={['principal']}>
+                    <PrincipalDashboard theme="light" />
+                  </RoleProtectedRoute>
+                } />
+                
+                <Route path="/dashboard/admin" element={
+                  <RoleProtectedRoute allowedRoles={['admin']}>
+                    <AdminDashboard theme="light" />
+                  </RoleProtectedRoute>
+                } />
               </Route>
 
               {/* rutas publicas */}
