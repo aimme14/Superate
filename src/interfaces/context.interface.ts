@@ -31,7 +31,7 @@ export type DialogConfirmContext = {
 
 /*--------------------------------------------------AuthContext--------------------------------------------------*/
 
-export type UserRole = 'student' | 'teacher' | 'principal' | 'admin'
+export type UserRole = 'student' | 'teacher' | 'principal' | 'rector' | 'admin'
 
 export type User = {
   statusExams?: Record<string, boolean>
@@ -42,6 +42,7 @@ export type User = {
   role?: UserRole
   grade?: string
   institution?: string
+  campus?: string
   userdoc?: string
 }
 

@@ -6,6 +6,7 @@ import AdminSection from './admin/AdminPage'
 import { Home as NewDashboard } from './NewDashboard'
 import TeacherDashboard from './teacher/TeacherDashboard'
 import PrincipalDashboard from './principal/PrincipalDashboard'
+import RectorDashboard from './rector/RectorDashboard'
 import AdminDashboard from './admin/AdminDashboard'
 import RoleBasedRedirect from '@/components/auth/RoleBasedRedirect'
 import { Suspense } from 'react'
@@ -13,7 +14,7 @@ import { Suspense } from 'react'
 const DashboardPage = () => {
   const { theme } = useThemeContext()
   const { user, loading } = useAuthContext()
-  const { userRole, isStudent, isTeacher, isPrincipal, isAdmin } = useRole()
+  const { userRole, isStudent, isTeacher, isPrincipal, isRector, isAdmin } = useRole()
   
   // Si está cargando, mostrar skeleton
   if (loading) {
@@ -40,6 +41,7 @@ const DashboardPage = () => {
       {isStudent && <NewDashboard />}
       {isTeacher && <TeacherDashboard theme={theme} />}
       {isPrincipal && <PrincipalDashboard theme={theme} />}
+      {isRector && <RectorDashboard theme={theme} />}
       {isAdmin && <AdminDashboard theme={theme} />}
     </Suspense>
   )

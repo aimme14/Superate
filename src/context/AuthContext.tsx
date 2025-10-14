@@ -227,6 +227,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
           userdoc: userData.userdoc,
         }
       }
+      
       return undefined
     } catch (error) {
       console.error('Error fetching user data:', error)

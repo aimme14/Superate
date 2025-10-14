@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
 import FormManagement from '@/components/admin/FormManagement'
+import InstitutionManagement from '@/components/admin/InstitutionManagement'
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
@@ -87,7 +88,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Home className="h-4 w-4" />
             <span>Resumen</span>
@@ -95,6 +96,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           <TabsTrigger value="users" className="flex items-center space-x-2">
             <Users className="h-4 w-4" />
             <span>Usuarios</span>
+          </TabsTrigger>
+          <TabsTrigger value="institutions" className="flex items-center space-x-2">
+            <Building className="h-4 w-4" />
+            <span>Instituciones</span>
           </TabsTrigger>
           <TabsTrigger value="forms" className="flex items-center space-x-2">
             <FileText className="h-4 w-4" />
@@ -400,6 +405,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
         <TabsContent value="users">
           <UserManagement theme={theme} />
+        </TabsContent>
+
+        <TabsContent value="institutions">
+          <InstitutionManagement theme={theme} />
         </TabsContent>
 
         <TabsContent value="forms">

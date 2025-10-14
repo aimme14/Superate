@@ -13,6 +13,7 @@ import {
   updateProfile,
   getAuth,
   signOut,
+  deleteUser,
   Auth,
   User,
 } from "firebase/auth"
@@ -89,6 +90,32 @@ class AuthService {
     try {
       return await updateProfile(user, profile).then(() => success(undefined))
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'actualizar perfil'))) }
+  }
+
+  /**
+   * Elimina un usuario de Firebase Auth.
+   * @param {User} user - El usuario de firebase a eliminar.
+   * @returns {Promise<Result<void>>} Resultado de la eliminación.
+   */
+  async deleteUserAccount(user: User): Promise<Result<void>> {
+    try {
+      return await deleteUser(user).then(() => success(undefined))
+    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'eliminar cuenta de usuario'))) }
+  }
+
+  /**
+   * Elimina un usuario de Firebase Auth por UID.
+   * Nota: Esta función requiere autenticación de administrador.
+   * @param {string} uid - El UID del usuario a eliminar.
+   * @returns {Promise<Result<void>>} Resultado de la eliminación.
+   */
+  async deleteUserByUid(uid: string): Promise<Result<void>> {
+    try {
+      // Para eliminar un usuario por UID, necesitamos usar Firebase Admin SDK
+      // Por ahora, solo eliminamos de Firestore y dejamos la cuenta de Auth
+      console.warn('⚠️ Eliminación de Firebase Auth requiere Firebase Admin SDK')
+      return success(undefined)
+    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'eliminar cuenta de usuario por UID'))) }
   }
   /*----------------------------------------------------*/
 

@@ -10,6 +10,8 @@ interface CreateUserData {
   email: string
   role: 'teacher' | 'principal'
   institution: string
+  campus?: string
+  grade?: string
   password: string
 }
 
@@ -20,7 +22,7 @@ interface CreateUserData {
  */
 export const createUserByAdmin = async (userData: CreateUserData): Promise<Result<UserFB>> => {
   try {
-    const { username, email, role, institution, password } = userData
+    const { username, email, role, institution, campus, grade, password } = userData
 
     // Validar que el rol sea válido para creación por admin
     if (role !== 'teacher' && role !== 'principal') {
@@ -36,8 +38,9 @@ export const createUserByAdmin = async (userData: CreateUserData): Promise<Resul
       role,
       name: username,
       email,
-      grade: 'N/A',
+      grade: grade || 'N/A',
       inst: institution,
+      campus: campus || '',
       userdoc: password,
       createdAt: new Date().toISOString(),
       isActive: true,

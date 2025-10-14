@@ -21,6 +21,29 @@ interface QuestionTimeData {
   endTime?: number; // timestamp
 }
 
+// Nueva interfaz para preguntas con soporte de imágenes
+interface Question {
+  id: number;
+  topic: string;
+  text?: string; // Opcional para preguntas con imagen
+  imageUrl?: string; // URL de la imagen de la pregunta
+  options: {
+    id: string;
+    text: string;
+  }[];
+  correctAnswer: string;
+}
+
+// Función para aleatorizar array (algoritmo Fisher-Yates)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string) => {
   const docRef = doc(db, "results", userId);
@@ -48,8 +71,8 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   return { success: true, id: `${userId}_${examId}` };
 };
 
-// Datos de ejemplo para el examen
-const examData = {
+// Datos de ejemplo para el examen - ACTUALIZADO con soporte de imágenes
+const examDataBase = {
   id: "exam_lengua_001", // ID único del examen
   title: "Examen de Lengua",
   description: "Evaluación de habilidades de pensamiento crítico y comprensión lectora",
@@ -57,17 +80,19 @@ const examData = {
   module: "Módulo de Lengua",
   totalQuestions: 25,
   instructions: [
-    "Lee cuidadosamente cada pregunta antes de responder",
+    "Observa cuidadosamente cada imagen/pregunta antes de responder",
     "Solo hay una respuesta correcta por pregunta",
     "Puedes navegar entre preguntas usando los botones o el panel lateral",
     "El tiempo es limitado, administra bien tu tiempo",
-    "Una vez enviado el examen, no podrás modificar tus respuestas"
+    "Una vez enviado el examen, no podrás modificar tus respuestas",
+    "Las preguntas aparecen en orden aleatorio para cada usuario"
   ],
   questions: [
     {
       id: 1,
       topic: "lectura",
-      text: "El verdadero viaje de descubrimiento no consiste en buscar nuevos paisajes, sino en mirar con nuevos ojos.— Marcel Proust Según la frase de Marcel Proust, el viaje de descubrimiento se logra principalmente a través de:",
+      imageUrl: "/images/lengua/cita-proust.png", // URL de la imagen
+      text: "El verdadero viaje de descubrimiento no consiste en buscar nuevos paisajes, sino en mirar con nuevos ojos.— Marcel Proust Según la frase de Marcel Proust, el viaje de descubrimiento se logra principalmente a través de:", // Texto de respaldo opcional
       options: [
         { id: "a", text: "La exploración de lugares desconocidos." },
         { id: "b", text: "La observación detallada del entorno natural." },
@@ -79,34 +104,37 @@ const examData = {
     {
       id: 2,
       topic: "Escritura",
-      text: "Muchos creen que leer es simplemente pronunciar palabras en voz alta o pasar los ojos por un texto. Sin embargo, leer implica comprender, interpretar y, en muchos casos, cuestionar lo que se nos presenta. Una lectura superficial puede dejar intactos los prejuicios; una lectura profunda puede transformarlos. ¿Cuál es la intención principal del autor en este texto?",
+      imageUrl: "/images/lengua/redaccion-ejemplo.png",
+      text: "¿Cuál de las siguientes opciones presenta la estructura correcta de un párrafo argumentativo?",
       options: [
-        { id: "a", text: "Criticar a quienes leen sin entender." },
-        { id: "b", text: "Explicar por qué es necesario leer en voz alta." },
-        { id: "c", text: "Mostrar que la lectura profunda tiene un impacto en el pensamiento." },
-        { id: "d", text: "Enseñar técnicas para mejorar la pronunciación durante la lectura." },
+        { id: "a", text: "Tesis + evidencia + contraargumento + conclusión" },
+        { id: "b", text: "Introducción + desarrollo + conclusión" },
+        { id: "c", text: "Pregunta + respuesta + ejemplo" },
+        { id: "d", text: "Causa + efecto + solución" },
       ],
-      correctAnswer: "c",
+      correctAnswer: "a",
     },
     {
       id: 3,
-      topic: "comprensión lectora",
-      text: "En un experimento reciente, un grupo de estudiantes que tomó un descanso de 10 minutos entre sesiones de estudio obtuvo mejores resultados que otro grupo que estudió sin pausas. Los investigadores concluyeron que el cerebro necesita momentos breves de descanso para consolidar la información. De acuerdo con el texto, ¿qué propósito tienen los descansos breves durante el estudio?",
+      topic: "Gramática",
+      imageUrl: "/images/lengua/analisis-sintactico.png",
+      text: "Identifica la función sintáctica de la palabra señalada en la oración mostrada:",
       options: [
-        { id: "a", text: "Aumentar el número de horas dedicadas al estudio." },
-        { id: "b", text: "Facilitar la retención de lo aprendido." },
-        { id: "c", text: "Evitar la fatiga visual al leer." },
-        { id: "d", text: "Mejorar la socialización entre los estudiantes." },
+        { id: "a", text: "Sujeto" },
+        { id: "b", text: "Predicado" },
+        { id: "c", text: "Complemento directo" },
+        { id: "d", text: "Complemento circunstancial" },
       ],
-      correctAnswer: "b",
+      correctAnswer: "c",
     }
-  ],
-}
+  ] as Question[],
+};
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
+  const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
   const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
@@ -124,6 +152,15 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: number]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+
+  // Aleatorizar preguntas al cargar el componente
+  useEffect(() => {
+    const shuffledQuestions = shuffleArray(examDataBase.questions);
+    setExamData({
+      ...examDataBase,
+      questions: shuffledQuestions
+    });
+  }, []);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: number) => {
@@ -1062,7 +1099,22 @@ const ExamWithFirebase = () => {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg max-w-none">
-                <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                {currentQ.imageUrl && (
+                  <div className="mb-4">
+                    <img 
+                      src={currentQ.imageUrl} 
+                      alt={currentQ.text || 'Pregunta con imagen'} 
+                      className="max-w-full h-auto rounded-lg border shadow-sm"
+                      onError={(e) => {
+                        console.error('Error cargando imagen:', currentQ.imageUrl);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                {currentQ.text && (
+                  <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                )}
               </div>
               <RadioGroup
                 value={answers[currentQ.id] || ""}

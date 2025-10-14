@@ -24,6 +24,9 @@ export default function RoleBasedRedirect() {
         case 'principal':
           navigate('/dashboard/principal', { replace: true })
           break
+        case 'rector':
+          navigate('/dashboard/rector', { replace: true })
+          break
         case 'admin':
           navigate('/dashboard/admin', { replace: true })
           break
@@ -52,6 +55,8 @@ export const useDashboardRoute = () => {
         return '/dashboard/teacher'
       case 'principal':
         return '/dashboard/principal'
+      case 'rector':
+        return '/dashboard/rector'
       case 'admin':
         return '/dashboard/admin'
       default:

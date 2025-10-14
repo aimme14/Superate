@@ -50,6 +50,19 @@ export const useRole = () => {
       canManageForms: false,
       canAccessAdminPanel: false,
     },
+    rector: {
+      canViewDashboard: true,
+      canTakeExams: false,
+      canViewResults: true,
+      canViewProfile: true,
+      canManageUsers: true,
+      canManageExams: true,
+      canViewAnalytics: true,
+      canManageInstitution: true,
+      canCreateUsers: true,
+      canManageForms: true,
+      canAccessAdminPanel: false,
+    },
     admin: {
       canViewDashboard: true,
       canTakeExams: false,
@@ -73,8 +86,9 @@ export const useRole = () => {
   const isStudent = userRole === 'student'
   const isTeacher = userRole === 'teacher'
   const isPrincipal = userRole === 'principal'
+  const isRector = userRole === 'rector'
   const isAdmin = userRole === 'admin'
-  const isStaff = isTeacher || isPrincipal || isAdmin
+  const isStaff = isTeacher || isPrincipal || isRector || isAdmin
 
   // Configuración de navegación por rol
   const navigationConfig = {
@@ -105,6 +119,17 @@ export const useRole = () => {
         { label: 'Reportes', href: '/reports', icon: 'FileText' },
       ]
     },
+    rector: {
+      mainRoutes: ['/dashboard/rector', '/sedes', '/coordinadores', '/docentes', '/estudiantes', '/reportes'],
+      sidebarItems: [
+        { label: 'Dashboard', href: '/dashboard/rector', icon: 'Home' },
+        { label: 'Sedes', href: '/sedes', icon: 'Building2' },
+        { label: 'Coordinadores', href: '/coordinadores', icon: 'Crown' },
+        { label: 'Docentes', href: '/docentes', icon: 'GraduationCap' },
+        { label: 'Estudiantes', href: '/estudiantes', icon: 'Users' },
+        { label: 'Reportes', href: '/reportes', icon: 'FileText' },
+      ]
+    },
     admin: {
       mainRoutes: ['/dashboard/admin', '/system', '/users', '/settings'],
       sidebarItems: [
@@ -128,6 +153,7 @@ export const useRole = () => {
     isStudent,
     isTeacher,
     isPrincipal,
+    isRector,
     isAdmin,
     isStaff,
     getNavigationConfig,

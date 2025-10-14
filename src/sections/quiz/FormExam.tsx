@@ -21,6 +21,29 @@ interface QuestionTimeData {
   endTime?: number; // timestamp
 }
 
+// Nueva interfaz para preguntas con soporte de imágenes
+interface Question {
+  id: number;
+  topic: string;
+  text?: string; // Opcional para preguntas con imagen
+  imageUrl?: string; // URL de la imagen de la pregunta
+  options: {
+    id: string;
+    text: string;
+  }[];
+  correctAnswer: string;
+}
+
+// Función para aleatorizar array (algoritmo Fisher-Yates)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string) => {
   const docRef = doc(db, "results", userId);
@@ -48,8 +71,8 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   return { success: true, id: `${userId}_${examId}` };
 };
 
-// Datos de ejemplo para el examen
-const examData = {
+// Datos de ejemplo para el examen - ACTUALIZADO con soporte de imágenes
+const examDataBase = {
   id: "exam_mat_001", // ID único del examen
   title: "Examen de Matemáticas",
   description: "Evaluación de habilidades cognitivas",
@@ -57,17 +80,19 @@ const examData = {
   module: "Módulo de Matemáticas",
   totalQuestions: 25,
   instructions: [
-    "Lee cuidadosamente cada pregunta antes de responder",
+    "Observa cuidadosamente cada imagen/pregunta antes de responder",
     "Solo hay una respuesta correcta por pregunta",
     "Puedes navegar entre preguntas usando los botones o el panel lateral",
     "El tiempo es limitado, administra bien tu tiempo",
-    "Una vez enviado el examen, no podrás modificar tus respuestas"
+    "Una vez enviado el examen, no podrás modificar tus respuestas",
+    "Las preguntas aparecen en orden aleatorio para cada usuario"
   ],
   questions: [
     {
       id: 1,
       topic: "Matemáticas",
-      text: "María tiene 7 manzanas más que Pedro. Si Pedro tiene \\( x \\) manzanas, y entre los dos tienen 17, ¿cuántas manzanas tiene Pedro?",
+      imageUrl: "/images/matematicas/problema-manzanas.png", // URL de la imagen
+      text: "María tiene 7 manzanas más que Pedro. Si Pedro tiene \\( x \\) manzanas, y entre los dos tienen 17, ¿cuántas manzanas tiene Pedro?", // Texto de respaldo opcional
       options: [
         { id: "a", text: "3" },
         { id: "b", text: "5" },
@@ -79,6 +104,7 @@ const examData = {
     {
       id: 2,
       topic: "Geometría",
+      imageUrl: "/images/matematicas/area-circulo.png",
       text: "¿Cuál es el área de un círculo con un radio de 5 cm?",
       options: [
         { id: "a", text: "78.5 cm²" },
@@ -90,7 +116,8 @@ const examData = {
     },
     {
       id: 3,
-      topic: " Algebra",
+      topic: "Algebra",
+      imageUrl: "/images/matematicas/ecuacion-lineal.png",
       text: "¿Cuál es el resultado de \\( 2x + 3 = 11 \\)?",
       options: [
         { id: "a", text: "4" },
@@ -100,13 +127,14 @@ const examData = {
       ],
       correctAnswer: "c",
     }
-  ],
-}
+  ] as Question[],
+};
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
+  const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
   const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
@@ -124,6 +152,15 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: number]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+
+  // Aleatorizar preguntas al cargar el componente
+  useEffect(() => {
+    const shuffledQuestions = shuffleArray(examDataBase.questions);
+    setExamData({
+      ...examDataBase,
+      questions: shuffledQuestions
+    });
+  }, []);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: number) => {
@@ -1062,7 +1099,22 @@ const ExamWithFirebase = () => {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg max-w-none">
-                <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                {currentQ.imageUrl && (
+                  <div className="mb-4">
+                    <img 
+                      src={currentQ.imageUrl} 
+                      alt={currentQ.text || 'Pregunta con imagen'} 
+                      className="max-w-full h-auto rounded-lg border shadow-sm"
+                      onError={(e) => {
+                        console.error('Error cargando imagen:', currentQ.imageUrl);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                {currentQ.text && (
+                  <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                )}
               </div>
               <RadioGroup
                 value={answers[currentQ.id] || ""}

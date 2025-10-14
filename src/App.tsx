@@ -23,6 +23,7 @@ import ExamAnalyzer from "@/pages/ExamAnalyzer";
 // Dashboards específicos por rol
 import TeacherDashboard from "@/pages/dashboard/teacher/TeacherDashboard";
 import PrincipalDashboard from "@/pages/dashboard/principal/PrincipalDashboard";
+import RectorDashboard from "@/pages/dashboard/rector/RectorDashboard";
 import AdminDashboard from "@/pages/dashboard/admin/AdminDashboard";
 
 function App() {
@@ -61,6 +62,12 @@ function App() {
                 <Route path="/dashboard/principal" element={
                   <RoleProtectedRoute allowedRoles={['principal']}>
                     <PrincipalDashboard theme="light" />
+                  </RoleProtectedRoute>
+                } />
+                
+                <Route path="/dashboard/rector" element={
+                  <RoleProtectedRoute allowedRoles={['rector']}>
+                    <RectorDashboard theme="light" />
                   </RoleProtectedRoute>
                 } />
                 

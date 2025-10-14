@@ -21,7 +21,7 @@ export default HomeSection
 export const heroItems = [
   {
     image: 'assets/adds/flexible.jpeg',
-    title: 'Bienvenido a Superate',
+    title: 'Bienvenido a Superate.IA',
     description: 'Donde avaluaremos el rendimiento academico de cada estudiante',
   },
   {

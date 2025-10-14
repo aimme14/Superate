@@ -31,8 +31,8 @@ const Navbar = () => {
             </motion.div>
           )}
           {isAuth
-            ? <Link to="/" className="text-sm font-medium"> SUPERATE</Link>
-            : <h1 className="text-xl font-semi">SUPERATE</h1>}
+            ? <Link to="/" className="text-sm font-medium"> SUPERATE.IA</Link>
+            : <h1 className="text-xl font-semi">SUPERATE.IA</h1>}
         </div>
 
         <div className="flex items-center gap-x-2 md:gap-x-4">

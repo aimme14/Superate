@@ -7,18 +7,26 @@ import {
   BookOpen, 
   TrendingUp,
   Clock,
-  CheckCircle
+  CheckCircle,
+  User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTeacherStudents, useTeacherStudentStats } from '@/hooks/query/useTeacherStudents'
+import { useAuthContext } from '@/context/AuthContext'
 
 interface TeacherDashboardProps extends ThemeContextProps {}
 
 export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
-  // const { userRole, permissions } = useRole()
+  const { user } = useAuthContext()
+  const { data: students, isLoading: studentsLoading } = useTeacherStudents()
+  const { stats } = useTeacherStudentStats()
+
+  console.log('👨‍🏫 Usuario docente en dashboard:', user)
+  console.log('🎯 Rol del usuario:', user?.role)
 
   // Datos de ejemplo para el dashboard del docente
   const dashboardData = {
-    totalStudents: 45,
+    totalStudents: stats.totalStudents,
     activeExams: 3,
     pendingReviews: 12,
     averageScore: 78.5,
@@ -28,13 +36,11 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       { id: 3, type: 'student_joined', title: 'Nuevo estudiante: María García', time: '1 día atrás' },
     ],
     upcomingExams: [
-      { id: 1, subject: 'Ciencias Naturales', date: '2024-01-15', students: 45 },
-      { id: 2, subject: 'Historia', date: '2024-01-18', students: 42 },
+      { id: 1, subject: 'Ciencias Naturales', date: '2024-01-15', students: stats.totalStudents },
+      { id: 2, subject: 'Historia', date: '2024-01-18', students: stats.totalStudents },
     ],
     studentPerformance: [
-      { grade: '9°', average: 85.2, students: 15 },
-      { grade: '10°', average: 78.9, students: 18 },
-      { grade: '11°', average: 82.1, students: 12 },
+      { grade: user?.grade || 'N/A', average: 85.2, students: stats.totalStudents },
     ]
   }
 
@@ -44,10 +50,13 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className={cn('text-3xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            Dashboard Docente
+            Bienvenido, {user?.displayName || 'Docente'}
           </h1>
           <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
             Gestiona tus clases y estudiantes
+          </p>
+          <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')}>
+            {user?.email} • Grado: {user?.grade || 'N/A'}
           </p>
         </div>
         <Badge variant="secondary" className="text-sm">
@@ -125,6 +134,66 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lista de estudiantes específicos */}
+      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+        <CardHeader>
+          <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            Mis Estudiantes
+          </CardTitle>
+          <CardDescription>
+            Estudiantes de {user?.institution} - Sede {user?.campus} - Grado {user?.grade}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {studentsLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+              <p className={cn('text-sm mt-2', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                Cargando estudiantes...
+              </p>
+            </div>
+          ) : students && students.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {students.map((student) => (
+                <div key={student.uid} className={cn('p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
+                      {student.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'E'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className={cn('font-medium truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {student.displayName}
+                      </h3>
+                      <p className={cn('text-sm truncate', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        {student.email}
+                      </p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Badge variant="outline" className="text-xs">
+                          {student.grade}
+                        </Badge>
+                        <Badge variant={student.emailVerified ? 'default' : 'secondary'} className="text-xs">
+                          {student.emailVerified ? 'Activo' : 'Pendiente'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <User className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className={cn('text-lg font-medium mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                No hay estudiantes asignados
+              </h3>
+              <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                No tienes estudiantes asignados en tu grado actual.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Contenido principal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

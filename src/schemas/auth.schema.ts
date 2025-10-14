@@ -15,17 +15,20 @@ export const registerSchema = z.object({
   username: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
   email: z.string().email("Correo electronico invalido"),
   inst: z.string().min(1, "La institución educativa es requerida"),
+  campus: z.string().min(1, "La sede es requerida"),
   grade: z.string().min(1, "El grado es requerido"),
 })
 
 /*--------------------------------------------------adminRegisterSchema--------------------------------------------------*/
 export const adminRegisterSchema = z.object({
   role: z.enum(['teacher', 'principal'], {
-    errorMap: () => ({ message: "Debe seleccionar un rol válido (docente o rector)" })
+    errorMap: () => ({ message: "Debe seleccionar un rol válido (docente o coordinador)" })
   }),
   username: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
   email: z.string().email("Correo electronico invalido"),
   institution: z.string().min(1, "La institución educativa es requerida"),
+  campus: z.string().min(1, "La sede es requerida"),
+  grade: z.string().min(1, "El grado es requerido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 })
 /*--------------------------------------------------registerSchema--------------------------------------------------*/

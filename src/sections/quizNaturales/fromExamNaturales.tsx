@@ -21,6 +21,29 @@ interface QuestionTimeData {
   endTime?: number; // timestamp
 }
 
+// Nueva interfaz para preguntas con soporte de imágenes
+interface Question {
+  id: number;
+  topic: string;
+  text?: string; // Opcional para preguntas con imagen
+  imageUrl?: string; // URL de la imagen de la pregunta
+  options: {
+    id: string;
+    text: string;
+  }[];
+  correctAnswer: string;
+}
+
+// Función para aleatorizar array (algoritmo Fisher-Yates)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string) => {
   const docRef = doc(db, "results", userId);
@@ -48,8 +71,8 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   return { success: true, id: `${userId}_${examId}` };
 };
 
-// Datos de ejemplo para el examen
-const examData = {
+// Datos de ejemplo para el examen - ACTUALIZADO con soporte de imágenes
+const examDataBase = {
   id: "exam_naturales_001", // ID único del examen
   title: "Examen de Naturales",
   description: "Evaluación de conocimientos en naturales",
@@ -57,17 +80,19 @@ const examData = {
   module: "Módulo de Naturales",
   totalQuestions: 25,
   instructions: [
-    "Lee cuidadosamente cada pregunta antes de responder",
+    "Observa cuidadosamente cada imagen/pregunta antes de responder",
     "Solo hay una respuesta correcta por pregunta",
     "Puedes navegar entre preguntas usando los botones o el panel lateral",
     "El tiempo es limitado, administra bien tu tiempo",
-    "Una vez enviado el examen, no podrás modificar tus respuestas"
+    "Una vez enviado el examen, no podrás modificar tus respuestas",
+    "Las preguntas aparecen en orden aleatorio para cada usuario"
   ],
   questions: [
     {
       id: 1,
       topic: "Biología",
-      text: "El sistema respiratorio permite el intercambio de gases entre el cuerpo y el ambiente. Los pulmones absorben oxígeno y liberan dióxido de carbono durante la respiración. ¿Cuál es la función principal de los pulmones?",
+      imageUrl: "/images/naturales/sistema-respiratorio.png", // URL de la imagen
+      text: "El sistema respiratorio permite el intercambio de gases entre el cuerpo y el ambiente. Los pulmones absorben oxígeno y liberan dióxido de carbono durante la respiración. ¿Cuál es la función principal de los pulmones?", // Texto de respaldo opcional
       options: [
         { id: "a", text: "Transportar la sangre." },
         { id: "b", text: "Regular la temperatura." },
@@ -75,12 +100,11 @@ const examData = {
         { id: "d", text: "Producir glóbulos blancos." },
       ],
       correctAnswer: "c",
-
     },
-
     { 
       id: 2,
       topic: "Biología",
+      imageUrl: "/images/naturales/nutricion-dieta.png",
       text: "Una persona tiene una dieta rica en grasas y azúcares, pero baja en fibra y vitaminas. Su médico detecta altos niveles de colesterol y obesidad. ¿Cuál es la consecuencia biológica más probable de esta dieta?",
       options: [
         { id: "a", text: "Mejora del sistema inmune." },
@@ -90,172 +114,27 @@ const examData = {
       ],
       correctAnswer: "b",
     },
-
     {
       id: 3,
-      topic: "Biología",
-      text: "Se propone que los colegios promuevan el consumo de frutas y verduras en las cafeterías para mejorar la salud de los estudiantes. ¿Cuál sería un argumento biológico que respalde esta propuesta?",
+      topic: "Química",
+      imageUrl: "/images/naturales/estados-materia.png",
+      text: "¿Cuál es el proceso que se muestra en el diagrama?",
       options: [
-        { id: "a", text: "Las frutas son más baratas." },
-        { id: "b", text: "Las verduras no se echan a perder fácilmente." },
-        { id: "c", text: "Aportan nutrientes que fortalecen el sistema inmunológico." },
-        { id: "d", text: "Evitan que los estudiantes compren gaseosas." },
-      ],
-      correctAnswer: "c"
-    },
-
-    /**{
-      id: 4,
-      topic: "Física",
-      text: "Un ciclista desciende por una colina. A medida que baja, su velocidad aumenta. ¿Qué tipo de fuerza actúa para aumentar su velocidad?",
-      options: [
-        { id: "a", text: "Fricción." },
-        { id: "b", text: "Gravedad." },
-        { id: "c", text: "Resistencia del aire." },
-        { id: "d", text: "Fuerza centrífuga." },
+        { id: "a", text: "Fusión" },
+        { id: "b", text: "Evaporación" },
+        { id: "c", text: "Condensación" },
+        { id: "d", text: "Sublimación" },
       ],
       correctAnswer: "b",
-    },
-
-    {
-      id: 5,
-      topic: "Física",
-      text: "Cuando un balón es lanzado hacia arriba, disminuye su velocidad hasta detenerse, luego cae. ¿Qué fenómeno explica este comportamiento?",
-      options: [
-        { id: "a", text: "La ausencia de gravedad." },
-        { id: "b", text: "La acción del impulso." },
-        { id: "c", text: "La aceleración negativa provocada por la gravedad." },
-        { id: "d", text: "La fuerza centrífuga terrestre." },
-      ],
-      correctAnswer: "c",
-    },
-
-
-    {
-      id: 6,
-      topic: "Física",
-      text: "Se desea reducir el consumo de energía en una escuela. Se propone reemplazar bombillos tradicionales por luces LED. ¿Cuál es una razón física que respalda esta medida?",
-      options: [
-        { id: "a", text: "Las luces LED emiten calor." },
-        { id: "b", text: "Las luces LED iluminan menos." },
-        { id: "c", text: "Las luces LED consumen menos energía al producir la misma cantidad de luz." },
-        { id: "d", text: "Las luces LED cambian de color." },
-      ],
-      correctAnswer: "c",
-    },
-
-    {
-      id: 7,
-      topic: "Química",
-      text: "Al hervir agua, esta se convierte en vapor. El volumen aumenta y se observa vapor saliendo de la olla. ¿Qué tipo de cambio ocurre al hervir el agua?",
-      options: [
-        { id: "a", text: "Cambio químico." },
-        { id: "b", text: "Fusión." },
-        { id: "c", text: "Evaporación (cambio físico)." },
-        { id: "d", text: "Combustión." },
-      ],
-      correctAnswer: "c",
-    },
-
-    {
-      id: 8,
-      topic: "Química",
-      text: "En un laboratorio, un estudiante mezcla vinagre y bicarbonato. La reacción genera burbujas y libera gas. ¿Qué evidencia indica que ocurrió una reacción química?",
-      options: [
-        { id: "a", text: "El cambio de estado." },
-        { id: "b", text: "El burbujeo y la formación de gas." },
-        { id: "c", text: "El color del recipiente." },
-        { id: "d", text: "La temperatura del ambiente." },
-      ],
-      correctAnswer: "b",
-    },
-
-    {
-      id: 9,
-      topic: "Química",
-      text: "Para disminuir la contaminación, se propone reemplazar plásticos convencionales por materiales biodegradables como el almidón de maíz. ¿Qué propiedad química hace que esta propuesta sea viable?",
-      options: [
-        { id: "a", text: "El almidón resiste el calor." },
-        { id: "b", text: "El almidón no conduce electricidad." },
-        { id: "c", text: "El almidón se degrada más fácilmente por acción de microorganismos." },
-        { id: "d", text: "El almidón es inflamable." },
-      ],
-      correctAnswer: "c",
-    },
-
-    {
-      id: 10,
-      topic: "Ecología",
-      text: "Un ecosistema equilibrado tiene múltiples especies que se alimentan unas de otras. Si desaparece una especie clave, otras pueden disminuir o desaparecer. ¿Qué puede causar la desaparición de varias especies?",
-      options: [
-        { id: "a", text: "El aumento de la biodiversidad." },
-        { id: "b", text: "La extinción de una especie fundamental." },
-        { id: "c", text: "La llegada del invierno." },
-        { id: "d", text: "La contaminación visual." },
-      ],
-      correctAnswer: "b",
-    },
-
-    {
-      id: 11,
-      topic: "Ecología",
-      text: "En una comunidad, se eliminó el uso de bolsas plásticas y se promovieron bolsas de tela reutilizables. ¿Qué beneficio ecológico tiene esta medida?",
-      options: [
-        { id: "a", text: "Mejora el aspecto de los supermercados." },
-        { id: "b", text: "Aumenta el consumo de ropa." },
-        { id: "c", text: "Reduce la contaminación de suelos y mares." },
-        { id: "d", text: "Aumenta la venta de telas." },
-      ],
-      correctAnswer: "c",
-    },
-
-    {
-      id: 12,
-      topic: "Ecología",
-      text: "Se desea restaurar una zona deforestada. Se plantea sembrar especies nativas en lugar de árboles exóticos. ¿Cuál es una razón ecológica que respalda esta decisión?",
-      options: [
-        { id: "a", text: "Las especies nativas son más bonitas." },
-        { id: "b", text: "Las especies nativas requieren más agua." },
-        { id: "c", text: "Las especies nativas se integran mejor al ecosistema." },
-        { id: "d", text: "Las especies exóticas crecen más rápido." },
-      ],
-      correctAnswer: "c",
-    },
-
-    {
-      id: 13,
-      topic: "Química",
-      text: "El descubrimiento de la penicilina permitió tratar infecciones bacterianas y salvó millones de vidas. ¿Cómo influyó este descubrimiento en la sociedad?",
-      options: [
-        { id: "a", text: "Generó nuevas epidemias." },
-        { id: "b", text: "Aumentó la resistencia bacteriana." },
-        { id: "c", text: "Mejoró la esperanza de vida." },
-        { id: "d", text: "Reemplazó todas las medicinas." },
-      ],
-      correctAnswer: "c",
-    },
-
-
-    {
-      id: 15,
-      topic: "Química",
-      text: "En un proyecto escolar se propone diseñar un filtro casero para purificar agua usando materiales como arena, carbón activado y grava. ¿Qué principio científico fundamenta esta propuesta?",
-      options: [
-        { id: "a", text: "El filtrado permite separar sólidos suspendidos en líquidos." },
-        { id: "b", text: "El agua es inflamable." },
-        { id: "c", text: "El carbón absorbe olores." },
-        { id: "d", text: "La arena acelera la evaporación." },
-      ],
-      correctAnswer: "a",
-    },**/
-
-  ],
-}
+    }
+  ] as Question[],
+};
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
+  const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
   const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
@@ -273,6 +152,15 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: number]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+
+  // Aleatorizar preguntas al cargar el componente
+  useEffect(() => {
+    const shuffledQuestions = shuffleArray(examDataBase.questions);
+    setExamData({
+      ...examDataBase,
+      questions: shuffledQuestions
+    });
+  }, []);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: number) => {
@@ -582,7 +470,7 @@ const ExamWithFirebase = () => {
             </div>
           </div>
           <CardTitle className="text-xl">Verificando estado del examen...</CardTitle>
-          <CardDescription>
+          <CardDescription className="text-base">
             Por favor espera mientras verificamos si ya has presentado este examen
           </CardDescription>
         </CardHeader>
@@ -1211,7 +1099,22 @@ const ExamWithFirebase = () => {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg max-w-none">
-                <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                {currentQ.imageUrl && (
+                  <div className="mb-4">
+                    <img 
+                      src={currentQ.imageUrl} 
+                      alt={currentQ.text || 'Pregunta con imagen'} 
+                      className="max-w-full h-auto rounded-lg border shadow-sm"
+                      onError={(e) => {
+                        console.error('Error cargando imagen:', currentQ.imageUrl);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                {currentQ.text && (
+                  <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                )}
               </div>
               <RadioGroup
                 value={answers[currentQ.id] || ""}

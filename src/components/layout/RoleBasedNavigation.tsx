@@ -55,7 +55,7 @@ export default function RoleBasedNavigation({ theme }: RoleBasedNavigationProps)
   const roleTitles = {
     student: 'Estudiante',
     teacher: 'Docente',
-    principal: 'Rector',
+    principal: 'Coordinador',
     admin: 'Administrador',
   }
 

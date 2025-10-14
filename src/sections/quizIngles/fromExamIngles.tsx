@@ -21,6 +21,29 @@ interface QuestionTimeData {
   endTime?: number; // timestamp
 }
 
+// Nueva interfaz para preguntas con soporte de imágenes
+interface Question {
+  id: number;
+  topic: string;
+  text?: string; // Opcional para preguntas con imagen
+  imageUrl?: string; // URL de la imagen de la pregunta
+  options: {
+    id: string;
+    text: string;
+  }[];
+  correctAnswer: string;
+}
+
+// Función para aleatorizar array (algoritmo Fisher-Yates)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string) => {
   const docRef = doc(db, "results", userId);
@@ -48,26 +71,29 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   return { success: true, id: `${userId}_${examId}` };
 };
 
-// Datos de ejemplo para el examen
-const examData = {
-  id: "exam_english_001", // ID único del examen
+// Datos de ejemplo para el examen - ACTUALIZADO con soporte de imágenes
+const examDataBase = {
+  id: "exam_english_003", // ID único del examen
   title: "Examen de Inglés",
   description: "Evaluación de habilidades de pensamiento crítico y comprensión lectora",
   timeLimit: 30, // minutos
   module: "Módulo de Inglés",
   totalQuestions: 25,
   instructions: [
-    "Lee cuidadosamente cada pregunta antes de responder",
+    "Observa cuidadosamente cada imagen/pregunta antes de responder",
     "Solo hay una respuesta correcta por pregunta",
     "Puedes navegar entre preguntas usando los botones o el panel lateral",
     "El tiempo es limitado, administra bien tu tiempo",
-    "Una vez enviado el examen, no podrás modificar tus respuestas"
+    "Una vez enviado el examen, no podrás modificar tus respuestas",
+    "Las preguntas aparecen en orden aleatorio para cada usuario"
   ],
   questions: [
     {
       id: 1,
       topic: "write",
-      text: "What is the past tense of 'go'?",
+      // Ejemplo con imagen - reemplaza con URLs reales de tus imágenes
+      imageUrl: "/images/ingles/past-tense-go.png", // URL de la imagen
+      text: "What is the past tense of 'go'?", // Texto de respaldo opcional
       options: [
         { id: "a", text: "goed" },
         { id: "b", text: "went" },
@@ -79,18 +105,7 @@ const examData = {
     {
       id: 2,
       topic: "read",
-      text: "What is the past tense of 'go'?",
-      options: [
-        { id: "a", text: "goed" },
-        { id: "b", text: "went" },
-        { id: "c", text: "gone" },
-        { id: "d", text: "going" },
-      ],
-      correctAnswer: "b",
-    },
-    {
-      id: 3,
-      topic: "write",
+      imageUrl: "/images/ingles/grammar-example.jpg",
       text: "Choose the correct sentence:",
       options: [
         { id: "a", text: "She don't like coffee" },
@@ -99,14 +114,28 @@ const examData = {
         { id: "d", text: "She not like coffee" },
       ],
       correctAnswer: "c",
+    },
+    {
+      id: 3,
+      topic: "vocabulary",
+      imageUrl: "/images/ingles/vocabulary-test.png",
+      text: "What does this image represent?",
+      options: [
+        { id: "a", text: "A house" },
+        { id: "b", text: "A school" },
+        { id: "c", text: "A library" },
+        { id: "d", text: "A hospital" },
+      ],
+      correctAnswer: "c",
     }
-  ],
-}
+  ] as Question[],
+};
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
+  const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
   const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
@@ -124,6 +153,15 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: number]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+
+  // Aleatorizar preguntas al cargar el componente
+  useEffect(() => {
+    const shuffledQuestions = shuffleArray(examDataBase.questions);
+    setExamData({
+      ...examDataBase,
+      questions: shuffledQuestions
+    });
+  }, []);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: number) => {
@@ -1062,7 +1100,22 @@ const ExamWithFirebase = () => {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg max-w-none">
-                <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                {currentQ.imageUrl && (
+                  <div className="mb-4">
+                    <img 
+                      src={currentQ.imageUrl} 
+                      alt={currentQ.text || 'Pregunta con imagen'} 
+                      className="max-w-full h-auto rounded-lg border shadow-sm"
+                      onError={(e) => {
+                        console.error('Error cargando imagen:', currentQ.imageUrl);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                {currentQ.text && (
+                  <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                )}
               </div>
               <RadioGroup
                 value={answers[currentQ.id] || ""}

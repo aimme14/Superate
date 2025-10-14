@@ -15,11 +15,42 @@ import { User as UserFB } from "firebase/auth"
  */
 export const login = async ({ email, password }: { email: string, password: string }): Promise<Result<UserFB>> => {
   try {
+    console.log('🔐 Intentando login para:', email)
+    
     const result = await authFB.login(email, password)
-    if (!result.success) throw result.error
-    if (!result.data.emailVerified) return failure(new Unauthorized({ message: 'Email no verificado' }))
-    return success(result.data)
-  } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'inicio de sesión'))) }
+    if (!result.success) {
+      console.log('❌ Error en login de Firebase Auth:', result.error)
+      throw result.error
+    }
+    
+    console.log('✅ Login de Firebase Auth exitoso para UID:', result.data.uid)
+    
+    // Verificar el rol del usuario para determinar si requiere verificación de email
+    const userData = await dbService.getUserById(result.data.uid)
+    console.log('📊 Datos del usuario obtenidos:', userData)
+    
+    if (userData.success && userData.data) {
+      const userRole = userData.data.role
+      console.log('👤 Rol del usuario:', userRole)
+      
+      // Solo estudiantes requieren verificación de email
+      // Docentes, coordinadores y administradores no requieren verificación
+      if (userRole === 'student' && !result.data.emailVerified) {
+        console.log('⚠️ Email no verificado para estudiante')
+        return failure(new Unauthorized({ message: 'Email no verificado' }))
+      }
+      
+      console.log('✅ Login completado exitosamente')
+      return success(result.data)
+    } else {
+      console.log('❌ No se pudieron obtener los datos del usuario:', userData.success ? 'Sin datos' : userData.error)
+      return failure(new ErrorAPI({ message: 'Datos del usuario no encontrados', statusCode: 404 }))
+    }
+    
+  } catch (e) { 
+    console.log('❌ Error en login:', e)
+    return failure(new ErrorAPI(normalizeError(e, 'inicio de sesión'))) 
+  }
 }
 
 /**
@@ -34,7 +65,7 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     
     // Verificar que solo se registren estudiantes
     if (role !== 'student') {
-      return failure(new Unauthorized({ message: 'Solo los estudiantes pueden registrarse públicamente. Los docentes y rectores deben ser creados por un administrador.' }))
+      return failure(new Unauthorized({ message: 'Solo los estudiantes pueden registrarse públicamente. Los docentes y coordinadores deben ser creados por un administrador.' }))
     }
     
     // Generamos la contraseña automáticamente a partir del documento más un 0
