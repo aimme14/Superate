@@ -106,10 +106,10 @@ class AuthService {
   /**
    * Elimina un usuario de Firebase Auth por UID.
    * Nota: Esta función requiere autenticación de administrador.
-   * @param {string} uid - El UID del usuario a eliminar.
+   * @param {string} _uid - El UID del usuario a eliminar.
    * @returns {Promise<Result<void>>} Resultado de la eliminación.
    */
-  async deleteUserByUid(uid: string): Promise<Result<void>> {
+  async deleteUserByUid(_uid: string): Promise<Result<void>> {
     try {
       // Para eliminar un usuario por UID, necesitamos usar Firebase Admin SDK
       // Por ahora, solo eliminamos de Firestore y dejamos la cuenta de Auth

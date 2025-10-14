@@ -167,3 +167,4 @@ export const deleteRector = async (institutionId: string, rectorId: string): Pro
   }
 }
 
+
