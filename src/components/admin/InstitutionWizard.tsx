@@ -38,7 +38,7 @@ interface WizardData {
     phone: string
     email: string
     website: string
-    coordinator: string
+    rector: string
     logo: string
   }
   campuses: Array<{
@@ -72,7 +72,7 @@ export default function InstitutionWizard({ isOpen, onClose }: InstitutionWizard
       phone: '',
       email: '',
       website: '',
-      coordinator: '',
+      rector: '',
       logo: ''
     },
     campuses: [
@@ -114,7 +114,7 @@ export default function InstitutionWizard({ isOpen, onClose }: InstitutionWizard
         phone: '',
         email: '',
         website: '',
-        coordinator: '',
+        rector: '',
         logo: ''
       },
       campuses: [
@@ -597,7 +597,7 @@ export default function InstitutionWizard({ isOpen, onClose }: InstitutionWizard
                 {wizardData.institution.phone && <div><strong>Teléfono:</strong> {wizardData.institution.phone}</div>}
                 {wizardData.institution.email && <div><strong>Email:</strong> {wizardData.institution.email}</div>}
                 {wizardData.institution.website && <div><strong>Sitio web:</strong> {wizardData.institution.website}</div>}
-                {wizardData.institution.coordinator && <div><strong>Coordinador:</strong> {wizardData.institution.coordinator}</div>}
+                {wizardData.institution.rector && <div><strong>Rector:</strong> {wizardData.institution.rector}</div>}
               </div>
             </Card>
 
@@ -611,7 +611,7 @@ export default function InstitutionWizard({ isOpen, onClose }: InstitutionWizard
                   <div key={index} className="border-l-2 border-blue-200 pl-3">
                     <div className="font-medium">{campus.name}</div>
                     <div className="text-sm text-gray-600">{campus.address}</div>
-                    {campus.principal && <div className="text-sm text-gray-600">Coordinador: {campus.principal}</div>}
+                    {campus.principal && <div className="text-sm text-gray-600">Director: {campus.principal}</div>}
                   </div>
                 ))}
               </div>

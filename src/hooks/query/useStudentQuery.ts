@@ -52,7 +52,7 @@ export const useStudentsByTeacher = (teacherId: string, enabled: boolean = true)
 }
 
 /**
- * Hook para obtener estudiantes de un coordinador específico
+ * Hook para obtener estudiantes de un rector específico
  */
 export const useStudentsByPrincipal = (principalId: string, enabled: boolean = true) => {
   return useQuery({

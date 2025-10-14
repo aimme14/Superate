@@ -55,7 +55,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
     phone: '',
     email: '',
     website: '',
-    coordinator: '',
+    rector: '',
     logo: ''
   })
 
@@ -90,7 +90,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       phone: '',
       email: '',
       website: '',
-      coordinator: '',
+      rector: '',
       logo: ''
     })
     setNewCampus({
@@ -123,7 +123,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
         phone: '',
         email: '',
         website: '',
-        coordinator: '',
+        rector: '',
         logo: ''
       })
       notifySuccess({ title: 'Éxito', message: 'Institución creada correctamente' })

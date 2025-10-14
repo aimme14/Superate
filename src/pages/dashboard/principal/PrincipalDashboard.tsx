@@ -18,10 +18,10 @@ interface PrincipalDashboardProps extends ThemeContextProps {}
 export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
   const { user } = useAuthContext()
 
-  console.log('👔 Usuario coordinador en dashboard:', user)
+  console.log('👔 Usuario rector en dashboard:', user)
   console.log('🎯 Rol del usuario:', user?.role)
 
-  // Datos de ejemplo para el dashboard del coordinador
+  // Datos de ejemplo para el dashboard del rector
   const dashboardData = {
     institutionStats: {
       totalStudents: 1250,
@@ -66,7 +66,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className={cn('text-3xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            Bienvenido, {user?.displayName || 'Coordinador'}
+            Bienvenido, {user?.displayName || 'Rector'}
           </h1>
           <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
             Gestión integral de la institución educativa
@@ -76,7 +76,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
           </p>
         </div>
         <Badge variant="secondary" className="text-sm">
-          Rol: Coordinador
+          Rol: Rector
         </Badge>
       </div>
 

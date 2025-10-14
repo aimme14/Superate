@@ -17,7 +17,7 @@ export const principalKeys = {
   detail: (id: string) => [...principalKeys.details(), id] as const,
 }
 
-// Hook para obtener todos los coordinadores
+// Hook para obtener todos los rectores
 export const usePrincipals = () => {
   return useQuery({
     queryKey: principalKeys.lists(),
@@ -72,7 +72,7 @@ export const usePrincipalMutations = () => {
   }
 }
 
-// Hook para filtrar coordinadores
+// Hook para filtrar rectores
 export const useFilteredPrincipals = (filters: {
   searchTerm?: string
   institutionId?: string
