@@ -1,4 +1,4 @@
-import { dbService } from '@/services/db'
+import { dbService } from '@/services/firebase/db.service'
 
 /**
  * Script para recalcular todos los contadores de estudiantes

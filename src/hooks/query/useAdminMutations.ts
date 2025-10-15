@@ -21,11 +21,11 @@ export const useAdminMutations = () => {
       queryClient.invalidateQueries({ queryKey: ['students'] })
       queryClient.invalidateQueries({ queryKey: ['institutions'] })
       
-      notifySuccess('Contadores de estudiantes recalculados exitosamente')
+      notifySuccess({ message: 'Contadores de estudiantes recalculados exitosamente' })
     },
     onError: (error: any) => {
       console.error('Error al recalcular contadores:', error)
-      notifyError('Error al recalcular contadores de estudiantes')
+      notifyError({ message: 'Error al recalcular contadores de estudiantes' })
     }
   })
 
