@@ -17,6 +17,7 @@ export interface CreateStudentData {
 
 export interface UpdateStudentData extends Partial<Omit<CreateStudentData, 'institutionId' | 'campusId' | 'gradeId'>> {
   isActive?: boolean
+  password?: string
 }
 
 export interface StudentFilters {
@@ -39,8 +40,8 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = password || userdoc + '0'
 
-    // Crear cuenta en Firebase Auth
-    const userAccount = await authService.registerAccount(name, email, generatedPassword)
+    // Crear cuenta en Firebase Auth (preservando la sesión del admin)
+    const userAccount = await authService.registerAccount(name, email, generatedPassword, true)
     if (!userAccount.success) throw userAccount.error
 
     // Crear documento en Firestore
@@ -138,8 +139,27 @@ export const getStudentsByPrincipal = async (principalId: string): Promise<Resul
  */
 export const updateStudent = async (studentId: string, studentData: UpdateStudentData): Promise<Result<void>> => {
   try {
+    // Actualizar datos en Firestore
     const result = await dbService.updateUser(studentId, studentData)
     if (!result.success) throw result.error
+
+    // Si se cambió el email o nombre, actualizar también en Firebase Auth
+    if (studentData.email || studentData.name) {
+      try {
+        // Para actualizar Firebase Auth, necesitamos autenticarnos temporalmente con el usuario actual
+        // Esto es una limitación de Firebase Auth desde el cliente
+        console.log('ℹ️ Actualización de credenciales en Firebase Auth requiere autenticación del usuario')
+        console.log('ℹ️ El usuario deberá hacer login con las nuevas credenciales después de la actualización')
+        
+        // Nota: Firebase Auth no permite actualizar credenciales de otros usuarios desde el cliente
+        // Para una solución completa, se necesitaría Firebase Admin SDK en el backend
+        // Por ahora, solo actualizamos en Firestore y el usuario deberá hacer login con las nuevas credenciales
+      } catch (authError) {
+        console.warn('⚠️ Error al actualizar Firebase Auth:', authError)
+        // No lanzar error aquí, solo logear la advertencia
+      }
+    }
+
     return success(undefined)
   } catch (e) {
     return failure(new ErrorAPI(normalizeError(e, 'actualizar estudiante')))

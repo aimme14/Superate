@@ -1052,7 +1052,8 @@ class DatabaseService {
               gradeId: grade.id,
               institutionName: institutionResult.data.name,
               campusName: campus.name,
-              gradeName: grade.name
+              gradeName: grade.name,
+              studentCount: (grade.students || []).length // Contar estudiantes reales del grado
             })))
           }
         })
@@ -1117,7 +1118,8 @@ class DatabaseService {
                 gradeId: grade.id,
                 institutionName: institution.name,
                 campusName: campus.name,
-                gradeName: grade.name
+                gradeName: grade.name,
+                studentCount: (grade.students || []).length // Contar estudiantes reales del grado
               })))
             }
           })
@@ -1166,7 +1168,7 @@ class DatabaseService {
         return failure(new ErrorAPI({ message: 'Grado no encontrado', statusCode: 404 }))
       }
 
-      // Enriquecer los docentes del grado con nombres
+      // Enriquecer los docentes del grado con nombres y contador de estudiantes
       const enrichedTeachers = (grade.teachers || []).map((teacher: any) => ({
         ...teacher,
         institutionId: institution.id,
@@ -1174,7 +1176,8 @@ class DatabaseService {
         gradeId: grade.id,
         institutionName: institution.name,
         campusName: campus.name,
-        gradeName: grade.name
+        gradeName: grade.name,
+        studentCount: (grade.students || []).length // Contar estudiantes reales del grado
       }))
 
       return success(enrichedTeachers)
@@ -1315,6 +1318,92 @@ class DatabaseService {
     } catch (e) { 
       console.error('❌ Error en getFilteredStudents:', e)
       return failure(new ErrorAPI(normalizeError(e, 'obtener estudiantes filtrados'))) 
+    }
+  }
+
+  /**
+   * Enriquece los datos de un usuario individual con nombres de institución, sede y grado
+   * @param {any} user - El usuario a enriquecer
+   * @returns {Promise<Result<any>>} Usuario enriquecido con nombres
+   */
+  async enrichUserData(user: any): Promise<Result<any>> {
+    try {
+      console.log('🔍 Enriqueciendo datos del usuario:', user.name, 'con IDs:', {
+        inst: user.inst,
+        campus: user.campus,
+        grade: user.grade
+      })
+      
+      // Obtener nombre de la institución
+      let institutionName = user.inst || user.institutionId
+      const institutionId = user.inst || user.institutionId
+      if (institutionId) {
+        const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
+        if (institutionDoc.exists()) {
+          institutionName = institutionDoc.data().name || institutionId
+          console.log('✅ Institución encontrada:', institutionName)
+        } else {
+          console.log('❌ Institución no encontrada para ID:', institutionId)
+        }
+      }
+
+      // Obtener nombre de la sede y grado desde el documento completo de la institución
+      let campusName = user.campus || user.campusId
+      let gradeName = user.grade || user.gradeId
+      const campusId = user.campus || user.campusId
+      const gradeId = user.grade || user.gradeId
+      
+      if (institutionId && campusId) {
+        // Obtener el documento completo de la institución para buscar en sus arrays
+        const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
+        if (institutionDoc.exists()) {
+          const institutionData = institutionDoc.data()
+          console.log('📋 Datos de la institución:', institutionData)
+          
+          // Buscar la sede en el array de sedes
+          if (institutionData.campuses && Array.isArray(institutionData.campuses)) {
+            const campus = institutionData.campuses.find((c: any) => c.id === campusId)
+            if (campus) {
+              campusName = campus.name || campusId
+              console.log('✅ Sede encontrada:', campusName)
+              
+              // Buscar el grado en el array de grados de la sede
+              if (campus.grades && Array.isArray(campus.grades) && gradeId) {
+                const grade = campus.grades.find((g: any) => g.id === gradeId)
+                if (grade) {
+                  gradeName = grade.name || gradeId
+                  console.log('✅ Grado encontrado:', gradeName)
+                } else {
+                  console.log('❌ Grado no encontrado para ID:', gradeId)
+                }
+              }
+            } else {
+              console.log('❌ Sede no encontrada para ID:', campusId)
+            }
+          }
+        } else {
+          console.log('❌ Institución no encontrada para obtener sedes/grados')
+        }
+      }
+
+      const enrichedUser = {
+        ...user,
+        institutionName,
+        campusName,
+        gradeName
+      }
+      
+      console.log('🎉 Usuario enriquecido:', {
+        name: enrichedUser.name,
+        institutionName,
+        campusName,
+        gradeName
+      })
+      
+      return success(enrichedUser)
+    } catch (error) {
+      console.warn(`Error al enriquecer datos del usuario ${user.id}:`, error)
+      return failure(new ErrorAPI(normalizeError(error, 'enriquecer datos del usuario')))
     }
   }
 

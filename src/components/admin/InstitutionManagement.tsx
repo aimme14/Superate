@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 // import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Plus, 
@@ -15,10 +17,14 @@ import {
   Edit,
   Eye,
   MapPin,
-  Users,
   GraduationCap,
   ChevronRight,
-  MoreVertical
+  MoreVertical,
+  Trash2,
+  Phone,
+  Mail,
+  Globe,
+  User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -26,6 +32,7 @@ import { Institution, Campus } from '@/interfaces/db.interface'
 import { useInstitutions, useInstitutionMutations } from '@/hooks/query/useInstitutionQuery'
 import ImageUpload from '@/components/common/fields/ImageUpload'
 import InstitutionWizard from './InstitutionWizard'
+import InstitutionStats from './InstitutionStats'
 
 interface InstitutionManagementProps {
   theme: 'light' | 'dark'
@@ -34,7 +41,7 @@ interface InstitutionManagementProps {
 export default function InstitutionManagement({ theme }: InstitutionManagementProps) {
   const { notifySuccess, notifyError } = useNotification()
   const { data: institutions = [], isLoading, error } = useInstitutions()
-  const { createInstitution, createCampus, createGrade } = useInstitutionMutations()
+  const { createInstitution, createCampus, createGrade, updateInstitution, deleteInstitution, updateCampus, deleteCampus, updateGrade, deleteGrade } = useInstitutionMutations()
   
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
@@ -43,9 +50,17 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   const [isCreateCampusDialogOpen, setIsCreateCampusDialogOpen] = useState(false)
   const [isCreateGradeDialogOpen, setIsCreateGradeDialogOpen] = useState(false)
   const [isWizardOpen, setIsWizardOpen] = useState(false)
+  const [isViewInstitutionDialogOpen, setIsViewInstitutionDialogOpen] = useState(false)
+  const [isEditInstitutionDialogOpen, setIsEditInstitutionDialogOpen] = useState(false)
+  const [isEditCampusDialogOpen, setIsEditCampusDialogOpen] = useState(false)
+  const [isEditGradeDialogOpen, setIsEditGradeDialogOpen] = useState(false)
   // const [activeTab, setActiveTab] = useState('institutions')
   const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null)
   const [selectedCampus, setSelectedCampus] = useState<Campus | null>(null)
+  const [selectedGrade, setSelectedGrade] = useState<any>(null)
+  const [institutionToDelete, setInstitutionToDelete] = useState<Institution | null>(null)
+  const [campusToDelete, setCampusToDelete] = useState<{institution: Institution, campus: Campus} | null>(null)
+  const [gradeToDelete, setGradeToDelete] = useState<{institution: Institution, campus: Campus, grade: any} | null>(null)
 
   const [newInstitution, setNewInstitution] = useState({
     name: '',
@@ -70,6 +85,34 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   const [newGrade, setNewGrade] = useState({
     name: '',
     level: 6
+  })
+
+  const [editInstitution, setEditInstitution] = useState({
+    name: '',
+    type: 'public' as 'public' | 'private',
+    nit: '',
+    address: '',
+    phone: '',
+    email: '',
+    website: '',
+    rector: '',
+    logo: '',
+    isActive: true
+  })
+
+  const [editCampus, setEditCampus] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    principal: '',
+    isActive: true
+  })
+
+  const [editGrade, setEditGrade] = useState({
+    name: '',
+    level: 6,
+    isActive: true
   })
 
 
@@ -192,6 +235,157 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       notifySuccess({ title: 'Éxito', message: 'Grado creado correctamente' })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al crear el grado' })
+    }
+  }
+
+  // Funciones para ver detalles
+  const handleViewInstitution = (institution: Institution) => {
+    setSelectedInstitution(institution)
+    setIsViewInstitutionDialogOpen(true)
+  }
+
+  // Funciones para editar
+  const handleEditInstitution = (institution: Institution) => {
+    setSelectedInstitution(institution)
+    setEditInstitution({
+      name: institution.name,
+      type: institution.type,
+      nit: institution.nit || '',
+      address: institution.address,
+      phone: institution.phone || '',
+      email: institution.email || '',
+      website: institution.website || '',
+      rector: institution.rector || '',
+      logo: institution.logo || '',
+      isActive: institution.isActive
+    })
+    setIsEditInstitutionDialogOpen(true)
+  }
+
+  const handleUpdateInstitution = async () => {
+    if (!selectedInstitution || !editInstitution.name || !editInstitution.address) {
+      notifyError({ title: 'Error', message: 'Nombre y dirección son obligatorios' })
+      return
+    }
+
+    try {
+      await updateInstitution.mutateAsync({
+        id: selectedInstitution.id,
+        data: editInstitution
+      })
+      setIsEditInstitutionDialogOpen(false)
+      notifySuccess({ title: 'Éxito', message: 'Institución actualizada correctamente' })
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al actualizar la institución' })
+    }
+  }
+
+  const handleEditCampus = (institution: Institution, campus: Campus) => {
+    setSelectedInstitution(institution)
+    setSelectedCampus(campus)
+    setEditCampus({
+      name: campus.name,
+      address: campus.address,
+      phone: campus.phone || '',
+      email: campus.email || '',
+      principal: campus.principal || '',
+      isActive: campus.isActive
+    })
+    setIsEditCampusDialogOpen(true)
+  }
+
+  const handleUpdateCampus = async () => {
+    if (!selectedInstitution || !selectedCampus || !editCampus.name || !editCampus.address) {
+      notifyError({ title: 'Error', message: 'Nombre y dirección son obligatorios' })
+      return
+    }
+
+    try {
+      await updateCampus.mutateAsync({
+        institutionId: selectedInstitution.id,
+        campusId: selectedCampus.id,
+        data: editCampus
+      })
+      setIsEditCampusDialogOpen(false)
+      notifySuccess({ title: 'Éxito', message: 'Sede actualizada correctamente' })
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al actualizar la sede' })
+    }
+  }
+
+  const handleEditGrade = (institution: Institution, campus: Campus, grade: any) => {
+    setSelectedInstitution(institution)
+    setSelectedCampus(campus)
+    setSelectedGrade(grade)
+    setEditGrade({
+      name: grade.name,
+      level: grade.level,
+      isActive: grade.isActive
+    })
+    setIsEditGradeDialogOpen(true)
+  }
+
+  const handleUpdateGrade = async () => {
+    if (!selectedInstitution || !selectedCampus || !selectedGrade || !editGrade.name) {
+      notifyError({ title: 'Error', message: 'Nombre del grado es obligatorio' })
+      return
+    }
+
+    try {
+      await updateGrade.mutateAsync({
+        institutionId: selectedInstitution.id,
+        campusId: selectedCampus.id,
+        gradeId: selectedGrade.id,
+        data: editGrade
+      })
+      setIsEditGradeDialogOpen(false)
+      notifySuccess({ title: 'Éxito', message: 'Grado actualizado correctamente' })
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al actualizar el grado' })
+    }
+  }
+
+  // Funciones para eliminar
+  const handleDeleteInstitution = async () => {
+    if (!institutionToDelete) return
+
+    try {
+      await deleteInstitution.mutateAsync(institutionToDelete.id)
+      setInstitutionToDelete(null)
+      notifySuccess({ title: 'Éxito', message: 'Institución eliminada correctamente' })
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al eliminar la institución' })
+    }
+  }
+
+  const handleDeleteCampus = async () => {
+    if (!campusToDelete) return
+
+    try {
+      await deleteCampus.mutateAsync({
+        institutionId: campusToDelete.institution.id,
+        campusId: campusToDelete.campus.id
+      })
+      setCampusToDelete(null)
+      notifySuccess({ title: 'Éxito', message: 'Sede eliminada correctamente' })
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al eliminar la sede' })
+    }
+  }
+
+  const handleDeleteGrade = async () => {
+    if (!gradeToDelete) return
+
+    try {
+      await deleteGrade.mutateAsync({
+        institutionId: gradeToDelete.institution.id,
+        campusId: gradeToDelete.campus.id,
+        gradeId: gradeToDelete.grade.id
+      })
+      setGradeToDelete(null)
+      notifySuccess({ title: 'Éxito', message: 'Grado eliminado correctamente' })
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al eliminar el grado' })
     }
   }
 
@@ -417,18 +611,10 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                       </p>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-1">
-                        <Users className="h-3 w-3 text-gray-400" />
-                        <span className="text-sm text-gray-500">
-                          {institution.campuses.reduce((total, campus) => total + campus.grades.length * 25, 0)} estudiantes
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <GraduationCap className="h-3 w-3 text-gray-400" />
-                        <span className="text-sm text-gray-500">
-                          {institution.campuses.reduce((total, campus) => total + campus.grades.length * 3, 0)} docentes
-                        </span>
-                      </div>
+                      <InstitutionStats 
+                        institutionId={institution.id}
+                        theme={theme}
+                      />
                       <Badge variant={getInstitutionTypeBadgeVariant(institution.type)}>
                         {getInstitutionTypeLabel(institution.type)}
                       </Badge>
@@ -438,15 +624,38 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleViewInstitution(institution)}
+                      title="Ver detalles"
+                    >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditInstitution(institution)}
+                      title="Editar institución"
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" title="Más opciones">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => setInstitutionToDelete(institution)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar institución
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </div>
@@ -750,6 +959,542 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal para ver detalles de institución */}
+      <Dialog open={isViewInstitutionDialogOpen} onOpenChange={setIsViewInstitutionDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalles de la Institución</DialogTitle>
+            <DialogDescription>
+              Información completa de {selectedInstitution?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInstitution && (
+            <div className="space-y-6">
+              {/* Información básica */}
+              <div className="grid gap-4">
+                <div className="flex items-center space-x-4">
+                  {selectedInstitution.logo ? (
+                    <img 
+                      src={selectedInstitution.logo} 
+                      alt={`Logo de ${selectedInstitution.name}`}
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                      {getInstitutionTypeIcon(selectedInstitution.type)}
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-xl font-semibold">{selectedInstitution.name}</h3>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={getInstitutionTypeBadgeVariant(selectedInstitution.type)}>
+                        {getInstitutionTypeLabel(selectedInstitution.type)}
+                      </Badge>
+                      <Badge variant={selectedInstitution.isActive ? 'default' : 'secondary'}>
+                        {selectedInstitution.isActive ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Información de contacto */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm font-medium">Dirección:</span>
+                  </div>
+                  <p className="text-sm text-gray-600 ml-6">{selectedInstitution.address}</p>
+                  
+                  {selectedInstitution.phone && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <Phone className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm font-medium">Teléfono:</span>
+                      </div>
+                      <p className="text-sm text-gray-600 ml-6">{selectedInstitution.phone}</p>
+                    </>
+                  )}
+                  
+                  {selectedInstitution.email && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <Mail className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm font-medium">Email:</span>
+                      </div>
+                      <p className="text-sm text-gray-600 ml-6">{selectedInstitution.email}</p>
+                    </>
+                  )}
+                </div>
+                
+                <div className="space-y-3">
+                  {selectedInstitution.nit && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <Building className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm font-medium">NIT:</span>
+                      </div>
+                      <p className="text-sm text-gray-600 ml-6">{selectedInstitution.nit}</p>
+                    </>
+                  )}
+                  
+                  {selectedInstitution.website && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <Globe className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm font-medium">Sitio web:</span>
+                      </div>
+                      <p className="text-sm text-gray-600 ml-6">{selectedInstitution.website}</p>
+                    </>
+                  )}
+                  
+                  {selectedInstitution.rector && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm font-medium">Rector:</span>
+                      </div>
+                      <p className="text-sm text-gray-600 ml-6">{selectedInstitution.rector}</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Sedes */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold">Sedes ({selectedInstitution.campuses.length})</h4>
+                {selectedInstitution.campuses.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedInstitution.campuses.map((campus) => (
+                      <div key={campus.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-medium">{campus.name}</h5>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={campus.isActive ? 'default' : 'secondary'}>
+                              {campus.isActive ? 'Activo' : 'Inactivo'}
+                            </Badge>
+                            <div className="flex items-center space-x-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleEditCampus(selectedInstitution, campus)}
+                                title="Editar sede"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => setCampusToDelete({institution: selectedInstitution, campus})}
+                                title="Eliminar sede"
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">{campus.address}</p>
+                        {campus.phone && <p className="text-sm text-gray-500">Tel: {campus.phone}</p>}
+                        {campus.email && <p className="text-sm text-gray-500">Email: {campus.email}</p>}
+                        {campus.principal && <p className="text-sm text-gray-500">Director: {campus.principal}</p>}
+                        
+                        {/* Grados */}
+                        <div className="mt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h6 className="text-sm font-medium">Grados ({campus.grades.length})</h6>
+                          </div>
+                          <div className="space-y-2">
+                            {campus.grades.map((grade) => (
+                              <div key={grade.id} className="flex items-center justify-between bg-gray-50 rounded p-2">
+                                <div className="flex items-center space-x-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {grade.name}
+                                  </Badge>
+                                  <Badge variant={grade.isActive ? 'default' : 'secondary'} className="text-xs">
+                                    {grade.isActive ? 'Activo' : 'Inactivo'}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => handleEditGrade(selectedInstitution, campus, grade)}
+                                    title="Editar grado"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => setGradeToDelete({institution: selectedInstitution, campus, grade})}
+                                    title="Eliminar grado"
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No hay sedes registradas</p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsViewInstitutionDialogOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para editar institución */}
+      <Dialog open={isEditInstitutionDialogOpen} onOpenChange={setIsEditInstitutionDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Institución</DialogTitle>
+            <DialogDescription>
+              Modifica la información de {selectedInstitution?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="editInstitutionName">Nombre de la institución *</Label>
+              <Input
+                id="editInstitutionName"
+                value={editInstitution.name}
+                onChange={(e) => setEditInstitution(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Ej: Colegio San José"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="editInstitutionType">Tipo de institución *</Label>
+                <Select value={editInstitution.type} onValueChange={(value: 'public' | 'private') => setEditInstitution(prev => ({ ...prev, type: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {institutionTypes.map(type => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editInstitutionNIT">NIT (opcional)</Label>
+                <Input
+                  id="editInstitutionNIT"
+                  value={editInstitution.nit}
+                  onChange={(e) => setEditInstitution(prev => ({ ...prev, nit: e.target.value }))}
+                  placeholder="900123456-1"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="editInstitutionAddress">Dirección *</Label>
+              <Textarea
+                id="editInstitutionAddress"
+                value={editInstitution.address}
+                onChange={(e) => setEditInstitution(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="Dirección completa de la institución"
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="editInstitutionPhone">Teléfono</Label>
+                <Input
+                  id="editInstitutionPhone"
+                  value={editInstitution.phone}
+                  onChange={(e) => setEditInstitution(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+57 1 234-5678"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editInstitutionEmail">Email</Label>
+                <Input
+                  id="editInstitutionEmail"
+                  type="email"
+                  value={editInstitution.email}
+                  onChange={(e) => setEditInstitution(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="info@institucion.edu.co"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="editInstitutionWebsite">Sitio web</Label>
+                <Input
+                  id="editInstitutionWebsite"
+                  value={editInstitution.website}
+                  onChange={(e) => setEditInstitution(prev => ({ ...prev, website: e.target.value }))}
+                  placeholder="www.institucion.edu.co"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editInstitutionRector">Rector</Label>
+                <Input
+                  id="editInstitutionRector"
+                  value={editInstitution.rector}
+                  onChange={(e) => setEditInstitution(prev => ({ ...prev, rector: e.target.value }))}
+                  placeholder="Dr. María González"
+                />
+              </div>
+            </div>
+            
+            <div className="grid gap-2">
+              <ImageUpload
+                value={editInstitution.logo}
+                onChange={(value) => setEditInstitution(prev => ({ ...prev, logo: value }))}
+                label="Logo de la institución"
+                placeholder="Arrastra y suelta el logo aquí o haz clic para seleccionar"
+                theme={theme}
+                maxSize={2}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="editInstitutionActive"
+                checked={editInstitution.isActive}
+                onChange={(e) => setEditInstitution(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded"
+              />
+              <Label htmlFor="editInstitutionActive">Institución activa</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditInstitutionDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateInstitution} className="bg-black text-white hover:bg-gray-800">
+              Actualizar Institución
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para editar sede */}
+      <Dialog open={isEditCampusDialogOpen} onOpenChange={setIsEditCampusDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Sede</DialogTitle>
+            <DialogDescription>
+              Modifica la información de {selectedCampus?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="editCampusName">Nombre de la sede *</Label>
+              <Input
+                id="editCampusName"
+                value={editCampus.name}
+                onChange={(e) => setEditCampus(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Ej: Sede Principal"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="editCampusAddress">Dirección *</Label>
+              <Textarea
+                id="editCampusAddress"
+                value={editCampus.address}
+                onChange={(e) => setEditCampus(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="Dirección completa de la sede"
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="editCampusPhone">Teléfono</Label>
+                <Input
+                  id="editCampusPhone"
+                  value={editCampus.phone}
+                  onChange={(e) => setEditCampus(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+57 1 234-5678"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editCampusEmail">Email</Label>
+                <Input
+                  id="editCampusEmail"
+                  type="email"
+                  value={editCampus.email}
+                  onChange={(e) => setEditCampus(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="sede@institucion.edu.co"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="editCampusPrincipal">Director</Label>
+              <Input
+                id="editCampusPrincipal"
+                value={editCampus.principal}
+                onChange={(e) => setEditCampus(prev => ({ ...prev, principal: e.target.value }))}
+                placeholder="Lic. Carlos Mendoza"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="editCampusActive"
+                checked={editCampus.isActive}
+                onChange={(e) => setEditCampus(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded"
+              />
+              <Label htmlFor="editCampusActive">Sede activa</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditCampusDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateCampus} className="bg-black text-white hover:bg-gray-800">
+              Actualizar Sede
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para editar grado */}
+      <Dialog open={isEditGradeDialogOpen} onOpenChange={setIsEditGradeDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Grado</DialogTitle>
+            <DialogDescription>
+              Modifica la información del grado {selectedGrade?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="editGradeName">Nombre del grado *</Label>
+              <Input
+                id="editGradeName"
+                value={editGrade.name}
+                onChange={(e) => setEditGrade(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Ej: 6°, 7°, 8°..."
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="editGradeLevel">Nivel del grado</Label>
+              <Select value={editGrade.level.toString()} onValueChange={(value) => setEditGrade(prev => ({ ...prev, level: parseInt(value) }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar nivel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gradeLevels.map(level => (
+                    <SelectItem key={level} value={level.toString()}>
+                      {level}°
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="editGradeActive"
+                checked={editGrade.isActive}
+                onChange={(e) => setEditGrade(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded"
+              />
+              <Label htmlFor="editGradeActive">Grado activo</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditGradeDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateGrade} className="bg-black text-white hover:bg-gray-800">
+              Actualizar Grado
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Alert Dialog para eliminar institución */}
+      <AlertDialog open={!!institutionToDelete} onOpenChange={() => setInstitutionToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente la institución 
+              "{institutionToDelete?.name}" y todos sus datos asociados (sedes, grados, etc.).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setInstitutionToDelete(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteInstitution}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Alert Dialog para eliminar sede */}
+      <AlertDialog open={!!campusToDelete} onOpenChange={() => setCampusToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente la sede 
+              "{campusToDelete?.campus.name}" y todos sus grados asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCampusToDelete(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteCampus}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Alert Dialog para eliminar grado */}
+      <AlertDialog open={!!gradeToDelete} onOpenChange={() => setGradeToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente el grado 
+              "{gradeToDelete?.grade.name}" de la sede "{gradeToDelete?.campus.name}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setGradeToDelete(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteGrade}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Wizard para proceso completo */}
       <InstitutionWizard 

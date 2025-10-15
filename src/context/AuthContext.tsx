@@ -222,8 +222,8 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
           displayName: userData.name || '',
           emailVerified: true, // Asumimos que si está en la DB, el email está verificado
           role: userData.role,
-          grade: userData.grade,
-          institution: userData.inst,
+          grade: userData.gradeName || userData.grade, // Usar nombre del grado si está disponible
+          institution: userData.institutionName || userData.inst, // Usar nombre de la institución si está disponible
           userdoc: userData.userdoc,
         }
       }

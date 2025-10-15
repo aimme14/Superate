@@ -51,25 +51,30 @@ export default function UserManagement({ theme }: UserManagementProps) {
     name: '',
     email: '',
     phone: '',
-    isActive: true
+    isActive: true,
+    password: ''
   })
   const [editPrincipalData, setEditPrincipalData] = useState({
     name: '',
     email: '',
     phone: '',
-    isActive: true
+    isActive: true,
+    password: ''
   })
   const [editRectorData, setEditRectorData] = useState({
     name: '',
     email: '',
     phone: '',
-    isActive: true
+    isActive: true,
+    password: ''
   })
   const [editStudentData, setEditStudentData] = useState({
     name: '',
     email: '',
     phone: '',
-    isActive: true
+    isActive: true,
+    userdoc: '',
+    password: ''
   })
   
   // Hooks para docentes
@@ -159,7 +164,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
       name: teacher.name,
       email: teacher.email,
       phone: teacher.phone || '',
-      isActive: teacher.isActive
+      isActive: teacher.isActive,
+      password: ''
     })
     setIsEditDialogOpen(true)
   }
@@ -186,7 +192,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         name: '',
         email: '',
         phone: '',
-        isActive: true
+        isActive: true,
+        password: ''
       })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el docente' })
@@ -224,7 +231,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
       name: principal.name,
       email: principal.email,
       phone: principal.phone || '',
-      isActive: principal.isActive
+      isActive: principal.isActive,
+      password: ''
     })
     setIsEditDialogOpen(true)
   }
@@ -240,7 +248,10 @@ export default function UserManagement({ theme }: UserManagementProps) {
         institutionId: selectedPrincipal.institutionId,
         campusId: selectedPrincipal.campusId,
         principalId: selectedPrincipal.id,
-        data: editPrincipalData
+        data: {
+          ...editPrincipalData,
+          password: editPrincipalData.password || undefined
+        }
       })
       
       notifySuccess({ title: 'Éxito', message: 'Coordinador actualizado correctamente' })
@@ -250,7 +261,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         name: '',
         email: '',
         phone: '',
-        isActive: true
+        isActive: true,
+        password: ''
       })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el coordinador' })
@@ -287,7 +299,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
       name: rector.name,
       email: rector.email,
       phone: rector.phone || '',
-      isActive: rector.isActive
+      isActive: rector.isActive,
+      password: ''
     })
     setIsEditDialogOpen(true)
   }
@@ -312,7 +325,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         name: '',
         email: '',
         phone: '',
-        isActive: true
+        isActive: true,
+        password: ''
       })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el rector' })
@@ -348,7 +362,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
       name: student.name,
       email: student.email,
       phone: student.phone || '',
-      isActive: student.isActive
+      isActive: student.isActive,
+      userdoc: student.userdoc || '',
+      password: ''
     })
     setIsEditDialogOpen(true)
   }
@@ -362,7 +378,10 @@ export default function UserManagement({ theme }: UserManagementProps) {
     try {
       await updateStudent.mutateAsync({
         studentId: selectedStudent.id,
-        studentData: editStudentData
+        studentData: {
+          ...editStudentData,
+          password: editStudentData.password || undefined
+        }
       })
       
       notifySuccess({ title: 'Éxito', message: 'Estudiante actualizado correctamente' })
@@ -372,7 +391,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
         name: '',
         email: '',
         phone: '',
-        isActive: true
+        isActive: true,
+        userdoc: '',
+        password: ''
       })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el estudiante' })
@@ -549,14 +570,35 @@ export default function UserManagement({ theme }: UserManagementProps) {
         
         console.log('🔍 Datos del rector desde el formulario:', rectorData)
         
+        // Validar datos antes de enviar
+        if (!rectorData.name || !rectorData.email || !rectorData.institutionId) {
+          throw new Error('Datos incompletos para crear el rector. Verifica que nombre, email e institución estén completos.')
+        }
+        
         try {
+          console.log('📤 Enviando solicitud de creación de rector...')
           const rectorResult = await createRector.mutateAsync(rectorData)
           console.log('✅ Rector creado desde formulario:', rectorResult)
           
           result = { success: true, data: rectorResult }
         } catch (rectorError) {
           console.error('❌ Error al crear rector desde formulario:', rectorError)
-          throw new Error('Error al crear el rector: ' + (rectorError instanceof Error ? rectorError.message : 'Error desconocido'))
+          
+          // Proporcionar mensajes de error más específicos
+          let errorMessage = 'Error al crear el rector'
+          if (rectorError instanceof Error) {
+            if (rectorError.message.includes('email-already-in-use')) {
+              errorMessage = 'El email ya está en uso. Por favor, usa un email diferente.'
+            } else if (rectorError.message.includes('weak-password')) {
+              errorMessage = 'La contraseña es demasiado débil. Debe tener al menos 6 caracteres.'
+            } else if (rectorError.message.includes('invalid-email')) {
+              errorMessage = 'El formato del email no es válido.'
+            } else {
+              errorMessage = `Error al crear el rector: ${rectorError.message}`
+            }
+          }
+          
+          throw new Error(errorMessage)
         }
       }
       
@@ -577,8 +619,13 @@ export default function UserManagement({ theme }: UserManagementProps) {
       })
       notifySuccess({ 
         title: 'Éxito', 
-        message: `${newUser.role === 'student' ? 'Estudiante' : newUser.role === 'teacher' ? 'Docente' : newUser.role === 'principal' ? 'Coordinador' : 'Rector'} creado correctamente` 
+        message: `${newUser.role === 'student' ? 'Estudiante' : newUser.role === 'teacher' ? 'Docente' : newUser.role === 'principal' ? 'Coordinador' : 'Rector'} creado correctamente. Tu sesión se cerrará automáticamente, deberás volver a iniciar sesión.` 
       })
+      
+      // Esperar un momento para que el usuario vea el mensaje y luego cerrar sesión
+      setTimeout(() => {
+        window.location.href = '/login'
+      }, 3000)
     } catch (error) {
       console.error('Error creating user:', error)
       notifyError({ 
@@ -1229,10 +1276,18 @@ export default function UserManagement({ theme }: UserManagementProps) {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
-              {selectedTeacher ? 'Actualizar Docente' : selectedPrincipal ? 'Actualizar Coordinador' : selectedRector ? 'Actualizar Rector' : selectedStudent ? 'Actualizar Estudiante' : 'Actualizar Usuario'}
+              {selectedTeacher ? 'Actualizar Docente' : 
+               selectedPrincipal ? 'Actualizar Coordinador' : 
+               selectedRector ? 'Actualizar Rector' : 
+               selectedStudent ? 'Actualizar Estudiante' : 
+               'Actualizar Usuario'}
             </DialogTitle>
             <DialogDescription>
-              Modifica los datos del {selectedTeacher ? 'docente' : selectedPrincipal ? 'coordinador' : selectedRector ? 'rector' : selectedStudent ? 'estudiante' : 'usuario'} seleccionado.
+              Modifica los datos del {selectedTeacher ? 'docente' : 
+                                   selectedPrincipal ? 'coordinador' : 
+                                   selectedRector ? 'rector' : 
+                                   selectedStudent ? 'estudiante' : 
+                                   'usuario'} seleccionado.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1294,6 +1349,42 @@ export default function UserManagement({ theme }: UserManagementProps) {
                 placeholder="Número de teléfono"
               />
             </div>
+            {selectedStudent && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-userdoc">Documento de identidad</Label>
+                <Input
+                  id="edit-userdoc"
+                  value={editStudentData.userdoc}
+                  onChange={(e) => {
+                    setEditStudentData(prev => ({ ...prev, userdoc: e.target.value }))
+                  }}
+                  placeholder="Número de documento"
+                />
+              </div>
+            )}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-password">Nueva contraseña (opcional)</Label>
+              <Input
+                id="edit-password"
+                type="password"
+                value={selectedTeacher ? editTeacherData.password : selectedPrincipal ? editPrincipalData.password : selectedRector ? editRectorData.password : editStudentData.password}
+                onChange={(e) => {
+                  if (selectedTeacher) {
+                    setEditTeacherData(prev => ({ ...prev, password: e.target.value }))
+                  } else if (selectedPrincipal) {
+                    setEditPrincipalData(prev => ({ ...prev, password: e.target.value }))
+                  } else if (selectedRector) {
+                    setEditRectorData(prev => ({ ...prev, password: e.target.value }))
+                  } else {
+                    setEditStudentData(prev => ({ ...prev, password: e.target.value }))
+                  }
+                }}
+                placeholder="Dejar vacío para mantener la contraseña actual"
+              />
+              <p className="text-xs text-gray-500">
+                Si cambias el email, el usuario deberá hacer login con las nuevas credenciales
+              </p>
+            </div>
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -1328,10 +1419,17 @@ export default function UserManagement({ theme }: UserManagementProps) {
               Cancelar
             </Button>
             <Button 
-              onClick={selectedTeacher ? handleUpdateTeacher : selectedPrincipal ? handleUpdatePrincipal : selectedRector ? handleUpdateRector : handleUpdateStudent} 
+              onClick={selectedTeacher ? handleUpdateTeacher : 
+                      selectedPrincipal ? handleUpdatePrincipal : 
+                      selectedRector ? handleUpdateRector : 
+                      handleUpdateStudent} 
               className="bg-black text-white hover:bg-gray-800"
             >
-              Actualizar {selectedTeacher ? 'Docente' : selectedPrincipal ? 'Coordinador' : selectedRector ? 'Rector' : selectedStudent ? 'Estudiante' : 'Usuario'}
+              Actualizar {selectedTeacher ? 'Docente' : 
+                        selectedPrincipal ? 'Coordinador' : 
+                        selectedRector ? 'Rector' : 
+                        selectedStudent ? 'Estudiante' : 
+                        'Usuario'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1344,7 +1442,11 @@ export default function UserManagement({ theme }: UserManagementProps) {
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Se eliminará permanentemente el{' '}
-              {selectedTeacher ? 'docente' : selectedPrincipal ? 'coordinador' : selectedRector ? 'rector' : selectedStudent ? 'estudiante' : 'usuario'}{' '}
+              {selectedTeacher ? 'docente' : 
+               selectedPrincipal ? 'coordinador' : 
+               selectedRector ? 'rector' : 
+               selectedStudent ? 'estudiante' : 
+               'usuario'}{' '}
               <strong>{selectedTeacher?.name || selectedPrincipal?.name || selectedRector?.name || selectedStudent?.name}</strong> del sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>

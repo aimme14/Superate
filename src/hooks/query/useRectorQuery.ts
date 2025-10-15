@@ -7,6 +7,7 @@ import {
   CreateRectorData,
   UpdateRectorData
 } from '@/controllers/rector.controller'
+import { useNotification } from '@/hooks/ui/useNotification'
 
 // Query Keys
 export const rectorKeys = {
@@ -35,34 +36,89 @@ export const useRectors = () => {
 // Mutations
 export const useRectorMutations = () => {
   const queryClient = useQueryClient()
+  const { notifySuccess, notifyError } = useNotification()
 
   const createRectorMutation = useMutation({
     mutationFn: (data: CreateRectorData) => createRector(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
-      // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
-      queryClient.invalidateQueries({ queryKey: ['institutions'] })
+    onSuccess: (result) => {
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
+        // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
+        queryClient.invalidateQueries({ queryKey: ['institutions'] })
+        notifySuccess({ 
+          title: 'Éxito', 
+          message: 'Rector creado correctamente. Tu sesión se cerrará automáticamente, deberás volver a iniciar sesión.' 
+        })
+      } else {
+        notifyError({ 
+          title: 'Error', 
+          message: result.error?.message || 'Error al crear el rector' 
+        })
+      }
     },
+    onError: (error) => {
+      console.error('Error al crear rector:', error)
+      notifyError({ 
+        title: 'Error', 
+        message: error instanceof Error ? error.message : 'Error al crear el rector' 
+      })
+    }
   })
 
   const updateRectorMutation = useMutation({
     mutationFn: ({ institutionId, rectorId, data }: { institutionId: string; rectorId: string; data: UpdateRectorData }) => 
       updateRector(institutionId, rectorId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
-      // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
-      queryClient.invalidateQueries({ queryKey: ['institutions'] })
+    onSuccess: (result) => {
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
+        // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
+        queryClient.invalidateQueries({ queryKey: ['institutions'] })
+        notifySuccess({ 
+          title: 'Éxito', 
+          message: 'Rector actualizado correctamente' 
+        })
+      } else {
+        notifyError({ 
+          title: 'Error', 
+          message: result.error?.message || 'Error al actualizar el rector' 
+        })
+      }
     },
+    onError: (error) => {
+      console.error('Error al actualizar rector:', error)
+      notifyError({ 
+        title: 'Error', 
+        message: error instanceof Error ? error.message : 'Error al actualizar el rector' 
+      })
+    }
   })
 
   const deleteRectorMutation = useMutation({
     mutationFn: ({ institutionId, rectorId }: { institutionId: string; rectorId: string }) => 
       deleteRector(institutionId, rectorId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
-      // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
-      queryClient.invalidateQueries({ queryKey: ['institutions'] })
+    onSuccess: (result) => {
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
+        // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
+        queryClient.invalidateQueries({ queryKey: ['institutions'] })
+        notifySuccess({ 
+          title: 'Éxito', 
+          message: 'Rector eliminado correctamente' 
+        })
+      } else {
+        notifyError({ 
+          title: 'Error', 
+          message: result.error?.message || 'Error al eliminar el rector' 
+        })
+      }
     },
+    onError: (error) => {
+      console.error('Error al eliminar rector:', error)
+      notifyError({ 
+        title: 'Error', 
+        message: error instanceof Error ? error.message : 'Error al eliminar el rector' 
+      })
+    }
   })
 
   return {

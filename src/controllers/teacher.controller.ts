@@ -66,9 +66,9 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
     const generatedPassword = data.password || data.name.toLowerCase().replace(/\s+/g, '') + '123'
     console.log('🔐 Contraseña generada para docente (longitud):', generatedPassword.length)
 
-    // Crear cuenta en Firebase Auth
+    // Crear cuenta en Firebase Auth (preservando la sesión del admin)
     console.log('📝 Creando cuenta en Firebase Auth...')
-    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword)
+    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword, true)
     if (!userAccount.success) {
       console.error('❌ Error al crear cuenta en Firebase Auth:', userAccount.error)
       throw userAccount.error

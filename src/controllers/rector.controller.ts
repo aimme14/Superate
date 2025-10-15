@@ -23,23 +23,43 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
       name: data.name, 
       email: data.email, 
       institutionId: data.institutionId,
-      hasPassword: !!data.password
+      hasPassword: !!data.password,
+      phone: data.phone
     })
 
+    // Validaciones de entrada
     if (!data.name || !data.email || !data.institutionId) {
-      return failure(new ErrorAPI({ message: 'Nombre, email e institución son obligatorios', statusCode: 400 }))
+      const missingFields = []
+      if (!data.name) missingFields.push('nombre')
+      if (!data.email) missingFields.push('email')
+      if (!data.institutionId) missingFields.push('institución')
+      
+      const errorMessage = `Campos obligatorios faltantes: ${missingFields.join(', ')}`
+      console.error('❌ Validación fallida:', errorMessage)
+      return failure(new ErrorAPI({ message: errorMessage, statusCode: 400 }))
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(data.email)) {
+      console.error('❌ Email inválido:', data.email)
+      return failure(new ErrorAPI({ message: 'El formato del email no es válido', statusCode: 400 }))
     }
 
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = data.password || data.name.toLowerCase().replace(/\s+/g, '') + '123'
     console.log('🔐 Contraseña generada para rector (longitud):', generatedPassword.length)
 
-    // Crear cuenta en Firebase Auth
+    // Crear cuenta en Firebase Auth (preservando la sesión del admin)
     console.log('📝 Creando cuenta en Firebase Auth...')
-    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword)
+    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword, true)
     if (!userAccount.success) {
       console.error('❌ Error al crear cuenta en Firebase Auth:', userAccount.error)
-      throw userAccount.error
+      return failure(new ErrorAPI({ 
+        message: `Error al crear cuenta en Firebase Auth: ${userAccount.error.message}`, 
+        statusCode: 500,
+        details: userAccount.error
+      }))
     }
     console.log('✅ Cuenta creada en Firebase Auth con UID:', userAccount.data.uid)
 
@@ -49,7 +69,7 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
       name: data.name,
       email: data.email,
       institutionId: data.institutionId,
-      phone: data.phone,
+      phone: data.phone || null,
       isActive: true,
       createdAt: new Date().toISOString(),
       createdBy: 'admin'
@@ -61,7 +81,11 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
     const dbResult = await dbService.createUser(userAccount.data, rectorData)
     if (!dbResult.success) {
       console.error('❌ Error al crear usuario rector en Firestore:', dbResult.error)
-      throw dbResult.error
+      return failure(new ErrorAPI({ 
+        message: `Error al crear usuario en Firestore: ${dbResult.error.message}`, 
+        statusCode: 500,
+        details: dbResult.error
+      }))
     }
     console.log('✅ Usuario rector creado en Firestore con datos completos')
 
@@ -70,6 +94,7 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
     const institutionResult = await dbService.addRectorToInstitution(data.institutionId, rectorData)
     if (!institutionResult.success) {
       console.warn('⚠️ No se pudo crear el rector en la estructura jerárquica:', institutionResult.error)
+      // No es crítico, el usuario ya existe en Firestore
     } else {
       console.log('✅ Rector agregado a la estructura jerárquica de instituciones')
     }
@@ -78,10 +103,20 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
     console.log('ℹ️ Rectores no requieren verificación de email')
 
     console.log('🎉 Rector creado exitosamente. Puede hacer login inmediatamente.')
-    return success(dbResult.data)
+    return success({
+      ...dbResult.data,
+      uid: userAccount.data.uid,
+      email: data.email,
+      name: data.name,
+      institutionId: data.institutionId
+    })
   } catch (error) {
     console.error('❌ Error general al crear rector:', error)
-    return failure(new ErrorAPI({ message: error instanceof Error ? error.message : 'Error al crear el rector', statusCode: 500 }))
+    return failure(new ErrorAPI({ 
+      message: error instanceof Error ? error.message : 'Error inesperado al crear el rector', 
+      statusCode: 500,
+      details: error
+    }))
   }
 }
 

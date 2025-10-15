@@ -11,6 +11,8 @@ import {
   sendPasswordResetEmail,
   onAuthStateChanged,
   updateProfile,
+  updateEmail,
+  updatePassword,
   getAuth,
   signOut,
   deleteUser,
@@ -69,15 +71,65 @@ class AuthService {
    * @param {string} username - El nombre de usuario.
    * @param {string} email - El correo del usuario.
    * @param {string} password - La contraseña del usuario.
+   * @param {boolean} preserveSession - Si es true, preserva la sesión del usuario actual (útil para admins)
    * @returns {Promise<Result<User>>} El usuario auth de firebase creado.
    */
-  async registerAccount(username: string, email: string, password: string): Promise<Result<User>> {
+  async registerAccount(username: string, email: string, password: string, preserveSession: boolean = false): Promise<Result<User>> {
     try {
-      const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)
-      const profileUpdate = await this.updateProfile(userCredential.user, { displayName: username })
-      if (!profileUpdate.success) throw profileUpdate.error
-      return success(userCredential.user)
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'registrar cuenta'))) }
+      console.log('🚀 Iniciando registro de cuenta:', { email, preserveSession })
+      
+      // Si queremos preservar la sesión actual (administrador creando usuarios)
+      if (preserveSession && this.auth.currentUser) {
+        const currentUser = this.auth.currentUser
+        const currentUserEmail = currentUser.email
+        
+        console.log('🔐 Preservando sesión del usuario actual:', currentUserEmail)
+        console.log('⚠️ IMPORTANTE: La creación del nuevo usuario cerrará la sesión actual del administrador')
+        
+        // Crear el nuevo usuario (esto cerrará la sesión actual)
+        console.log('📝 Creando nuevo usuario en Firebase Auth...')
+        const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)
+        const newUser = userCredential.user
+        
+        console.log('✅ Usuario creado en Firebase Auth con UID:', newUser.uid)
+        
+        // Actualizar perfil del nuevo usuario
+        console.log('👤 Actualizando perfil del nuevo usuario...')
+        const profileUpdate = await this.updateProfile(newUser, { displayName: username })
+        if (!profileUpdate.success) {
+          console.error('❌ Error al actualizar perfil:', profileUpdate.error)
+          throw profileUpdate.error
+        }
+        console.log('✅ Perfil actualizado correctamente')
+        
+        // Cerrar sesión del nuevo usuario
+        console.log('🔒 Cerrando sesión del nuevo usuario...')
+        await signOut(this.auth)
+        
+        console.log('✅ Usuario creado:', email)
+        console.log('⚠️ Sesión del administrador cerrada. Email del admin:', currentUserEmail)
+        console.log('ℹ️ El administrador deberá volver a iniciar sesión')
+        
+        return success(newUser)
+      } else {
+        // Comportamiento normal - crear usuario e iniciar sesión con él
+        console.log('📝 Creando usuario en Firebase Auth (flujo normal)...')
+        const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)
+        console.log('✅ Usuario creado en Firebase Auth con UID:', userCredential.user.uid)
+        
+        const profileUpdate = await this.updateProfile(userCredential.user, { displayName: username })
+        if (!profileUpdate.success) {
+          console.error('❌ Error al actualizar perfil:', profileUpdate.error)
+          throw profileUpdate.error
+        }
+        console.log('✅ Perfil actualizado correctamente')
+        
+        return success(userCredential.user)
+      }
+    } catch (e) { 
+      console.error('❌ Error al registrar cuenta:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'registrar cuenta'))) 
+    }
   }
 
   /**
@@ -90,6 +142,70 @@ class AuthService {
     try {
       return await updateProfile(user, profile).then(() => success(undefined))
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'actualizar perfil'))) }
+  }
+
+  /**
+   * Actualiza el email del usuario en Firebase Authentication.
+   * @param {User} user - El usuario de firebase actual.
+   * @param {string} newEmail - El nuevo email.
+   * @returns {Promise<Result<void>>} Resultado de la actualización.
+   */
+  async updateUserEmail(user: User, newEmail: string): Promise<Result<void>> {
+    try {
+      await updateEmail(user, newEmail)
+      return success(undefined)
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'actualizar email'))) 
+    }
+  }
+
+  /**
+   * Actualiza la contraseña del usuario en Firebase Authentication.
+   * @param {User} user - El usuario de firebase actual.
+   * @param {string} newPassword - La nueva contraseña.
+   * @returns {Promise<Result<void>>} Resultado de la actualización.
+   */
+  async updateUserPassword(user: User, newPassword: string): Promise<Result<void>> {
+    try {
+      await updatePassword(user, newPassword)
+      return success(undefined)
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'actualizar contraseña'))) 
+    }
+  }
+
+  /**
+   * Actualiza tanto el perfil como el email del usuario.
+   * @param {User} user - El usuario de firebase actual.
+   * @param {string} newName - El nuevo nombre.
+   * @param {string} newEmail - El nuevo email.
+   * @param {string} newPassword - La nueva contraseña (opcional).
+   * @returns {Promise<Result<void>>} Resultado de la actualización.
+   */
+  async updateUserCredentials(user: User, newName: string, newEmail: string, newPassword?: string): Promise<Result<void>> {
+    try {
+      // Actualizar nombre si es diferente
+      if (user.displayName !== newName) {
+        const profileResult = await this.updateProfile(user, { displayName: newName })
+        if (!profileResult.success) throw profileResult.error
+      }
+
+      // Actualizar email si es diferente
+      if (user.email !== newEmail) {
+        const emailResult = await this.updateUserEmail(user, newEmail)
+        if (!emailResult.success) throw emailResult.error
+      }
+
+      // Actualizar contraseña si se proporciona
+      if (newPassword && newPassword.length >= 6) {
+        const passwordResult = await this.updateUserPassword(user, newPassword)
+        if (!passwordResult.success) throw passwordResult.error
+      }
+
+      return success(undefined)
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'actualizar credenciales de usuario'))) 
+    }
   }
 
   /**

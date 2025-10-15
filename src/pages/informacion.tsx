@@ -47,11 +47,15 @@ export default function InfoTab() {
           </div>
           <div>
             <Label htmlFor="inst">Institución</Label>
-            <Input id="inst" value={userData?.inst || ''} readOnly />
+            <Input id="inst" value={userData?.institutionName || userData?.inst || ''} readOnly />
+          </div>
+          <div>
+            <Label htmlFor="campus">Sede</Label>
+            <Input id="campus" value={userData?.campusName || userData?.campus || ''} readOnly />
           </div>
           <div>
             <Label htmlFor="grade">Grado</Label>
-            <Input id="grade" value={userData?.grade || ''} readOnly />
+            <Input id="grade" value={userData?.gradeName || userData?.grade || ''} readOnly />
           </div>
           <div>
             <Label htmlFor="role">tipo de documento</Label>

@@ -26,7 +26,15 @@ export const getUserById = async (id: string): Promise<Result<User>> => {
   try {
     const result = await dbService.getUserById(id)
     if (!result.success) throw result.error
-    return success(result.data)
+    
+    // Enriquecer los datos del usuario con nombres de institución, sede y grado
+    const enrichedUser = await dbService.enrichUserData(result.data)
+    if (!enrichedUser.success) {
+      console.warn('No se pudieron enriquecer los datos del usuario:', enrichedUser.error)
+      return success(result.data) // Retornar datos sin enriquecer si falla
+    }
+    
+    return success(enrichedUser.data)
   } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener usuario'))) }
 }
 

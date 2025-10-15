@@ -15,6 +15,7 @@ export interface CreatePrincipalData {
 
 export interface UpdatePrincipalData extends Partial<Omit<CreatePrincipalData, 'institutionId' | 'campusId'>> {
   isActive?: boolean
+  password?: string
 }
 
 // Funciones CRUD para Coordinadores
@@ -36,9 +37,9 @@ export const createPrincipal = async (data: CreatePrincipalData): Promise<Result
     const generatedPassword = data.password || data.name.toLowerCase().replace(/\s+/g, '') + '123'
     console.log('🔐 Contraseña generada para coordinador (longitud):', generatedPassword.length)
 
-    // Crear cuenta en Firebase Auth
+    // Crear cuenta en Firebase Auth (preservando la sesión del admin)
     console.log('📝 Creando cuenta en Firebase Auth...')
-    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword)
+    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword, true)
     if (!userAccount.success) {
       console.error('❌ Error al crear cuenta en Firebase Auth:', userAccount.error)
       throw userAccount.error
@@ -100,12 +101,23 @@ export const getAllPrincipals = async (): Promise<Result<any[]>> => {
     institutionsResult.data.forEach((institution: any) => {
       institution.campuses.forEach((campus: any) => {
         if (campus.principal) {
+          // Calcular el total de estudiantes de todos los grados de la sede
+          let studentCount = 0
+          if (campus.grades && Array.isArray(campus.grades)) {
+            campus.grades.forEach((grade: any) => {
+              if (grade.students && Array.isArray(grade.students)) {
+                studentCount += grade.students.length
+              }
+            })
+          }
+
           principals.push({
             ...campus.principal,
             institutionName: institution.name,
             campusName: campus.name,
             institutionId: institution.id,
-            campusId: campus.id
+            campusId: campus.id,
+            studentCount // Agregar contador de estudiantes real
           })
         }
       })
@@ -119,11 +131,22 @@ export const getAllPrincipals = async (): Promise<Result<any[]>> => {
 
 export const updatePrincipal = async (institutionId: string, campusId: string, principalId: string, data: UpdatePrincipalData): Promise<Result<any>> => {
   try {
+    // Actualizar datos en Firestore
     const result = await dbService.updatePrincipalInCampus(institutionId, campusId, principalId, data)
-    if (result.success) {
-      return success(result.data)
+    if (!result.success) {
+      return failure(result.error)
     }
-    return failure(result.error)
+
+    // Si se cambió el email, nombre o contraseña, informar sobre Firebase Auth
+    if (data.email || data.name || data.password) {
+      console.log('ℹ️ Actualización de credenciales en Firebase Auth')
+      console.log('ℹ️ El coordinador deberá hacer login con las nuevas credenciales después de la actualización')
+      
+      // Nota: Firebase Auth no permite actualizar credenciales de otros usuarios desde el cliente
+      // Para una solución completa, se necesitaría Firebase Admin SDK en el backend
+    }
+
+    return success(result.data)
   } catch (error) {
     return failure(new ErrorAPI({ message: 'Error al actualizar el coordinador', statusCode: 500 }))
   }
