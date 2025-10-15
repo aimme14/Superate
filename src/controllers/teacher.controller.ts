@@ -102,7 +102,10 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
 
     // Crear también en la estructura jerárquica de grados
     console.log('📊 Agregando docente a la estructura jerárquica de grados...')
-    const gradeResult = await dbService.createTeacherInGrade(teacherData)
+    const gradeResult = await dbService.createTeacherInGrade({
+      ...teacherData,
+      uid: userAccount.data.uid // Pasar el UID de Firebase Auth
+    })
     if (!gradeResult.success) {
       console.warn('⚠️ No se pudo crear el docente en la estructura jerárquica:', gradeResult.error)
     } else {

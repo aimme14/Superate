@@ -137,3 +137,18 @@ export const activateUser = async (userId: string): Promise<Result<void>> => {
     return failure(new ErrorAPI(normalizeError(e, 'activación de usuario')))
   }
 }
+
+/**
+ * Recalcula todos los contadores de estudiantes - Solo para administradores
+ * @returns {Promise<Result<void>>} - Resultado del recálculo
+ */
+export const recalculateStudentCounts = async (): Promise<Result<void>> => {
+  try {
+    console.log('🔄 Administrador ejecutando recálculo de contadores...')
+    const result = await dbService.recalculateAllStudentCounts()
+    if (!result.success) throw result.error
+    return success(undefined)
+  } catch (e) {
+    return failure(new ErrorAPI(normalizeError(e, 'recalcular contadores de estudiantes')))
+  }
+}

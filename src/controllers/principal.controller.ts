@@ -71,7 +71,10 @@ export const createPrincipal = async (data: CreatePrincipalData): Promise<Result
 
     // Crear también en la estructura jerárquica de sedes
     console.log('📊 Agregando coordinador a la estructura jerárquica de sedes...')
-    const campusResult = await dbService.addPrincipalToCampus(data.institutionId, data.campusId, principalData)
+    const campusResult = await dbService.addPrincipalToCampus(data.institutionId, data.campusId, {
+      ...principalData,
+      uid: userAccount.data.uid // Pasar el UID de Firebase Auth
+    })
     if (!campusResult.success) {
       console.warn('⚠️ No se pudo crear el coordinador en la estructura jerárquica:', campusResult.error)
     } else {
@@ -117,7 +120,7 @@ export const getAllPrincipals = async (): Promise<Result<any[]>> => {
             campusName: campus.name,
             institutionId: institution.id,
             campusId: campus.id,
-            studentCount // Agregar contador de estudiantes real
+            studentCount: campus.principal.studentCount || 0 // Usar el contador actualizado del coordinador
           })
         }
       })

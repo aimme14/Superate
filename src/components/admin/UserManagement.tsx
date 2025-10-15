@@ -17,7 +17,8 @@ import {
   MoreVertical,
   Users,
   Edit,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -27,6 +28,7 @@ import { useTeacherMutations, useFilteredTeachers } from '@/hooks/query/useTeach
 import { usePrincipalMutations, useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
 import { useRectorMutations, useFilteredRectors } from '@/hooks/query/useRectorQuery'
 import { useFilteredStudents, useStudentMutations } from '@/hooks/query/useStudentQuery'
+import { useAdminMutations } from '@/hooks/query/useAdminMutations'
 import { debugFormData } from '@/utils/debugFormData'
 
 
@@ -37,6 +39,9 @@ interface UserManagementProps {
 export default function UserManagement({ theme }: UserManagementProps) {
   const { notifySuccess, notifyError } = useNotification()
   const [activeTab, setActiveTab] = useState('students')
+  
+  // Hook para mutaciones administrativas
+  const { recalculateCounts, isRecalculating } = useAdminMutations()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all')
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
@@ -651,6 +656,16 @@ export default function UserManagement({ theme }: UserManagementProps) {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            onClick={() => recalculateCounts()}
+            disabled={isRecalculating}
+            variant="outline"
+            className="border-purple-500 text-purple-600 hover:bg-purple-50"
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", isRecalculating && "animate-spin")} />
+            {isRecalculating ? 'Recalculando...' : 'Recalcular Contadores'}
+          </Button>
+          
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-black text-white hover:bg-gray-800">

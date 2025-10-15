@@ -91,7 +91,10 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
 
     // Crear también en la estructura jerárquica de instituciones
     console.log('📊 Agregando rector a la estructura jerárquica de instituciones...')
-    const institutionResult = await dbService.addRectorToInstitution(data.institutionId, rectorData)
+    const institutionResult = await dbService.addRectorToInstitution(data.institutionId, {
+      ...rectorData,
+      uid: userAccount.data.uid // Pasar el UID de Firebase Auth
+    })
     if (!institutionResult.success) {
       console.warn('⚠️ No se pudo crear el rector en la estructura jerárquica:', institutionResult.error)
       // No es crítico, el usuario ya existe en Firestore
@@ -167,7 +170,7 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
           campusCount,
           principalCount,
           teacherCount,
-          studentCount
+          studentCount: institution.rector.studentCount || 0 // Usar el contador actualizado del rector
         })
       }
     })

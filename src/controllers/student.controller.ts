@@ -67,6 +67,9 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     // Asignar automáticamente al coordinador de la sede
     await assignStudentToPrincipal(userAccount.data.uid, institutionId, campusId)
 
+    // Asignar automáticamente al rector de la institución
+    await assignStudentToRector(userAccount.data.uid, institutionId)
+
     // Enviar verificación de email
     const emailVerification = await authService.sendEmailVerification()
     if (!emailVerification.success) {
@@ -212,24 +215,47 @@ const assignStudentToTeachers = async (studentId: string, institutionId: string,
 }
 
 /**
- * Asigna automáticamente un estudiante al rector de la sede
+ * Asigna automáticamente un estudiante al coordinador de la sede
  * @param {string} studentId - ID del estudiante
  * @param {string} institutionId - ID de la institución
  * @param {string} campusId - ID de la sede
  */
 const assignStudentToPrincipal = async (studentId: string, institutionId: string, campusId: string): Promise<void> => {
   try {
-    // Obtener el rector de la sede
+    // Obtener el coordinador de la sede
     const principalResult = await dbService.getPrincipalByCampus(institutionId, campusId)
     if (!principalResult.success) {
-      console.warn('No se encontró rector para la sede:', principalResult.error)
+      console.warn('No se encontró coordinador para la sede:', principalResult.error)
+      return
+    }
+
+    // Asignar el estudiante al coordinador
+    await dbService.assignStudentToPrincipal(principalResult.data.id, studentId)
+
+    console.log(`✅ Estudiante ${studentId} asignado al coordinador ${principalResult.data.name}`)
+  } catch (error) {
+    console.error('Error al asignar estudiante al coordinador:', error)
+  }
+}
+
+/**
+ * Asigna automáticamente un estudiante al rector de la institución
+ * @param {string} studentId - ID del estudiante
+ * @param {string} institutionId - ID de la institución
+ */
+const assignStudentToRector = async (studentId: string, institutionId: string): Promise<void> => {
+  try {
+    // Obtener el rector de la institución
+    const rectorResult = await dbService.getRectorByInstitution(institutionId)
+    if (!rectorResult.success) {
+      console.warn('No se encontró rector para la institución:', rectorResult.error)
       return
     }
 
     // Asignar el estudiante al rector
-    await dbService.assignStudentToPrincipal(principalResult.data.id, studentId)
+    await dbService.assignStudentToRector(rectorResult.data.id, studentId)
 
-    console.log(`✅ Estudiante ${studentId} asignado al rector ${principalResult.data.name}`)
+    console.log(`✅ Estudiante ${studentId} asignado al rector ${rectorResult.data.name}`)
   } catch (error) {
     console.error('Error al asignar estudiante al rector:', error)
   }

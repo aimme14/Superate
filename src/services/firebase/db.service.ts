@@ -410,12 +410,18 @@ class DatabaseService {
         return failure(new ErrorAPI({ message: 'Sede no encontrada', statusCode: 404 }))
       }
 
-      // Crear el coordinador con ID único
-      const principalId = `principal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      // Usar el UID del usuario creado en Firebase Auth como ID
+      const principalId = principalData.uid || principalData.id
+      if (!principalId) {
+        return failure(new ErrorAPI({ message: 'UID del coordinador es requerido', statusCode: 400 }))
+      }
+      
       const newPrincipal = {
         id: principalId,
         ...principalData,
         role: 'principal',
+        studentCount: 0,
+        students: [],
         isActive: true,
         createdAt: new Date().toISOString().split('T')[0],
         updatedAt: new Date().toISOString().split('T')[0]
@@ -575,12 +581,18 @@ class DatabaseService {
 
       const institution = institutionResult.data
 
-      // Crear el rector con ID único
-      const rectorId = `rector-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      // Usar el UID del usuario creado en Firebase Auth como ID
+      const rectorId = rectorData.uid || rectorData.id
+      if (!rectorId) {
+        return failure(new ErrorAPI({ message: 'UID del rector es requerido', statusCode: 400 }))
+      }
+      
       const newRector = {
         id: rectorId,
         ...rectorData,
         role: 'rector',
+        studentCount: 0,
+        students: [],
         isActive: true,
         createdAt: new Date().toISOString().split('T')[0],
         updatedAt: new Date().toISOString().split('T')[0]
@@ -797,8 +809,12 @@ class DatabaseService {
         return failure(new ErrorAPI({ message: 'Grado no encontrado', statusCode: 404 }))
       }
 
-      // Crear el docente con ID único
-      const teacherId = `teacher-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      // Usar el UID del usuario creado en Firebase Auth como ID
+      const teacherId = teacherData.uid || teacherData.id
+      if (!teacherId) {
+        return failure(new ErrorAPI({ message: 'UID del docente es requerido', statusCode: 400 }))
+      }
+      
       const newTeacher = {
         id: teacherId,
         ...teacherData,
@@ -1549,31 +1565,31 @@ class DatabaseService {
 
       const teacher = teacherResult.data
       
-      // Contar estudiantes que coinciden con la institución, sede y grado del docente
-      const studentsResult = await this.getFilteredStudents({
-        institutionId: teacher.institutionId,
-        campusId: teacher.campusId,
-        gradeId: teacher.gradeId,
-        isActive: true
-      })
+      // Obtener los estudiantes actuales del docente
+      const currentStudents = teacher.students || []
+      
+      // Verificar si el estudiante ya está asignado
+      if (!currentStudents.includes(studentId)) {
+        // Agregar el estudiante a la lista
+        const updatedStudents = [...currentStudents, studentId]
+        
+        // Actualizar el docente con la nueva lista de estudiantes y contador
+        await this.updateTeacherInGrade(
+          teacher.institutionId,
+          teacher.campusId,
+          teacher.gradeId,
+          teacherId,
+          { 
+            students: updatedStudents,
+            studentCount: updatedStudents.length 
+          }
+        )
 
-      if (!studentsResult.success) {
-        console.warn('No se pudieron obtener los estudiantes:', studentsResult.error)
-        return failure(studentsResult.error)
+        console.log(`✅ Estudiante ${studentId} asignado al docente ${teacherId}. Total estudiantes: ${updatedStudents.length}`)
+      } else {
+        console.log(`⚠️ Estudiante ${studentId} ya está asignado al docente ${teacherId}`)
       }
 
-      const studentCount = studentsResult.data.length
-
-      // Actualizar el contador de estudiantes del docente
-      await this.updateTeacherInGrade(
-        teacher.institutionId,
-        teacher.campusId,
-        teacher.gradeId,
-        teacherId,
-        { studentCount }
-      )
-
-      console.log(`✅ Estudiante ${studentId} asignado automáticamente al docente ${teacherId}. Total estudiantes: ${studentCount}`)
       return success(undefined)
     } catch (e) { 
       return failure(new ErrorAPI(normalizeError(e, 'asignar estudiante a docente'))) 
@@ -1597,27 +1613,130 @@ class DatabaseService {
 
       const principal = principalResult.data
       
-      // Contar estudiantes que coinciden con la institución y sede del coordinador
-      const studentsResult = await this.getFilteredStudents({
-        institutionId: principal.institutionId,
-        campusId: principal.campusId,
-        isActive: true
-      })
+      // Obtener los estudiantes actuales del coordinador
+      const currentStudents = principal.students || []
+      
+      // Verificar si el estudiante ya está asignado
+      if (!currentStudents.includes(studentId)) {
+        // Agregar el estudiante a la lista
+        const updatedStudents = [...currentStudents, studentId]
+        
+        // Actualizar el coordinador con la nueva lista de estudiantes y contador
+        await this.updatePrincipalInCampus(
+          principal.institutionId, 
+          principal.campusId, 
+          principalId, 
+          { 
+            students: updatedStudents,
+            studentCount: updatedStudents.length 
+          }
+        )
 
-      if (!studentsResult.success) {
-        console.warn('No se pudieron obtener los estudiantes:', studentsResult.error)
-        return failure(studentsResult.error)
+        console.log(`✅ Estudiante ${studentId} asignado al coordinador ${principalId}. Total estudiantes: ${updatedStudents.length}`)
+      } else {
+        console.log(`⚠️ Estudiante ${studentId} ya está asignado al coordinador ${principalId}`)
       }
 
-      const studentCount = studentsResult.data.length
-
-      // Actualizar el contador de estudiantes del coordinador
-      await this.updatePrincipalInCampus(principal.institutionId, principal.campusId, principalId, { studentCount })
-
-      console.log(`✅ Estudiante ${studentId} asignado automáticamente al coordinador ${principalId}. Total estudiantes: ${studentCount}`)
       return success(undefined)
     } catch (e) { 
       return failure(new ErrorAPI(normalizeError(e, 'asignar estudiante a coordinador'))) 
+    }
+  }
+
+  /**
+   * Obtiene el rector de una institución
+   * @param {string} institutionId - ID de la institución
+   * @returns {Promise<Result<any>>} El rector de la institución
+   */
+  async getRectorByInstitution(institutionId: string): Promise<Result<any>> {
+    try {
+      const institutionResult = await this.getInstitutionById(institutionId)
+      if (!institutionResult.success) {
+        return failure(institutionResult.error)
+      }
+
+      const institution = institutionResult.data
+      
+      if (!institution.rector) {
+        return failure(new ErrorAPI({ message: 'No se encontró rector para la institución', statusCode: 404 }))
+      }
+
+      return success(institution.rector)
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'obtener rector por institución'))) 
+    }
+  }
+
+  /**
+   * Obtiene un rector por su ID (busca en todas las instituciones)
+   * @param {string} rectorId - ID del rector
+   * @returns {Promise<Result<any>>} El rector encontrado
+   */
+  async getRectorById(rectorId: string): Promise<Result<any>> {
+    try {
+      const institutionsResult = await this.getAllInstitutions()
+      if (!institutionsResult.success) {
+        return failure(institutionsResult.error)
+      }
+
+      for (const institution of institutionsResult.data) {
+        if (institution.rector && institution.rector.id === rectorId) {
+          return success({
+            ...institution.rector,
+            institutionId: institution.id
+          })
+        }
+      }
+
+      return failure(new ErrorAPI({ message: 'Rector no encontrado', statusCode: 404 }))
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'obtener rector por ID'))) 
+    }
+  }
+
+  /**
+   * Asigna un estudiante a un rector
+   * @param {string} rectorId - ID del rector
+   * @param {string} studentId - ID del estudiante
+   * @returns {Promise<Result<void>>} Resultado de la asignación
+   */
+  async assignStudentToRector(rectorId: string, studentId: string): Promise<Result<void>> {
+    try {
+      // Obtener información del rector para saber su institución
+      const rectorResult = await this.getRectorById(rectorId)
+      if (!rectorResult.success) {
+        console.warn('No se pudo obtener información del rector:', rectorResult.error)
+        return failure(rectorResult.error)
+      }
+
+      const rector = rectorResult.data
+      
+      // Obtener los estudiantes actuales del rector
+      const currentStudents = rector.students || []
+      
+      // Verificar si el estudiante ya está asignado
+      if (!currentStudents.includes(studentId)) {
+        // Agregar el estudiante a la lista
+        const updatedStudents = [...currentStudents, studentId]
+        
+        // Actualizar el rector con la nueva lista de estudiantes y contador
+        await this.updateRectorInInstitution(
+          rector.institutionId, 
+          rectorId, 
+          { 
+            students: updatedStudents,
+            studentCount: updatedStudents.length 
+          }
+        )
+
+        console.log(`✅ Estudiante ${studentId} asignado al rector ${rectorId}. Total estudiantes: ${updatedStudents.length}`)
+      } else {
+        console.log(`⚠️ Estudiante ${studentId} ya está asignado al rector ${rectorId}`)
+      }
+
+      return success(undefined)
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'asignar estudiante a rector'))) 
     }
   }
 
@@ -1634,6 +1753,102 @@ class DatabaseService {
       return success(undefined)
     } catch (e) { 
       return failure(new ErrorAPI(normalizeError(e, 'remover estudiante de docente'))) 
+    }
+  }
+
+  /**
+   * Recalcula y actualiza los contadores de estudiantes para todos los usuarios
+   * Esta función debe ejecutarse una vez para corregir los contadores existentes
+   * @returns {Promise<Result<void>>} Resultado del recálculo
+   */
+  async recalculateAllStudentCounts(): Promise<Result<void>> {
+    try {
+      console.log('🔄 Iniciando recálculo de contadores de estudiantes...')
+      
+      // Obtener todas las instituciones
+      const institutionsResult = await this.getAllInstitutions()
+      if (!institutionsResult.success) {
+        return failure(institutionsResult.error)
+      }
+
+      let totalUpdated = 0
+
+      for (const institution of institutionsResult.data) {
+        console.log(`📊 Procesando institución: ${institution.name}`)
+        
+        // Recalcular contador del rector
+        if (institution.rector) {
+          const rectorStudentsResult = await this.getFilteredStudents({
+            institutionId: institution.id,
+            isActive: true
+          })
+          
+          if (rectorStudentsResult.success) {
+            const studentCount = rectorStudentsResult.data.length
+            await this.updateRectorInInstitution(institution.id, institution.rector.id, {
+              studentCount,
+              students: rectorStudentsResult.data.map(s => s.id)
+            })
+            console.log(`✅ Rector ${institution.rector.name}: ${studentCount} estudiantes`)
+            totalUpdated++
+          }
+        }
+
+        // Procesar sedes
+        for (const campus of institution.campuses) {
+          console.log(`🏫 Procesando sede: ${campus.name}`)
+          
+          // Recalcular contador del coordinador
+          if (campus.principal) {
+            const principalStudentsResult = await this.getFilteredStudents({
+              institutionId: institution.id,
+              campusId: campus.id,
+              isActive: true
+            })
+            
+            if (principalStudentsResult.success) {
+              const studentCount = principalStudentsResult.data.length
+              await this.updatePrincipalInCampus(institution.id, campus.id, campus.principal.id, {
+                studentCount,
+                students: principalStudentsResult.data.map(s => s.id)
+              })
+              console.log(`✅ Coordinador ${campus.principal.name}: ${studentCount} estudiantes`)
+              totalUpdated++
+            }
+          }
+
+          // Procesar grados
+          for (const grade of campus.grades) {
+            console.log(`📚 Procesando grado: ${grade.name}`)
+            
+            // Recalcular contadores de docentes
+            for (const teacher of grade.teachers || []) {
+              const teacherStudentsResult = await this.getFilteredStudents({
+                institutionId: institution.id,
+                campusId: campus.id,
+                gradeId: grade.id,
+                isActive: true
+              })
+              
+              if (teacherStudentsResult.success) {
+                const studentCount = teacherStudentsResult.data.length
+                await this.updateTeacherInGrade(institution.id, campus.id, grade.id, teacher.id, {
+                  studentCount,
+                  students: teacherStudentsResult.data.map(s => s.id)
+                })
+                console.log(`✅ Docente ${teacher.name}: ${studentCount} estudiantes`)
+                totalUpdated++
+              }
+            }
+          }
+        }
+      }
+
+      console.log(`🎉 Recálculo completado. ${totalUpdated} usuarios actualizados.`)
+      return success(undefined)
+    } catch (e) { 
+      console.error('❌ Error en recálculo:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'recalcular contadores de estudiantes'))) 
     }
   }
 
