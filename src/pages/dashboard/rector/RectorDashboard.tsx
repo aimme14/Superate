@@ -15,35 +15,15 @@ import {
   Activity
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAuthContext } from '@/context/AuthContext'
+import { useRectorStats } from '@/hooks/query/useRectorStats'
 
 interface RectorDashboardProps extends ThemeContextProps {}
 
 export default function RectorDashboard({ theme }: RectorDashboardProps) {
-  const { user } = useAuthContext()
+  const { stats, isLoading } = useRectorStats()
 
-  // Datos de ejemplo para el dashboard del rector
-  const dashboardData = {
-    institutionStats: {
-      totalCampuses: 5,
-      totalPrincipals: 5,
-      totalTeachers: 125,
-      totalStudents: 3420,
-      activeExams: 18
-    },
-    performanceMetrics: {
-      overallAverage: 84.7,
-      attendanceRate: 93.8,
-      graduationRate: 97.2,
-      teacherRetention: 95.5
-    },
-    campusOverview: [
-      { id: 1, name: 'Sede Principal', students: 980, teachers: 35, average: 86.2, principal: 'María González' },
-      { id: 2, name: 'Sede Norte', students: 720, teachers: 28, average: 83.5, principal: 'Carlos Ramírez' },
-      { id: 3, name: 'Sede Sur', students: 650, teachers: 25, average: 85.1, principal: 'Ana Martínez' },
-      { id: 4, name: 'Sede Oriente', students: 580, teachers: 22, average: 84.3, principal: 'Luis Pérez' },
-      { id: 5, name: 'Sede Occidente', students: 490, teachers: 15, average: 82.8, principal: 'Diana López' },
-    ],
+  // Datos estáticos que se mantienen (actividades recientes, logros, alertas)
+  const staticData = {
     recentActivities: [
       { id: 1, type: 'campus', title: 'Nueva sede inaugurada: Sede Occidente', time: '2 días atrás', icon: Building2 },
       { id: 2, type: 'principal', title: 'Nuevo coordinador asignado en Sede Norte', time: '3 días atrás', icon: Crown },
@@ -63,6 +43,18 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     ]
   }
 
+  // Mostrar loading si los datos están cargando
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className={cn('ml-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+          Cargando estadísticas...
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header con gradiente */}
@@ -71,24 +63,24 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold mb-2">
-                Bienvenido, {user?.displayName || 'Dr. Juan Carlos Pérez'}
+                Bienvenido, {stats.rectorName}
               </h1>
               <p className="text-lg opacity-90 mb-1">
                 Rectoría - Institución Educativa
               </p>
               <p className="text-sm opacity-75">
-                {user?.email || 'rector@institucion.edu'} • {user?.institution || 'I.E. Colegio Agustina Ferro'}
+                {stats.rectorEmail} • {stats.institutionName}
               </p>
             </div>
             <div className="hidden md:flex items-center space-x-3">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
                 <Building2 className="h-8 w-8 mx-auto mb-2" />
-                <div className="text-2xl font-bold">{dashboardData.institutionStats.totalCampuses}</div>
+                <div className="text-2xl font-bold">{stats.totalCampuses}</div>
                 <div className="text-xs opacity-75">Sedes</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
                 <Crown className="h-8 w-8 mx-auto mb-2" />
-                <div className="text-2xl font-bold">{dashboardData.institutionStats.totalPrincipals}</div>
+                <div className="text-2xl font-bold">{stats.totalPrincipals}</div>
                 <div className="text-xs opacity-75">Coordinadores</div>
               </div>
             </div>
@@ -111,7 +103,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.institutionStats.totalStudents.toLocaleString()}
+              {stats.totalStudents.toLocaleString()}
             </div>
             <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
               +185 este año
@@ -128,10 +120,10 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.institutionStats.totalTeachers}
+              {stats.totalTeachers}
             </div>
             <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              En {dashboardData.institutionStats.totalCampuses} sedes
+              En {stats.totalCampuses} sedes
             </p>
           </CardContent>
         </Card>
@@ -145,7 +137,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.performanceMetrics.overallAverage}%
+              {stats.performanceMetrics.overallAverage}%
             </div>
             <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
               +2.3% vs año anterior
@@ -156,16 +148,16 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              Tasa de Graduación
+              Coordinadores
             </CardTitle>
-            <Award className="h-4 w-4 text-amber-500" />
+            <Crown className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.performanceMetrics.graduationRate}%
+              {stats.performanceMetrics.coordinatorsCount}
             </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              Excelencia educativa
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              En {stats.totalCampuses} sedes
             </p>
           </CardContent>
         </Card>
@@ -181,7 +173,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {dashboardData.alerts.map((alert) => (
+            {staticData.alerts.map((alert) => (
               <div key={alert.id} className={cn("flex items-center justify-between p-3 rounded-lg border", 
                 theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
                 <div className="flex items-center space-x-3">
@@ -216,7 +208,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {dashboardData.campusOverview.map((campus) => (
+            {stats.campusOverview.map((campus: any) => (
               <div key={campus.id} className={cn("p-4 rounded-lg border", 
                 theme === 'dark' ? 'border-zinc-700 hover:bg-zinc-800' : 'border-gray-200 hover:bg-gray-50')} 
               >
@@ -273,7 +265,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {dashboardData.recentActivities.map((activity) => {
+              {staticData.recentActivities.map((activity) => {
                 const Icon = activity.icon
                 return (
                   <div key={activity.id} className="flex items-start space-x-3">
@@ -303,7 +295,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {dashboardData.achievements.map((achievement) => {
+              {staticData.achievements.map((achievement) => {
                 const Icon = achievement.icon
                 return (
                   <div key={achievement.id} className="flex items-center justify-between">
@@ -344,13 +336,13 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   Promedio General
                 </span>
                 <span className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  {dashboardData.performanceMetrics.overallAverage}%
+                  {stats.performanceMetrics.overallAverage}%
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div 
                   className="bg-purple-600 h-3 rounded-full" 
-                  style={{ width: `${dashboardData.performanceMetrics.overallAverage}%` }}
+                  style={{ width: `${stats.performanceMetrics.overallAverage}%` }}
                 ></div>
               </div>
             </div>
@@ -361,13 +353,13 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   Asistencia
                 </span>
                 <span className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  {dashboardData.performanceMetrics.attendanceRate}%
+                  {stats.performanceMetrics.attendanceRate}%
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div 
                   className="bg-blue-600 h-3 rounded-full" 
-                  style={{ width: `${dashboardData.performanceMetrics.attendanceRate}%` }}
+                  style={{ width: `${stats.performanceMetrics.attendanceRate}%` }}
                 ></div>
               </div>
             </div>
@@ -375,16 +367,16 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                  Graduación
+                  Coordinadores
                 </span>
                 <span className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  {dashboardData.performanceMetrics.graduationRate}%
+                  {stats.performanceMetrics.coordinatorsCount}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div 
-                  className="bg-green-600 h-3 rounded-full" 
-                  style={{ width: `${dashboardData.performanceMetrics.graduationRate}%` }}
+                  className="bg-purple-600 h-3 rounded-full" 
+                  style={{ width: `${Math.min((stats.performanceMetrics.coordinatorsCount / Math.max(stats.totalCampuses, 1)) * 100, 100)}%` }}
                 ></div>
               </div>
             </div>
@@ -395,13 +387,13 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   Retención Docente
                 </span>
                 <span className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  {dashboardData.performanceMetrics.teacherRetention}%
+                  {stats.performanceMetrics.teacherRetention}%
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div 
                   className="bg-amber-600 h-3 rounded-full" 
-                  style={{ width: `${dashboardData.performanceMetrics.teacherRetention}%` }}
+                  style={{ width: `${stats.performanceMetrics.teacherRetention}%` }}
                 ></div>
               </div>
             </div>

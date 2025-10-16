@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
 // import { createUserByAdmin } from '@/controllers/admin.controller' // No se usa actualmente
-import { useInstitutionOptions, useCampusOptions, useGradeOptions } from '@/hooks/query/useInstitutionQuery'
+import { useInstitutionOptions, useCampusOptions, useGradeOptions, useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import { useTeacherMutations, useFilteredTeachers, useTeachersByCampus } from '@/hooks/query/useTeacherQuery'
 import { usePrincipalMutations, useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
 import { useRectorMutations, useFilteredRectors } from '@/hooks/query/useRectorQuery'
@@ -308,21 +308,32 @@ export default function UserManagement({ theme }: UserManagementProps) {
     newUser.campus || ''
   )
 
+  // Obtener todas las opciones de grados para los filtros
+  const { options: allGradeOptions } = useAllGradeOptions()
 
 
 
-  const institutions = [
-    'Colegio San José',
-    'Instituto Nacional',
-    'Liceo Moderno',
-    'Escuela Primaria ABC'
-  ]
 
-  const grades = [
-    '9°',
-    '10°',
-    '11°'
-  ]
+  // Función para obtener grados filtrados por institución seleccionada
+  const getFilteredGrades = () => {
+    if (selectedInstitution === 'all') {
+      return allGradeOptions
+    }
+    return allGradeOptions.filter(grade => grade.institutionId === selectedInstitution)
+  }
+
+  // Efecto para resetear el filtro de grados cuando cambie la institución
+  useEffect(() => {
+    if (selectedInstitution !== 'all') {
+      // Verificar si el grado seleccionado pertenece a la nueva institución
+      const filteredGrades = getFilteredGrades()
+      const currentGradeExists = filteredGrades.some(grade => grade.value === selectedGrade)
+      
+      if (!currentGradeExists && selectedGrade !== 'all') {
+        setSelectedGrade('all')
+      }
+    }
+  }, [selectedInstitution, allGradeOptions])
 
 
   const handleEditTeacher = (teacher: any) => {
@@ -1065,9 +1076,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas las instituciones</SelectItem>
-                    {institutions.map(institution => (
-                      <SelectItem key={institution} value={institution}>
-                        {institution}
+                    {institutionOptions.map(institution => (
+                      <SelectItem key={institution.value} value={institution.value}>
+                        {institution.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1079,9 +1090,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los grados</SelectItem>
-                      {grades.map(grade => (
-                        <SelectItem key={grade} value={grade}>
-                          {grade}
+                      {getFilteredGrades().map(grade => (
+                        <SelectItem key={grade.value} value={grade.value}>
+                          {grade.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -24,11 +24,11 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   console.log('👨‍🏫 Usuario docente en dashboard:', user)
   console.log('🎯 Rol del usuario:', user?.role)
 
-  // Datos de ejemplo para el dashboard del docente
+  // Datos reales para el dashboard del docente
   const dashboardData = {
     totalStudents: stats.totalStudents,
+    activeStudents: stats.activeStudents,
     activeExams: 3,
-    pendingReviews: 12,
     averageScore: 78.5,
     recentActivities: [
       { id: 1, type: 'exam_created', title: 'Examen de Matemáticas', time: '2 horas atrás' },
@@ -65,7 +65,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       </div>
 
       {/* Estadísticas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
@@ -77,8 +77,8 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               {dashboardData.totalStudents}
             </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              +3 desde la semana pasada
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              En tu grado actual
             </p>
           </CardContent>
         </Card>
@@ -103,16 +103,16 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              Revisiones Pendientes
+              Estudiantes Activos
             </CardTitle>
-            <Clock className="h-4 w-4 text-amber-500" />
+            <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.pendingReviews}
+              {dashboardData.activeStudents}
             </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-amber-400' : 'text-amber-600')}>
-              Requieren atención
+            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
+              Verificados
             </p>
           </CardContent>
         </Card>

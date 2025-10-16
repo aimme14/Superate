@@ -41,12 +41,11 @@ interface InstitutionManagementProps {
 export default function InstitutionManagement({ theme }: InstitutionManagementProps) {
   const { notifySuccess, notifyError } = useNotification()
   const { data: institutions = [], isLoading, error } = useInstitutions()
-  const { createInstitution, createCampus, createGrade, updateInstitution, deleteInstitution, updateCampus, deleteCampus, updateGrade, deleteGrade } = useInstitutionMutations()
+  const { createCampus, createGrade, updateInstitution, deleteInstitution, updateCampus, deleteCampus, updateGrade, deleteGrade } = useInstitutionMutations()
   
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [isCreateInstitutionDialogOpen, setIsCreateInstitutionDialogOpen] = useState(false)
   const [isCreateCampusDialogOpen, setIsCreateCampusDialogOpen] = useState(false)
   const [isCreateGradeDialogOpen, setIsCreateGradeDialogOpen] = useState(false)
   const [isWizardOpen, setIsWizardOpen] = useState(false)
@@ -62,17 +61,6 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   const [campusToDelete, setCampusToDelete] = useState<{institution: Institution, campus: Campus} | null>(null)
   const [gradeToDelete, setGradeToDelete] = useState<{institution: Institution, campus: Campus, grade: any} | null>(null)
 
-  const [newInstitution, setNewInstitution] = useState({
-    name: '',
-    type: 'public' as 'public' | 'private',
-    nit: '',
-    address: '',
-    phone: '',
-    email: '',
-    website: '',
-    rector: '',
-    logo: ''
-  })
 
   const [newCampus, setNewCampus] = useState({
     name: '',
@@ -125,17 +113,6 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
 
   // Función para limpiar formularios
   const clearForms = () => {
-    setNewInstitution({
-      name: '',
-      type: 'public',
-      nit: '',
-      address: '',
-      phone: '',
-      email: '',
-      website: '',
-      rector: '',
-      logo: ''
-    })
     setNewCampus({
       name: '',
       address: '',
@@ -149,31 +126,6 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
     })
   }
 
-  const handleCreateInstitution = async () => {
-    if (!newInstitution.name || !newInstitution.address) {
-      notifyError({ title: 'Error', message: 'Nombre y dirección son obligatorios' })
-      return
-    }
-
-    try {
-      await createInstitution.mutateAsync(newInstitution)
-      setIsCreateInstitutionDialogOpen(false)
-      setNewInstitution({
-        name: '',
-        type: 'public',
-        nit: '',
-        address: '',
-        phone: '',
-        email: '',
-        website: '',
-        rector: '',
-        logo: ''
-      })
-      notifySuccess({ title: 'Éxito', message: 'Institución creada correctamente' })
-    } catch (error) {
-      notifyError({ title: 'Error', message: 'Error al crear la institución' })
-    }
-  }
 
   const handleCreateCampus = async () => {
     if (!newCampus.name || !newCampus.address) {
@@ -523,14 +475,6 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               </Button>
             </DialogTrigger>
           </Dialog>
-          <Dialog open={isCreateInstitutionDialogOpen} onOpenChange={setIsCreateInstitutionDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-black text-white hover:bg-gray-800">
-                <Plus className="h-4 w-4 mr-2" />
-                Crear Nuevo
-              </Button>
-            </DialogTrigger>
-          </Dialog>
         </div>
       </div>
 
@@ -664,104 +608,6 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
         </CardContent>
       </Card>
 
-      {/* Dialog para crear institución */}
-      <Dialog open={isCreateInstitutionDialogOpen} onOpenChange={setIsCreateInstitutionDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Crear Nueva Institución</DialogTitle>
-            <DialogDescription>
-              Registra una nueva institución educativa en el sistema.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="institutionName">Nombre de la institución *</Label>
-              <Input
-                id="institutionName"
-                value={newInstitution.name}
-                onChange={(e) => setNewInstitution(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Ej: Colegio San José"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="institutionType">Tipo de institución *</Label>
-                <Select value={newInstitution.type} onValueChange={(value: 'public' | 'private') => setNewInstitution(prev => ({ ...prev, type: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {institutionTypes.map(type => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="institutionNIT">NIT (opcional)</Label>
-                <Input
-                  id="institutionNIT"
-                  value={newInstitution.nit}
-                  onChange={(e) => setNewInstitution(prev => ({ ...prev, nit: e.target.value }))}
-                  placeholder="900123456-1"
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="institutionAddress">Dirección *</Label>
-              <Textarea
-                id="institutionAddress"
-                value={newInstitution.address}
-                onChange={(e) => setNewInstitution(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="Dirección completa de la institución"
-                rows={2}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="institutionPhone">Teléfono</Label>
-                <Input
-                  id="institutionPhone"
-                  value={newInstitution.phone}
-                  onChange={(e) => setNewInstitution(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="+57 1 234-5678"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="institutionEmail">Email</Label>
-                <Input
-                  id="institutionEmail"
-                  type="email"
-                  value={newInstitution.email}
-                  onChange={(e) => setNewInstitution(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="info@institucion.edu.co"
-                />
-              </div>
-            </div>
-            
-            <div className="grid gap-2">
-              <ImageUpload
-                value={newInstitution.logo}
-                onChange={(value) => setNewInstitution(prev => ({ ...prev, logo: value }))}
-                label="Logo de la institución"
-                placeholder="Arrastra y suelta el logo aquí o haz clic para seleccionar"
-                theme={theme}
-                maxSize={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateInstitutionDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreateInstitution} className="bg-black text-white hover:bg-gray-800">
-              Crear Institución
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog para crear sede */}
       <Dialog open={isCreateCampusDialogOpen} onOpenChange={(open) => {
