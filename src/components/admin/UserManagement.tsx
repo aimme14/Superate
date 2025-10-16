@@ -24,13 +24,175 @@ import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
 // import { createUserByAdmin } from '@/controllers/admin.controller' // No se usa actualmente
 import { useInstitutionOptions, useCampusOptions, useGradeOptions } from '@/hooks/query/useInstitutionQuery'
-import { useTeacherMutations, useFilteredTeachers } from '@/hooks/query/useTeacherQuery'
+import { useTeacherMutations, useFilteredTeachers, useTeachersByCampus } from '@/hooks/query/useTeacherQuery'
 import { usePrincipalMutations, useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
 import { useRectorMutations, useFilteredRectors } from '@/hooks/query/useRectorQuery'
 import { useFilteredStudents, useStudentMutations } from '@/hooks/query/useStudentQuery'
 import { useAdminMutations } from '@/hooks/query/useAdminMutations'
 import { debugFormData } from '@/utils/debugFormData'
 
+// Componente para mostrar la información del coordinador con sus docentes
+interface CoordinatorCardProps {
+  principal: any
+  theme: 'light' | 'dark'
+  onEdit: (principal: any) => void
+  onDelete: (principal: any) => void
+}
+
+function CoordinatorCard({ principal, theme, onEdit, onDelete }: CoordinatorCardProps) {
+  const [showTeachers, setShowTeachers] = useState(false)
+  
+  // Obtener docentes de la sede del coordinador (siempre cargar para mostrar contador)
+  const { data: teachers, isLoading: teachersLoading } = useTeachersByCampus(
+    principal.campusId, 
+    true // Siempre cargar para mostrar el contador de docentes
+  )
+
+  return (
+    <div className={cn('p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-gray-50')}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-white font-medium">
+            {principal.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+          </div>
+          <div>
+            <h3 className={cn('font-medium text-lg', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {principal.name}
+            </h3>
+            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {principal.email}
+            </p>
+            <div className="flex items-center space-x-4 mt-2">
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Institución:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{principal.institutionName || 'N/A'}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sede:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{principal.campusName || 'N/A'}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Docentes:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {teachers ? teachers.length : 0} docentes
+                </span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estudiantes:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{principal.studentCount || 0} estudiantes</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estado:</span>
+                <Badge className="ml-1 bg-black text-white">{principal.isActive ? 'Activo' : 'Inactivo'}</Badge>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Creado:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {principal.createdAt ? new Date(principal.createdAt).toLocaleDateString() : 'N/A'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTeachers(!showTeachers)}
+            className="border-purple-500 text-purple-600 hover:bg-purple-50"
+          >
+            <GraduationCap className="h-4 w-4 mr-2" />
+            {showTeachers ? 'Ocultar' : 'Ver'} Docentes
+          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(principal)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Actualizar datos
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => onDelete(principal)}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Sección expandible para mostrar docentes */}
+      {showTeachers && (
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-zinc-600">
+          <h4 className={cn('font-medium mb-3', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            Docentes asignados a esta sede
+          </h4>
+          
+          {teachersLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <span className={cn('ml-2 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                Cargando docentes...
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {teachers && teachers.length > 0 ? (
+                teachers.map((teacher: any) => (
+                  <div key={teacher.id} className={cn(
+                    'flex items-center justify-between p-3 rounded-md border',
+                    theme === 'dark' ? 'border-zinc-600 bg-zinc-700' : 'border-gray-200 bg-white'
+                  )}>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                        {teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                      </div>
+                      <div>
+                        <p className={cn('font-medium text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                          {teacher.name}
+                        </p>
+                        <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          {teacher.email}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                            Grado: {teacher.gradeName || 'N/A'}
+                          </span>
+                          <span className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                            • {teacher.studentCount || 0} estudiantes
+                          </span>
+                          <Badge 
+                            className="text-xs px-1 py-0"
+                            variant={teacher.isActive ? "default" : "secondary"}
+                          >
+                            {teacher.isActive ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className={cn('text-center py-6', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  <GraduationCap className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No hay docentes asignados a esta sede</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface UserManagementProps {
   theme: 'light' | 'dark'
@@ -1121,67 +1283,15 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {filteredPrincipals.map((principal) => (
-                    <div key={principal.id} className={cn('flex items-center justify-between p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white font-medium">
-                          {principal.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                            {principal.name}
-                          </h3>
-                          <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                            {principal.email}
-                          </p>
-                          <div className="flex items-center space-x-4 mt-2">
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Institución:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{principal.institutionName || 'N/A'}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sede:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{principal.campusName || 'N/A'}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estudiantes:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{principal.studentCount || 0} estudiantes</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estado:</span>
-                              <Badge className="ml-1 bg-black text-white">{principal.isActive ? 'Activo' : 'Inactivo'}</Badge>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Creado:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                {principal.createdAt ? new Date(principal.createdAt).toLocaleDateString() : 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditPrincipal(principal)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Actualizar datos
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeletePrincipal(principal)}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    <CoordinatorCard 
+                      key={principal.id} 
+                      principal={principal} 
+                      theme={theme}
+                      onEdit={handleEditPrincipal}
+                      onDelete={handleDeletePrincipal}
+                    />
                   ))}
                 </div>
               )}
