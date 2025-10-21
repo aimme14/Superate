@@ -17,12 +17,14 @@ import {
   UserPlus,
   FileText,
   BarChart3,
-  Home
+  Home,
+  BookOpen
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
 import FormManagement from '@/components/admin/FormManagement'
 import InstitutionManagement from '@/components/admin/InstitutionManagement'
+import QuestionBank from '@/components/admin/QuestionBank'
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
@@ -88,7 +90,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Home className="h-4 w-4" />
             <span>Resumen</span>
@@ -100,6 +102,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           <TabsTrigger value="institutions" className="flex items-center space-x-2">
             <Building className="h-4 w-4" />
             <span>Instituciones</span>
+          </TabsTrigger>
+          <TabsTrigger value="questions" className="flex items-center space-x-2">
+            <BookOpen className="h-4 w-4" />
+            <span>Preguntas</span>
           </TabsTrigger>
           <TabsTrigger value="forms" className="flex items-center space-x-2">
             <FileText className="h-4 w-4" />
@@ -409,6 +415,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
         <TabsContent value="institutions">
           <InstitutionManagement theme={theme} />
+        </TabsContent>
+
+        <TabsContent value="questions">
+          <QuestionBank theme={theme} />
         </TabsContent>
 
         <TabsContent value="forms">
