@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck } from 'lucide-react'
+import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck, Atom, Microscope, FlaskConical } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
 
@@ -100,6 +100,90 @@ function FlipCard({
   )
 }
 
+// Componente especial para Ciencias Naturales con 3 botones
+function NaturalSciencesCard({
+  isFlipped,
+  onFlip,
+}: {
+  isFlipped: boolean
+  onFlip: () => void
+}) {
+  const subjects = [
+    {
+      name: "Prueba de Biología",
+      icon: <Microscope className="w-4 h-4" />,
+      link: "/quiz/biologia",
+      color: "from-green-500 to-black"
+    },
+    {
+      name: "Prueba de Física", 
+      icon: <Atom className="w-4 h-4" />,
+      link: "/quiz/fisica",
+      color: "from-blue-500 to-black"
+    },
+    {
+      name: "Prueba de Química",
+      icon: <FlaskConical className="w-4 h-4" />,
+      link: "/quiz/quimica", 
+      color: "from-pink-500 to-black"
+    }
+  ]
+
+  return (
+    <motion.div className="h-64 perspective-1000">
+      <motion.div
+        className="relative w-full h-full transition-transform duration-700 transform-style-preserve-3d cursor-pointer"
+        animate={{ rotateY: isFlipped ? 180 : 0 }}
+        onClick={onFlip}
+      >
+        {/* Frente de la tarjeta */}
+        <div
+          className="absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-white/50 shadow-lg p-6 flex flex-col items-center justify-center text-center"
+        >
+          <div className="w-12 h-12 rounded-xl bg-pink-500 flex items-center justify-center text-white mb-4 shadow-lg">
+            <Leaf className="w-6 h-6" />
+          </div>
+
+          <h3 className="text-xl font-bold text-gray-900 mb-1">Ciencias Naturales</h3>
+          <p className="text-sm text-gray-600 mb-4">y ambientales</p>
+
+          <div className="text-xs text-gray-500 flex items-center">
+            <RotateCcw className="w-3 h-3 mr-1" />
+            Clic para ver más
+          </div>
+        </div>
+
+        {/* Reverso de la tarjeta */}
+        <div
+          className="absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-gray-200 shadow-lg p-4 flex flex-col transform rotateY-180"
+        >
+          <div className="flex-1 flex flex-col">
+            <h4 className="font-bold text-gray-900 mb-3 text-center text-sm">
+              Ciencias Naturales y ambientales
+            </h4>
+            <div className="flex flex-col gap-3 flex-1 justify-center">
+              {subjects.map((subject, index) => (
+                <Link key={index} to={subject.link}>
+                  <Button
+                    className={`w-full bg-gradient-to-r ${subject.color} text-white py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300 text-xs`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      console.log(`Iniciando prueba: ${subject.name}`)
+                    }}
+                  >
+                    {subject.icon}
+                    <span className="ml-1">{subject.name}</span>
+                  </Button>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // Componente principal que usa las tarjetas
 export default function InteractiveCards() {
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
@@ -149,16 +233,10 @@ export default function InteractiveCards() {
         link="/quiz/sociales"
       />
 
-      {/* Ciencias Naturales */}
-      <FlipCard
-        title="Ciencias Naturales"
-        subtitle="y ambientales"
-        icon={<Leaf className="w-6 h-6" />}
-        description="Fortalece tu razonamiento lógico y habilidades numéricas con problemas adaptativos."
-        color="pink"
+      {/* Ciencias Naturales - Componente especial */}
+      <NaturalSciencesCard
         isFlipped={flippedCards.natural}
         onFlip={() => toggleCard("natural")}
-        link="/quiz/naturales"
       />
 
       {/* Inglés */}
