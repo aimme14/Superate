@@ -236,15 +236,22 @@ class QuestionService {
       // Crear el documento de la pregunta
       const questionRef = doc(collection(db, 'superate', 'auth', 'questions'));
       
-      // Filtrar campos undefined para evitar errores en Firebase
-      const cleanQuestionData = Object.fromEntries(
-        Object.entries(questionData).filter(([_, value]) => value !== undefined)
-      );
-      
       const question: Question = {
-        ...cleanQuestionData,
         id: questionRef.id,
         code: codeResult.data,
+        subject: questionData.subject,
+        subjectCode: questionData.subjectCode,
+        topic: questionData.topic,
+        topicCode: questionData.topicCode,
+        grade: questionData.grade,
+        level: questionData.level,
+        levelCode: questionData.levelCode,
+        informativeText: questionData.informativeText,
+        informativeImages: questionData.informativeImages,
+        questionText: questionData.questionText,
+        questionImages: questionData.questionImages,
+        answerType: questionData.answerType,
+        options: questionData.options,
         createdBy: userId,
         createdAt: new Date(),
         rand: Math.random(), // Para muestreo aleatorio eficiente
@@ -456,8 +463,6 @@ class QuestionService {
    */
   async deleteQuestion(questionId: string): Promise<Result<void>> {
     try {
-      const questionRef = doc(db, 'superate', 'auth', 'questions', questionId);
-      
       // Obtener la pregunta para eliminar sus imágenes
       const questionResult = await this.getQuestionById(questionId);
       if (questionResult.success) {

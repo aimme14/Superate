@@ -6,7 +6,6 @@ import {
   Users, 
   BookOpen, 
   TrendingUp,
-  Clock,
   CheckCircle,
   User
 } from 'lucide-react'
