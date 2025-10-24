@@ -112,19 +112,19 @@ function NaturalSciencesCard({
     {
       name: "Prueba de Biología",
       icon: <Microscope className="w-4 h-4" />,
-      link: "/quiz/biologia",
+      link: "/quiz?subject=Biologia&phase=first",
       color: "from-green-500 to-black"
     },
     {
       name: "Prueba de Física", 
       icon: <Atom className="w-4 h-4" />,
-      link: "/quiz/fisica",
+      link: "/quiz?subject=Física&phase=first",
       color: "from-blue-500 to-black"
     },
     {
       name: "Prueba de Química",
       icon: <FlaskConical className="w-4 h-4" />,
-      link: "/quiz/quimica", 
+      link: "/quiz?subject=Quimica&phase=first", 
       color: "from-pink-500 to-black"
     }
   ]
@@ -206,7 +206,7 @@ export default function InteractiveCards() {
         color="purple"
         isFlipped={flippedCards.reading}
         onFlip={() => toggleCard("reading")}
-        link="/quiz/lectura"
+        link="/quiz?subject=Lenguaje&phase=first"
       />
 
       {/* Matemáticas */}
@@ -230,7 +230,7 @@ export default function InteractiveCards() {
         color="green"
         isFlipped={flippedCards.social}
         onFlip={() => toggleCard("social")}
-        link="/quiz/sociales"
+        link="/quiz?subject=Ciencias Sociales&phase=first"
       />
 
       {/* Ciencias Naturales - Componente especial */}
@@ -248,7 +248,7 @@ export default function InteractiveCards() {
         color="emerald"
         isFlipped={flippedCards.english}
         onFlip={() => toggleCard("english")}
-        link="/quiz/ingles"
+        link="/quiz?subject=Inglés&phase=first"
       />
     </div>
   )

@@ -45,6 +45,7 @@ function App() {
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/quiz/:id" element={<QuizPage />} />
+                <Route path="/quiz" element={<QuizPage />} />
                 
                 {/* Rutas protegidas por rol */}
                 <Route path="/dashboard/student" element={

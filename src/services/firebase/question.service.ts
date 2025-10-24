@@ -331,7 +331,8 @@ class QuestionService {
         conditions.push(where('levelCode', '==', filters.levelCode));
       }
 
-      let q = query(questionsRef, ...conditions, orderBy('createdAt', 'desc'));
+      // Crear consulta sin orderBy para evitar necesidad de índice compuesto
+      let q = query(questionsRef, ...conditions);
 
       if (filters.limit) {
         q = query(q, limit(filters.limit));
@@ -343,6 +344,9 @@ class QuestionService {
         id: doc.id,
         createdAt: doc.data().createdAt?.toDate() || new Date(),
       } as Question));
+
+      // Ordenar por fecha de creación en el cliente
+      questions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       console.log(`✅ ${questions.length} preguntas encontradas`);
       return success(questions);
