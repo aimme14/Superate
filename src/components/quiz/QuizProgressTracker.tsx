@@ -132,12 +132,6 @@ const QuizProgressTracker = () => {
     return { status: 'incomplete', color: 'bg-orange-100', textColor: 'text-orange-600' };
   };
 
-  const getOverallStatusColor = (progress: number) => {
-    if (progress === 100) return 'bg-green-500';
-    if (progress >= 66) return 'bg-blue-500';
-    if (progress >= 33) return 'bg-orange-500';
-    return 'bg-gray-400';
-  };
 
   if (loading) {
     return (

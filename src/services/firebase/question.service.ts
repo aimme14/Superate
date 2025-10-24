@@ -7,7 +7,6 @@ import {
   getDocs, 
   query, 
   where, 
-  orderBy, 
   limit,
   runTransaction,
   Timestamp

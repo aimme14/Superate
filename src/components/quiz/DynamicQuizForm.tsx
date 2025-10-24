@@ -1,4 +1,4 @@
-import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator, Timer, HelpCircle, Users, Play, Maximize, X, Database, Image as ImageIcon } from "lucide-react"
+import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator, Timer, HelpCircle, Users, Play, Maximize, Database } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
@@ -11,7 +11,6 @@ import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
-import { Question } from "@/services/firebase/question.service";
 import ImageGallery from "@/components/common/ImageGallery";
 
 const db = getFirestore(firebaseApp);
@@ -24,15 +23,6 @@ interface QuestionTimeData {
   endTime?: number; // timestamp
 }
 
-// Función para aleatorizar array (algoritmo Fisher-Yates)
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
 
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string) => {
@@ -79,7 +69,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
-  const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
@@ -370,9 +359,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       const isCurrentlyFullscreen = !!fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
 
-      if (examState === 'active' && !isCurrentlyFullscreen) {
-        setShowFullscreenExit(true);
-      }
+      // Pantalla completa cambiada
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -392,30 +379,9 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     setExamState('active')
   }
 
-  // Manejar salida de pantalla completa durante el examen
-  const handleExitFullscreen = async () => {
-    setShowFullscreenExit(false)
-    await handleSubmit(false, false)
-    await exitFullscreen()
-  }
 
-  // Volver al examen en pantalla completa
-  const returnToExam = async () => {
-    setShowFullscreenExit(false)
-    await enterFullscreen()
-  }
 
-  // Continuar examen después de advertencia de cambio de pestaña
-  const continueExam = () => {
-    setShowTabChangeWarning(false)
-  }
 
-  // Finalizar examen por cambio de pestaña
-  const finishExamByTabChange = async () => {
-    setShowTabChangeWarning(false)
-    setExamLocked(true)
-    await handleSubmit(true, true)
-  }
 
   // Pantalla de carga
   const LoadingScreen = () => (
@@ -686,7 +652,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     setExamLocked(true)
     setShowWarning(false)
     setShowTabChangeWarning(false)
-    setShowFullscreenExit(false)
 
     try {
       await saveToFirebase(timeExpired, lockedByTabChange)
