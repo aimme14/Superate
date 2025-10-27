@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { 
   Plus, 
   Search, 
@@ -23,7 +24,8 @@ import {
   BookOpen,
   BarChart3,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -1590,120 +1592,247 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog para ver pregunta */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Vista de Pregunta</DialogTitle>
-            <DialogDescription>
-              {selectedQuestion && `Código: ${selectedQuestion.code}`}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedQuestion && (
-            <div className="space-y-6 py-4">
-              {/* Metadatos */}
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="font-mono">
-                  {selectedQuestion.code}
-                </Badge>
-                <Badge variant="secondary">{selectedQuestion.subject}</Badge>
-                <Badge variant="secondary">{selectedQuestion.topic}</Badge>
-                <Badge variant="secondary">
-                  {GRADE_CODE_TO_NAME[selectedQuestion.grade]}
-                </Badge>
-                <Badge 
-                  variant={
-                    selectedQuestion.level === 'Fácil' ? 'default' : 
-                    selectedQuestion.level === 'Medio' ? 'secondary' : 
-                    'destructive'
-                  }
+             {/* Dialog para ver pregunta - VISTA COMPLETA del examen como estudiante */}
+               <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden p-0 bg-gray-50">
+            {selectedQuestion && (
+              <div className="flex flex-col h-full bg-gray-50">
+                {/* Botón de cerrar fijo */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsViewDialogOpen(false)}
+                  className="absolute top-2 right-2 z-50 bg-white shadow-lg hover:bg-gray-100"
                 >
-                  {selectedQuestion.level}
-                </Badge>
-              </div>
+                  <X className="h-5 w-5" />
+                </Button>
 
-              {/* Texto informativo */}
-              {selectedQuestion.informativeText && (
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-sm font-medium mb-2">Información:</p>
-                  <p className="text-sm">{selectedQuestion.informativeText}</p>
-                </div>
-              )}
+                                 {/* Layout completo como en el examen con scroll */}
+                 <ScrollArea className="h-[calc(95vh-2rem)]">
+                 <div className="flex flex-col lg:flex-row gap-6 p-4">
+                  {/* Contenido principal del examen - EXACTO al examen */}
+                  <div className="flex-1">
+                   {/* Header "Estás realizando" */}
+                   <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
+                     <div className="flex items-center gap-4">
+                       <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                         <BookOpen className="w-10 h-10 text-white" />
+                       </div>
+                       <div>
+                         <h3 className="text-sm text-gray-500 font-medium">Vista Previa - Estás realizando:</h3>
+                         <h2 className="text-lg font-bold">Pregunta del Banco de Datos</h2>
+                         <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                           <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
+                             {selectedQuestion.subject}
+                           </span>
+                           <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
+                             {GRADE_CODE_TO_NAME[selectedQuestion.grade]}
+                           </span>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
 
-              {/* Imágenes informativas */}
-              {selectedQuestion.informativeImages && selectedQuestion.informativeImages.length > 0 && (
-                <ImageGallery 
-                  images={selectedQuestion.informativeImages}
-                  title="Imágenes informativas"
-                  maxImages={3}
-                />
-              )}
+                   {/* Badge de progreso simulado */}
+                   <div className="flex justify-between items-center mb-4">
+                     <div className="flex items-center gap-2">
+                       <BarChart3 className="h-5 w-5 text-purple-600" />
+                       <h2 className="text-lg font-semibold">Pregunta 1</h2>
+                     </div>
+                     <div className="flex items-center gap-4">
+                       <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200 shadow-sm">
+                         <Clock className="h-4 w-4 text-green-500" />
+                         <span className="text-sm font-medium font-mono">15:00</span>
+                       </div>
+                     </div>
+                   </div>
 
-              {/* Pregunta */}
-              <div className="p-4 border rounded-lg">
-                <p className="font-medium mb-2">{selectedQuestion.questionText}</p>
-                {selectedQuestion.questionImages && selectedQuestion.questionImages.length > 0 && (
-                  <ImageGallery 
-                    images={selectedQuestion.questionImages}
-                    title="Imágenes de la pregunta"
-                    maxImages={2}
-                    showTitle={false}
-                    className="mt-2"
-                  />
-                )}
-              </div>
+                   {/* Barra de progreso simulada */}
+                   <div className="mb-6">
+                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                       <div className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style={{ width: '10%' }}></div>
+                     </div>
+                     <div className="flex justify-between mt-2 text-sm text-gray-500">
+                       <span>Pregunta 1 de 10</span>
+                       <span>1 respondida</span>
+                     </div>
+                   </div>
 
-              {/* Opciones */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Opciones:</p>
-                {selectedQuestion.options.map((option) => (
-                  <div 
-                    key={option.id}
-                    className={cn(
-                      'p-3 border rounded-lg',
-                      option.isCorrect && 'bg-green-50 dark:bg-green-900/20 border-green-500'
-                    )}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="font-medium">{option.id})</span>
-                      {option.text && <p className="flex-1">{option.text}</p>}
-                      {option.isCorrect && (
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      )}
+                   {/* Card principal de la pregunta - IGUAL AL EXAMEN */}
+                   <Card className="mb-6">
+                     <CardHeader>
+                       <div className="flex items-center justify-between">
+                         <CardTitle className="text-xl">Pregunta 1</CardTitle>
+                         <div className="flex items-center gap-2 text-sm text-gray-500">
+                           <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                             {selectedQuestion.topic}
+                           </span>
+                           <span className={cn(
+                             "px-2 py-1 rounded-full",
+                             selectedQuestion.level === 'Fácil' ? 'bg-green-100 text-green-700' :
+                             selectedQuestion.level === 'Medio' ? 'bg-yellow-100 text-yellow-700' :
+                             'bg-red-100 text-red-700'
+                           )}>
+                             {selectedQuestion.level}
+                           </span>
+                         </div>
+                       </div>
+                     </CardHeader>
+                     <CardContent>
+                       <div className="prose prose-lg max-w-none">
+                         {/* Texto informativo */}
+                         {selectedQuestion.informativeText && (
+                           <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                             <p className="text-gray-700 leading-relaxed">{selectedQuestion.informativeText}</p>
+                           </div>
+                         )}
+
+                         {/* Imágenes informativas */}
+                         {selectedQuestion.informativeImages && selectedQuestion.informativeImages.length > 0 && (
+                           <div className="mb-4">
+                             <ImageGallery images={selectedQuestion.informativeImages} />
+                           </div>
+                         )}
+
+                         {/* Imágenes de la pregunta */}
+                         {selectedQuestion.questionImages && selectedQuestion.questionImages.length > 0 && (
+                           <div className="mb-4">
+                             <ImageGallery images={selectedQuestion.questionImages} />
+                           </div>
+                         )}
+
+                         {/* Texto de la pregunta */}
+                         {selectedQuestion.questionText && (
+                           <p className="text-gray-900 leading-relaxed text-lg font-medium">{selectedQuestion.questionText}</p>
+                         )}
+                       </div>
+                       
+                       {/* RadioGroup de opciones - IDÉNTICO al examen */}
+                       <RadioGroup className="space-y-4 mt-6" defaultValue="">
+                         {selectedQuestion.options.map((option) => (
+                           <div
+                             key={option.id}
+                             className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                           >
+                             <RadioGroupItem
+                               value={option.id}
+                               id={`view-${option.id}`}
+                               className="mt-1"
+                             />
+                             <Label
+                               htmlFor={`view-${option.id}`}
+                               className="flex-1 cursor-pointer"
+                             >
+                               <div className="flex items-start gap-3">
+                                 <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
+                                 <div className="flex-1">
+                                   {option.text && (
+                                     <span className="text-gray-900">{option.text}</span>
+                                   )}
+                                   {option.imageUrl && (
+                                     <div className="mt-2">
+                                       <img 
+                                         src={option.imageUrl} 
+                                         alt={`Opción ${option.id}`}
+                                         className="max-w-full h-auto rounded-lg border shadow-sm"
+                                         onError={(e) => {
+                                           console.error('Error cargando imagen de opción:', option.imageUrl);
+                                           e.currentTarget.style.display = 'none';
+                                         }}
+                                       />
+                                     </div>
+                                   )}
+                                 </div>
+                               </div>
+                             </Label>
+                           </div>
+                         ))}
+                       </RadioGroup>
+                     </CardContent>
+                     <CardFooter className="flex justify-end">
+                       <div className="flex items-center gap-2 text-sm text-gray-500">
+                         <CheckCircle2 className="h-4 w-4 text-green-500" />
+                         <span>Puedes seleccionar una respuesta</span>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                 </div>
+
+                                                                       {/* Panel lateral derecho con navegación - IGUAL AL EXAMEN */}
+                   <div className="w-full lg:w-64 flex-shrink-0">
+                     <div className="bg-white border rounded-lg p-4 sticky top-4 flex flex-col">
+                       <h3 className="font-medium mb-3 flex items-center gap-2">
+                         <BarChart3 className="h-4 w-4 text-purple-600" />
+                         Navegación
+                       </h3>
+                       <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                        {/* Simular 10 preguntas para la navegación */}
+                        {Array.from({ length: 10 }, (_, index) => (
+                         <button
+                           key={index}
+                           className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${
+                             index === 0
+                               ? "bg-purple-50 border-purple-200 border"
+                               : "border hover:bg-gray-50"
+                           }`}
+                         >
+                           <div
+                             className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                               index === 0
+                                 ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
+                                 : "bg-gray-100 text-gray-700 border"
+                             }`}
+                           >
+                             {index + 1}
+                           </div>
+                           <div className="flex-1">
+                             <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
+                             <div className="text-xs text-gray-500 flex items-center gap-1">
+                               {index === 0 ? (
+                                 <>
+                                   <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                   <span>Respondida</span>
+                                 </>
+                               ) : (
+                                 <>
+                                   <AlertCircle className="h-3 w-3 text-orange-500" />
+                                   <span>Sin responder</span>
+                                 </>
+                               )}
+                             </div>
+                           </div>
+                                                   </button>
+                                                  ))}
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="text-sm text-gray-500 mb-2">Progreso del examen</div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium">1/10</span>
+                            <span className="text-sm text-gray-500">10%</span>
+                          </div>
+                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style={{ width: '10%' }}></div>
+                          </div>
+
+                          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                              <div className="text-xs text-amber-700">
+                                Tienes 9 preguntas sin responder
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    {option.imageUrl && (
-                      <ImageGallery 
-                        images={[option.imageUrl]}
-                        title={`Imagen de la opción ${option.id}`}
-                        maxImages={1}
-                        showTitle={false}
-                        className="mt-2"
-                      />
-                    )}
                   </div>
-                ))}
+                </ScrollArea>
               </div>
-
-              {/* Metadatos adicionales */}
-              <div className="text-sm text-gray-500 pt-4 border-t">
-                <p>Creada: {new Date(selectedQuestion.createdAt).toLocaleString('es-ES')}</p>
-                <p>ID: {selectedQuestion.id}</p>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsViewDialogOpen(false)}
-            >
-              Cerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
-
+            )}
+          </DialogContent>
+        </Dialog>
+     </div>
+   )
+ }
+ 
