@@ -48,6 +48,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const { user: currentUser } = useAuthContext()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([])
@@ -740,6 +741,184 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setIsViewDialogOpen(true)
   }
 
+  const handleEditQuestion = (question: Question) => {
+    setSelectedQuestion(question)
+    // Cargar los datos de la pregunta en el formulario
+    setFormData({
+      subject: question.subject,
+      subjectCode: question.subjectCode,
+      topic: question.topic,
+      topicCode: question.topicCode,
+      grade: question.grade as any,
+      level: question.level as any,
+      levelCode: question.levelCode as any,
+      informativeText: question.informativeText || '',
+      questionText: question.questionText,
+    })
+    // Cargar opciones
+    setOptions(question.options)
+    // Cargar imágenes (no se pueden editar, solo se muestran)
+    setInformativeImagePreviews(question.informativeImages || [])
+    setQuestionImagePreviews(question.questionImages || [])
+    setOptionImagePreviews({
+      A: question.options.find(o => o.id === 'A')?.imageUrl || null,
+      B: question.options.find(o => o.id === 'B')?.imageUrl || null,
+      C: question.options.find(o => o.id === 'C')?.imageUrl || null,
+      D: question.options.find(o => o.id === 'D')?.imageUrl || null,
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleDeleteQuestion = async (question: Question) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar la pregunta ${question.code}? Esta acción no se puede deshacer.`)) {
+      return
+    }
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      notifyError({
+        title: 'Error',
+        message: 'No tienes permisos para eliminar preguntas'
+      })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const result = await questionService.deleteQuestion(question.id!)
+      
+      if (result.success) {
+        notifySuccess({
+          title: 'Éxito',
+          message: `Pregunta ${question.code} eliminada correctamente`
+        })
+        loadQuestions()
+        loadStats()
+      } else {
+        notifyError({
+          title: 'Error',
+          message: result.error?.message || 'No se pudo eliminar la pregunta'
+        })
+      }
+    } catch (error) {
+      console.error('Error eliminando pregunta:', error)
+      notifyError({
+        title: 'Error',
+        message: 'Error al eliminar la pregunta'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleUpdateQuestion = async () => {
+    try {
+      if (!selectedQuestion?.id) {
+        notifyError({
+          title: 'Error',
+          message: 'No se ha seleccionado una pregunta'
+        })
+        return
+      }
+
+      // Validaciones
+      if (!formData.subject || !formData.topic || !formData.questionText) {
+        notifyError({
+          title: 'Error',
+          message: 'Complete todos los campos obligatorios'
+        })
+        return
+      }
+
+      // Validar que todas las opciones tengan contenido
+      const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id] && !opt.imageUrl)
+      if (emptyOptions.length > 0) {
+        notifyError({
+          title: 'Error',
+          message: 'Todas las opciones deben tener texto o imagen'
+        })
+        return
+      }
+
+      // Validar que haya exactamente una respuesta correcta
+      const correctOptions = options.filter(opt => opt.isCorrect)
+      if (correctOptions.length !== 1) {
+        notifyError({
+          title: 'Error',
+          message: 'Debe marcar exactamente una opción como correcta'
+        })
+        return
+      }
+
+      if (!currentUser) {
+        notifyError({
+          title: 'Error',
+          message: 'Usuario no autenticado'
+        })
+        return
+      }
+
+      if (currentUser.role !== 'admin') {
+        notifyError({
+          title: 'Error',
+          message: 'No tienes permisos para editar preguntas'
+        })
+        return
+      }
+
+      setIsLoading(true)
+      notifySuccess({
+        title: 'Actualizando',
+        message: 'Guardando cambios...'
+      })
+
+      // Preparar datos de actualización
+      const updates: any = {
+        subject: formData.subject,
+        subjectCode: formData.subjectCode,
+        topic: formData.topic,
+        topicCode: formData.topicCode,
+        grade: formData.grade,
+        level: formData.level,
+        levelCode: formData.levelCode,
+        informativeText: formData.informativeText || '',
+        questionText: formData.questionText,
+        options: options.map(opt => ({
+          ...opt,
+          // Mantener la imagen existente si no hay nueva
+          imageUrl: opt.imageUrl || null
+        }))
+      }
+
+      // Actualizar la pregunta
+      const result = await questionService.updateQuestion(selectedQuestion.id, updates)
+
+      if (result.success) {
+        notifySuccess({
+          title: 'Éxito',
+          message: `Pregunta ${selectedQuestion.code} actualizada correctamente`
+        })
+        resetForm()
+        setIsEditDialogOpen(false)
+        setSelectedQuestion(null)
+        loadQuestions()
+        loadStats()
+      } else {
+        notifyError({
+          title: 'Error',
+          message: result.error?.message || 'No se pudo actualizar la pregunta'
+        })
+      }
+    } catch (error) {
+      console.error('Error actualizando pregunta:', error)
+      notifyError({
+        title: 'Error',
+        message: 'Error al actualizar la pregunta'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleCreateQuestionTextOnly = async () => {
     try {
       // Validaciones básicas
@@ -1270,10 +1449,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </div>
@@ -1588,6 +1767,209 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 Solo Texto
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para editar pregunta */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Pregunta {selectedQuestion?.code}</DialogTitle>
+            <DialogDescription>
+              Modifica los campos necesarios y guarda los cambios
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Información básica */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-subject">Materia *</Label>
+                <Select value={formData.subjectCode} onValueChange={handleSubjectChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar materia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUBJECTS_CONFIG.map(subject => (
+                      <SelectItem key={subject.code} value={subject.code}>
+                        {subject.icon} {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-topic">Tema *</Label>
+                <Select 
+                  value={formData.topicCode} 
+                  onValueChange={handleTopicChange}
+                  disabled={!formData.subjectCode}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar tema" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTopics.map(topic => (
+                      <SelectItem key={topic.code} value={topic.code}>
+                        {topic.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-grade">Grado *</Label>
+                <Select value={formData.grade} onValueChange={(value: any) => setFormData({...formData, grade: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar grado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(GRADE_CODE_TO_NAME).map(([code, name]) => (
+                      <SelectItem key={code} value={code}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-level">Nivel de Dificultad *</Label>
+                <Select value={formData.level} onValueChange={(value: any) => handleLevelChange(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar nivel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DIFFICULTY_LEVELS.map(level => (
+                      <SelectItem key={level.code} value={level.name}>
+                        {level.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Texto informativo */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-informativeText">Texto Informativo (opcional)</Label>
+              <Textarea
+                id="edit-informativeText"
+                value={formData.informativeText}
+                onChange={(e) => setFormData({...formData, informativeText: e.target.value})}
+                placeholder="Información adicional o contexto para la pregunta..."
+                rows={3}
+              />
+            </div>
+
+            {/* Pregunta */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-questionText">Texto de la Pregunta *</Label>
+              <Textarea
+                id="edit-questionText"
+                value={formData.questionText}
+                onChange={(e) => setFormData({...formData, questionText: e.target.value})}
+                placeholder="Escribe la pregunta aquí..."
+                rows={4}
+                required
+              />
+            </div>
+
+            {/* Opciones de respuesta */}
+            <div className="space-y-2">
+              <Label>Opciones de Respuesta *</Label>
+              <p className="text-sm text-gray-500">
+                Cada opción debe tener texto o imagen. Marque la opción correcta.
+              </p>
+              <div className="space-y-3">
+                {options.map((option) => (
+                  <div key={option.id} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="edit-correctAnswer"
+                        checked={option.isCorrect}
+                        onChange={() => handleCorrectAnswerChange(option.id)}
+                        className="w-4 h-4"
+                      />
+                      <span className="font-medium">{option.id})</span>
+                      <Input
+                        value={option.text || ''}
+                        onChange={(e) => handleOptionTextChange(option.id, e.target.value)}
+                        placeholder={`Texto de la opción ${option.id}`}
+                        className="flex-1"
+                      />
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
+                        className="hidden"
+                        id={`edit-option-${option.id}-image`}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById(`edit-option-${option.id}-image`)?.click()}
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {optionImagePreviews[option.id] && (
+                      <div className="relative w-32 h-32">
+                        <img 
+                          src={optionImagePreviews[option.id]!} 
+                          alt={`Opción ${option.id}`} 
+                          className="w-full h-full object-cover rounded" 
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-0 right-0 h-6 w-6 p-0"
+                          onClick={() => removeOptionImage(option.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDialogOpen(false)
+                resetForm()
+                setSelectedQuestion(null)
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUpdateQuestion} 
+              disabled={isLoading}
+              className="bg-black text-white hover:bg-gray-800"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Guardar Cambios
+                </>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
