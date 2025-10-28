@@ -25,7 +25,14 @@ import {
   BarChart3,
   Filter,
   RefreshCw,
-  Clock
+  Clock,
+  ChevronRight,
+  ChevronDown,
+  List,
+  FolderTree,
+  FolderOpen,
+  GraduationCap,
+  TrendingUp
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -38,6 +45,7 @@ import {
   getSubjectByCode
 } from '@/utils/subjects.config'
 import { useAuthContext } from '@/context/AuthContext'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 interface QuestionBankProps {
   theme: 'light' | 'dark'
@@ -61,6 +69,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [filterGrade, setFilterGrade] = useState<string>('all')
   const [filterLevel, setFilterLevel] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  
+  // Vista de organización
+  const [viewMode, setViewMode] = useState<'list' | 'tree'>('list')
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
 
   // Estado del formulario
   const [formData, setFormData] = useState({
@@ -1124,6 +1136,312 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     ? getSubjectByCode(filterSubject)?.topics || []
     : []
 
+  // Función para organizar preguntas en jerarquía
+  const organizeQuestionsHierarchy = (questions: Question[]) => {
+    const hierarchy: Record<string, Record<string, Record<string, Record<string, Question[]>>>> = {}
+    
+    questions.forEach(question => {
+      const subjectCode = question.subjectCode
+      const topicCode = question.topicCode
+      const grade = question.grade
+      const level = question.level
+      
+      if (!hierarchy[subjectCode]) {
+        hierarchy[subjectCode] = {}
+      }
+      if (!hierarchy[subjectCode][topicCode]) {
+        hierarchy[subjectCode][topicCode] = {}
+      }
+      if (!hierarchy[subjectCode][topicCode][grade]) {
+        hierarchy[subjectCode][topicCode][grade] = {}
+      }
+      if (!hierarchy[subjectCode][topicCode][grade][level]) {
+        hierarchy[subjectCode][topicCode][grade][level] = []
+      }
+      
+      hierarchy[subjectCode][topicCode][grade][level].push(question)
+    })
+    
+    return hierarchy
+  }
+
+  const toggleNode = (nodeId: string, open?: boolean) => {
+    setExpandedNodes(prev => {
+      const newExpanded = new Set(prev)
+      if (open !== undefined) {
+        if (open) {
+          newExpanded.add(nodeId)
+        } else {
+          newExpanded.delete(nodeId)
+        }
+      } else {
+        if (newExpanded.has(nodeId)) {
+          newExpanded.delete(nodeId)
+        } else {
+          newExpanded.add(nodeId)
+        }
+      }
+      return newExpanded
+    })
+  }
+
+  const toggleAllNodes = (expand: boolean) => {
+    if (expand) {
+      const allNodes = new Set<string>()
+      filteredQuestions.forEach(q => {
+        allNodes.add(`subject-${q.subjectCode}`)
+        allNodes.add(`subject-${q.subjectCode}-topic-${q.topicCode}`)
+        allNodes.add(`subject-${q.subjectCode}-topic-${q.topicCode}-grade-${q.grade}`)
+        allNodes.add(`subject-${q.subjectCode}-topic-${q.topicCode}-grade-${q.grade}-level-${q.level}`)
+      })
+      setExpandedNodes(allNodes)
+    } else {
+      setExpandedNodes(new Set())
+    }
+  }
+
+  const hierarchy = organizeQuestionsHierarchy(filteredQuestions)
+
+  // Componente para renderizar una pregunta
+  const renderQuestion = (question: Question) => (
+    <div 
+      key={question.id} 
+      className={cn(
+        'p-3 rounded-lg border cursor-pointer transition-colors ml-8',
+        theme === 'dark' 
+          ? 'border-zinc-700 hover:bg-zinc-800' 
+          : 'border-gray-200 hover:bg-gray-50'
+      )}
+      onClick={() => handleViewQuestion(question)}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="outline" className="font-mono text-xs">
+              {question.code}
+            </Badge>
+          </div>
+          <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            {question.questionText.substring(0, 100)}
+            {question.questionText.length > 100 && '...'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
+            <Trash2 className="h-4 w-4 text-red-500" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Componente para renderizar el árbol jerárquico
+  const renderTreeView = () => {
+    if (filteredQuestions.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <h3 className={cn('text-lg font-medium mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            No se encontraron preguntas
+          </h3>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-2">
+        {Object.entries(hierarchy).map(([subjectCode, topics]) => {
+          const subject = getSubjectByCode(subjectCode)
+          const subjectNodeId = `subject-${subjectCode}`
+          const isSubjectExpanded = expandedNodes.has(subjectNodeId)
+          
+          return (
+            <Collapsible
+              key={subjectCode}
+              open={isSubjectExpanded}
+              onOpenChange={(open) => toggleNode(subjectNodeId, open)}
+            >
+              <div className={cn(
+                'border rounded-lg',
+                theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+              )}>
+                <CollapsibleTrigger className={cn(
+                  'w-full flex items-center gap-2 p-3 hover:bg-opacity-50 transition-colors',
+                  theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-50'
+                )}>
+                  {isSubjectExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-semibold flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-blue-500" />
+                    {subject?.name}
+                  </span>
+                  <Badge variant="secondary" className="ml-auto">
+                    {Object.values(topics).flatMap(t => 
+                      Object.values(t).flatMap(g => 
+                        Object.values(g).flat().length
+                      )
+                    ).reduce((a, b) => a + b, 0)} preguntas
+                  </Badge>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent>
+                  <div className="pl-4 space-y-2">
+                    {Object.entries(topics).map(([topicCode, grades]) => {
+                      const topic = subject?.topics.find(t => t.code === topicCode)
+                      const topicNodeId = `${subjectNodeId}-topic-${topicCode}`
+                      const isTopicExpanded = expandedNodes.has(topicNodeId)
+                      
+                      return (
+                        <Collapsible
+                          key={topicCode}
+                          open={isTopicExpanded}
+                          onOpenChange={(open) => toggleNode(topicNodeId, open)}
+                        >
+                          <div className={cn(
+                            'border rounded-lg ml-4',
+                            theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+                          )}>
+                            <CollapsibleTrigger className={cn(
+                              'w-full flex items-center gap-2 p-2 hover:bg-opacity-50 transition-colors',
+                              theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-50'
+                            )}>
+                              {isTopicExpanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              <span className="font-medium flex items-center gap-2">
+                                <FolderOpen className="h-4 w-4 text-orange-500" />
+                                {topic?.name}
+                              </span>
+                              <Badge variant="secondary" className="ml-auto">
+                                {Object.values(grades).flatMap(g => 
+                                  Object.values(g).flat().length
+                                ).reduce((a, b) => a + b, 0)} preguntas
+                              </Badge>
+                            </CollapsibleTrigger>
+                            
+                            <CollapsibleContent>
+                              <div className="pl-4 space-y-2">
+                                {Object.entries(grades).map(([grade, levels]) => {
+                                  const gradeName = GRADE_CODE_TO_NAME[grade]
+                                  const gradeNodeId = `${topicNodeId}-grade-${grade}`
+                                  const isGradeExpanded = expandedNodes.has(gradeNodeId)
+                                  
+                                  return (
+                                    <Collapsible
+                                      key={grade}
+                                      open={isGradeExpanded}
+                                      onOpenChange={(open) => toggleNode(gradeNodeId, open)}
+                                    >
+                                      <div className={cn(
+                                        'border rounded-lg ml-4',
+                                        theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+                                      )}>
+                                        <CollapsibleTrigger className={cn(
+                                          'w-full flex items-center gap-2 p-2 hover:bg-opacity-50 transition-colors',
+                                          theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-50'
+                                        )}>
+                                          {isGradeExpanded ? (
+                                            <ChevronDown className="h-4 w-4" />
+                                          ) : (
+                                            <ChevronRight className="h-4 w-4" />
+                                          )}
+                                          <span className="text-sm flex items-center gap-2">
+                                            <GraduationCap className="h-4 w-4 text-purple-500" />
+                                            {gradeName}
+                                          </span>
+                                          <Badge variant="secondary" className="ml-auto">
+                                            {Object.values(levels).flat().length} preguntas
+                                          </Badge>
+                                        </CollapsibleTrigger>
+                                        
+                                        <CollapsibleContent>
+                                          <div className="pl-4 space-y-2">
+                                            {Object.entries(levels).map(([level, questions]) => {
+                                              const levelNodeId = `${gradeNodeId}-level-${level}`
+                                              const isLevelExpanded = expandedNodes.has(levelNodeId)
+                                              
+                                              return (
+                                                <Collapsible
+                                                  key={level}
+                                                  open={isLevelExpanded}
+                                                  onOpenChange={(open) => toggleNode(levelNodeId, open)}
+                                                >
+                                                  <div className={cn(
+                                                    'border rounded-lg ml-4',
+                                                    theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+                                                  )}>
+                                                    <CollapsibleTrigger className={cn(
+                                                      'w-full flex items-center gap-2 p-2 hover:bg-opacity-50 transition-colors',
+                                                      theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-50'
+                                                    )}>
+                                                      {isLevelExpanded ? (
+                                                        <ChevronDown className="h-4 w-4" />
+                                                      ) : (
+                                                        <ChevronRight className="h-4 w-4" />
+                                                      )}
+                                                      <TrendingUp className={cn(
+                                                        "h-4 w-4",
+                                                        level === 'Fácil' ? 'text-green-500' : 
+                                                        level === 'Medio' ? 'text-yellow-500' : 
+                                                        'text-red-500'
+                                                      )} />
+                                                      <Badge 
+                                                        variant={
+                                                          level === 'Fácil' ? 'default' : 
+                                                          level === 'Medio' ? 'secondary' : 
+                                                          'destructive'
+                                                        }
+                                                        className="text-xs"
+                                                      >
+                                                        {level}
+                                                      </Badge>
+                                                      <Badge variant="secondary" className="ml-auto">
+                                                        {questions.length} preguntas
+                                                      </Badge>
+                                                    </CollapsibleTrigger>
+                                                    
+                                                    <CollapsibleContent>
+                                                      <div className="pl-4 space-y-2 pb-2">
+                                                        {questions.map(renderQuestion)}
+                                                      </div>
+                                                    </CollapsibleContent>
+                                                  </div>
+                                                </Collapsible>
+                                              )
+                                            })}
+                                          </div>
+                                        </CollapsibleContent>
+                                      </div>
+                                    </Collapsible>
+                                  )
+                                })}
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                      )
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1353,14 +1671,55 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       {/* Lista de preguntas */}
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
-          <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            Preguntas ({filteredQuestions.length})
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              Preguntas ({filteredQuestions.length})
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="h-4 w-4 mr-2" />
+                Lista
+              </Button>
+              <Button
+                variant={viewMode === 'tree' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('tree')}
+              >
+                <FolderTree className="h-4 w-4 mr-2" />
+                Árbol
+              </Button>
+              {viewMode === 'tree' && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleAllNodes(true)}
+                  >
+                    Expandir Todo
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleAllNodes(false)}
+                  >
+                    Colapsar Todo
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[600px]">
-            <div className="space-y-4">
-              {filteredQuestions.length === 0 ? (
+            {viewMode === 'tree' ? (
+              renderTreeView()
+            ) : (
+              <div className="space-y-4">
+                {filteredQuestions.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                   <h3 className={cn('text-lg font-medium mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -1461,7 +1820,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   )
                 })
               )}
-            </div>
+              </div>
+            )}
           </ScrollArea>
         </CardContent>
       </Card>
