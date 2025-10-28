@@ -94,6 +94,12 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         
         if (!quizResult.success) {
           console.error('Error generando cuestionario:', quizResult.error);
+          console.error('Detalles del error:', {
+            subject,
+            phase,
+            grade,
+            error: quizResult.error
+          });
           setExamState('error');
           return;
         }
@@ -420,16 +426,40 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         <CardContent className="space-y-4">
           <Alert className="border-red-200 bg-red-50">
             <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-800">Información del Error</AlertTitle>
-            <AlertDescription className="text-red-700">
-              Puede que no haya suficientes preguntas disponibles en el banco para esta materia y nivel.
+            <AlertTitle className="text-red-800">Posibles Causas</AlertTitle>
+            <AlertDescription className="text-red-700 space-y-2">
+              <div>• No hay suficientes preguntas de {subject} en el banco de datos</div>
+              <div>• Problemas de conexión con Firebase</div>
+              <div>• Filtros muy específicos (grado: {grade}, fase: {phase})</div>
+              <div>• Error en la configuración del cuestionario</div>
+            </AlertDescription>
+          </Alert>
+          
+          <Alert className="border-blue-200 bg-blue-50">
+            <Database className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-800">Información de Debug</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              <div className="text-sm space-y-1">
+                <div><strong>Materia:</strong> {subject}</div>
+                <div><strong>Fase:</strong> {phase}</div>
+                <div><strong>Grado:</strong> {grade || 'No especificado'}</div>
+                <div><strong>Usuario:</strong> {userId ? 'Autenticado' : 'No autenticado'}</div>
+              </div>
             </AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter className="flex justify-center">
+        <CardFooter className="flex flex-col gap-3">
+          <Button
+            onClick={() => window.location.reload()}
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+          >
+            <Database className="h-4 w-4 mr-2" />
+            Reintentar
+          </Button>
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600"
+            variant="outline"
+            className="w-full"
           >
             Volver al Dashboard
           </Button>

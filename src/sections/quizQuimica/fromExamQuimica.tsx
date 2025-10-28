@@ -1,11 +1,11 @@
-import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookOpen, Play, Users, Timer, HelpCircle, Maximize, X, Database } from "lucide-react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, FlaskConical, Timer, HelpCircle, Users, Play, Maximize, Database } from "lucide-react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
+import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
+import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { useState, useEffect } from "react"
-import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+import { Progress } from "#/ui/progress"
+import { Button } from "#/ui/button"
+import { Label } from "#/ui/label"
 import { useNavigate } from "react-router-dom"
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
@@ -15,50 +15,6 @@ import ImageGallery from "@/components/common/ImageGallery";
 
 const db = getFirestore(firebaseApp);
 
-// Función para mapear el nombre del grado al código que usa el banco de preguntas
-const mapGradeToCode = (gradeName: string | undefined): string | undefined => {
-  if (!gradeName) return undefined;
-  
-  const gradeMap: Record<string, string> = {
-    '6°': '6',
-    '6°1': '6',
-    '6°2': '6',
-    '6°3': '6',
-    '7°': '7',
-    '7°1': '7',
-    '7°2': '7',
-    '7°3': '7',
-    '8°': '8',
-    '8°1': '8',
-    '8°2': '8',
-    '8°3': '8',
-    '9°': '9',
-    '9°1': '9',
-    '9°2': '9',
-    '9°3': '9',
-    '10°': '0',
-    '10°1': '0',
-    '10°2': '0',
-    '10°3': '0',
-    '11°': '1',
-    '11°1': '1',
-    '11°2': '1',
-    '11°3': '1',
-    'Sexto': '6',
-    'Séptimo': '7',
-    'Octavo': '8',
-    'Noveno': '9',
-    'Décimo': '0',
-    'Undécimo': '1',
-    // Agregar más variaciones posibles
-    '11': '1',
-    '11°1°': '1',
-    '11°1°1': '1'
-  };
-  
-  return gradeMap[gradeName] || undefined;
-};
-
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
   questionId: string;
@@ -66,7 +22,6 @@ interface QuestionTimeData {
   startTime: number; // timestamp
   endTime?: number; // timestamp
 }
-
 
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string) => {
@@ -95,14 +50,27 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   return { success: true, id: `${userId}_${examId}` };
 };
 
-// Configuración del examen de Lenguaje
+// Función para mapear el grado del usuario al código que usa el banco de preguntas
+const mapGradeToCode = (gradeName: string): string => {
+  const gradeMap: { [key: string]: string } = {
+    '6°1': '6', '6°2': '6', '6°3': '6',
+    '7°1': '7', '7°2': '7', '7°3': '7',
+    '8°1': '8', '8°2': '8', '8°3': '8',
+    '9°1': '9', '9°2': '9', '9°3': '9',
+    '10°1': '0', '10°2': '0', '10°3': '0',
+    '11°1': '1', '11°2': '1', '11°3': '1'
+  };
+  return gradeMap[gradeName] || '1'; // Default a undécimo si no se encuentra
+};
+
+// Configuración del examen de Química
 const examConfig = {
-  subject: "Lenguaje",
+  subject: "Quimica",
   phase: "first" as const,
-  examId: "exam_lengua_001", // ID único del examen
-  title: "Examen de Lenguaje",
-  description: "Evaluación de habilidades de pensamiento crítico y comprensión lectora",
-  module: "Módulo de Lenguaje",
+  examId: "exam_quimica_001", // ID único del examen
+  title: "Examen de Química",
+  description: "Evaluación de conocimientos en química y reacciones químicas",
+  module: "Módulo de Química",
 };
 
 const ExamWithFirebase = () => {
@@ -136,7 +104,7 @@ const ExamWithFirebase = () => {
     let isMounted = true; // Flag para evitar actualizaciones de estado en componentes desmontados
 
     const loadQuiz = async () => {
-      console.log('=== INICIANDO CARGA DEL CUESTIONARIO ===');
+      console.log('=== INICIANDO CARGA DEL CUESTIONARIO DE QUÍMICA ===');
       console.log('UserId:', userId);
       console.log('ExamConfig:', examConfig);
 
@@ -355,10 +323,10 @@ const ExamWithFirebase = () => {
 
       const examResult = {
         userId,
-        examId: examConfig.examId,
-        examTitle: examConfig.title,
-        subject: examConfig.subject,
-        phase: examConfig.phase,
+        examId: quizData.id,
+        examTitle: quizData.title,
+        subject: quizData.subject,
+        phase: quizData.phase,
         answers,
         score,
         timeExpired,
@@ -388,7 +356,7 @@ const ExamWithFirebase = () => {
         })
       }
 
-      const result = await saveExamResults(userId, examConfig.examId, examResult);
+      const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
       return result
     } catch (error) {
@@ -428,29 +396,6 @@ const ExamWithFirebase = () => {
       }
     } catch (error) {
       console.error("Error exiting fullscreen:", error);
-    }
-  };
-
-  // Función para manejar el envío del examen
-  const handleSubmit = async (timeExpired = false, lockedByTabChange = false) => {
-    if (examLocked || examState !== 'active') return
-
-    setExamLocked(true)
-    setShowWarning(false)
-    setShowTabChangeWarning(false)
-    setShowFullscreenExit(false)
-
-    try {
-      await saveToFirebase(timeExpired, lockedByTabChange)
-      setExamState('completed')
-
-      // Salir de pantalla completa después de completar
-      if (isFullscreen) {
-        await exitFullscreen()
-      }
-    } catch (error) {
-      console.error('Error guardando examen:', error)
-      // Aquí podrías mostrar un mensaje de error al usuario
     }
   };
 
@@ -508,9 +453,7 @@ const ExamWithFirebase = () => {
       const isCurrentlyFullscreen = !!fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
 
-      if (examState === 'active' && !isCurrentlyFullscreen) {
-        setShowFullscreenExit(true);
-      }
+      // Pantalla completa cambiada
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -528,31 +471,6 @@ const ExamWithFirebase = () => {
   const startExam = async () => {
     await enterFullscreen()
     setExamState('active')
-  }
-
-  // Manejar salida de pantalla completa durante el examen
-  const handleExitFullscreen = async () => {
-    setShowFullscreenExit(false)
-    await handleSubmit(false, false)
-    await exitFullscreen()
-  }
-
-  // Volver al examen en pantalla completa
-  const returnToExam = async () => {
-    setShowFullscreenExit(false)
-    await enterFullscreen()
-  }
-
-  // Continuar examen después de advertencia de cambio de pestaña
-  const continueExam = () => {
-    setShowTabChangeWarning(false)
-  }
-
-  // Finalizar examen por cambio de pestaña
-  const finishExamByTabChange = async () => {
-    setShowTabChangeWarning(false)
-    setExamLocked(true)
-    await handleSubmit(true, true)
   }
 
   // Pantalla de carga
@@ -574,73 +492,100 @@ const ExamWithFirebase = () => {
     </div>
   )
 
-  // Pantalla cuando no hay preguntas disponibles
-  const NoQuestionsScreen = () => {
-    const userGradeName = (user as any)?.gradeName || (user as any)?.grade;
-    const userGrade = mapGradeToCode(userGradeName);
-    
-    return (
-      <div className="max-w-2xl mx-auto">
-        <Card className="shadow-lg border-blue-200">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center">
-                <Database className="h-8 w-8 text-blue-600" />
-              </div>
+  // Pantalla de error
+  const ErrorScreen = () => (
+    <div className="max-w-2xl mx-auto">
+      <Card className="shadow-lg border-red-200">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-red-600" />
             </div>
-            <CardTitle className="text-2xl text-blue-800">Banco de Preguntas en Construcción</CardTitle>
-            <CardDescription className="text-lg">
-              Estamos agregando preguntas para {examConfig.subject}
-              {userGradeName && (
-                <span className="block text-sm text-gray-600 mt-1">
-                  Grado: {userGradeName} (Código: {userGrade || 'No disponible'})
-                </span>
-              )}
-            </CardDescription>
-          </CardHeader>
+          </div>
+          <CardTitle className="text-2xl text-red-800">Error al cargar el cuestionario</CardTitle>
+          <CardDescription className="text-lg">
+            No se pudo generar el cuestionario de {examConfig.subject}
+          </CardDescription>
+        </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className="border-blue-200 bg-blue-50">
-            <Database className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-800">Información Importante</AlertTitle>
-            <AlertDescription className="text-blue-700">
-              Nuestro equipo está trabajando activamente para agregar más preguntas al banco de {examConfig.subject}. 
-              Pronto tendrás acceso a una amplia variedad de ejercicios para practicar.
+          <Alert className="border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle className="text-red-800">Posibles Causas</AlertTitle>
+            <AlertDescription className="text-red-700 space-y-2">
+              <div>• No hay suficientes preguntas de {examConfig.subject} en el banco de datos</div>
+              <div>• Problemas de conexión con Firebase</div>
+              <div>• Filtros muy específicos (grado, fase: {examConfig.phase})</div>
+              <div>• Error en la configuración del cuestionario</div>
             </AlertDescription>
           </Alert>
           
-          <Alert className="border-green-200 bg-green-50">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-800">¿Qué puedes hacer mientras tanto?</AlertTitle>
-            <AlertDescription className="text-green-700">
-              Puedes explorar otras materias que ya tienen preguntas disponibles, como Matemáticas, 
-              Ciencias Sociales, Ciencias Naturales o Inglés.
+          <Alert className="border-blue-200 bg-blue-50">
+            <Database className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-800">Información de Debug</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              <div className="text-sm space-y-1">
+                <div><strong>Materia:</strong> {examConfig.subject}</div>
+                <div><strong>Fase:</strong> {examConfig.phase}</div>
+                <div><strong>Usuario:</strong> {userId ? 'Autenticado' : 'No autenticado'}</div>
+              </div>
             </AlertDescription>
           </Alert>
-
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
-            <div className="flex items-center gap-3 mb-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              <span className="font-semibold text-purple-800">Próximamente</span>
-            </div>
-            <p className="text-purple-700 text-sm">
-              Estamos preparando preguntas de diferentes niveles de dificultad para que puedas 
-              practicar y mejorar tus conocimientos en {examConfig.subject}.
-            </p>
-          </div>
         </CardContent>
-        <CardFooter className="flex justify-center">
+        <CardFooter className="flex flex-col gap-3">
+          <Button
+            onClick={() => window.location.reload()}
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+          >
+            <Database className="h-4 w-4 mr-2" />
+            Reintentar
+          </Button>
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-blue-600 to-purple-500 hover:from-blue-700 hover:to-purple-600"
+            variant="outline"
+            className="w-full"
           >
-            <BookOpen className="h-4 w-4 mr-2" />
-            Explorar Otras Materias
+            Volver al Dashboard
           </Button>
         </CardFooter>
       </Card>
     </div>
   )
-  }
+
+  // Pantalla cuando no hay preguntas
+  const NoQuestionsScreen = () => (
+    <div className="max-w-2xl mx-auto">
+      <Card className="shadow-lg border-amber-200">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-amber-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-amber-600" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl text-amber-800">No hay preguntas disponibles</CardTitle>
+          <CardDescription className="text-lg">
+            No se encontraron preguntas suficientes para este examen
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Información</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              El banco de preguntas no tiene suficientes preguntas de {examConfig.subject} para tu grado y nivel actual.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button
+            onClick={() => navigate('/dashboard')}
+            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+          >
+            Volver al Dashboard
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
 
   // Pantalla cuando ya se presentó el examen
   const AlreadyTakenScreen = () => (
@@ -702,21 +647,6 @@ const ExamWithFirebase = () => {
                   <div className="font-medium text-green-600">Completado</div>
                 </div>
               </div>
-
-              {/* Mostrar tiempo por pregunta si está disponible */}
-              {existingExamData.questionTimeTracking && (
-                <div className="mt-4">
-                  <h5 className="font-medium text-gray-900 mb-2">Tiempo por pregunta:</h5>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {Object.entries(existingExamData.questionTimeTracking).map(([questionId, timeData]: [string, any]) => (
-                      <div key={questionId} className="flex justify-between text-xs">
-                        <span>Pregunta {questionId}:</span>
-                        <span className="font-medium">{formatTime(timeData.timeSpent)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </CardContent>
@@ -743,10 +673,10 @@ const ExamWithFirebase = () => {
             <div className="flex justify-center mb-4">
               <div className="relative">
                 <div className="h-20 w-20 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
-                  <Brain className="h-10 w-10 text-white" />
+                  <FlaskConical className="h-10 w-10 text-white" />
                 </div>
-                <div className="absolute -top-2 -right-2 h-8 w-8 bg-purple-400 rounded-full flex items-center justify-center">
-                  <BookOpen className="h-4 w-4 text-white" />
+                <div className="absolute -top-2 -right-2 h-8 w-8 bg-blue-400 rounded-full flex items-center justify-center">
+                  <Brain className="h-4 w-4 text-white" />
                 </div>
               </div>
             </div>
@@ -796,162 +726,54 @@ const ExamWithFirebase = () => {
               </ul>
             </div>
 
-          {/* Advertencia cambio de pestaña */}
-          <Alert className="border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-800">Control de Pestañas</AlertTitle>
-            <AlertDescription className="text-red-700">
-              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 3 intentos, el examen se finalizará automáticamente.
-            </AlertDescription>
-          </Alert>
-          <Alert className="border-purple-200 bg-purple-50">
-            <Maximize className="h-4 w-4 text-purple-600" />
-            <AlertTitle className="text-purple-800">Modo Pantalla Completa</AlertTitle>
-            <AlertDescription className="text-purple-700">
-              El examen se realizará en pantalla completa. Si sales de este modo durante la prueba, se mostrará una alerta y podrás elegir entre volver al examen o finalizarlo automáticamente.
-            </AlertDescription>
-          </Alert>
+            {/* Advertencias */}
+            <Alert className="border-red-200 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertTitle className="text-red-800">Control de Pestañas</AlertTitle>
+              <AlertDescription className="text-red-700">
+                El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 3 intentos, el examen se finalizará automáticamente.
+              </AlertDescription>
+            </Alert>
+            
+            <Alert className="border-purple-200 bg-purple-50">
+              <Maximize className="h-4 w-4 text-purple-600" />
+              <AlertTitle className="text-purple-800">Modo Pantalla Completa</AlertTitle>
+              <AlertDescription className="text-purple-700">
+                El examen se realizará en pantalla completa. Si sales de este modo durante la prueba, se mostrará una alerta y podrás elegir entre volver al examen o finalizarlo automáticamente.
+              </AlertDescription>
+            </Alert>
 
-          {/* Advertencia de una sola presentación */}
-          <Alert className="border-green-200 bg-green-50">
-            <Database className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-800">Una Sola Oportunidad</AlertTitle>
-            <AlertDescription className="text-green-700">
-              Solo puedes presentar este examen una vez. Tus respuestas se guardarán automáticamente y no podrás volver a intentarlo.
-            </AlertDescription>
-          </Alert>
+            <Alert className="border-green-200 bg-green-50">
+              <Database className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-800">Una Sola Oportunidad</AlertTitle>
+              <AlertDescription className="text-green-700">
+                Solo puedes presentar este examen una vez. Tus respuestas se guardarán automáticamente y no podrás volver a intentarlo.
+              </AlertDescription>
+            </Alert>
 
-          {/* Nueva advertencia sobre seguimiento de tiempo */}
-          <Alert className="border-blue-200 bg-blue-50">
-            <Clock className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-800">Seguimiento de Tiempo</AlertTitle>
-            <AlertDescription className="text-blue-700">
-              El sistema registrará el tiempo que dedicas a cada pregunta individualmente. Esta información se incluirá en tus resultados finales.
-            </AlertDescription>
-          </Alert>
+            <Alert className="border-blue-200 bg-blue-50">
+              <Clock className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-800">Seguimiento de Tiempo</AlertTitle>
+              <AlertDescription className="text-blue-700">
+                El sistema registrará el tiempo que dedicas a cada pregunta individualmente. Esta información se incluirá en tus resultados finales.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
 
-          {/* Advertencia general */}
-          <Alert className="border-amber-200 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-800">¡Importante!</AlertTitle>
-            <AlertDescription className="text-amber-700">
-              Una vez que inicies el examen, el cronómetro comenzará a correr. Asegúrate de tener una conexión estable a internet y un ambiente tranquilo para concentrarte.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-
-        <CardFooter className="flex justify-center pt-6">
-          <Button
-            onClick={startExam}
-            size="lg"
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            <Play className="h-5 w-5 mr-2" />
-            Iniciar Examen
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  )
+          <CardFooter className="flex justify-center pt-6">
+            <Button
+              onClick={startExam}
+              size="lg"
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <Play className="h-5 w-5 mr-2" />
+              Iniciar Examen
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
   }
-
-  // Modal de advertencia de cambio de pestaña
-  const TabChangeWarningModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 bg-orange-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="h-8 w-8 text-orange-600" />
-            </div>
-          </div>
-          <CardTitle className="text-xl text-orange-800">¡Advertencia!</CardTitle>
-          <CardDescription className="text-base">
-            Cambio de pestaña detectado
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <div className="bg-orange-50 rounded-lg p-4 mb-4">
-            <div className="text-sm text-orange-600 mb-1">Intentos restantes</div>
-            <div className="text-2xl font-bold text-orange-800">{3 - tabChangeCount}</div>
-          </div>
-          <p className="text-gray-700 mb-2">
-            Has cambiado de pestaña o perdido el foco de la ventana del examen.
-          </p>
-          <p className="text-sm text-red-600 font-medium">
-            {tabChangeCount >= 2
-              ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
-              : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
-            }
-          </p>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-3">
-          <Button
-            onClick={continueExam}
-            className="w-full bg-green-600 hover:bg-green-700"
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Continuar Examen
-          </Button>
-          <Button
-            onClick={finishExamByTabChange}
-            variant="outline"
-            className="w-full border-red-300 text-red-600 hover:bg-red-50"
-          >
-            <X className="h-4 w-4 mr-2" />
-            Finalizar Examen
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  )
-
-  // Modal de salida de pantalla completa
-  const FullscreenExitModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center">
-              <Maximize className="h-8 w-8 text-red-600" />
-            </div>
-          </div>
-          <CardTitle className="text-xl text-red-800">Salida de Pantalla Completa</CardTitle>
-          <CardDescription className="text-base">
-            Has salido del modo pantalla completa
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <p className="text-gray-700 mb-4">
-            El examen debe realizarse en pantalla completa. ¿Qué deseas hacer?
-          </p>
-          <Alert className="border-amber-200 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-700">
-              Si eliges finalizar el examen, se guardarán todas tus respuestas actuales.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-3">
-          <Button
-            onClick={returnToExam}
-            className="w-full bg-green-600 hover:bg-green-700"
-          >
-            <Maximize className="h-4 w-4 mr-2" />
-            Volver a Pantalla Completa
-          </Button>
-          <Button
-            onClick={handleExitFullscreen}
-            variant="outline"
-            className="w-full border-red-300 text-red-600 hover:bg-red-50"
-          >
-            <X className="h-4 w-4 mr-2" />
-            Finalizar Examen
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  )
 
   // Efecto para manejar el temporizador
   useEffect(() => {
@@ -972,6 +794,27 @@ const ExamWithFirebase = () => {
     return () => clearInterval(interval)
   }, [examState, timeLeft, examLocked])
 
+  // Función para manejar el envío del examen
+  const handleSubmit = async (timeExpired = false, lockedByTabChange = false) => {
+    if (examLocked || examState !== 'active') return
+
+    setExamLocked(true)
+    setShowWarning(false)
+    setShowTabChangeWarning(false)
+
+    try {
+      await saveToFirebase(timeExpired, lockedByTabChange)
+      setExamState('completed')
+
+      // Salir de pantalla completa después de completar
+      if (isFullscreen) {
+        await exitFullscreen()
+      }
+    } catch (error) {
+      console.error('Error guardando examen:', error)
+    }
+  }
+
   // Función para manejar el cambio de respuesta
   const handleAnswerChange = (questionId: string, answer: string) => {
     setAnswers(prev => ({
@@ -986,7 +829,6 @@ const ExamWithFirebase = () => {
       changeQuestion(currentQuestion + 1)
     }
   }
-
 
   // Función para mostrar advertencia de envío
   const showSubmitWarning = () => {
@@ -1066,76 +908,6 @@ const ExamWithFirebase = () => {
                 Progreso: {score.overallPercentage}% del total
               </div>
             </div>
-
-            {/* Tiempo por pregunta */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-500" />
-                Tiempo por Pregunta
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {quizData?.questions.map((question, index) => {
-                  const questionId = question.id || question.code;
-                  const timeData = questionTimeData[questionId]
-                  const correctOption = question.options.find(opt => opt.isCorrect);
-                  const isCorrect = answers[questionId] === correctOption?.id
-                  const isAnswered = !!answers[questionId]
-
-                  return (
-                    <div key={questionId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isCorrect ? 'bg-green-100 text-green-600' :
-                          isAnswered ? 'bg-red-100 text-red-600' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">
-                            Pregunta {index + 1}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {isCorrect ? '✓ Correcta' : isAnswered ? '✗ Incorrecta' : '— Sin responder'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {formatTime(timeData?.timeSpent || 0)}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Estadísticas adicionales */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Estadísticas del Examen
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Tiempo total usado</div>
-                  <div className="text-lg font-medium text-gray-900">
-                    {formatTime(Math.floor((Date.now() - examStartTime) / 1000))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Tiempo promedio por pregunta</div>
-                  <div className="text-lg font-medium text-gray-900">
-                    {formatTime(Math.floor(Object.values(questionTimeData).reduce((acc, q) => acc + (q.timeSpent || 0), 0) / (quizData?.questions.length || 1)))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Estado del examen</div>
-                  <div className="text-lg font-medium text-green-600">
-                    Completado
-                  </div>
-                </div>
-              </div>
-            </div>
           </CardContent>
 
           <CardFooter className="flex justify-center pt-6">
@@ -1169,11 +941,11 @@ const ExamWithFirebase = () => {
           <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
             <div className="flex items-center gap-4">
               <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden">
-                <BookOpen className="w-16 h-16 text-purple-500" />
+                <FlaskConical className="w-16 h-16 text-blue-500" />
               </div>
               <div>
                 <h3 className="text-sm text-gray-500 font-medium">Estás realizando:</h3>
-                <h2 className="text-lg font-bold">{examConfig.module || examConfig.title}</h2>
+                <h2 className="text-lg font-bold">{quizData.title}</h2>
                 <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
                   <Clock className="h-4 w-4" />
                   <span>{quizData.timeLimit} minutos</span>
@@ -1507,43 +1279,22 @@ const ExamWithFirebase = () => {
     )
   }
 
-  // Debug: Log del estado actual
-  console.log('=== RENDERIZADO ===');
-  console.log('Estado actual del examen:', examState);
-  console.log('UserId:', userId);
-  console.log('QuizData:', quizData);
-  console.log('Estados disponibles:', ['loading', 'no_questions', 'welcome', 'active', 'completed', 'already_taken']);
-  console.log('Estado válido:', ['loading', 'no_questions', 'welcome', 'active', 'completed', 'already_taken'].includes(examState));
-
   // Renderizado principal
   return (
     <div className="min-h-screen bg-gray-50">
       {examState === 'loading' && <LoadingScreen />}
+      {examState === 'error' && <ErrorScreen />}
       {examState === 'no_questions' && <NoQuestionsScreen />}
       {examState === 'welcome' && <WelcomeScreen />}
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}
       {examState === 'already_taken' && <AlreadyTakenScreen />}
 
-      {/* Debug: Mostrar estado si no hay pantalla activa */}
-      {!['loading', 'no_questions', 'welcome', 'active', 'completed', 'already_taken'].includes(examState) && (
-        <div className="max-w-2xl mx-auto p-8">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <strong>Estado desconocido:</strong> {examState}
-            <br />
-            <strong>UserId:</strong> {userId || 'No disponible'}
-            <br />
-            <strong>QuizData:</strong> {quizData ? 'Disponible' : 'No disponible'}
-          </div>
-        </div>
-      )}
-
       {/* Modales */}
       {showWarning && <SubmitWarningModal />}
-      {showTabChangeWarning && <TabChangeWarningModal />}
-      {showFullscreenExit && <FullscreenExitModal />}
     </div>
   )
 }
 
-export default ExamWithFirebase
+export default ExamWithFirebase;
+

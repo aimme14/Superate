@@ -244,6 +244,31 @@ class QuizGeneratorService {
       const expectedCount = config.questionCount || 15;
       if (questions.length < expectedCount) {
         console.warn(`⚠️ Solo se encontraron ${questions.length} preguntas de ${expectedCount} solicitadas`);
+        console.warn(`📊 Filtros aplicados:`, filters);
+        console.warn(`📊 Configuración:`, config);
+      }
+
+      // Si no hay preguntas suficientes, intentar con filtros más flexibles
+      if (questions.length === 0) {
+        console.log(`🔄 No se encontraron preguntas con filtros estrictos, intentando con filtros flexibles...`);
+        
+        // Intentar sin filtro de grado
+        const flexibleFilters: QuestionFilters = {
+          subject: subject,
+          level: config.level,
+          limit: (config.questionCount || 15) * 2
+        };
+        
+        const flexibleResult = await questionService.getRandomQuestions(flexibleFilters, config.questionCount || 15);
+        if (flexibleResult.success && flexibleResult.data.length > 0) {
+          console.log(`✅ Se encontraron ${flexibleResult.data.length} preguntas con filtros flexibles`);
+          questions.push(...flexibleResult.data);
+        } else {
+          console.error(`❌ No se encontraron preguntas ni siquiera con filtros flexibles`);
+          return failure(new ErrorAPI({ 
+            message: `No hay suficientes preguntas de ${subject} disponibles en el banco de datos para la fase ${phase}` 
+          }));
+        }
       }
 
       // Generar ID único para el cuestionario

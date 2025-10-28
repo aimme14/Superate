@@ -370,24 +370,36 @@ class QuestionService {
     try {
       console.log('🎲 Obteniendo preguntas aleatorias:', { filters, count });
 
-      // Obtener todas las preguntas que cumplen los filtros
-      const allQuestionsResult = await this.getFilteredQuestions({
-        ...filters,
-        limit: undefined, // No limitar inicialmente
+      // Crear un timeout de 30 segundos
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: La consulta tardó demasiado tiempo')), 30000);
       });
 
+      // Obtener todas las preguntas que cumplen los filtros con timeout
+      const allQuestionsResult = await Promise.race([
+        this.getFilteredQuestions({
+          ...filters,
+          limit: undefined, // No limitar inicialmente
+        }),
+        timeoutPromise
+      ]);
+
       if (!allQuestionsResult.success) {
+        console.error('❌ Error en getFilteredQuestions:', allQuestionsResult.error);
         return failure(allQuestionsResult.error);
       }
 
       const allQuestions = allQuestionsResult.data;
+      console.log(`📊 Preguntas encontradas: ${allQuestions.length} de ${count} solicitadas`);
 
       if (allQuestions.length === 0) {
+        console.warn('⚠️ No se encontraron preguntas con los filtros especificados');
         return success([]);
       }
 
       // Si hay menos preguntas de las solicitadas, devolver todas
       if (allQuestions.length <= count) {
+        console.log(`📝 Devolviendo todas las ${allQuestions.length} preguntas encontradas`);
         return success(this.shuffleArray(allQuestions));
       }
 
@@ -399,6 +411,11 @@ class QuestionService {
       return success(randomQuestions);
     } catch (e) {
       console.error('❌ Error al obtener preguntas aleatorias:', e);
+      if (e instanceof Error && e.message.includes('Timeout')) {
+        return failure(new ErrorAPI({ 
+          message: 'La consulta tardó demasiado tiempo. Verifica tu conexión a internet.' 
+        }));
+      }
       return failure(new ErrorAPI(normalizeError(e, 'obtener preguntas aleatorias')));
     }
   }

@@ -1,8 +1,11 @@
 import ExamFormLecture from "@/sections/quizLectura/fromExamLengua"
-import ExamFormSociales from "@/sections/quizSociales/fromExamSociales"
+import ExamFormSociales from "@/sections/quizSociales/fromExamSocialesNew"
 import ExamFormNaturales from "@/sections/quizNaturales/fromExamNaturales"
 import ExamFormIngles from "@/sections/quizIngles/fromExamIngles"
-import ExamFormMath from "@/sections/quiz/FormExam"
+import ExamFormMath from "@/sections/quizMatematicas/fromExamMatematicas"
+import ExamFormBiologia from "@/sections/quizBiologia/fromExamBiologia"
+import ExamFormFisica from "@/sections/quizFisica/fromExamFisica"
+import ExamFormQuimica from "@/sections/quizQuimica/fromExamQuimica"
 import DynamicQuizForm from "@/components/quiz/DynamicQuizForm"
 import { useParams, useSearchParams } from "react-router-dom"
 import Header from "@/sections/quiz/Header"
@@ -32,6 +35,12 @@ const Quiz = () => {
             <ExamFormNaturales />
           ) : subject === 'Inglés' ? (
             <ExamFormIngles />
+          ) : subject === 'Biologia' ? (
+            <ExamFormBiologia />
+          ) : subject === 'Física' ? (
+            <ExamFormFisica />
+          ) : subject === 'Quimica' ? (
+            <ExamFormQuimica />
           ) : (
             <DynamicQuizForm 
               subject={subject} 
