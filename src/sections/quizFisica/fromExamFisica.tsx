@@ -85,7 +85,6 @@ const ExamWithFirebase = () => {
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
-  const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
