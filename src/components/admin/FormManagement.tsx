@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
+import RichTextEditor from '@/components/common/RichTextEditor'
 
 interface Question {
   id: string
@@ -511,12 +512,10 @@ export default function FormManagement({ theme }: FormManagementProps) {
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="questionText">Texto de la pregunta</Label>
-              <Textarea
-                id="questionText"
+              <RichTextEditor
                 value={newQuestion.text}
-                onChange={(e) => setNewQuestion(prev => ({ ...prev, text: e.target.value }))}
+                onChange={(html) => setNewQuestion(prev => ({ ...prev, text: html }))}
                 placeholder="Escribe la pregunta aquí..."
-                rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+// import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -36,7 +36,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
-import { useAutoResizeTextarea } from '@/hooks/ui/useAutoResizeTextarea'
+// import { useAutoResizeTextarea } from '@/hooks/ui/useAutoResizeTextarea'
+import RichTextEditor from '@/components/common/RichTextEditor'
 import { questionService, Question, QuestionOption } from '@/services/firebase/question.service'
 import ImageGallery from '@/components/common/ImageGallery'
 import { 
@@ -111,11 +112,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     D: null,
   })
 
-  // Hooks para autoajuste de textareas
-  const informativeTextRef = useAutoResizeTextarea(formData.informativeText, 3, 10)
-  const questionTextRef = useAutoResizeTextarea(formData.questionText, 3, 15)
-  const editInformativeTextRef = useAutoResizeTextarea(formData.informativeText, 3, 10)
-  const editQuestionTextRef = useAutoResizeTextarea(formData.questionText, 3, 15)
+  // Textareas reemplazados por editor enriquecido
 
   const [optionImagePreviews, setOptionImagePreviews] = useState<{ [key: string]: string | null }>({
     A: null,
@@ -2096,13 +2093,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Texto informativo (opcional) */}
             <div className="space-y-2">
               <Label htmlFor="informativeText">Texto Informativo (opcional)</Label>
-              <Textarea
-                ref={informativeTextRef}
-                id="informativeText"
+              <RichTextEditor
                 value={formData.informativeText}
-                onChange={(e) => setFormData({...formData, informativeText: e.target.value})}
+                onChange={(html) => setFormData({ ...formData, informativeText: html })}
                 placeholder="Información adicional o contexto para la pregunta..."
-                className="resize-none overflow-hidden"
               />
             </div>
 
@@ -2151,14 +2145,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Pregunta */}
             <div className="space-y-2">
               <Label htmlFor="questionText">Texto de la Pregunta *</Label>
-              <Textarea
-                ref={questionTextRef}
-                id="questionText"
+              <RichTextEditor
                 value={formData.questionText}
-                onChange={(e) => setFormData({...formData, questionText: e.target.value})}
+                onChange={(html) => setFormData({ ...formData, questionText: html })}
                 placeholder="Escribe la pregunta aquí..."
-                className="resize-none overflow-hidden"
-                required
               />
             </div>
 
@@ -2403,13 +2393,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Texto informativo */}
             <div className="space-y-2">
               <Label htmlFor="edit-informativeText">Texto Informativo (opcional)</Label>
-              <Textarea
-                ref={editInformativeTextRef}
-                id="edit-informativeText"
+              <RichTextEditor
                 value={formData.informativeText}
-                onChange={(e) => setFormData({...formData, informativeText: e.target.value})}
+                onChange={(html) => setFormData({ ...formData, informativeText: html })}
                 placeholder="Información adicional o contexto para la pregunta..."
-                className="resize-none overflow-hidden"
               />
             </div>
 
@@ -2490,14 +2477,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Pregunta */}
             <div className="space-y-2">
               <Label htmlFor="edit-questionText">Texto de la Pregunta *</Label>
-              <Textarea
-                ref={editQuestionTextRef}
-                id="edit-questionText"
+              <RichTextEditor
                 value={formData.questionText}
-                onChange={(e) => setFormData({...formData, questionText: e.target.value})}
+                onChange={(html) => setFormData({ ...formData, questionText: html })}
                 placeholder="Escribe la pregunta aquí..."
-                className="resize-none overflow-hidden"
-                required
               />
             </div>
 

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { useState, useEffect } from "react"
+import DOMPurify from "dompurify"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -61,6 +62,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const navigate = useNavigate()
   const { user } = useAuthContext();
   const userId = user?.uid;
+
+  const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
 
   // Estados principales
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
@@ -913,7 +916,10 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
                 {/* Texto informativo */}
                 {currentQ.informativeText && (
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{currentQ.informativeText}</p>
+                    <div
+                      className="text-gray-700 leading-relaxed prose max-w-none"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.informativeText) }}
+                    />
                   </div>
                 )}
 
@@ -933,7 +939,10 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
                 {/* Texto de la pregunta */}
                 {currentQ.questionText && (
-                  <p className="text-gray-900 leading-relaxed text-lg font-medium whitespace-pre-wrap">{currentQ.questionText}</p>
+                  <div
+                    className="text-gray-900 leading-relaxed text-lg font-medium prose max-w-none"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.questionText) }}
+                  />
                 )}
               </div>
               
