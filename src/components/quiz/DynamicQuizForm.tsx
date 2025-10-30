@@ -913,7 +913,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
                 {/* Texto informativo */}
                 {currentQ.informativeText && (
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-gray-700 leading-relaxed">{currentQ.informativeText}</p>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{currentQ.informativeText}</p>
                   </div>
                 )}
 
@@ -933,7 +933,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
                 {/* Texto de la pregunta */}
                 {currentQ.questionText && (
-                  <p className="text-gray-900 leading-relaxed text-lg font-medium">{currentQ.questionText}</p>
+                  <p className="text-gray-900 leading-relaxed text-lg font-medium whitespace-pre-wrap">{currentQ.questionText}</p>
                 )}
               </div>
               

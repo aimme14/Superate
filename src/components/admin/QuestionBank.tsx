@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
+import { useAutoResizeTextarea } from '@/hooks/ui/useAutoResizeTextarea'
 import { questionService, Question, QuestionOption } from '@/services/firebase/question.service'
 import ImageGallery from '@/components/common/ImageGallery'
 import { 
@@ -92,6 +93,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [questionImages, setQuestionImages] = useState<File[]>([])
   const [questionImagePreviews, setQuestionImagePreviews] = useState<string[]>([])
   
+  // Estados para edición de imágenes
+  const [editInformativeImages, setEditInformativeImages] = useState<File[]>([])
+  const [editQuestionImages, setEditQuestionImages] = useState<File[]>([])
+  
   const [options, setOptions] = useState<QuestionOption[]>([
     { id: 'A', text: '', imageUrl: null, isCorrect: false },
     { id: 'B', text: '', imageUrl: null, isCorrect: false },
@@ -105,6 +110,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     C: null,
     D: null,
   })
+
+  // Hooks para autoajuste de textareas
+  const informativeTextRef = useAutoResizeTextarea(formData.informativeText, 3, 10)
+  const questionTextRef = useAutoResizeTextarea(formData.questionText, 3, 15)
+  const editInformativeTextRef = useAutoResizeTextarea(formData.informativeText, 3, 10)
+  const editQuestionTextRef = useAutoResizeTextarea(formData.questionText, 3, 15)
 
   const [optionImagePreviews, setOptionImagePreviews] = useState<{ [key: string]: string | null }>({
     A: null,
@@ -291,6 +302,62 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setQuestionImagePreviews(questionImagePreviews.filter((_, i) => i !== index))
   }
 
+  // Funciones para edición de imágenes informativas
+  const handleEditInformativeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length + editInformativeImages.length > 5) {
+      notifyError({ 
+        title: 'Error', 
+        message: 'Máximo 5 imágenes informativas' 
+      })
+      return
+    }
+
+    setEditInformativeImages([...editInformativeImages, ...files])
+    
+    // Crear previsualizaciones
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setInformativeImagePreviews(prev => [...prev, reader.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const removeEditInformativeImage = (index: number) => {
+    setEditInformativeImages(editInformativeImages.filter((_, i) => i !== index))
+    setInformativeImagePreviews(informativeImagePreviews.filter((_, i) => i !== index))
+  }
+
+  // Funciones para edición de imágenes de pregunta
+  const handleEditQuestionImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length + editQuestionImages.length > 3) {
+      notifyError({ 
+        title: 'Error', 
+        message: 'Máximo 3 imágenes por pregunta' 
+      })
+      return
+    }
+
+    setEditQuestionImages([...editQuestionImages, ...files])
+    
+    // Crear previsualizaciones
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setQuestionImagePreviews(prev => [...prev, reader.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const removeEditQuestionImage = (index: number) => {
+    setEditQuestionImages(editQuestionImages.filter((_, i) => i !== index))
+    setQuestionImagePreviews(questionImagePreviews.filter((_, i) => i !== index))
+  }
+
   const handleOptionImageUpload = (optionId: string, file: File) => {
     setOptionFiles({ ...optionFiles, [optionId]: file })
     
@@ -342,6 +409,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setInformativeImagePreviews([])
     setQuestionImages([])
     setQuestionImagePreviews([])
+    setEditInformativeImages([])
+    setEditQuestionImages([])
     setOptions([
       { id: 'A', text: '', imageUrl: null, isCorrect: false },
       { id: 'B', text: '', imageUrl: null, isCorrect: false },
@@ -769,7 +838,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     })
     // Cargar opciones
     setOptions(question.options)
-    // Cargar imágenes (no se pueden editar, solo se muestran)
+    // Cargar imágenes existentes para mostrar
     setInformativeImagePreviews(question.informativeImages || [])
     setQuestionImagePreviews(question.questionImages || [])
     setOptionImagePreviews({
@@ -778,6 +847,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       C: question.options.find(o => o.id === 'C')?.imageUrl || null,
       D: question.options.find(o => o.id === 'D')?.imageUrl || null,
     })
+    // Limpiar estados de edición de imágenes
+    setEditInformativeImages([])
+    setEditQuestionImages([])
     setIsEditDialogOpen(true)
   }
 
@@ -883,6 +955,115 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         message: 'Guardando cambios...'
       })
 
+      // Procesar nuevas imágenes informativas si las hay
+      let newInformativeImageUrls: string[] = []
+      if (editInformativeImages.length > 0) {
+        notifySuccess({ 
+          title: 'Procesando', 
+          message: `Convirtiendo ${editInformativeImages.length} imagen(es) informativa(s) nueva(s)...` 
+        })
+        
+        const imagePromises = editInformativeImages.map(async (file, index) => {
+          try {
+            const storagePromise = questionService.uploadImage(
+              file, 
+              `questions/informative/${Date.now()}_${index}_${file.name}`
+            )
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 10000)
+            )
+            
+            const result = await Promise.race([storagePromise, timeoutPromise]) as any
+            
+            if (result.success) {
+              return result.data
+            } else {
+              throw new Error('Storage failed')
+            }
+          } catch (error) {
+            console.log('⚠️ Fallback a Base64 para imagen informativa')
+            return await fileToBase64(file)
+          }
+        })
+        
+        newInformativeImageUrls = await Promise.all(imagePromises)
+      }
+
+      // Procesar nuevas imágenes de pregunta si las hay
+      let newQuestionImageUrls: string[] = []
+      if (editQuestionImages.length > 0) {
+        notifySuccess({ 
+          title: 'Procesando', 
+          message: `Convirtiendo ${editQuestionImages.length} imagen(es) de pregunta nueva(s)...` 
+        })
+        
+        const imagePromises = editQuestionImages.map(async (file, index) => {
+          try {
+            const storagePromise = questionService.uploadImage(
+              file, 
+              `questions/question/${Date.now()}_${index}_${file.name}`
+            )
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 10000)
+            )
+            
+            const result = await Promise.race([storagePromise, timeoutPromise]) as any
+            
+            if (result.success) {
+              return result.data
+            } else {
+              throw new Error('Storage failed')
+            }
+          } catch (error) {
+            console.log('⚠️ Fallback a Base64 para imagen de pregunta')
+            return await fileToBase64(file)
+          }
+        })
+        
+        newQuestionImageUrls = await Promise.all(imagePromises)
+      }
+
+      // Procesar nuevas imágenes de opciones
+      const finalOptions: QuestionOption[] = []
+      const optionPromises = options.map(async (option) => {
+        let imageUrl = option.imageUrl // Mantener imagen existente por defecto
+        
+        if (optionFiles[option.id]) {
+          try {
+            const storagePromise = questionService.uploadImage(
+              optionFiles[option.id]!, 
+              `questions/options/${Date.now()}_${option.id}_${optionFiles[option.id]!.name}`
+            )
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 10000)
+            )
+            
+            const result = await Promise.race([storagePromise, timeoutPromise]) as any
+            
+            if (result.success) {
+              imageUrl = result.data
+            } else {
+              throw new Error('Storage failed')
+            }
+          } catch (error) {
+            console.log('⚠️ Fallback a Base64 para imagen de opción')
+            imageUrl = await fileToBase64(optionFiles[option.id]!)
+          }
+        }
+        
+        return {
+          ...option,
+          imageUrl,
+        }
+      })
+      
+      const optionResults = await Promise.allSettled(optionPromises)
+      optionResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          finalOptions.push(result.value)
+        }
+      })
+
       // Preparar datos de actualización
       const updates: any = {
         subject: formData.subject,
@@ -894,11 +1075,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         levelCode: formData.levelCode,
         informativeText: formData.informativeText || '',
         questionText: formData.questionText,
-        options: options.map(opt => ({
-          ...opt,
-          // Mantener la imagen existente si no hay nueva
-          imageUrl: opt.imageUrl || null
-        }))
+        options: finalOptions
+      }
+
+      // Agregar nuevas imágenes si las hay
+      if (newInformativeImageUrls.length > 0) {
+        updates.informativeImages = [...(selectedQuestion.informativeImages || []), ...newInformativeImageUrls]
+      }
+      if (newQuestionImageUrls.length > 0) {
+        updates.questionImages = [...(selectedQuestion.questionImages || []), ...newQuestionImageUrls]
       }
 
       // Actualizar la pregunta
@@ -1912,11 +2097,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             <div className="space-y-2">
               <Label htmlFor="informativeText">Texto Informativo (opcional)</Label>
               <Textarea
+                ref={informativeTextRef}
                 id="informativeText"
                 value={formData.informativeText}
                 onChange={(e) => setFormData({...formData, informativeText: e.target.value})}
                 placeholder="Información adicional o contexto para la pregunta..."
-                rows={3}
+                className="resize-none overflow-hidden"
               />
             </div>
 
@@ -1966,11 +2152,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             <div className="space-y-2">
               <Label htmlFor="questionText">Texto de la Pregunta *</Label>
               <Textarea
+                ref={questionTextRef}
                 id="questionText"
                 value={formData.questionText}
                 onChange={(e) => setFormData({...formData, questionText: e.target.value})}
                 placeholder="Escribe la pregunta aquí..."
-                rows={4}
+                className="resize-none overflow-hidden"
                 required
               />
             </div>
@@ -2217,25 +2404,175 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             <div className="space-y-2">
               <Label htmlFor="edit-informativeText">Texto Informativo (opcional)</Label>
               <Textarea
+                ref={editInformativeTextRef}
                 id="edit-informativeText"
                 value={formData.informativeText}
                 onChange={(e) => setFormData({...formData, informativeText: e.target.value})}
                 placeholder="Información adicional o contexto para la pregunta..."
-                rows={3}
+                className="resize-none overflow-hidden"
               />
+            </div>
+
+            {/* Imágenes informativas - Edición */}
+            <div className="space-y-2">
+              <Label>Imágenes Informativas (opcional)</Label>
+              <p className="text-sm text-gray-500">
+                Agregar nuevas imágenes informativas. Máximo 5 imágenes.
+              </p>
+              
+              {/* Mostrar imágenes existentes */}
+              {informativeImagePreviews.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {informativeImagePreviews.map((preview, index) => (
+                      <div key={index} className="relative w-full h-32">
+                        <img 
+                          src={preview} 
+                          alt={`Imagen informativa ${index + 1}`} 
+                          className="w-full h-full object-cover rounded border" 
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Input para nuevas imágenes */}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleEditInformativeImageUpload}
+                  className="hidden"
+                  id="edit-informative-images"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById('edit-informative-images')?.click()}
+                  disabled={editInformativeImages.length >= 5}
+                >
+                  <ImageIcon className="h-4 w-4 mr-2" />
+                  Agregar Imágenes ({editInformativeImages.length}/5)
+                </Button>
+              </div>
+
+              {/* Mostrar nuevas imágenes seleccionadas */}
+              {editInformativeImages.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {editInformativeImages.map((file, index) => (
+                      <div key={index} className="relative w-full h-32">
+                        <img 
+                          src={URL.createObjectURL(file)} 
+                          alt={`Nueva imagen ${index + 1}`} 
+                          className="w-full h-full object-cover rounded border" 
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-1 right-1 h-6 w-6 p-0"
+                          onClick={() => removeEditInformativeImage(index)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Pregunta */}
             <div className="space-y-2">
               <Label htmlFor="edit-questionText">Texto de la Pregunta *</Label>
               <Textarea
+                ref={editQuestionTextRef}
                 id="edit-questionText"
                 value={formData.questionText}
                 onChange={(e) => setFormData({...formData, questionText: e.target.value})}
                 placeholder="Escribe la pregunta aquí..."
-                rows={4}
+                className="resize-none overflow-hidden"
                 required
               />
+            </div>
+
+            {/* Imágenes de pregunta - Edición */}
+            <div className="space-y-2">
+              <Label>Imágenes de Pregunta (opcional)</Label>
+              <p className="text-sm text-gray-500">
+                Agregar nuevas imágenes para la pregunta. Máximo 3 imágenes.
+              </p>
+              
+              {/* Mostrar imágenes existentes */}
+              {questionImagePreviews.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {questionImagePreviews.map((preview, index) => (
+                      <div key={index} className="relative w-full h-32">
+                        <img 
+                          src={preview} 
+                          alt={`Imagen de pregunta ${index + 1}`} 
+                          className="w-full h-full object-cover rounded border" 
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Input para nuevas imágenes */}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleEditQuestionImageUpload}
+                  className="hidden"
+                  id="edit-question-images"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById('edit-question-images')?.click()}
+                  disabled={editQuestionImages.length >= 3}
+                >
+                  <ImageIcon className="h-4 w-4 mr-2" />
+                  Agregar Imágenes ({editQuestionImages.length}/3)
+                </Button>
+              </div>
+
+              {/* Mostrar nuevas imágenes seleccionadas */}
+              {editQuestionImages.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {editQuestionImages.map((file, index) => (
+                      <div key={index} className="relative w-full h-32">
+                        <img 
+                          src={URL.createObjectURL(file)} 
+                          alt={`Nueva imagen ${index + 1}`} 
+                          className="w-full h-full object-cover rounded border" 
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-1 right-1 h-6 w-6 p-0"
+                          onClick={() => removeEditQuestionImage(index)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Opciones de respuesta */}
@@ -2425,7 +2762,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                          {/* Texto informativo */}
                          {selectedQuestion.informativeText && (
                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                             <p className="text-gray-700 leading-relaxed">{selectedQuestion.informativeText}</p>
+                             <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedQuestion.informativeText}</p>
                            </div>
                          )}
 
@@ -2445,7 +2782,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
                          {/* Texto de la pregunta */}
                          {selectedQuestion.questionText && (
-                           <p className="text-gray-900 leading-relaxed text-lg font-medium">{selectedQuestion.questionText}</p>
+                           <p className="text-gray-900 leading-relaxed text-lg font-medium whitespace-pre-wrap">{selectedQuestion.questionText}</p>
                          )}
                        </div>
                        
