@@ -82,7 +82,7 @@ export const SUBJECTS_CONFIG: Subject[] = [
     topics: [
       { name: 'Las celulas', code: 'LC' },
       { name: 'Los organismos', code: 'LO' },
-      { name: 'Los organismos', code: 'BO' },
+      { name: 'Los ecosistemas', code: 'LE' },
     ],
   },
   {
