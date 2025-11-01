@@ -4,12 +4,14 @@ import {
   doc, 
   setDoc, 
   getDoc, 
+  getDocFromServer,
   getDocs, 
   query, 
   where, 
   limit,
   runTransaction,
-  Timestamp
+  Timestamp,
+  deleteDoc
 } from 'firebase/firestore';
 import { 
   getStorage, 
@@ -131,13 +133,51 @@ class QuestionService {
    */
   async deleteImage(imageUrl: string): Promise<Result<void>> {
     try {
-      const imageRef = ref(storage, imageUrl);
+      // Si la imagen es una data URI (base64), no está en Storage, no hay nada que eliminar
+      if (imageUrl.startsWith('data:')) {
+        console.log('ℹ️ La imagen es una data URI (base64), no se elimina de Storage');
+        return success(undefined);
+      }
+
+      // Si es una URL de Firebase Storage, extraer la ruta del archivo
+      let imagePath: string;
+      
+      // Verificar si es una URL completa de Firebase Storage
+      // Formato: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{path}?alt=media&token={token}
+      if (imageUrl.includes('firebasestorage.googleapis.com')) {
+        try {
+          const url = new URL(imageUrl);
+          // Extraer la ruta desde el parámetro 'o' (el path está URL-encoded)
+          const pathMatch = url.pathname.match(/\/o\/(.+)$/);
+          if (pathMatch && pathMatch[1]) {
+            // Decodificar el path
+            imagePath = decodeURIComponent(pathMatch[1]);
+          } else {
+            console.warn('⚠️ No se pudo extraer la ruta de la URL de Storage:', imageUrl);
+            return success(undefined); // No fallar, simplemente ignorar
+          }
+        } catch (urlError) {
+          console.warn('⚠️ Error al parsear URL de Storage:', imageUrl, urlError);
+          return success(undefined); // No fallar, simplemente ignorar
+        }
+      } else {
+        // Asumir que es una ruta directa
+        imagePath = imageUrl;
+      }
+
+      const imageRef = ref(storage, imagePath);
       await deleteObject(imageRef);
-      console.log('✅ Imagen eliminada exitosamente');
+      console.log('✅ Imagen eliminada exitosamente de Storage:', imagePath);
       return success(undefined);
-    } catch (e) {
+    } catch (e: any) {
+      // Si el error es que el archivo no existe, no es crítico
+      if (e?.code === 'storage/object-not-found') {
+        console.log('ℹ️ La imagen no existe en Storage (puede haber sido eliminada previamente)');
+        return success(undefined);
+      }
       console.error('❌ Error al eliminar imagen:', e);
-      return failure(new ErrorAPI(normalizeError(e, 'eliminar imagen')));
+      // No fallar la eliminación completa si falla la eliminación de una imagen
+      return success(undefined);
     }
   }
 
@@ -483,40 +523,172 @@ class QuestionService {
    */
   async deleteQuestion(questionId: string): Promise<Result<void>> {
     try {
-      // Obtener la pregunta para eliminar sus imágenes
-      const questionResult = await this.getQuestionById(questionId);
-      if (questionResult.success) {
-        const question = questionResult.data;
-        
-        // Eliminar imágenes informativas
-        if (question.informativeImages) {
-          for (const imageUrl of question.informativeImages) {
-            await this.deleteImage(imageUrl);
-          }
-        }
+      // Validar que el ID existe
+      if (!questionId || questionId.trim() === '') {
+        console.error('❌ Error: questionId es inválido o vacío');
+        return failure(new ErrorAPI({ 
+          message: 'ID de pregunta inválido', 
+          statusCode: 400 
+        }));
+      }
 
-        // Eliminar imágenes de la pregunta
-        if (question.questionImages) {
-          for (const imageUrl of question.questionImages) {
-            await this.deleteImage(imageUrl);
-          }
-        }
+      console.log('🗑️ Iniciando eliminación de pregunta:', questionId);
 
-        // Eliminar imágenes de las opciones
-        for (const option of question.options) {
-          if (option.imageUrl) {
-            await this.deleteImage(option.imageUrl);
+      // Crear referencia al documento
+      const questionRef = doc(db, 'superate', 'auth', 'questions', questionId);
+      
+      // Verificar que el documento existe antes de intentar eliminarlo
+      const questionSnap = await getDoc(questionRef);
+      if (!questionSnap.exists()) {
+        console.warn('⚠️ El documento no existe en Firestore:', questionId);
+        return failure(new ErrorAPI({ 
+          message: 'Pregunta no encontrada en la base de datos', 
+          statusCode: 404 
+        }));
+      }
+
+      const questionData = questionSnap.data();
+      console.log('📋 Datos de la pregunta a eliminar:', { id: questionSnap.id, code: questionData.code });
+
+      // Eliminar imágenes informativas
+      if (questionData.informativeImages && Array.isArray(questionData.informativeImages) && questionData.informativeImages.length > 0) {
+        console.log('🖼️ Eliminando imágenes informativas:', questionData.informativeImages.length);
+        for (const imageUrl of questionData.informativeImages) {
+          try {
+            await this.deleteImage(imageUrl);
+          } catch (imageError) {
+            console.warn('⚠️ Error al eliminar imagen informativa:', imageUrl, imageError);
+            // Continuar aunque falle la eliminación de una imagen
           }
         }
       }
 
-      // Eliminar el documento (nota: no podemos eliminar con el SDK del cliente)
-      // Para eliminar completamente, necesitarías Firebase Admin SDK
-      console.warn('⚠️ La eliminación completa requiere Firebase Admin SDK');
+      // Eliminar imágenes de la pregunta
+      if (questionData.questionImages && Array.isArray(questionData.questionImages) && questionData.questionImages.length > 0) {
+        console.log('🖼️ Eliminando imágenes de pregunta:', questionData.questionImages.length);
+        for (const imageUrl of questionData.questionImages) {
+          try {
+            await this.deleteImage(imageUrl);
+          } catch (imageError) {
+            console.warn('⚠️ Error al eliminar imagen de pregunta:', imageUrl, imageError);
+            // Continuar aunque falle la eliminación de una imagen
+          }
+        }
+      }
+
+      // Eliminar imágenes de las opciones
+      if (questionData.options && Array.isArray(questionData.options) && questionData.options.length > 0) {
+        console.log('🖼️ Eliminando imágenes de opciones');
+        for (const option of questionData.options) {
+          if (option && option.imageUrl) {
+            try {
+              await this.deleteImage(option.imageUrl);
+            } catch (imageError) {
+              console.warn('⚠️ Error al eliminar imagen de opción:', option.imageUrl, imageError);
+              // Continuar aunque falle la eliminación de una imagen
+            }
+          }
+        }
+      }
+
+      // Eliminar el documento de Firestore
+      console.log('🗑️ Eliminando documento de Firestore...');
+      console.log('📍 Ruta del documento:', questionRef.path);
+      
+      try {
+        await deleteDoc(questionRef);
+        console.log('✅ deleteDoc ejecutado sin errores');
+      } catch (deleteError: any) {
+        console.error('❌ Error al ejecutar deleteDoc:', deleteError);
+        console.error('❌ Código del error:', deleteError.code);
+        console.error('❌ Mensaje del error:', deleteError.message);
+        
+        // Si es un error de permisos, dar un mensaje más claro
+        if (deleteError.code === 'permission-denied') {
+          return failure(new ErrorAPI({ 
+            message: 'No tienes permisos para eliminar esta pregunta. Verifica que eres administrador.', 
+            statusCode: 403 
+          }));
+        }
+        
+        // Re-lanzar el error para que se capture en el catch general
+        throw deleteError;
+      }
+      
+      // Esperar un momento para que Firestore procese la eliminación
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Verificar que se eliminó correctamente (forzar lectura desde el servidor, no caché)
+      console.log('🔍 Verificando que el documento se eliminó (desde servidor)...');
+      try {
+        const verifySnap = await getDocFromServer(questionRef);
+        
+        if (verifySnap.exists()) {
+          console.error('❌ Error: El documento todavía existe después de deleteDoc');
+          console.error('❌ Datos del documento:', verifySnap.data());
+          console.error('❌ ID del documento:', verifySnap.id);
+          console.error('❌ Ruta completa:', verifySnap.ref.path);
+          
+          // Intentar eliminar nuevamente como último recurso
+          console.log('🔄 Intentando eliminar nuevamente...');
+          try {
+            await deleteDoc(questionRef);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const retryVerifySnap = await getDocFromServer(questionRef);
+            if (retryVerifySnap.exists()) {
+              return failure(new ErrorAPI({ 
+                message: 'Error: No se pudo eliminar el documento de la base de datos después de múltiples intentos. Puede ser un problema de permisos o de reglas de seguridad.', 
+                statusCode: 500 
+              }));
+            }
+            console.log('✅ Documento eliminado en el segundo intento');
+          } catch (retryError: any) {
+            console.error('❌ Error en segundo intento de eliminación:', retryError);
+            return failure(new ErrorAPI({ 
+              message: `Error al eliminar documento: ${retryError.message || 'Error desconocido'}. Verifica las reglas de seguridad de Firestore.`, 
+              statusCode: 500 
+            }));
+          }
+        } else {
+          console.log('✅ Confirmado: El documento no existe en el servidor (eliminación exitosa)');
+        }
+      } catch (verifyError: any) {
+        // Si hay un error de permisos al verificar, puede ser que no tengamos permisos
+        // pero el documento sí se eliminó
+        console.warn('⚠️ Error al verificar eliminación:', verifyError);
+        console.warn('⚠️ Código del error:', verifyError.code);
+        
+        if (verifyError.code === 'permission-denied') {
+          console.warn('⚠️ No se pudo verificar la eliminación por permisos, pero deleteDoc completó sin errores');
+          // Intentar verificar con getDoc normal (que puede usar caché)
+          try {
+            const cachedSnap = await getDoc(questionRef);
+            if (cachedSnap.exists()) {
+              console.error('❌ El documento todavía existe (verificado desde caché)');
+              return failure(new ErrorAPI({ 
+                message: 'Error: No se pudo verificar la eliminación. El documento puede todavía existir. Verifica las reglas de seguridad.', 
+                statusCode: 500 
+              }));
+            }
+          } catch (cachedError) {
+            console.warn('⚠️ Error al verificar desde caché:', cachedError);
+          }
+        } else {
+          // Otro tipo de error - puede ser que el documento no exista
+          console.warn('⚠️ Error inesperado al verificar, asumiendo que se eliminó correctamente');
+        }
+      }
+      
+      console.log('✅ Pregunta eliminada correctamente de la base de datos:', questionId);
       
       return success(undefined);
-    } catch (e) {
+    } catch (e: any) {
       console.error('❌ Error al eliminar pregunta:', e);
+      console.error('❌ Detalles del error:', {
+        code: e.code,
+        message: e.message,
+        stack: e.stack
+      });
       return failure(new ErrorAPI(normalizeError(e, 'eliminar pregunta')));
     }
   }

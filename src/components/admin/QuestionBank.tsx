@@ -48,9 +48,25 @@ import {
 } from '@/utils/subjects.config'
 import { useAuthContext } from '@/context/AuthContext'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import DOMPurify from 'dompurify'
 
 interface QuestionBankProps {
   theme: 'light' | 'dark'
+}
+
+// Función helper para extraer solo el texto sin tags HTML
+const stripHtmlTags = (html: string): string => {
+  if (!html) return ''
+  // Crear un elemento temporal para extraer el texto
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+  return tempDiv.textContent || tempDiv.innerText || ''
+}
+
+// Función para sanitizar HTML de forma segura
+const sanitizeHtml = (html: string) => {
+  if (!html) return ''
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
 }
 
 export default function QuestionBank({ theme }: QuestionBankProps) {
@@ -863,28 +879,47 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       return
     }
 
+    // Validar que la pregunta tenga un ID
+    if (!question.id) {
+      console.error('❌ Error: La pregunta no tiene ID:', question)
+      notifyError({
+        title: 'Error',
+        message: 'La pregunta no tiene un ID válido para eliminar'
+      })
+      return
+    }
+
+    console.log('🗑️ Intentando eliminar pregunta:', {
+      id: question.id,
+      code: question.code,
+      subject: question.subject
+    })
+
     setIsLoading(true)
     try {
-      const result = await questionService.deleteQuestion(question.id!)
+      const result = await questionService.deleteQuestion(question.id)
       
       if (result.success) {
+        console.log('✅ Eliminación exitosa, recargando preguntas...')
         notifySuccess({
           title: 'Éxito',
           message: `Pregunta ${question.code} eliminada correctamente`
         })
-        loadQuestions()
-        loadStats()
+        // Recargar las preguntas después de eliminar
+        await loadQuestions()
+        await loadStats()
       } else {
+        console.error('❌ Error al eliminar pregunta:', result.error)
         notifyError({
           title: 'Error',
           message: result.error?.message || 'No se pudo eliminar la pregunta'
         })
       }
     } catch (error) {
-      console.error('Error eliminando pregunta:', error)
+      console.error('❌ Excepción al eliminar pregunta:', error)
       notifyError({
         title: 'Error',
-        message: 'Error al eliminar la pregunta'
+        message: 'Error al eliminar la pregunta. Revisa la consola para más detalles.'
       })
     } finally {
       setIsLoading(false)
@@ -1404,8 +1439,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             </Badge>
           </div>
           <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            {question.questionText.substring(0, 100)}
-            {question.questionText.length > 100 && '...'}
+            {stripHtmlTags(question.questionText).substring(0, 100)}
+            {stripHtmlTags(question.questionText).length > 100 && '...'}
           </p>
         </div>
         <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
@@ -1958,8 +1993,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             </Badge>
                           </div>
                           <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                            {question.questionText.substring(0, 120)}
-                            {question.questionText.length > 120 && '...'}
+                            {stripHtmlTags(question.questionText).substring(0, 120)}
+                            {stripHtmlTags(question.questionText).length > 120 && '...'}
                           </p>
                           <div className="flex items-center gap-4 text-sm text-gray-500">
                             <span>4 opciones</span>
@@ -2745,7 +2780,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                          {/* Texto informativo */}
                          {selectedQuestion.informativeText && (
                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                             <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedQuestion.informativeText}</p>
+                             <div
+                               className="text-gray-700 leading-relaxed prose max-w-none"
+                               dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedQuestion.informativeText) }}
+                             />
                            </div>
                          )}
 
@@ -2765,7 +2803,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
                          {/* Texto de la pregunta */}
                          {selectedQuestion.questionText && (
-                           <p className="text-gray-900 leading-relaxed text-lg font-medium whitespace-pre-wrap">{selectedQuestion.questionText}</p>
+                           <div
+                             className="text-gray-900 leading-relaxed text-lg font-medium prose max-w-none"
+                             dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedQuestion.questionText) }}
+                           />
                          )}
                        </div>
                        
@@ -2789,7 +2830,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                  <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
                                  <div className="flex-1">
                                    {option.text && (
-                                     <span className="text-gray-900">{option.text}</span>
+                                     <div
+                                       className="text-gray-900 prose max-w-none"
+                                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(option.text) }}
+                                     />
                                    )}
                                    {option.imageUrl && (
                                      <div className="mt-2">

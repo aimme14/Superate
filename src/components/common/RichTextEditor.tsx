@@ -1,6 +1,6 @@
+import { useMemo, useRef } from 'react'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
-import 'katex/dist/katex.min.css'
 
 export type RichTextEditorProps = {
   value: string
@@ -9,22 +9,14 @@ export type RichTextEditorProps = {
   className?: string
 }
 
-// Configuración de la toolbar con opciones estilo Word, incluyendo fórmulas (KaTeX)
-const toolbarModules = {
-  toolbar: [
-    [{ font: [] }, { size: [] }],
-    ['bold', 'italic', 'underline', 'strike'],
-    [{ script: 'sub' }, { script: 'super' }],
-    [{ color: [] }, { background: [] }],
-    [{ header: 1 }, { header: 2 }],
-    [{ align: [] }],
-    [{ list: 'ordered' }, { list: 'bullet' }],
-    ['blockquote', 'code-block'],
-    ['formula'],
-    ['clean']
-  ],
-  clipboard: { matchVisual: false }
-}
+const baseToolbar = [
+  [{ font: [] }, { size: [] }],
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ script: 'sub' }, { script: 'super' }],
+  [{ color: [] }, { background: [] }],
+  [{ align: [] }],
+  [{ list: 'ordered' }, { list: 'bullet' }]
+]
 
 const formats = [
   'font',
@@ -36,27 +28,29 @@ const formats = [
   'script',
   'color',
   'background',
-  'header',
   'align',
-  'list',
-  'blockquote',
-  'code-block',
-  'formula'
+  'list'
 ]
 
 export default function RichTextEditor({ value, onChange, placeholder, className }: RichTextEditorProps) {
+  const quillRef = useRef<ReactQuill | null>(null)
+
+  const modules = useMemo(() => ({
+    toolbar: baseToolbar,
+    clipboard: { matchVisual: false }
+  }), [])
+
   return (
     <div className={className}>
       <ReactQuill
+        ref={quillRef}
         theme="snow"
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        modules={toolbarModules}
+        modules={modules}
         formats={formats}
       />
     </div>
   )
 }
-
-
