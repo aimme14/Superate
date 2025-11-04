@@ -11,9 +11,34 @@ import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
-import ImageGallery from "@/components/common/ImageGallery";
 
 const db = getFirestore(firebaseApp);
+
+// Función para limpiar HTML y mostrar solo texto
+const stripHtmlTags = (html: string): string => {
+  if (!html) return ''
+  
+  // Crear un elemento temporal para extraer el texto limpio
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+  
+  // Extraer solo el texto sin etiquetas HTML
+  let text = tempDiv.textContent || tempDiv.innerText || ''
+  
+  // Eliminar cualquier etiqueta HTML que pueda haber quedado (por si acaso)
+  text = text.replace(/<[^>]*>/g, '')
+  
+  // Limpiar espacios en blanco múltiples
+  text = text.replace(/\s+/g, ' ').trim()
+  
+  // Reemplazar saltos de línea con espacios
+  text = text.replace(/\n/g, ' ')
+  
+  // Limpiar espacios múltiples nuevamente
+  text = text.replace(/\s+/g, ' ').trim()
+  
+  return text
+}
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -1031,27 +1056,51 @@ const ExamWithFirebase = () => {
                 {/* Texto informativo */}
                 {currentQ.informativeText && (
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-gray-700 leading-relaxed">{currentQ.informativeText}</p>
+                    <p className="text-gray-700 leading-relaxed">{stripHtmlTags(currentQ.informativeText)}</p>
                   </div>
                 )}
 
-                {/* Imágenes informativas */}
+                {/* Imágenes informativas - Grandes y bonitas, sin necesidad de click */}
                 {currentQ.informativeImages && currentQ.informativeImages.length > 0 && (
-                  <div className="mb-4">
-                    <ImageGallery images={currentQ.informativeImages} />
+                  <div className="mb-6 space-y-4">
+                    {currentQ.informativeImages.map((imageUrl, index) => (
+                      <div key={index} className="flex justify-center">
+                        <img 
+                          src={imageUrl} 
+                          alt={`Imagen informativa ${index + 1}`}
+                          className="question-image"
+                          onError={(e) => {
+                            console.error('Error cargando imagen informativa:', imageUrl);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Imagen de la pregunta */}
+                {/* Imagen de la pregunta - Grandes y bonitas, sin necesidad de click */}
                 {currentQ.questionImages && currentQ.questionImages.length > 0 && (
-                  <div className="mb-4">
-                    <ImageGallery images={currentQ.questionImages} />
+                  <div className="mb-6 space-y-4">
+                    {currentQ.questionImages.map((imageUrl, index) => (
+                      <div key={index} className="flex justify-center">
+                        <img 
+                          src={imageUrl} 
+                          alt={`Imagen de pregunta ${index + 1}`}
+                          className="question-image"
+                          onError={(e) => {
+                            console.error('Error cargando imagen de pregunta:', imageUrl);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Texto de la pregunta */}
+                {/* Texto de la pregunta - Limpio, sin etiquetas HTML */}
                 {currentQ.questionText && (
-                  <p className="text-gray-900 leading-relaxed text-lg font-medium">{currentQ.questionText}</p>
+                  <p className="text-gray-900 leading-relaxed text-lg font-medium">{stripHtmlTags(currentQ.questionText)}</p>
                 )}
               </div>
               
@@ -1078,14 +1127,14 @@ const ExamWithFirebase = () => {
                         <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
                         <div className="flex-1">
                           {option.text && (
-                            <span className="text-gray-900">{option.text}</span>
+                            <span className="text-gray-900">{stripHtmlTags(option.text)}</span>
                           )}
                           {option.imageUrl && (
-                            <div className="mt-2">
+                            <div className="mt-2 flex justify-center">
                               <img 
                                 src={option.imageUrl} 
                                 alt={`Opción ${option.id}`}
-                                className="max-w-full h-auto rounded-lg border shadow-sm"
+                                className="option-image"
                                 onError={(e) => {
                                   console.error('Error cargando imagen de opción:', option.imageUrl);
                                   e.currentTarget.style.display = 'none';
@@ -1113,48 +1162,35 @@ const ExamWithFirebase = () => {
         </div>
 
         {/* Panel lateral derecho con navegación de preguntas */}
-        <div className="w-full lg:w-64 flex-shrink-0">
-          <div className="bg-white border rounded-lg p-4 sticky top-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <Brain className="h-4 w-4 text-purple-600" />
+        <div className="w-full lg:w-56 flex-shrink-0">
+          <div className="bg-white border rounded-lg p-3 sticky top-4 shadow-sm">
+            <h3 className="text-xs font-semibold mb-2.5 text-gray-700 uppercase tracking-wide">
               Navegación
             </h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
               {quizData.questions.map((q, index) => {
                 const qId = q.id || q.code;
+                const isAnswered = answers[qId];
+                const isCurrent = currentQuestion === index;
                 return (
                   <button
                     key={qId}
                     onClick={() => changeQuestion(index)}
-                    className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${currentQuestion === index
-                        ? "bg-purple-50 border-purple-200 border"
-                        : "border hover:bg-gray-50"
-                      }`}
+                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110 ${
+                      isCurrent
+                        ? isAnswered
+                          ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
+                          : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
+                        : isAnswered
+                        ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
+                        : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300"
+                    }`}
+                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
                   >
-                    <div
-                      className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${answers[qId]
-                          ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
-                          : "bg-gray-100 text-gray-700 border"
-                        }`}
-                    >
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
-                      <div className="text-xs text-gray-500 flex items-center gap-1">
-                        {answers[qId] ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3 text-green-500" />
-                            <span>Respondida</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="h-3 w-3 text-orange-500" />
-                            <span>Sin responder</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                    {index + 1}
+                    {isAnswered && !isCurrent && (
+                      <CheckCircle2 className="absolute -top-1 -right-1 h-3 w-3 text-green-500 bg-white rounded-full" />
+                    )}
                   </button>
                 )
               })}

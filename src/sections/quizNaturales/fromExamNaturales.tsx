@@ -1155,47 +1155,37 @@ const ExamWithFirebase = () => {
         </div>
 
         {/* Panel lateral derecho con navegación de preguntas */}
-        <div className="w-full lg:w-64 flex-shrink-0">
-          <div className="bg-white border rounded-lg p-4 sticky top-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <Brain className="h-4 w-4 text-purple-600" />
+        <div className="w-full lg:w-56 flex-shrink-0">
+          <div className="bg-white border rounded-lg p-3 sticky top-4 shadow-sm">
+            <h3 className="text-xs font-semibold mb-2.5 text-gray-700 uppercase tracking-wide">
               Navegación
             </h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {examData.questions.map((q, index) => (
-                <button
-                  key={q.id}
-                  className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${currentQuestion === index
-                      ? "bg-purple-50 border-purple-200 border"
-                      : "border hover:bg-gray-50"
+            <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
+              {examData.questions.map((q, index) => {
+                const isAnswered = answers[q.id];
+                const isCurrent = currentQuestion === index;
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => changeQuestion(index)}
+                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110 ${
+                      isCurrent
+                        ? isAnswered
+                          ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
+                          : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
+                        : isAnswered
+                        ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
+                        : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300"
                     }`}
-                >
-                  <div
-                    className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${answers[q.id]
-                        ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
-                        : "bg-gray-100 text-gray-700 border"
-                      }`}
+                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
                   >
                     {index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1">
-                      {answers[q.id] ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 text-green-500" />
-                          <span>Respondida</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="h-3 w-3 text-orange-500" />
-                          <span>Sin responder</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
+                    {isAnswered && !isCurrent && (
+                      <CheckCircle2 className="absolute -top-1 -right-1 h-3 w-3 text-green-500 bg-white rounded-full" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
 
             <div className="mt-4 pt-4 border-t">
