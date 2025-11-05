@@ -76,6 +76,17 @@ export const SUBJECTS_CONFIG: Subject[] = [
     ],
   },
   {
+    name: 'Ciencias Sociales',
+    code: 'CS',
+    icon: '🌍',
+    topics: [
+      { name: 'El espacio, el territorio, el ambiente y laa población', code: 'ET' },
+      { name: 'El poder, la economia y las organicaciones sociales', code: 'PE' },
+      { name: 'El tiempo y las culturas', code: 'TC' },
+      { name: 'Competencias ciudadanas', code: 'CC' },
+    ],
+  },
+  {
     name: 'Biologia',
     code: 'BI',
     icon: '🌿',
