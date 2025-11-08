@@ -508,7 +508,6 @@ const ExamWithFirebase = () => {
 
           if (!fullscreenElement) {
             setIsFullscreen(false);
-            setShowFullscreenExit(true);
           }
         }, 50);
       }
@@ -531,7 +530,6 @@ const ExamWithFirebase = () => {
 
         if (!fullscreenElement) {
           setIsFullscreen(false);
-          setShowFullscreenExit(true);
         }
       }, 100);
     }
