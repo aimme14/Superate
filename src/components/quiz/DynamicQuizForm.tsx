@@ -13,6 +13,7 @@ import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import ImageGallery from "@/components/common/ImageGallery";
+import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 
 const db = getFirestore(firebaseApp);
 
@@ -63,7 +64,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const { user } = useAuthContext();
   const userId = user?.uid;
 
-  const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+  // Usar sanitizeMathHtml para permitir fórmulas matemáticas de KaTeX
+  const sanitizeHtml = sanitizeMathHtml
 
   // Estados principales
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);

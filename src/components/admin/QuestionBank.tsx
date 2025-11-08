@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,7 +37,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
 // import { useAutoResizeTextarea } from '@/hooks/ui/useAutoResizeTextarea'
-import RichTextEditor from '@/components/common/RichTextEditor'
+import RichTextEditor, { RichTextEditorRef } from '@/components/common/RichTextEditor'
 import { questionService, Question, QuestionOption } from '@/services/firebase/question.service'
 import ImageGallery from '@/components/common/ImageGallery'
 import { 
@@ -49,6 +49,8 @@ import {
 import { useAuthContext } from '@/context/AuthContext'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import DOMPurify from 'dompurify'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 interface QuestionBankProps {
   theme: 'light' | 'dark'
@@ -66,7 +68,105 @@ const stripHtmlTags = (html: string): string => {
 // Función para sanitizar HTML de forma segura
 const sanitizeHtml = (html: string) => {
   if (!html) return ''
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+  return DOMPurify.sanitize(html, { 
+    USE_PROFILES: { html: true },
+    // Permitir elementos y atributos de KaTeX
+    // Incluir SVG usado por KaTeX (radicales, extensibles, etc.)
+    ADD_TAGS: [
+      'math', 'annotation', 'semantics', 'mtext', 'mn', 'mo', 'mi', 'mspace', 'mover', 'munder', 'munderover',
+      'msup', 'msub', 'msubsup', 'mfrac', 'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'mrow',
+      'menclose', 'mstyle', 'mpadded', 'mphantom', 'mfenced', 'maction', 'mmultiscripts', 'mover', 'munder', 'munderover',
+      'svg', 'path', 'g', 'line', 'rect', 'circle', 'use'
+    ],
+    ADD_ATTR: [
+      'data-latex', 'class', 'style', 'aria-label', 'role', 'tabindex',
+      // Atributos SVG requeridos por KaTeX
+      'xmlns', 'width', 'height', 'viewBox', 'focusable', 'aria-hidden', 'stroke', 'fill', 'stroke-width',
+      'x', 'y', 'x1', 'x2', 'y1', 'y2', 'd', 'transform'
+    ]
+  })
+}
+
+// Función para renderizar fórmulas matemáticas en el HTML
+const renderMathInHtml = (html: string): string => {
+  if (!html) return ''
+  
+  // Crear un elemento temporal para procesar el HTML
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+  
+  // Conversión defensiva: detectar \sqrt{...} o √x en texto plano fuera de fórmulas
+  try {
+    const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null)
+    const targets: Text[] = []
+    let node: Node | null
+    while ((node = walker.nextNode())) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const t = (node as Text).textContent || ''
+        if ((t.includes('\\sqrt') || t.includes('√')) && !(node.parentElement?.closest('[data-latex], .katex'))) {
+          targets.push(node as Text)
+        }
+      }
+    }
+    targets.forEach(textNode => {
+      const text = textNode.textContent || ''
+      // Reemplazar \sqrt{expr}
+      let replaced = text.replace(/\\sqrt\s*\{([^}]+)\}/g, (_m, inner) => {
+        const safe = String(inner)
+        return `<span class="katex-formula" data-latex="\\sqrt{${safe}}"></span>`
+      })
+      // Reemplazar \sqrt x (un solo token)
+      replaced = replaced.replace(/\\sqrt\s*([A-Za-z0-9_]+)/g, (_m, tok) => {
+        const safe = String(tok)
+        return `<span class="katex-formula" data-latex="\\sqrt{${safe}}"></span>`
+      })
+      // Reemplazar √x
+      replaced = replaced.replace(/√\s*([A-Za-z0-9_]+)/g, (_m, tok) => {
+        const safe = String(tok)
+        return `<span class="katex-formula" data-latex="\\sqrt{${safe}}"></span>`
+      })
+      if (replaced !== text) {
+        const wrapper = document.createElement('span')
+        wrapper.innerHTML = replaced
+        textNode.parentNode?.replaceChild(wrapper, textNode)
+      }
+    })
+  } catch {}
+  
+  // Buscar todos los elementos con data-latex que necesitan renderizado
+  const mathElements = tempDiv.querySelectorAll('[data-latex]')
+  
+  mathElements.forEach((el) => {
+    const latex = el.getAttribute('data-latex')
+    if (latex) {
+      // Verificar si ya está renderizado
+      const hasKaTeX = el.querySelector('.katex') !== null
+      
+      // Si no está renderizado, renderizarlo
+      if (!hasKaTeX) {
+        try {
+          const isDisplay = el.classList.contains('katex-display') || el.tagName === 'DIV'
+          const rendered = katex.renderToString(latex, {
+            throwOnError: false,
+            displayMode: isDisplay,
+            strict: false,
+          })
+          
+          if (rendered && rendered.trim() !== '' && rendered.includes('katex')) {
+            el.innerHTML = rendered
+            el.classList.add('katex-formula')
+            if (isDisplay) {
+              el.classList.add('katex-display')
+            }
+          }
+        } catch (error) {
+          console.error('Error renderizando fórmula:', error)
+        }
+      }
+    }
+  })
+  
+  return tempDiv.innerHTML
 }
 
 export default function QuestionBank({ theme }: QuestionBankProps) {
@@ -113,6 +213,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   // Estados para edición de imágenes
   const [editInformativeImages, setEditInformativeImages] = useState<File[]>([])
   const [editQuestionImages, setEditQuestionImages] = useState<File[]>([])
+  
+  // Referencias para los editores de texto
+  const informativeTextEditorRef = useRef<RichTextEditorRef>(null)
+  const questionTextEditorRef = useRef<RichTextEditorRef>(null)
+  const editInformativeTextEditorRef = useRef<RichTextEditorRef>(null)
+  const editQuestionTextEditorRef = useRef<RichTextEditorRef>(null)
   
   const [options, setOptions] = useState<QuestionOption[]>([
     { id: 'A', text: '', imageUrl: null, isCorrect: false },
@@ -2129,6 +2235,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             <div className="space-y-2">
               <Label htmlFor="informativeText">Texto Informativo (opcional)</Label>
               <RichTextEditor
+                ref={informativeTextEditorRef}
                 value={formData.informativeText}
                 onChange={(html) => setFormData({ ...formData, informativeText: html })}
                 placeholder="Información adicional o contexto para la pregunta..."
@@ -2181,6 +2288,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             <div className="space-y-2">
               <Label htmlFor="questionText">Texto de la Pregunta *</Label>
               <RichTextEditor
+                ref={questionTextEditorRef}
                 value={formData.questionText}
                 onChange={(html) => setFormData({ ...formData, questionText: html })}
                 placeholder="Escribe la pregunta aquí..."
@@ -2429,6 +2537,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             <div className="space-y-2">
               <Label htmlFor="edit-informativeText">Texto Informativo (opcional)</Label>
               <RichTextEditor
+                ref={editInformativeTextEditorRef}
                 value={formData.informativeText}
                 onChange={(html) => setFormData({ ...formData, informativeText: html })}
                 placeholder="Información adicional o contexto para la pregunta..."
@@ -2513,6 +2622,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             <div className="space-y-2">
               <Label htmlFor="edit-questionText">Texto de la Pregunta *</Label>
               <RichTextEditor
+                ref={editQuestionTextEditorRef}
                 value={formData.questionText}
                 onChange={(html) => setFormData({ ...formData, questionText: html })}
                 placeholder="Escribe la pregunta aquí..."
@@ -2782,7 +2892,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                              <div
                                className="text-gray-700 leading-relaxed prose max-w-none"
-                               dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedQuestion.informativeText) }}
+                               dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(selectedQuestion.informativeText)) }}
                              />
                            </div>
                          )}
@@ -2805,7 +2915,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                          {selectedQuestion.questionText && (
                            <div
                              className="text-gray-900 leading-relaxed text-lg font-medium prose max-w-none"
-                             dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedQuestion.questionText) }}
+                             dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(selectedQuestion.questionText)) }}
                            />
                          )}
                        </div>
@@ -2832,7 +2942,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                    {option.text && (
                                      <div
                                        className="text-gray-900 prose max-w-none"
-                                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(option.text) }}
+                                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
                                      />
                                    )}
                                    {option.imageUrl && (
