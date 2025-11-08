@@ -357,14 +357,23 @@ class QuestionService {
       const questionsRef = collection(db, 'superate', 'auth', 'questions');
       const conditions: any[] = [];
 
+      if (filters.subject) {
+        conditions.push(where('subject', '==', filters.subject));
+      }
       if (filters.subjectCode) {
         conditions.push(where('subjectCode', '==', filters.subjectCode));
+      }
+      if (filters.topic) {
+        conditions.push(where('topic', '==', filters.topic));
       }
       if (filters.topicCode) {
         conditions.push(where('topicCode', '==', filters.topicCode));
       }
       if (filters.grade) {
         conditions.push(where('grade', '==', filters.grade));
+      }
+      if (filters.level) {
+        conditions.push(where('level', '==', filters.level));
       }
       if (filters.levelCode) {
         conditions.push(where('levelCode', '==', filters.levelCode));

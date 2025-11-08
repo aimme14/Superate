@@ -1,9 +1,8 @@
-import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator, Timer, HelpCircle, Users, Play, Maximize, Database } from "lucide-react"
+import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator, Timer, HelpCircle, Users, Play, Maximize, Database, X } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { useState, useEffect } from "react"
-import DOMPurify from "dompurify"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -13,6 +12,7 @@ import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import ImageGallery from "@/components/common/ImageGallery";
+import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 
 const db = getFirestore(firebaseApp);
 
@@ -63,7 +63,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const { user } = useAuthContext();
   const userId = user?.uid;
 
-  const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+  // Usar sanitizeMathHtml para permitir fórmulas matemáticas de KaTeX
+  const sanitizeHtml = sanitizeMathHtml
 
   // Estados principales
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
@@ -78,6 +79,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [examLocked, setExamLocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [existingExamData, setExistingExamData] = useState<any | null>(null);
+  const [showFullscreenExit, setShowFullscreenExit] = useState(false)
 
   // Estados para el seguimiento de tiempo por pregunta
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
@@ -283,20 +285,26 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   }
 
   // Función para entrar en pantalla completa
-  const enterFullscreen = async () => {
+  const enterFullscreen = async (): Promise<boolean> => {
     try {
-      const el = document.documentElement;
+      const el = document.documentElement as any;
 
       if (el.requestFullscreen) {
         await el.requestFullscreen();
-      } else if ((el as any).webkitRequestFullscreen) {
-        await (el as any).webkitRequestFullscreen();
-      } else if ((el as any).msRequestFullscreen) {
-        (el as any).msRequestFullscreen();
+      } else if (el.webkitRequestFullscreen) {
+        await el.webkitRequestFullscreen();
+      } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
       }
+      return true;
     } catch (error) {
       console.error("Error entering fullscreen:", error);
     }
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.msFullscreenElement
+    );
   };
 
   // Función para salir de pantalla completa
@@ -368,7 +376,9 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       const isCurrentlyFullscreen = !!fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
 
-      // Pantalla completa cambiada
+      if (examState === 'active' && !isCurrentlyFullscreen) {
+        setShowFullscreenExit(true);
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -382,10 +392,61 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     };
   }, [examState]);
 
+  // Detectar Escape como respaldo
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && examState === 'active') {
+        setTimeout(() => {
+          const fullscreenElement =
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement;
+
+          if (!fullscreenElement) {
+            setIsFullscreen(false);
+            setShowFullscreenExit(true);
+          }
+        }, 50);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [examState]);
+
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
-    await enterFullscreen()
+    const entered = await enterFullscreen()
     setExamState('active')
+    if (!entered) {
+      setTimeout(() => {
+        const fullscreenElement =
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.msFullscreenElement;
+
+        if (!fullscreenElement) {
+          setIsFullscreen(false);
+          setShowFullscreenExit(true);
+        }
+      }, 100);
+    }
+  }
+
+  // Manejar salida de pantalla completa durante el examen
+  const handleExitFullscreen = async () => {
+    setShowFullscreenExit(false)
+    await handleSubmit(false, false)
+    await exitFullscreen()
+  }
+
+  // Volver al examen en pantalla completa
+  const returnToExam = async () => {
+    setShowFullscreenExit(false)
+    await enterFullscreen()
   }
 
 
@@ -685,6 +746,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     setExamLocked(true)
     setShowWarning(false)
     setShowTabChangeWarning(false)
+    setShowFullscreenExit(false)
 
     try {
       await saveToFirebase(timeExpired, lockedByTabChange)
@@ -698,6 +760,53 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       console.error('Error guardando examen:', error)
     }
   }
+
+  // Modal de salida de pantalla completa
+  const FullscreenExitModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center">
+              <Maximize className="h-8 w-8 text-red-600" />
+            </div>
+          </div>
+          <CardTitle className="text-xl text-red-800">Salida de Pantalla Completa</CardTitle>
+          <CardDescription className="text-base">
+            Has salido del modo pantalla completa
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <p className="text-gray-700 mb-4">
+            El examen debe realizarse en pantalla completa. ¿Qué deseas hacer?
+          </p>
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-700">
+              Si eliges finalizar el examen, se guardarán todas tus respuestas actuales.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-3">
+          <Button
+            onClick={returnToExam}
+            className="w-full bg-green-600 hover:bg-green-700"
+          >
+            <Maximize className="h-4 w-4 mr-2" />
+            Volver a Pantalla Completa
+          </Button>
+          <Button
+            onClick={handleExitFullscreen}
+            variant="outline"
+            className="w-full border-red-300 text-red-600 hover:bg-red-50"
+          >
+            <X className="h-4 w-4 mr-2" />
+            Finalizar Examen
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
 
   // Función para manejar el cambio de respuesta
   const handleAnswerChange = (questionId: string, answer: string) => {
@@ -1168,6 +1277,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
       {/* Modales */}
       {showWarning && <SubmitWarningModal />}
+      {showFullscreenExit && <FullscreenExitModal />}
     </div>
   )
 }

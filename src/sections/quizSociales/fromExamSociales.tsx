@@ -327,20 +327,26 @@ const ExamWithFirebase = () => {
   }
 
   // Función para entrar en pantalla completa
-  const enterFullscreen = async () => {
+  const enterFullscreen = async (): Promise<boolean> => {
     try {
-      const el = document.documentElement;
+      const el = document.documentElement as any;
 
       if (el.requestFullscreen) {
         await el.requestFullscreen();
-      } else if ((el as any).webkitRequestFullscreen) {
-        await (el as any).webkitRequestFullscreen();
-      } else if ((el as any).msRequestFullscreen) {
-        (el as any).msRequestFullscreen();
+      } else if (el.webkitRequestFullscreen) {
+        await el.webkitRequestFullscreen();
+      } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
       }
+      return true;
     } catch (error) {
       console.error("Error entering fullscreen:", error);
     }
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.msFullscreenElement
+    );
   };
 
   // Función para salir de pantalla completa
@@ -428,10 +434,44 @@ const ExamWithFirebase = () => {
     };
   }, [examState]);
 
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && examState === 'active') {
+        setTimeout(() => {
+          const fullscreenElement =
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement;
+
+          if (!fullscreenElement) {
+            setIsFullscreen(false);
+            setShowFullscreenExit(true);
+          }
+        }, 50);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, [examState]);
+
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
-    await enterFullscreen()
+    const entered = await enterFullscreen()
     setExamState('active')
+    if (!entered) {
+      setTimeout(() => {
+        const fullscreenElement =
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.msFullscreenElement;
+
+        if (!fullscreenElement) {
+          setIsFullscreen(false);
+          setShowFullscreenExit(true);
+        }
+      }, 100);
+    }
   }
 
   // Manejar salida de pantalla completa durante el examen
