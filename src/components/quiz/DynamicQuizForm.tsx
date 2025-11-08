@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { useState, useEffect } from "react"
-import DOMPurify from "dompurify"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
