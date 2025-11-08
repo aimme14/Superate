@@ -187,9 +187,9 @@ export function MathEditor({ open, onOpenChange, onInsert }: MathEditorProps) {
     { label: 'Raíz n-ésima', value: '\\sqrt[n]{x}' },
     { label: 'Potencia', value: 'x^{n}' },
     { label: 'Subíndice', value: 'x_{n}' },
-    { label: 'Integral', value: '\\int_{a}^{b} f(x) dx' },
+    { label: 'Integral', value: '\\int_{a}^{b} \\, dx' },
     { label: 'Sumatoria', value: '\\sum_{i=1}^{n} a_{i}' },
-    { label: 'Límite', value: '\\lim_{x \\to \\infty} f(x)' },
+    { label: 'Límite', value: '\\lim_{x \\to \\infty}' },
     { label: 'Matriz 2x2', value: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
   ]
 
@@ -207,7 +207,6 @@ export function MathEditor({ open, onOpenChange, onInsert }: MathEditorProps) {
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="text-lg">f(x)</span>
             Editor de Fórmulas Matemáticas
           </DialogTitle>
           <DialogDescription>
@@ -392,3 +391,4 @@ export function MathEditor({ open, onOpenChange, onInsert }: MathEditorProps) {
     </Dialog>
   )
 }
+

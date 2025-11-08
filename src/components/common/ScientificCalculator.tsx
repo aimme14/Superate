@@ -322,4 +322,3 @@ export function ScientificCalculator({ open, onOpenChange, onInsert }: Scientifi
     </Dialog>
   )
 }
-
