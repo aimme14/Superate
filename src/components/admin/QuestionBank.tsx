@@ -70,9 +70,18 @@ const sanitizeHtml = (html: string) => {
   if (!html) return ''
   return DOMPurify.sanitize(html, { 
     USE_PROFILES: { html: true },
-    // Permitir elementos y atributos de KaTeX
-    ADD_TAGS: ['math', 'annotation', 'semantics', 'mtext', 'mn', 'mo', 'mi', 'mspace', 'mover', 'munder', 'munderover', 'msup', 'msub', 'msubsup', 'mfrac', 'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'mrow', 'menclose', 'mstyle', 'mpadded', 'mphantom', 'mfenced', 'maction', 'mmultiscripts', 'mover', 'munder', 'munderover'],
-    ADD_ATTR: ['data-latex', 'class', 'style', 'aria-label', 'role', 'tabindex']
+    // Permitir elementos y atributos de KaTeX, incluyendo SVG
+    ADD_TAGS: [
+      'math', 'annotation', 'semantics', 'mtext', 'mn', 'mo', 'mi', 'mspace', 'mover', 'munder', 'munderover',
+      'msup', 'msub', 'msubsup', 'mfrac', 'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'mrow',
+      'menclose', 'mstyle', 'mpadded', 'mphantom', 'mfenced', 'maction', 'mmultiscripts',
+      'svg', 'path', 'g', 'line', 'rect', 'circle', 'use'
+    ],
+    ADD_ATTR: [
+      'data-latex', 'class', 'style', 'aria-label', 'role', 'tabindex',
+      'xmlns', 'width', 'height', 'viewBox', 'focusable', 'aria-hidden', 'stroke', 'fill', 'stroke-width',
+      'x', 'y', 'x1', 'x2', 'y1', 'y2', 'd', 'transform'
+    ]
   })
 }
 
@@ -83,6 +92,44 @@ const renderMathInHtml = (html: string): string => {
   // Crear un elemento temporal para procesar el HTML
   const tempDiv = document.createElement('div')
   tempDiv.innerHTML = html
+  
+  // Conversión defensiva: detectar \sqrt{...} o √x en texto plano fuera de fórmulas
+  try {
+    const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null)
+    const targets: Text[] = []
+    let node: Node | null
+    while ((node = walker.nextNode())) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const t = (node as Text).textContent || ''
+        if ((t.includes('\\sqrt') || t.includes('√')) && !(node.parentElement?.closest('[data-latex], .katex'))) {
+          targets.push(node as Text)
+        }
+      }
+    }
+    targets.forEach(textNode => {
+      const text = textNode.textContent || ''
+      // Reemplazar \sqrt{expr}
+      let replaced = text.replace(/\\sqrt\s*\{([^}]+)\}/g, (_m, inner) => {
+        const safe = String(inner)
+        return `<span class="katex-formula" data-latex="\\sqrt{${safe}}"></span>`
+      })
+      // Reemplazar \sqrt x (un solo token)
+      replaced = replaced.replace(/\\sqrt\s*([A-Za-z0-9_]+)/g, (_m, tok) => {
+        const safe = String(tok)
+        return `<span class="katex-formula" data-latex="\\sqrt{${safe}}"></span>`
+      })
+      // Reemplazar √x
+      replaced = replaced.replace(/√\s*([A-Za-z0-9_]+)/g, (_m, tok) => {
+        const safe = String(tok)
+        return `<span class="katex-formula" data-latex="\\sqrt{${safe}}"></span>`
+      })
+      if (replaced !== text) {
+        const wrapper = document.createElement('span')
+        wrapper.innerHTML = replaced
+        textNode.parentNode?.replaceChild(wrapper, textNode)
+      }
+    })
+  } catch {}
   
   // Buscar todos los elementos con data-latex que necesitan renderizado
   const mathElements = tempDiv.querySelectorAll('[data-latex]')

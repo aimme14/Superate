@@ -291,7 +291,9 @@ function detectarYConvertirLatexEnTexto(html: string): string {
 
 // Crear un Blot personalizado para fórmulas matemáticas
 // Usamos Embed para que funcione con insertEmbed
-const Embed: any = Quill.import('blots/embed')
+// Asegurar que registramos en la misma instancia de Quill que usa ReactQuill
+const QuillLib: any = (ReactQuill as any)?.Quill || Quill
+const Embed: any = QuillLib.import('blots/embed')
 
 class MathFormulaBlot extends Embed {
   static blotName = 'mathFormula'
@@ -407,11 +409,13 @@ class MathFormulaBlot extends Embed {
 // Registrar el Blot como formato embed ANTES de que se use
 // Asegurarse de que no esté ya registrado
 try {
-  if (Quill.imports['formats/mathFormula']) {
-    // Si ya está registrado, desregistrarlo primero
-    delete Quill.imports['formats/mathFormula']
+  if (QuillLib?.imports && QuillLib.imports['formats/mathFormula']) {
+    delete QuillLib.imports['formats/mathFormula']
   }
-  Quill.register('formats/mathFormula', MathFormulaBlot, true)
+  // Registrar directamente la clase (Parchment la registra con blotName)
+  QuillLib.register(MathFormulaBlot, true)
+  // Compatibilidad: también exponer bajo la ruta de formato
+  QuillLib.register({ 'formats/mathFormula': MathFormulaBlot }, true)
 } catch (error) {
   console.error('Error registrando MathFormulaBlot:', error)
 }
@@ -917,13 +921,27 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       style.id = styleId
       style.textContent = `
         .ql-toolbar .ql-math::before {
-          content: "";
+          content: "f(x)";
+          font-weight: bold;
+          font-size: 14px;
+        }
+        .ql-toolbar .ql-calc::before {
+          content: "∑";
+          font-weight: bold;
+          font-size: 14px;
         }
         .ql-toolbar button.ql-math {
           width: 28px;
           height: 24px;
         }
+        .ql-toolbar button.ql-calc {
+          width: 28px;
+          height: 24px;
+        }
         .ql-toolbar button.ql-math:hover::before {
+          opacity: 0.7;
+        }
+        .ql-toolbar button.ql-calc:hover::before {
           opacity: 0.7;
         }
         /* Estilos para fórmulas matemáticas */
@@ -940,11 +958,14 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         }
         /* Estilos críticos para KaTeX - asegurar que todos los elementos se muestren */
         .ql-editor .katex {
-          font-size: 1.1em !important;
+          font-size: 1.25em !important;
+          line-height: 1.2 !important;
           display: inline-block !important;
+          vertical-align: middle !important;
         }
         .ql-editor .katex-display .katex {
-          font-size: 1.2em !important;
+          font-size: 1.4em !important;
+          line-height: 1.25 !important;
           display: block !important;
         }
         /* Proteger elementos de KaTeX de ser modificados */
