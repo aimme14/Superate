@@ -2344,36 +2344,40 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <div className="space-y-3">
                 {options.map((option) => (
                   <div key={option.id} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-start gap-2">
                       <input
                         type="radio"
                         name="correctAnswer"
                         checked={option.isCorrect}
                         onChange={() => handleCorrectAnswerChange(option.id)}
-                        className="w-4 h-4"
+                        className="w-4 h-4 mt-2"
                       />
-                      <span className="font-medium">{option.id})</span>
-                      <Input
-                        value={option.text || ''}
-                        onChange={(e) => handleOptionTextChange(option.id, e.target.value)}
-                        placeholder={`Texto de la opción ${option.id}`}
-                        className="flex-1"
-                      />
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
-                        className="hidden"
-                        id={`option-${option.id}-image`}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => document.getElementById(`option-${option.id}-image`)?.click()}
-                      >
-                        <ImageIcon className="h-4 w-4" />
-                      </Button>
+                      <span className="font-medium mt-2">{option.id})</span>
+                      <div className="flex-1">
+                        <RichTextEditor
+                          value={option.text || ''}
+                          onChange={(html) => handleOptionTextChange(option.id, html)}
+                          placeholder={`Texto de la opción ${option.id}`}
+                          className="min-h-[100px]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
+                          className="hidden"
+                          id={`option-${option.id}-image`}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById(`option-${option.id}-image`)?.click()}
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     {optionImagePreviews[option.id] && (
                       <div className="relative w-32 h-32">
@@ -2710,36 +2714,40 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <div className="space-y-3">
                 {options.map((option) => (
                   <div key={option.id} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-start gap-2">
                       <input
                         type="radio"
                         name="edit-correctAnswer"
                         checked={option.isCorrect}
                         onChange={() => handleCorrectAnswerChange(option.id)}
-                        className="w-4 h-4"
+                        className="w-4 h-4 mt-2"
                       />
-                      <span className="font-medium">{option.id})</span>
-                      <Input
-                        value={option.text || ''}
-                        onChange={(e) => handleOptionTextChange(option.id, e.target.value)}
-                        placeholder={`Texto de la opción ${option.id}`}
-                        className="flex-1"
-                      />
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
-                        className="hidden"
-                        id={`edit-option-${option.id}-image`}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => document.getElementById(`edit-option-${option.id}-image`)?.click()}
-                      >
-                        <ImageIcon className="h-4 w-4" />
-                      </Button>
+                      <span className="font-medium mt-2">{option.id})</span>
+                      <div className="flex-1">
+                        <RichTextEditor
+                          value={option.text || ''}
+                          onChange={(html) => handleOptionTextChange(option.id, html)}
+                          placeholder={`Texto de la opción ${option.id}`}
+                          className="min-h-[100px]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
+                          className="hidden"
+                          id={`edit-option-${option.id}-image`}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById(`edit-option-${option.id}-image`)?.click()}
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     {optionImagePreviews[option.id] && (
                       <div className="relative w-32 h-32">

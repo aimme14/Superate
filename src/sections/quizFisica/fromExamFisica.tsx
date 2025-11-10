@@ -11,6 +11,9 @@ import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
+import DOMPurify from 'dompurify'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 const db = getFirestore(firebaseApp);
 
@@ -38,6 +41,70 @@ const stripHtmlTags = (html: string): string => {
   text = text.replace(/\s+/g, ' ').trim()
   
   return text
+}
+
+// Función para sanitizar HTML de forma segura
+const sanitizeHtml = (html: string) => {
+  if (!html) return ''
+  return DOMPurify.sanitize(html, { 
+    USE_PROFILES: { html: true },
+    // Permitir elementos y atributos de KaTeX, incluyendo SVG
+    ADD_TAGS: [
+      'math', 'annotation', 'semantics', 'mtext', 'mn', 'mo', 'mi', 'mspace', 'mover', 'munder', 'munderover',
+      'msup', 'msub', 'msubsup', 'mfrac', 'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'mrow',
+      'menclose', 'mstyle', 'mpadded', 'mphantom', 'mfenced', 'maction', 'mmultiscripts',
+      'svg', 'path', 'g', 'line', 'rect', 'circle', 'use'
+    ],
+    ADD_ATTR: [
+      'data-latex', 'class', 'style', 'aria-label', 'role', 'tabindex',
+      'xmlns', 'width', 'height', 'viewBox', 'focusable', 'aria-hidden', 'stroke', 'fill', 'stroke-width',
+      'x', 'y', 'x1', 'x2', 'y1', 'y2', 'd', 'transform'
+    ]
+  })
+}
+
+// Función para renderizar fórmulas matemáticas en el HTML
+const renderMathInHtml = (html: string): string => {
+  if (!html) return ''
+  
+  // Crear un elemento temporal para procesar el HTML
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+  
+  // Buscar todos los elementos con data-latex que necesitan renderizado
+  const mathElements = tempDiv.querySelectorAll('[data-latex]')
+  
+  mathElements.forEach((el) => {
+    const latex = el.getAttribute('data-latex')
+    if (latex) {
+      // Verificar si ya está renderizado
+      const hasKaTeX = el.querySelector('.katex') !== null
+      
+      // Si no está renderizado, renderizarlo
+      if (!hasKaTeX) {
+        try {
+          const isDisplay = el.classList.contains('katex-display') || el.tagName === 'DIV'
+          const rendered = katex.renderToString(latex, {
+            throwOnError: false,
+            displayMode: isDisplay,
+            strict: false,
+          })
+          
+          if (rendered && rendered.trim() !== '' && rendered.includes('katex')) {
+            el.innerHTML = rendered
+            el.classList.add('katex-formula')
+            if (isDisplay) {
+              el.classList.add('katex-display')
+            }
+          }
+        } catch (error) {
+          console.error('Error renderizando fórmula:', error)
+        }
+      }
+    }
+  })
+  
+  return tempDiv.innerHTML
 }
 
 // Tipo para el seguimiento de tiempo por pregunta
@@ -995,6 +1062,32 @@ const ExamWithFirebase = () => {
     const answeredQuestions = Object.keys(answers).length
     const questionId = currentQ.id || currentQ.code;
 
+    // Efecto para renderizar fórmulas matemáticas en las opciones después de montar
+    useEffect(() => {
+      // Renderizar fórmulas matemáticas en todas las opciones de la pregunta actual
+      // Usar un pequeño delay para asegurar que el DOM esté completamente renderizado
+      const timer = setTimeout(() => {
+        const mathElements = document.querySelectorAll(`[data-latex]:not(.katex *)`)
+        mathElements.forEach((el) => {
+          const latex = el.getAttribute('data-latex')
+          if (latex && !el.querySelector('.katex')) {
+            try {
+              const isDisplay = el.classList.contains('katex-display') || el.tagName === 'DIV'
+              katex.render(latex, el as HTMLElement, {
+                throwOnError: false,
+                displayMode: isDisplay,
+                strict: false,
+              })
+            } catch (error) {
+              console.error('Error renderizando fórmula en opción:', error)
+            }
+          }
+        })
+      }, 100)
+
+      return () => clearTimeout(timer)
+    }, [currentQuestion, questionId])
+
     return (
       <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-25 pt-2 px-4 pb-4">
         {/* Contenido principal del examen */}
@@ -1140,7 +1233,10 @@ const ExamWithFirebase = () => {
                         <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
                         <div className="flex-1">
                           {option.text && (
-                            <span className="text-gray-900">{stripHtmlTags(option.text)}</span>
+                            <div 
+                              className="text-gray-900"
+                              dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
+                            />
                           )}
                           {option.imageUrl && (
                             <div className="mt-2 flex justify-center">
