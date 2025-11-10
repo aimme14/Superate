@@ -24,7 +24,7 @@ const Quiz = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
-        <main className="container mx-auto py-8 px-4">
+        <main className="container mx-auto py-2 px-4">
           {subject === 'Lenguaje' ? (
             <ExamFormLecture />
           ) : subject === 'Matemáticas' ? (
@@ -61,7 +61,7 @@ const Quiz = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <main className="container mx-auto py-8 px-4">
+      <main className="container mx-auto py-2 px-4">
         {id === 'lectura' ? (
           <ExamFormLecture />
         ) : id === 'quiz' ? (

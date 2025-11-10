@@ -1050,85 +1050,60 @@ const ExamWithFirebase = () => {
   // Pantalla principal del examen
   const ExamScreen = () => {
     const currentQ = examData.questions[currentQuestion]
-    const progress = ((currentQuestion + 1) / examData.questions.length) * 100
     const answeredQuestions = Object.keys(answers).length
 
     return (
-      <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-50 p-4">
+      <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-25 pt-2 px-4 pb-4">
         {/* Contenido principal del examen */}
         <div className="flex-1">
-          <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden">
-                <BookCheck className="w-16 h-16 text-emerald-500" />
-              </div>
-              <div>
-                <h3 className="text-sm text-gray-500 font-medium">Estás realizando:</h3>
-                <h2 className="text-lg font-bold">{examData.module || examData.title}</h2>
-                <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                  <Clock className="h-4 w-4" />
-                  <span>{examData.timeLimit} minutos</span>
-                  <span className="mx-1">•</span>
-                  <span>{examData.questions.length} preguntas</span>
-                  {tabChangeCount > 0 && (
-                    <>
-                      <span className="mx-1">•</span>
-                      <span className="text-orange-600 font-medium">
-                        Advertencias: {tabChangeCount}/3
-                      </span>
-                    </>
-                  )}
+          <div className="bg-white border rounded-lg p-3 mb-2 shadow-sm">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
+                  <BookCheck className="w-12 h-12 text-emerald-500" />
+                </div>
+                <div>
+                  <h3 className="text-xs text-gray-500 font-medium">Estás realizando:</h3>
+                  <h2 className="text-base font-bold">{examData.module || examData.title}</h2>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              <h2 className="text-lg font-semibold">{examData.title}</h2>
-            </div>
-            <div className="flex items-center gap-4">
-              {tabChangeCount > 0 && (
-                <div className="flex items-center gap-2 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
-                  <AlertCircle className="h-4 w-4 text-orange-500" />
-                  <span className="text-sm font-medium text-orange-700">
-                    {3 - tabChangeCount} intentos restantes
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Tiempo restante */}
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm ${timeLeft > 600
+                    ? 'bg-green-100 text-green-700 border-green-200'
+                    : timeLeft > 300
+                      ? 'bg-orange-100 text-orange-700 border-orange-200'
+                      : 'bg-red-100 text-red-700 border-red-200'
+                  }`}>
+                  <Clock className={`h-4 w-4 ${timeLeft > 600
+                      ? 'text-green-500'
+                      : timeLeft > 300
+                        ? 'text-orange-500'
+                        : 'text-red-500'
+                    }`} />
+                  <span className={`text-sm font-medium font-mono ${timeLeft > 600
+                      ? 'text-green-700'
+                      : timeLeft > 300
+                        ? 'text-orange-700'
+                        : 'text-red-700'
+                    }`}>
+                    {formatTimeLeft(timeLeft)}
                   </span>
                 </div>
-              )}
-              {/* tiempo restante */}
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border shadow-sm ${timeLeft > 600
-                  ? 'bg-green-100 text-green-700 border-green-200'
-                  : timeLeft > 300
-                    ? 'bg-orange-100 text-orange-700 border-orange-200'
-                    : 'bg-red-100 text-red-700 border-red-200'
-                }`}>
-                <Clock className={`h-4 w-4 ${timeLeft > 600
-                    ? 'text-green-500'
-                    : timeLeft > 300
-                      ? 'text-orange-500'
-                      : 'text-red-500'
-                  }`} />
-                <span className={`text-sm font-medium font-mono ${timeLeft > 600
-                    ? 'text-green-700'
-                    : timeLeft > 300
-                      ? 'text-orange-700'
-                      : 'text-red-700'
-                  }`}>
-                  {formatTimeLeft(timeLeft)}
-                </span>
+                {/* Preguntas respondidas */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                  <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
+                </div>
+                {/* Advertencias de cambio de pestaña */}
+                {tabChangeCount > 0 && (
+                  <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
+                    <AlertCircle className="h-4 w-4 text-orange-500" />
+                    <span className="text-sm font-medium text-orange-700">
+                      {3 - tabChangeCount} intentos restantes
+                    </span>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <Progress value={progress} className="h-2" />
-            <div className="flex justify-between mt-2 text-sm text-gray-500">
-              <span>
-                Pregunta {currentQuestion + 1} de {examData.questions.length}
-              </span>
-              <span>{answeredQuestions} respondidas</span>
             </div>
           </div>
 
