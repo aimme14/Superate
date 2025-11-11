@@ -199,7 +199,22 @@ class QuestionService {
     levelCode: string
   ): Promise<Result<string>> {
     try {
-      const counterKey = `${subjectCode}${topicCode}${grade}${levelCode}`;
+      // Normalizar los parámetros a string y trim
+      const normalizedSubjectCode = String(subjectCode || '').trim();
+      const normalizedTopicCode = String(topicCode || '').trim();
+      const normalizedGrade = String(grade || '').trim();
+      const normalizedLevelCode = String(levelCode || '').trim();
+
+      console.log('🔢 Generando código con parámetros:', {
+        subjectCode: normalizedSubjectCode,
+        topicCode: normalizedTopicCode,
+        grade: normalizedGrade,
+        levelCode: normalizedLevelCode,
+      });
+
+      const counterKey = `${normalizedSubjectCode}${normalizedTopicCode}${normalizedGrade}${normalizedLevelCode}`;
+      console.log('🔑 Clave del contador:', counterKey);
+      
       const counterRef = doc(db, 'superate', 'auth', 'counters', counterKey);
 
       // Usar transacción para garantizar atomicidad
@@ -208,7 +223,11 @@ class QuestionService {
         
         let currentCount = 1;
         if (counterDoc.exists()) {
-          currentCount = (counterDoc.data().count || 0) + 1;
+          const existingCount = counterDoc.data().count || 0;
+          currentCount = existingCount + 1;
+          console.log(`📊 Contador existente: ${existingCount}, nuevo: ${currentCount}`);
+        } else {
+          console.log('📊 No existe contador, iniciando en 1');
         }
 
         // Actualizar el contador
@@ -216,10 +235,12 @@ class QuestionService {
 
         // Generar el código con formato de 3 dígitos
         const serie = String(currentCount).padStart(3, '0');
-        return `${counterKey}${serie}`;
+        const generatedCode = `${counterKey}${serie}`;
+        console.log(`🔢 Código generado: ${generatedCode} (serie: ${serie})`);
+        return generatedCode;
       });
 
-      console.log('✅ Código generado:', newCode);
+      console.log('✅ Código generado exitosamente:', newCode);
       return success(newCode);
     } catch (e) {
       console.error('❌ Error al generar código:', e);
@@ -486,12 +507,12 @@ class QuestionService {
   /**
    * Actualiza una pregunta existente
    * @param questionId - ID de la pregunta
-   * @param updates - Datos a actualizar
+   * @param updates - Datos a actualizar (puede incluir código si cambian los parámetros)
    * @returns La pregunta actualizada
    */
   async updateQuestion(
     questionId: string,
-    updates: Partial<Omit<Question, 'id' | 'code' | 'createdBy' | 'createdAt'>>
+    updates: Partial<Omit<Question, 'id' | 'createdBy' | 'createdAt'>>
   ): Promise<Result<Question>> {
     try {
       const questionRef = doc(db, 'superate', 'auth', 'questions', questionId);
@@ -505,6 +526,8 @@ class QuestionService {
         }));
       }
 
+      const currentQuestion = questionSnap.data() as Question;
+
       // Validar opciones si se están actualizando
       if (updates.options) {
         const correctOptions = updates.options.filter(opt => opt.isCorrect);
@@ -516,10 +539,40 @@ class QuestionService {
         }
       }
 
+      // Si se está actualizando el código, verificar que sea válido
+      if (updates.code && updates.code !== currentQuestion.code) {
+        console.log(`🔄 Actualizando código de pregunta: ${currentQuestion.code} → ${updates.code}`);
+        console.log('📋 Datos que se están actualizando:', {
+          code: updates.code,
+          subjectCode: updates.subjectCode,
+          topicCode: updates.topicCode,
+          grade: updates.grade,
+          levelCode: updates.levelCode
+        });
+      }
+
+      // Log de todos los updates para depuración
+      console.log('📤 Actualizando pregunta en Firestore:', {
+        questionId,
+        updates: {
+          ...updates,
+          code: updates.code || currentQuestion.code,
+          subjectCode: updates.subjectCode || currentQuestion.subjectCode,
+          topicCode: updates.topicCode || currentQuestion.topicCode,
+          grade: updates.grade || currentQuestion.grade,
+          levelCode: updates.levelCode || currentQuestion.levelCode,
+        }
+      });
+
       await setDoc(questionRef, updates, { merge: true });
+      console.log('✅ Pregunta actualizada en Firestore');
 
       // Obtener la pregunta actualizada
-      return await this.getQuestionById(questionId);
+      const updatedQuestion = await this.getQuestionById(questionId);
+      if (updatedQuestion.success && updates.code) {
+        console.log('✅ Pregunta actualizada correctamente. Nuevo código:', updatedQuestion.data.code);
+      }
+      return updatedQuestion;
     } catch (e) {
       console.error('❌ Error al actualizar pregunta:', e);
       return failure(new ErrorAPI(normalizeError(e, 'actualizar pregunta')));
@@ -603,88 +656,91 @@ class QuestionService {
       // Eliminar el documento de Firestore
       console.log('🗑️ Eliminando documento de Firestore...');
       console.log('📍 Ruta del documento:', questionRef.path);
+      console.log('📍 ID del documento:', questionRef.id);
+      console.log('📍 Ruta completa:', questionRef.path);
       
-      try {
-        await deleteDoc(questionRef);
-        console.log('✅ deleteDoc ejecutado sin errores');
-      } catch (deleteError: any) {
-        console.error('❌ Error al ejecutar deleteDoc:', deleteError);
-        console.error('❌ Código del error:', deleteError.code);
-        console.error('❌ Mensaje del error:', deleteError.message);
-        
-        // Si es un error de permisos, dar un mensaje más claro
-        if (deleteError.code === 'permission-denied') {
-          return failure(new ErrorAPI({ 
-            message: 'No tienes permisos para eliminar esta pregunta. Verifica que eres administrador.', 
-            statusCode: 403 
-          }));
-        }
-        
-        // Re-lanzar el error para que se capture en el catch general
-        throw deleteError;
-      }
+      // Ejecutar deleteDoc - si hay un error, se lanzará aquí
+      await deleteDoc(questionRef);
+      console.log('✅ deleteDoc ejecutado exitosamente');
       
       // Esperar un momento para que Firestore procese la eliminación
+      console.log('⏳ Esperando a que Firestore procese la eliminación...');
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Verificar que se eliminó correctamente (forzar lectura desde el servidor, no caché)
-      console.log('🔍 Verificando que el documento se eliminó (desde servidor)...');
-      try {
-        const verifySnap = await getDocFromServer(questionRef);
+      // Verificar múltiples veces que el documento realmente se eliminó
+      let verificationAttempts = 0;
+      const maxAttempts = 3;
+      let documentStillExists = false;
+      
+      while (verificationAttempts < maxAttempts) {
+        verificationAttempts++;
+        console.log(`🔍 Verificación ${verificationAttempts}/${maxAttempts}: Consultando documento desde el servidor...`);
         
-        if (verifySnap.exists()) {
-          console.error('❌ Error: El documento todavía existe después de deleteDoc');
-          console.error('❌ Datos del documento:', verifySnap.data());
-          console.error('❌ ID del documento:', verifySnap.id);
-          console.error('❌ Ruta completa:', verifySnap.ref.path);
+        try {
+          // Forzar lectura desde el servidor (sin caché)
+          const verifySnap = await getDocFromServer(questionRef);
           
-          // Intentar eliminar nuevamente como último recurso
-          console.log('🔄 Intentando eliminar nuevamente...');
-          try {
-            await deleteDoc(questionRef);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            const retryVerifySnap = await getDocFromServer(questionRef);
-            if (retryVerifySnap.exists()) {
-              return failure(new ErrorAPI({ 
-                message: 'Error: No se pudo eliminar el documento de la base de datos después de múltiples intentos. Puede ser un problema de permisos o de reglas de seguridad.', 
-                statusCode: 500 
-              }));
+          if (verifySnap.exists()) {
+            console.error(`❌ Intento ${verificationAttempts}: El documento todavía existe`);
+            documentStillExists = true;
+            
+            if (verificationAttempts < maxAttempts) {
+              // Esperar un poco más antes del siguiente intento
+              console.log(`⏳ Esperando 1 segundo antes del siguiente intento...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
-            console.log('✅ Documento eliminado en el segundo intento');
-          } catch (retryError: any) {
-            console.error('❌ Error en segundo intento de eliminación:', retryError);
+          } else {
+            console.log(`✅ Intento ${verificationAttempts}: Confirmado - El documento no existe (eliminación exitosa)`);
+            documentStillExists = false;
+            break; // Salir del bucle si confirmamos que no existe
+          }
+        } catch (verifyError: any) {
+          // Si hay un error de permisos, puede ser que no podamos leer pero el documento se eliminó
+          if (verifyError.code === 'permission-denied') {
+            console.warn(`⚠️ Intento ${verificationAttempts}: No se pudo verificar por permisos, pero deleteDoc fue exitoso`);
+            // Asumir que se eliminó correctamente si deleteDoc no lanzó error
+            documentStillExists = false;
+            break;
+          } else if (verifyError.code === 'not-found') {
+            // El documento no existe (éxito)
+            console.log(`✅ Intento ${verificationAttempts}: Documento no encontrado (eliminación exitosa)`);
+            documentStillExists = false;
+            break;
+          } else {
+            console.warn(`⚠️ Intento ${verificationAttempts}: Error al verificar:`, verifyError.message);
+            if (verificationAttempts < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
+      }
+      
+      // Si después de todos los intentos el documento todavía existe, es un problema
+      if (documentStillExists) {
+        console.error('❌ ERROR CRÍTICO: El documento todavía existe después de múltiples verificaciones');
+        console.error('❌ Esto indica que deleteDoc no eliminó el documento realmente');
+        console.error('❌ Posibles causas:');
+        console.error('   1. Problema de permisos en las reglas de seguridad');
+        console.error('   2. Problema de sincronización de Firestore');
+        console.error('   3. El documento está en una ruta diferente');
+        
+        // Intentar una última vez
+        console.log('🔄 Intentando eliminación final...');
+        try {
+          await deleteDoc(questionRef);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const finalVerify = await getDocFromServer(questionRef);
+          if (finalVerify.exists()) {
             return failure(new ErrorAPI({ 
-              message: `Error al eliminar documento: ${retryError.message || 'Error desconocido'}. Verifica las reglas de seguridad de Firestore.`, 
+              message: 'No se pudo eliminar el documento de Firestore después de múltiples intentos. Verifica las reglas de seguridad y que tengas permisos de administrador.', 
               statusCode: 500 
             }));
           }
-        } else {
-          console.log('✅ Confirmado: El documento no existe en el servidor (eliminación exitosa)');
-        }
-      } catch (verifyError: any) {
-        // Si hay un error de permisos al verificar, puede ser que no tengamos permisos
-        // pero el documento sí se eliminó
-        console.warn('⚠️ Error al verificar eliminación:', verifyError);
-        console.warn('⚠️ Código del error:', verifyError.code);
-        
-        if (verifyError.code === 'permission-denied') {
-          console.warn('⚠️ No se pudo verificar la eliminación por permisos, pero deleteDoc completó sin errores');
-          // Intentar verificar con getDoc normal (que puede usar caché)
-          try {
-            const cachedSnap = await getDoc(questionRef);
-            if (cachedSnap.exists()) {
-              console.error('❌ El documento todavía existe (verificado desde caché)');
-              return failure(new ErrorAPI({ 
-                message: 'Error: No se pudo verificar la eliminación. El documento puede todavía existir. Verifica las reglas de seguridad.', 
-                statusCode: 500 
-              }));
-            }
-          } catch (cachedError) {
-            console.warn('⚠️ Error al verificar desde caché:', cachedError);
-          }
-        } else {
-          // Otro tipo de error - puede ser que el documento no exista
-          console.warn('⚠️ Error inesperado al verificar, asumiendo que se eliminó correctamente');
+        } catch (finalError: any) {
+          return failure(new ErrorAPI({ 
+            message: `Error al eliminar documento: ${finalError.message || 'Error desconocido'}. Verifica las reglas de seguridad de Firestore.`, 
+            statusCode: 500 
+          }));
         }
       }
       
@@ -696,8 +752,28 @@ class QuestionService {
       console.error('❌ Detalles del error:', {
         code: e.code,
         message: e.message,
-        stack: e.stack
+        stack: e.stack,
+        name: e.name
       });
+      
+      // Manejar errores específicos de Firestore
+      if (e.code === 'permission-denied') {
+        console.error('❌ Error de permisos: El usuario no tiene permisos para eliminar esta pregunta');
+        return failure(new ErrorAPI({ 
+          message: 'No tienes permisos para eliminar esta pregunta. Verifica que eres administrador y que las reglas de seguridad de Firestore están configuradas correctamente.', 
+          statusCode: 403 
+        }));
+      }
+      
+      if (e.code === 'not-found') {
+        console.error('❌ Error: La pregunta no existe en la base de datos');
+        return failure(new ErrorAPI({ 
+          message: 'La pregunta no existe en la base de datos', 
+          statusCode: 404 
+        }));
+      }
+      
+      // Para otros errores, usar el manejo normal
       return failure(new ErrorAPI(normalizeError(e, 'eliminar pregunta')));
     }
   }

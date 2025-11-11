@@ -940,18 +940,38 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   }
 
   const handleEditQuestion = (question: Question) => {
+    console.log('📝 Cargando pregunta para edición:', {
+      id: question.id,
+      code: question.code,
+      subjectCode: question.subjectCode,
+      topicCode: question.topicCode,
+      grade: question.grade,
+      levelCode: question.levelCode,
+      gradeType: typeof question.grade,
+    })
+    
     setSelectedQuestion(question)
     // Cargar los datos de la pregunta en el formulario
+    // Asegurar que el grado sea string para consistencia
+    const gradeValue = String(question.grade || '').trim() as '6' | '7' | '8' | '9' | '0' | '1'
+    
     setFormData({
       subject: question.subject,
       subjectCode: question.subjectCode,
       topic: question.topic,
       topicCode: question.topicCode,
-      grade: question.grade as any,
+      grade: gradeValue,
       level: question.level as any,
       levelCode: question.levelCode as any,
       informativeText: question.informativeText || '',
       questionText: question.questionText,
+    })
+    
+    console.log('📋 Formulario cargado con valores:', {
+      grade: gradeValue,
+      subjectCode: question.subjectCode,
+      topicCode: question.topicCode,
+      levelCode: question.levelCode,
     })
     // Cargar opciones
     setOptions(question.options)
@@ -996,34 +1016,71 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     console.log('🗑️ Intentando eliminar pregunta:', {
       id: question.id,
       code: question.code,
-      subject: question.subject
+      subject: question.subject,
+      userId: currentUser.uid,
+      userRole: currentUser.role
     })
+
+    // Guardar el estado original para poder restaurarlo si falla
+    const originalQuestions = [...questions]
+    const originalFilteredQuestions = [...filteredQuestions]
+    
+    // Actualización optimista: eliminar del estado local inmediatamente
+    const updatedQuestions = questions.filter(q => q.id !== question.id)
+    setQuestions(updatedQuestions)
+    
+    // Actualizar también las preguntas filtradas
+    const updatedFilteredQuestions = filteredQuestions.filter(q => q.id !== question.id)
+    setFilteredQuestions(updatedFilteredQuestions)
 
     setIsLoading(true)
     try {
+      console.log('🔄 Llamando a questionService.deleteQuestion con ID:', question.id)
       const result = await questionService.deleteQuestion(question.id)
       
       if (result.success) {
-        console.log('✅ Eliminación exitosa, recargando preguntas...')
-        notifySuccess({
-          title: 'Éxito',
-          message: `Pregunta ${question.code} eliminada correctamente`
-        })
-        // Recargar las preguntas después de eliminar
+        console.log('✅ Eliminación exitosa en la base de datos')
+        
+        // Recargar las preguntas desde la base de datos para asegurar consistencia
         await loadQuestions()
         await loadStats()
+        
+        notifySuccess({
+          title: 'Éxito',
+          message: `Pregunta ${question.code} eliminada correctamente de la base de datos. Nota: La consola de Firebase puede mostrar datos en caché - refresca la página de la consola (F5) si aún ves la pregunta.`
+        })
       } else {
-        console.error('❌ Error al eliminar pregunta:', result.error)
+        console.error('❌ Error al eliminar pregunta de la base de datos:', result.error)
+        console.error('❌ Detalles del error:', {
+          message: result.error?.message,
+          statusCode: result.error?.statusCode,
+          code: result.error?.code
+        })
+        
+        // Restaurar el estado original si falló la eliminación
+        setQuestions(originalQuestions)
+        setFilteredQuestions(originalFilteredQuestions)
+        
         notifyError({
-          title: 'Error',
-          message: result.error?.message || 'No se pudo eliminar la pregunta'
+          title: 'Error al eliminar',
+          message: result.error?.message || 'No se pudo eliminar la pregunta de la base de datos. Verifica las reglas de seguridad de Firestore.'
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Excepción al eliminar pregunta:', error)
+      console.error('❌ Detalles de la excepción:', {
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack
+      })
+      
+      // Restaurar el estado original si falló la eliminación
+      setQuestions(originalQuestions)
+      setFilteredQuestions(originalFilteredQuestions)
+      
       notifyError({
         title: 'Error',
-        message: 'Error al eliminar la pregunta. Revisa la consola para más detalles.'
+        message: `Error al eliminar la pregunta: ${error?.message || 'Error desconocido'}. La pregunta no se eliminó de la base de datos.`
       })
     } finally {
       setIsLoading(false)
@@ -1200,6 +1257,69 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       })
 
+      // Verificar si cambiaron los parámetros que afectan el código
+      // Convertir a string para evitar problemas de tipos
+      const oldSubjectCode = String(selectedQuestion.subjectCode || '').trim()
+      const newSubjectCode = String(formData.subjectCode || '').trim()
+      const oldTopicCode = String(selectedQuestion.topicCode || '').trim()
+      const newTopicCode = String(formData.topicCode || '').trim()
+      const oldGrade = String(selectedQuestion.grade || '').trim()
+      const newGrade = String(formData.grade || '').trim()
+      const oldLevelCode = String(selectedQuestion.levelCode || '').trim()
+      const newLevelCode = String(formData.levelCode || '').trim()
+
+      const codeParamsChanged = 
+        oldSubjectCode !== newSubjectCode ||
+        oldTopicCode !== newTopicCode ||
+        oldGrade !== newGrade ||
+        oldLevelCode !== newLevelCode
+
+      // Log detallado para depuración
+      console.log('🔍 Verificando cambios en parámetros del código:')
+      console.log('  Materia:', { old: oldSubjectCode, new: newSubjectCode, changed: oldSubjectCode !== newSubjectCode })
+      console.log('  Tema:', { old: oldTopicCode, new: newTopicCode, changed: oldTopicCode !== newTopicCode })
+      console.log('  Grado:', { old: oldGrade, new: newGrade, changed: oldGrade !== newGrade })
+      console.log('  Nivel:', { old: oldLevelCode, new: newLevelCode, changed: oldLevelCode !== newLevelCode })
+      console.log('  ¿Cambió algún parámetro?', codeParamsChanged)
+
+      // Si cambiaron los parámetros, generar un nuevo código
+      let newCode: string | undefined = undefined
+      if (codeParamsChanged) {
+        console.log('🔄 Detectado cambio en parámetros del código:')
+        console.log('  Materia:', oldSubjectCode, '→', newSubjectCode)
+        console.log('  Tema:', oldTopicCode, '→', newTopicCode)
+        console.log('  Grado:', oldGrade, '→', newGrade)
+        console.log('  Nivel:', oldLevelCode, '→', newLevelCode)
+        console.log('  Código actual:', selectedQuestion.code)
+        
+        notifySuccess({
+          title: 'Generando código',
+          message: 'Generando nuevo código para la pregunta...'
+        })
+
+        const codeResult = await questionService.generateQuestionCode(
+          newSubjectCode,
+          newTopicCode,
+          newGrade,
+          newLevelCode
+        )
+
+        if (!codeResult.success) {
+          console.error('❌ Error al generar código:', codeResult.error)
+          notifyError({
+            title: 'Error',
+            message: codeResult.error?.message || 'No se pudo generar el nuevo código'
+          })
+          setIsLoading(false)
+          return
+        }
+
+        newCode = codeResult.data
+        console.log(`✅ Nuevo código generado: ${selectedQuestion.code} → ${newCode}`)
+      } else {
+        console.log('ℹ️ No se detectaron cambios en los parámetros del código')
+      }
+
       // Preparar datos de actualización
       const updates: any = {
         subject: formData.subject,
@@ -1214,6 +1334,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         options: finalOptions
       }
 
+      // Si se generó un nuevo código, agregarlo a las actualizaciones
+      if (newCode) {
+        updates.code = newCode
+      }
+
       // Agregar nuevas imágenes si las hay
       if (newInformativeImageUrls.length > 0) {
         updates.informativeImages = [...(selectedQuestion.informativeImages || []), ...newInformativeImageUrls]
@@ -1226,9 +1351,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       const result = await questionService.updateQuestion(selectedQuestion.id, updates)
 
       if (result.success) {
+        const successMessage = newCode 
+          ? `Pregunta actualizada correctamente. Código cambiado: ${selectedQuestion.code} → ${newCode}`
+          : `Pregunta ${selectedQuestion.code} actualizada correctamente`
+        
         notifySuccess({
           title: 'Éxito',
-          message: `Pregunta ${selectedQuestion.code} actualizada correctamente`
+          message: successMessage
         })
         resetForm()
         setIsEditDialogOpen(false)
