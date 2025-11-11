@@ -1,4 +1,4 @@
-import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator, Timer, HelpCircle, Users, Play, Maximize, Database } from "lucide-react"
+import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator, Timer, HelpCircle, Users, Play, Maximize, Database, X } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
@@ -114,6 +114,8 @@ const ExamWithFirebase = () => {
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
   const [examLocked, setExamLocked] = useState(false)
+  const [showFullscreenExit, setShowFullscreenExit] = useState(false)
+  const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [existingExamData, setExistingExamData] = useState<any | null>(null);
 
@@ -467,17 +469,48 @@ const ExamWithFirebase = () => {
   }, [examState, tabChangeCount, showTabChangeWarning, examLocked]);
 
   // Detectar cambios de pantalla completa
+  // Detectar cambios de pantalla completa - PRINCIPAL
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const fullscreenElement =
-        document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        document.msFullscreenElement;
+      if (examState !== 'active') return;
+      
+      setTimeout(() => {
+        const fullscreenElement =
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.msFullscreenElement;
 
-      const isCurrentlyFullscreen = !!fullscreenElement;
-      setIsFullscreen(isCurrentlyFullscreen);
+        const isCurrentlyFullscreen = !!fullscreenElement;
+        const isHidden = document.hidden;
+        
+        console.log('Fullscreen change:', { isCurrentlyFullscreen, isHidden, examState });
 
-      // Pantalla completa cambiada
+        setIsFullscreen(isCurrentlyFullscreen);
+
+        if (!isCurrentlyFullscreen) {
+          console.log('Salida de pantalla completa detectada durante examen activo');
+          
+          // Verificar si también se cambió de pestaña
+          if (isHidden) {
+            console.log('También se cambió de pestaña');
+            setFullscreenExitWithTabChange(true);
+            setTabChangeCount(prev => {
+              const newCount = prev + 1;
+              if (newCount >= 2) {
+                setExamLocked(true);
+                handleSubmit(false, true);
+              } else {
+                setShowFullscreenExit(true);
+              }
+              return newCount;
+            });
+          } else {
+            console.log('Solo salida de pantalla completa, sin cambio de pestaña');
+            setFullscreenExitWithTabChange(false);
+            setShowFullscreenExit(true);
+          }
+        }
+      }, 150);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -490,6 +523,46 @@ const ExamWithFirebase = () => {
       document.removeEventListener('msfullscreenchange', handleFullscreenChange);
     };
   }, [examState]);
+
+  // Detectar cambios de pestaña
+  useEffect(() => {
+    if (examState !== 'active' || examLocked) return;
+    
+    const handleVisibilityChange = () => {
+      const isHidden = document.hidden;
+      
+      setTimeout(() => {
+        const fullscreenElement =
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.msFullscreenElement;
+        
+        const isCurrentlyFullscreen = !!fullscreenElement;
+        
+        if (!isHidden && !isCurrentlyFullscreen && !showFullscreenExit) {
+          // Volvió a la pestaña sin pantalla completa
+          setFullscreenExitWithTabChange(true);
+          setShowFullscreenExit(true);
+        } else if (isHidden && isCurrentlyFullscreen) {
+          // Solo cambió de pestaña (todavía en fullscreen)
+          setTabChangeCount(prev => {
+            const newCount = prev + 1;
+            setShowTabChangeWarning(true);
+            if (newCount >= 3) {
+              setExamLocked(true);
+              handleSubmit(true, true);
+            }
+            return newCount;
+          });
+        }
+      }, 150);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [examState, examLocked, showFullscreenExit]);
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
@@ -825,6 +898,7 @@ const ExamWithFirebase = () => {
     setExamLocked(true)
     setShowWarning(false)
     setShowTabChangeWarning(false)
+    setShowFullscreenExit(false)
 
     try {
       await saveToFirebase(timeExpired, lockedByTabChange)
@@ -854,6 +928,32 @@ const ExamWithFirebase = () => {
     }
   }
 
+  // Manejar salida de pantalla completa durante el examen
+  const handleExitFullscreen = async () => {
+    setShowFullscreenExit(false)
+    await handleSubmit(false, false)
+    await exitFullscreen()
+  }
+
+  // Volver al examen en pantalla completa
+  const returnToExam = async () => {
+    setShowFullscreenExit(false)
+    setFullscreenExitWithTabChange(false)
+    await enterFullscreen()
+    
+    // Verificar que realmente entró en pantalla completa
+    setTimeout(() => {
+      const fullscreenElement =
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement;
+      
+      if (!fullscreenElement && examState === 'active') {
+        setShowFullscreenExit(true)
+      }
+    }, 100)
+  }
+
   // Función para mostrar advertencia de envío
   const showSubmitWarning = () => {
     setShowWarning(true)
@@ -868,6 +968,100 @@ const ExamWithFirebase = () => {
   // Función para cancelar envío
   const cancelSubmit = () => {
     setShowWarning(false)
+  }
+
+  // Modal de salida de pantalla completa
+  const FullscreenExitModal = () => {
+    if (!showFullscreenExit) return null;
+    
+    const hasTabChange = fullscreenExitWithTabChange;
+    const isLastWarning = tabChangeCount >= 1;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+        <Card className="w-full max-w-md mx-4">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className={`h-16 w-16 ${hasTabChange && isLastWarning ? 'bg-red-100' : hasTabChange ? 'bg-orange-100' : 'bg-amber-100'} rounded-full flex items-center justify-center`}>
+                <Maximize className={`h-8 w-8 ${hasTabChange && isLastWarning ? 'text-red-600' : hasTabChange ? 'text-orange-600' : 'text-amber-600'}`} />
+              </div>
+            </div>
+            <CardTitle className={`text-xl ${hasTabChange && isLastWarning ? 'text-red-800' : hasTabChange ? 'text-orange-800' : 'text-amber-800'}`}>
+              {hasTabChange && isLastWarning 
+                ? '¡Advertencia Final!' 
+                : hasTabChange 
+                ? 'Salida de Pantalla Completa y Cambio de Pestaña'
+                : 'Salida de Pantalla Completa'}
+            </CardTitle>
+            <CardDescription className="text-base">
+              {hasTabChange && isLastWarning
+                ? 'Has salido de pantalla completa y cambiado de pestaña por segunda vez'
+                : hasTabChange
+                ? 'Has salido de pantalla completa y cambiado de pestaña'
+                : 'Has salido del modo pantalla completa'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            {hasTabChange && isLastWarning ? (
+              <>
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertTitle className="text-red-800 font-bold">¡Último Aviso!</AlertTitle>
+                  <AlertDescription className="text-red-700">
+                    Si vuelves a salir de pantalla completa y cambiar de pestaña, el examen se finalizará automáticamente.
+                  </AlertDescription>
+                </Alert>
+                <p className="text-gray-700 font-medium">
+                  Por favor, vuelve a poner pantalla completa y mantén esta pestaña activa.
+                </p>
+              </>
+            ) : hasTabChange ? (
+              <>
+                <Alert className="border-orange-200 bg-orange-50">
+                  <AlertCircle className="h-4 w-4 text-orange-600" />
+                  <AlertTitle className="text-orange-800">Advertencia</AlertTitle>
+                  <AlertDescription className="text-orange-700">
+                    Has salido de pantalla completa y cambiado de pestaña. Si lo vuelves a hacer, el examen se tomará por finalizado.
+                  </AlertDescription>
+                </Alert>
+                <p className="text-gray-700">
+                  Por favor, vuelve a poner pantalla completa y mantén esta pestaña activa.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-700 mb-4 font-medium">
+                  El examen debe realizarse en pantalla completa. Por favor, vuelve a poner pantalla completa o finaliza el examen.
+                </p>
+                <Alert className="border-amber-200 bg-amber-50">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-700">
+                    Si eliges finalizar el examen, se guardarán todas tus respuestas actuales.
+                  </AlertDescription>
+                </Alert>
+              </>
+            )}
+          </CardContent>
+          <CardFooter className="flex flex-col gap-3">
+            <Button
+              onClick={returnToExam}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Maximize className="h-4 w-4 mr-2" />
+              Volver a Pantalla Completa
+            </Button>
+            <Button
+              onClick={handleExitFullscreen}
+              variant="outline"
+              className="w-full border-red-300 text-red-600 hover:bg-red-50"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Finalizar Examen
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
   }
 
   // Función para formatear tiempo restante
@@ -1302,6 +1496,7 @@ const ExamWithFirebase = () => {
 
       {/* Modales */}
       {showWarning && <SubmitWarningModal />}
+      {showFullscreenExit && <FullscreenExitModal />}
     </div>
   )
 }
