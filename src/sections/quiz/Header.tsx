@@ -1,53 +1,7 @@
-import { useAuthContext } from "@/context/AuthContext"
-import { useQuery } from "@tanstack/react-query"
-import { getUserById } from "@/controllers/user.controller"
-import { useInstitution } from "@/hooks/query/useInstitutionQuery"
-import { useEffect, useState } from "react"
+import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 
 const Header = () => {
-  const { user } = useAuthContext()
-  const [institutionId, setInstitutionId] = useState<string | null>(null)
-
-  // Obtener los datos completos del usuario para acceder al institutionId
-  const { data: userData } = useQuery({
-    queryKey: ['user', user?.uid],
-    queryFn: async () => {
-      if (!user?.uid) return null
-      const result = await getUserById(user.uid)
-      if (result.success) {
-        return result.data
-      }
-      return null
-    },
-    enabled: !!user?.uid,
-  })
-
-  // Extraer el institutionId del usuario
-  useEffect(() => {
-    if (userData) {
-      // El institutionId puede estar en 'inst', 'institutionId'
-      // enrichUserData conserva los campos originales, así que deberían estar disponibles
-      const id = (userData as any).inst || (userData as any).institutionId || null
-      if (id) {
-        setInstitutionId(id)
-      }
-    } else if (user?.institution) {
-      // Si no tenemos userData pero tenemos el nombre de la institución en el contexto,
-      // intentamos buscar la institución por nombre (esto es un fallback)
-      // Por ahora, dejamos que se muestre el nombre del contexto
-      setInstitutionId(null)
-    }
-  }, [userData, user])
-
-  // Obtener los datos de la institución
-  const { data: institution, isLoading: isLoadingInstitution } = useInstitution(
-    institutionId || '',
-    !!institutionId
-  )
-
-  // Determinar qué mostrar: institución del usuario o valores por defecto
-  const institutionName = institution?.name || user?.institution || 'Agustina Ferro'
-  const institutionLogo = institution?.logo || '/assets/agustina.png'
+  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution()
 
   return (
     <header className="bg-white border-b sticky top-0 z-10">
@@ -61,7 +15,7 @@ const Header = () => {
               className="h-10 w-10 object-contain rounded-md"
               onError={(e) => {
                 // Si falla la carga del logo, usar el logo por defecto
-                e.currentTarget.src = '/assets/agustina.png'
+                e.currentTarget.src = institutionLogo || '/assets/agustina.png'
               }}
             />
           </div>

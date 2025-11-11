@@ -9,6 +9,7 @@ import { AlertCircle } from "lucide-react"
 import Prueba from "../prueba"
 import Intento from "../Intento"
 import { useEffect } from "react"
+import { useUserInstitution } from "@/hooks/query/useUserInstitution"
   
 
 export function Home() {
@@ -22,6 +23,7 @@ export function Home() {
     }
   }, [])
   const { user } = useAuthContext()
+  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution()
 
   const userId = user?.uid
   const { data: userFound } = useQueryUser().fetchUserById<User>(userId as string, !!user)
@@ -33,8 +35,19 @@ export function Home() {
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center">
-            <img src="/assets/agustina.png" width="80" height="80" alt="ICFES Logo" className="mr-2" />
-            <span className="text-red-600 font-bold text-2xl">I.E. Colegio Agustina Ferro</span>
+            <img 
+              src={institutionLogo} 
+              width="80" 
+              height="80" 
+              alt={`Logo de ${institutionName}`} 
+              className="mr-2"
+              onError={(e) => {
+                e.currentTarget.src = '/assets/agustina.png'
+              }}
+            />
+            <span className="text-red-600 font-bold text-2xl">
+              {isLoadingInstitution ? 'Cargando...' : institutionName}
+            </span>
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">

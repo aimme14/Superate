@@ -5,12 +5,14 @@ import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Link } from "react-router-dom"
+import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 
 
 export default function InfoTab() {
   const { user } = useAuthContext()
   const userId = user?.uid
   const { data: userData } = useQueryUser().fetchUserById<any>(userId as string, !!userId)
+  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution()
 
   return (
     <div>
@@ -18,8 +20,19 @@ export default function InfoTab() {
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center">
-            <img src="/assets/agustina.png" width="80" height="80" alt="ICFES Logo" className="mr-2" />
-            <span className="text-red-600 font-bold text-2xl">I.E. Colegio Agustina Ferro</span>
+            <img 
+              src={institutionLogo} 
+              width="80" 
+              height="80" 
+              alt={`Logo de ${institutionName}`} 
+              className="mr-2"
+              onError={(e) => {
+                e.currentTarget.src = '/assets/agustina.png'
+              }}
+            />
+            <span className="text-red-600 font-bold text-2xl">
+              {isLoadingInstitution ? 'Cargando...' : institutionName}
+            </span>
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">

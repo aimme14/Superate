@@ -8,6 +8,7 @@ import { doc, getDoc, getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { CartesianGrid, Bar, ResponsiveContainer, XAxis, YAxis, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Tooltip } from "recharts";
+import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 
 const db = getFirestore(firebaseApp);
 
@@ -83,6 +84,7 @@ const ExamAnalyzer = () => {
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
 
   useEffect(() => {
     const fetchEvaluations = async () => {
@@ -234,8 +236,19 @@ const ExamAnalyzer = () => {
         <header className="bg-white shadow-sm">
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
-              <img src="/assets/agustina.png" width="80" height="80" alt="ICFES Logo" className="mr-2" />
-              <span className="text-red-600 font-bold text-2xl">I.E. Colegio Agustina Ferro</span>
+              <img 
+                src={institutionLogo} 
+                width="80" 
+                height="80" 
+                alt={`Logo de ${institutionName}`} 
+                className="mr-2"
+                onError={(e) => {
+                  e.currentTarget.src = '/assets/agustina.png'
+                }}
+              />
+              <span className="text-red-600 font-bold text-2xl">
+                {isLoadingInstitution ? 'Cargando...' : institutionName}
+              </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
@@ -264,8 +277,19 @@ const ExamAnalyzer = () => {
         <header className="bg-white shadow-sm">
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
-              <img src="/assets/agustina.png" width="80" height="80" alt="ICFES Logo" className="mr-2" />
-              <span className="text-red-600 font-bold text-2xl">I.E. Colegio Agustina Ferro</span>
+              <img 
+                src={institutionLogo} 
+                width="80" 
+                height="80" 
+                alt={`Logo de ${institutionName}`} 
+                className="mr-2"
+                onError={(e) => {
+                  e.currentTarget.src = '/assets/agustina.png'
+                }}
+              />
+              <span className="text-red-600 font-bold text-2xl">
+                {isLoadingInstitution ? 'Cargando...' : institutionName}
+              </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
@@ -296,8 +320,19 @@ const ExamAnalyzer = () => {
         <header className="bg-white shadow-sm">
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
-              <img src="/assets/agustina.png" width="80" height="80" alt="ICFES Logo" className="mr-2" />
-              <span className="text-red-600 font-bold text-2xl">I.E. Colegio Agustina Ferro</span>
+              <img 
+                src={institutionLogo} 
+                width="80" 
+                height="80" 
+                alt={`Logo de ${institutionName}`} 
+                className="mr-2"
+                onError={(e) => {
+                  e.currentTarget.src = '/assets/agustina.png'
+                }}
+              />
+              <span className="text-red-600 font-bold text-2xl">
+                {isLoadingInstitution ? 'Cargando...' : institutionName}
+              </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
@@ -331,8 +366,19 @@ const ExamAnalyzer = () => {
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center">
-            <img src="/assets/agustina.png" width="80" height="80" alt="ICFES Logo" className="mr-2" />
-            <span className="text-red-600 font-bold text-2xl">I.E. Colegio Agustina Ferro</span>
+            <img 
+              src={institutionLogo} 
+              width="80" 
+              height="80" 
+              alt={`Logo de ${institutionName}`} 
+              className="mr-2"
+              onError={(e) => {
+                e.currentTarget.src = '/assets/agustina.png'
+              }}
+            />
+            <span className="text-red-600 font-bold text-2xl">
+              {isLoadingInstitution ? 'Cargando...' : institutionName}
+            </span>
           </div>
           <nav className="hidden md:flex items-center space-x-8">
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
