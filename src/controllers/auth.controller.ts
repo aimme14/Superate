@@ -54,34 +54,142 @@ export const login = async ({ email, password }: { email: string, password: stri
 }
 
 /**
+ * Asigna automáticamente un estudiante a todos los docentes del mismo grado
+ * @param {string} studentId - ID del estudiante
+ * @param {string} institutionId - ID de la institución
+ * @param {string} campusId - ID de la sede
+ * @param {string} gradeId - ID del grado
+ */
+const assignStudentToTeachers = async (studentId: string, institutionId: string, campusId: string, gradeId: string): Promise<void> => {
+  try {
+    // Obtener todos los docentes del grado específico
+    const teachersResult = await dbService.getTeachersByGrade(institutionId, campusId, gradeId)
+    if (!teachersResult.success) {
+      console.warn('No se pudieron obtener los docentes del grado:', teachersResult.error)
+      return
+    }
+
+    // Asignar el estudiante a cada docente del grado
+    for (const teacher of teachersResult.data) {
+      await dbService.assignStudentToTeacher(teacher.id, studentId)
+    }
+
+    console.log(`✅ Estudiante ${studentId} asignado a ${teachersResult.data.length} docentes del grado ${gradeId}`)
+  } catch (error) {
+    console.error('Error al asignar estudiante a docentes:', error)
+  }
+}
+
+/**
+ * Asigna automáticamente un estudiante al coordinador de la sede
+ * @param {string} studentId - ID del estudiante
+ * @param {string} institutionId - ID de la institución
+ * @param {string} campusId - ID de la sede
+ */
+const assignStudentToPrincipal = async (studentId: string, institutionId: string, campusId: string): Promise<void> => {
+  try {
+    // Obtener el coordinador de la sede
+    const principalResult = await dbService.getPrincipalByCampus(institutionId, campusId)
+    if (!principalResult.success) {
+      console.warn('No se encontró coordinador para la sede:', principalResult.error)
+      return
+    }
+
+    // Asignar el estudiante al coordinador
+    await dbService.assignStudentToPrincipal(principalResult.data.id, studentId)
+
+    console.log(`✅ Estudiante ${studentId} asignado al coordinador ${principalResult.data.name}`)
+  } catch (error) {
+    console.error('Error al asignar estudiante al coordinador:', error)
+  }
+}
+
+/**
+ * Asigna automáticamente un estudiante al rector de la institución
+ * @param {string} studentId - ID del estudiante
+ * @param {string} institutionId - ID de la institución
+ */
+const assignStudentToRector = async (studentId: string, institutionId: string): Promise<void> => {
+  try {
+    // Obtener el rector de la institución
+    const rectorResult = await dbService.getRectorByInstitution(institutionId)
+    if (!rectorResult.success) {
+      console.warn('No se encontró rector para la institución:', rectorResult.error)
+      return
+    }
+
+    // Asignar el estudiante al rector
+    await dbService.assignStudentToRector(rectorResult.data.id, studentId)
+
+    console.log(`✅ Estudiante ${studentId} asignado al rector ${rectorResult.data.name}`)
+  } catch (error) {
+    console.error('Error al asignar estudiante al rector:', error)
+  }
+}
+
+/**
  * Maneja el proceso de registro de un nuevo usuario.
- * registramos la cuenta con la respectiva verificación de correo.
+ * Los estudiantes registrados desde la página pública se crean como si fueran creados por el administrador.
  * @param {RegisterFormProps} user - Los datos del negocio y del nuevo usuario.
  * @returns {Promise<void>} - Envía el usuario creado o un mensaje de error.
  */
 export const register = async (user: RegisterFormProps): Promise<Result<void>> => {
   try {
-    const { role, userdoc, email, grade, inst, username } = user
+    const { role, userdoc, email, grade, inst, campus, username } = user
     
     // Verificar que solo se registren estudiantes
     if (role !== 'student') {
-      return failure(new Unauthorized({ message: 'Solo los estudiantes pueden registrarse públicamente. Los docentes y coordinadores deben ser creados por un administrador.' }))
+      return failure(new Unauthorized({ message: 'Solo los estudiantes pueden registrarse públicamente. Los docentes, coordinadores y rectores deben ser creados por un administrador.' }))
+    }
+
+    // Validar que se proporcionen todos los campos necesarios
+    if (!inst || !campus || !grade) {
+      return failure(new ErrorAPI({ message: 'Institución, sede y grado son obligatorios para el registro', statusCode: 400 }))
     }
     
     // Generamos la contraseña automáticamente a partir del documento más un 0
     const generatedPassword = userdoc + '0'
 
+    // Crear cuenta en Firebase Auth
     const userAccount = await authFB.registerAccount(username, email, generatedPassword)
     if (!userAccount.success) throw userAccount.error
 
-    // También almacenamos el documento+0 en la base de datos para futuras consultas
-    const userData = await dbService.createUser(userAccount.data, { role, grade, inst, userdoc: generatedPassword })
-    if (!userData.success) throw userData.error
+    // Crear documento en Firestore con los mismos campos que cuando se crea por admin
+    const dbUserData = {
+      role: 'student',
+      name: username,
+      email,
+      grade,
+      inst,
+      campus,
+      userdoc: generatedPassword,
+      createdAt: new Date().toISOString(),
+      isActive: true,
+      createdBy: 'admin' // Marcar como creado por admin para que aparezca en la gestión de usuarios
+    }
 
+    const dbResult = await dbService.createUser(userAccount.data, dbUserData)
+    if (!dbResult.success) throw dbResult.error
+
+    // Asignar automáticamente a docentes del mismo grado
+    await assignStudentToTeachers(userAccount.data.uid, inst, campus, grade)
+
+    // Asignar automáticamente al coordinador de la sede
+    await assignStudentToPrincipal(userAccount.data.uid, inst, campus)
+
+    // Asignar automáticamente al rector de la institución
+    await assignStudentToRector(userAccount.data.uid, inst)
+
+    // Enviar verificación de email
     const emailVerification = await authFB.sendEmailVerification()
-    if (!emailVerification.success) throw emailVerification.error
+    if (!emailVerification.success) {
+      console.warn('No se pudo enviar verificación de email:', emailVerification.error)
+    }
+
     return success(undefined)
-  } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'registro de usuario'))) }
+  } catch (e) { 
+    return failure(new ErrorAPI(normalizeError(e, 'registro de usuario'))) 
+  }
 }
 
 /**

@@ -41,6 +41,7 @@ const FormSection = ({ theme }: FormSectionProps) => {
         options={[
           { label: 'Estudiante', value: 'student' },
         ]}
+        disabled={true}
       />
       <InputField
         name="userdoc"

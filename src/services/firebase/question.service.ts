@@ -367,6 +367,61 @@ class QuestionService {
   }
 
   /**
+   * Obtiene una pregunta por su código
+   * @param code - Código de la pregunta (ej: MAAL1F001)
+   * @returns La pregunta encontrada
+   */
+  async getQuestionByCode(code: string): Promise<Result<Question>> {
+    try {
+      const questionsRef = collection(db, 'superate', 'auth', 'questions');
+      const q = query(questionsRef, where('code', '==', code), limit(1));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        return failure(new ErrorAPI({ 
+          message: 'Pregunta no encontrada', 
+          statusCode: 404 
+        }));
+      }
+
+      const doc = querySnapshot.docs[0];
+      const data = doc.data();
+      const question: Question = {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate() || new Date(),
+      } as Question;
+
+      return success(question);
+    } catch (e) {
+      console.error('❌ Error al obtener pregunta por código:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'obtener pregunta por código')));
+    }
+  }
+
+  /**
+   * Obtiene una pregunta por ID o código
+   * Intenta primero por ID, luego por código
+   * @param identifier - ID del documento o código de la pregunta
+   * @returns La pregunta encontrada
+   */
+  async getQuestionByIdOrCode(identifier: string | number): Promise<Result<Question>> {
+    try {
+      // Intentar primero como ID del documento
+      const idResult = await this.getQuestionById(String(identifier));
+      if (idResult.success) {
+        return idResult;
+      }
+
+      // Si falla, intentar como código
+      return await this.getQuestionByCode(String(identifier));
+    } catch (e) {
+      console.error('❌ Error al obtener pregunta:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'obtener pregunta')));
+    }
+  }
+
+  /**
    * Obtiene preguntas filtradas
    * @param filters - Filtros de búsqueda
    * @returns Lista de preguntas que cumplen los filtros
