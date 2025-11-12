@@ -3,6 +3,7 @@ import { motion } from "framer-motion"
 import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck, Atom, Microscope, FlaskConical } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
+import { useRole } from "@/hooks/core/useRole"
 
 // Componente de tarjeta giratoria
 function FlipCard({
@@ -187,6 +188,7 @@ function NaturalSciencesCard({
 // Componente principal que usa las tarjetas
 export default function InteractiveCards() {
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
+  const { isStudent } = useRole()
 
   const toggleCard = (cardId: string) => {
     setFlippedCards((prev) => ({
@@ -195,8 +197,14 @@ export default function InteractiveCards() {
     }))
   }
 
+  // Para estudiantes: todas las tarjetas en una fila (5 columnas)
+  // Para otros roles: mantener el diseño original (4 columnas)
+  const gridClasses = isStudent 
+    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 p-8"
+    : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 p-8"
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 p-8">
+    <div className={gridClasses}>
       {/* Lectura Crítica */}
       <FlipCard
         title="Lectura"
