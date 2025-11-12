@@ -74,7 +74,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
   const [examLocked, setExamLocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -407,7 +406,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           // Si volvió a la pestaña y NO está en pantalla completa, mostrar modal
           if (!isCurrentlyFullscreen) {
             console.log('Volvió a pestaña sin pantalla completa, mostrando modal');
-            setFullscreenExitWithTabChange(prev => {
+            setFullscreenExitWithTabChange(_ => {
               // Si ya había salido de fullscreen antes, es un cambio de pestaña también
               const hadTabChange = !isCurrentlyFullscreen;
               setShowFullscreenExit(true);
@@ -423,7 +422,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
             console.log('Solo cambio de pestaña, todavía en fullscreen');
             setTabChangeCount(prev => {
               const newCount = prev + 1;
-              setShowTabChangeWarning(true);
 
               if (newCount >= 3) {
                 setExamLocked(true);
@@ -803,7 +801,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
     setExamLocked(true)
     setShowWarning(false)
-    setShowTabChangeWarning(false)
     setShowFullscreenExit(false)
 
     try {
