@@ -11,6 +11,7 @@ import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
+import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 
 const db = getFirestore(firebaseApp);
 
@@ -689,10 +690,10 @@ const ExamWithFirebase = () => {
   // Componente de Bienvenida
   const WelcomeScreen = () => {
     if (!quizData) return null;
-
+    const theme = getQuizTheme('biología')
     return (
-      <div className="max-w-4xl mx-auto">
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-purple-50 to-blue-50">
+      <div className="max-w-4xl mx-auto relative z-10">
+        <Card className={`shadow-xl border-0 ${theme.cardBackground} backdrop-blur-sm`}>
           <CardHeader className="text-center pb-6">
             <div className="flex justify-center mb-4">
               <div className="relative">
@@ -704,7 +705,7 @@ const ExamWithFirebase = () => {
                 </div>
               </div>
             </div>
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent mb-2">
+            <CardTitle className={`text-3xl font-bold ${theme.primaryColor} mb-2`}>
               ¡Bienvenido al {quizData.title}!
             </CardTitle>
             <CardDescription className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -788,7 +789,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={startExam}
               size="lg"
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className={`${theme.buttonGradient} ${theme.buttonHover} text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300`}
             >
               <Play className="h-5 w-5 mr-2" />
               Iniciar Examen
@@ -956,12 +957,16 @@ const ExamWithFirebase = () => {
     const currentQ = quizData.questions[currentQuestion]
     const answeredQuestions = Object.keys(answers).length
     const questionId = currentQ.id || currentQ.code;
+    const theme = getQuizTheme('biología')
 
     return (
-      <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-25 pt-2 px-4 pb-4">
+      <div 
+        className="flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-8 pb-4 quiz-gradient-bg relative"
+        style={getQuizBackgroundStyle(theme)}
+      >
         {/* Contenido principal del examen */}
-        <div className="flex-1">
-          <div className="bg-white border rounded-lg p-3 mb-2 shadow-sm">
+        <div className="flex-1 relative z-10">
+          <div className={`${theme.cardBackground} border rounded-lg p-3 mb-2 shadow-lg backdrop-blur-sm`}>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
@@ -1012,10 +1017,10 @@ const ExamWithFirebase = () => {
             </div>
           </div>
 
-          <Card className="mb-6">
+          <Card className={`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Pregunta {currentQuestion + 1}</CardTitle>
+                <CardTitle className={`text-xl ${theme.primaryColor}`}>Pregunta {currentQuestion + 1}</CardTitle>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                     {currentQ.topic}
@@ -1087,22 +1092,23 @@ const ExamWithFirebase = () => {
                 {currentQ.options.map((option) => (
                   <div
                     key={option.id}
-                    className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                    className={`flex items-start space-x-3 ${theme.answerBorder} rounded-lg p-4 transition-all duration-200 ${theme.answerBackground} relative overflow-hidden ${theme.answerHover}`}
+                    style={theme.pattern ? { backgroundImage: theme.pattern } : {}}
                   >
                     <RadioGroupItem
                       value={option.id}
                       id={`${questionId}-${option.id}`}
-                      className="mt-1"
+                      className="mt-1 relative z-10"
                     />
                     <Label
                       htmlFor={`${questionId}-${option.id}`}
-                      className="flex-1 cursor-pointer"
+                      className="flex-1 cursor-pointer relative z-10"
                     >
                       <div className="flex items-start gap-3">
-                        <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
+                        <span className={`font-bold ${theme.primaryColor} mr-2 text-base flex-shrink-0`}>{option.id}.</span>
                         <div className="flex-1">
                           {option.text && (
-                            <span className="text-gray-900">{stripHtmlTags(option.text)}</span>
+                            <span className={`${theme.answerText} text-base leading-relaxed`}>{stripHtmlTags(option.text)}</span>
                           )}
                           {option.imageUrl && (
                             <div className="mt-2 flex justify-center">
@@ -1128,7 +1134,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={nextQuestion}
                 disabled={currentQuestion === quizData.questions.length - 1}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
               </Button>
@@ -1137,8 +1143,8 @@ const ExamWithFirebase = () => {
         </div>
 
         {/* Panel lateral derecho con navegación de preguntas */}
-        <div className="w-full lg:w-56 flex-shrink-0">
-          <div className="bg-white border rounded-lg p-3 sticky top-4 shadow-sm">
+        <div className="w-full lg:w-56 flex-shrink-0 relative z-10">
+          <div className={`${theme.cardBackground} border rounded-lg p-3 sticky top-4 shadow-lg backdrop-blur-sm`}>
             <h3 className="text-xs font-semibold mb-2.5 text-gray-700 uppercase tracking-wide">
               Navegación
             </h3>
@@ -1186,7 +1192,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={showSubmitWarning}
                 disabled={isSubmitting}
-                className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className={`w-full mt-4 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
                 {isSubmitting ? (
                   <>
@@ -1290,8 +1296,12 @@ const ExamWithFirebase = () => {
   }
 
   // Renderizado principal
+  const theme = getQuizTheme('biología')
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div 
+      className="min-h-screen quiz-gradient-bg relative"
+      style={getQuizBackgroundStyle(theme)}
+    >
       {examState === 'loading' && <LoadingScreen />}
       {examState === 'error' && <ErrorScreen />}
       {examState === 'no_questions' && <NoQuestionsScreen />}

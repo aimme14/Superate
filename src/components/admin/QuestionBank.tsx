@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-// import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -25,7 +24,6 @@ import {
   BarChart3,
   Filter,
   RefreshCw,
-  Clock,
   ChevronRight,
   ChevronDown,
   List,
@@ -174,6 +172,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
+  const [relatedQuestions, setRelatedQuestions] = useState<Question[]>([]) // Para agrupar preguntas de comprensión de lectura
   const [questions, setQuestions] = useState<Question[]>([])
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -241,6 +240,45 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     D: null,
   })
 
+  // Estados para modalidades de Inglés
+  const [inglesModality, setInglesModality] = useState<'standard_mc' | 'matching_columns' | 'cloze_test' | 'reading_comprehension'>('standard_mc')
+  
+  // Estados para Matching / Columnas (nueva estructura por bloques)
+  const [matchingQuestions, setMatchingQuestions] = useState<Array<{
+    id: string
+    questionText: string // Texto de la pregunta
+    options: QuestionOption[] // Opciones de respuesta (A-H, máximo 6 opciones)
+  }>>([])
+  const [expandedViewOptions, setExpandedViewOptions] = useState<Set<string>>(new Set()) // Controlar qué preguntas tienen opciones expandidas en visualización
+  const [selectedMatchingAnswers, setSelectedMatchingAnswers] = useState<{ [key: string]: string }>({}) // Rastrear respuestas seleccionadas: questionId -> optionId
+  const matchingDropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({}) // Refs para detectar clics fuera
+  const [selectedClozeAnswers, setSelectedClozeAnswers] = useState<{ [key: number]: string }>({}) // Rastrear respuestas seleccionadas por hueco
+  
+  // Estados para Cloze Test
+  const [clozeText, setClozeText] = useState<string>('') // Texto con marcadores [1], [2], etc.
+  const [clozeGaps, setClozeGaps] = useState<{ [key: number]: { options: string[], correctAnswer: string } }>({}) // Opciones por hueco (3 opciones: A, B, C)
+  
+  // Estados para edición de Cloze Test
+  const [isEditingClozeTest, setIsEditingClozeTest] = useState(false) // Indica si estamos editando un cloze test
+  const [editClozeText, setEditClozeText] = useState<string>('') // Texto con marcadores para edición
+  const [editClozeGaps, setEditClozeGaps] = useState<{ [key: number]: { options: string[], correctAnswer: string } }>({}) // Opciones por hueco para edición
+  const [editClozeRelatedQuestions, setEditClozeRelatedQuestions] = useState<Question[]>([]) // Preguntas relacionadas del cloze test
+  
+  // Estados para Comprensión de Lectura
+  const [readingText, setReadingText] = useState<string>('')
+  const [readingImage, setReadingImage] = useState<File | null>(null)
+  const [readingImagePreview, setReadingImagePreview] = useState<string | null>(null)
+  const [readingQuestions, setReadingQuestions] = useState<Array<{
+    id: string
+    questionText: string
+    questionImage: File | null
+    questionImagePreview: string | null
+    options: QuestionOption[]
+  }>>([])
+
+  // Estados para rastrear errores de validación
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: boolean }>({})
+
   // Debug: Verificar estado de autenticación
   useEffect(() => {
     console.log('🔍 Estado de autenticación en QuestionBank:', {
@@ -261,6 +299,31 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   useEffect(() => {
     applyFilters()
   }, [questions, filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
+
+  // Cerrar dropdowns de matching al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      Object.keys(matchingDropdownRefs.current).forEach((questionKey) => {
+        const ref = matchingDropdownRefs.current[questionKey]
+        if (ref && !ref.contains(event.target as Node)) {
+          if (expandedViewOptions.has(questionKey)) {
+            setExpandedViewOptions(prev => {
+              const newSet = new Set(prev)
+              newSet.delete(questionKey)
+              return newSet
+            })
+          }
+        }
+      })
+    }
+
+    if (expandedViewOptions.size > 0) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [expandedViewOptions])
 
   const loadQuestions = async () => {
     setIsLoading(true)
@@ -332,6 +395,18 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const handleSubjectChange = (subjectCode: string) => {
     const subject = getSubjectByCode(subjectCode)
     if (subject) {
+      // Si cambia a una materia que no es Inglés, resetear modalidad
+      if (subjectCode !== 'IN') {
+        setInglesModality('standard_mc')
+        // Limpiar datos de modalidades específicas
+        setMatchingQuestions([])
+        setClozeText('')
+        setClozeGaps({})
+        setReadingText('')
+        setReadingImage(null)
+        setReadingImagePreview(null)
+        setReadingQuestions([])
+      }
       setFormData({
         ...formData,
         subject: subject.name,
@@ -536,6 +611,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     ])
     setOptionFiles({ A: null, B: null, C: null, D: null })
     setOptionImagePreviews({ A: null, B: null, C: null, D: null })
+    // Limpiar estados de modalidades de Inglés
+    setInglesModality('standard_mc')
+    setMatchingQuestions([])
+    setExpandedViewOptions(new Set())
+    setClozeText('')
+    setClozeGaps({})
+    setReadingText('')
+    setReadingImage(null)
+    setReadingImagePreview(null)
+    setReadingQuestions([])
+    // Limpiar estados de edición de cloze test
+    setIsEditingClozeTest(false)
+    setEditClozeText('')
+    setEditClozeGaps({})
+    setEditClozeRelatedQuestions([])
+    // Limpiar errores de validación
+    setFieldErrors({})
   }
 
   // Función para comprimir imagen
@@ -623,31 +715,175 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
   const handleCreateQuestion = async () => {
     try {
-      // Validaciones
-      if (!formData.subject || !formData.topic || !formData.questionText) {
-        notifyError({ 
-          title: 'Error', 
-          message: 'Complete todos los campos obligatorios' 
-        })
-        return
+      // Limpiar errores previos
+      setFieldErrors({})
+      const errors: { [key: string]: boolean } = {}
+
+      // Validaciones básicas comunes
+      if (!formData.subject || !formData.subjectCode) {
+        errors['subject'] = true
+      }
+      if (!formData.topic || !formData.topicCode) {
+        errors['topic'] = true
       }
 
-      // Validar que todas las opciones tengan contenido
-      const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id])
-      if (emptyOptions.length > 0) {
-        notifyError({ 
-          title: 'Error', 
-          message: 'Todas las opciones deben tener texto o imagen' 
-        })
-        return
+      // Validaciones específicas según modalidad de Inglés
+      if (formData.subjectCode === 'IN') {
+        if (inglesModality === 'matching_columns') {
+          // Validar Matching / Columnas (nueva estructura por bloques)
+          if (matchingQuestions.length === 0) {
+            errors['matchingQuestions'] = true
+          }
+          // Validar cada pregunta de matching
+          matchingQuestions.forEach((mq, mqIndex) => {
+            if (!mq.questionText || !mq.questionText.trim()) {
+              errors[`matchingQuestionText_${mqIndex}`] = true
+          }
+            // Validar que tenga al menos 2 opciones y máximo 6 (A-H)
+            const validOptions = mq.options.filter(opt => opt.text && opt.text.trim())
+            if (validOptions.length < 2) {
+              errors[`matchingQuestionOptions_${mqIndex}`] = true
+            }
+            // Validar que tenga una respuesta correcta
+            const hasCorrectAnswer = mq.options.some(opt => opt.isCorrect)
+            if (!hasCorrectAnswer) {
+              errors[`matchingQuestionAnswer_${mqIndex}`] = true
+            }
+          })
+        } else if (inglesModality === 'cloze_test') {
+          // Validar Cloze Test
+          if (!clozeText.trim()) {
+            errors['clozeText'] = true
+          }
+          // Validar que todos los huecos tengan opciones y respuesta correcta
+          // Extraer texto plano para detectar marcadores
+          const tempDiv = document.createElement('div')
+          tempDiv.innerHTML = clozeText
+          const text = tempDiv.textContent || tempDiv.innerText || ''
+          const gapMatches = text.match(/\[(\d+)\]/g) || []
+          const gaps = new Set<number>()
+          gapMatches.forEach(match => {
+            const num = parseInt(match.replace(/[\[\]]/g, ''))
+            gaps.add(num)
+          })
+          gaps.forEach(gapNum => {
+            const gapData = clozeGaps[gapNum]
+            if (!gapData) {
+              errors[`clozeGap_${gapNum}`] = true
+            } else {
+              // Validar que todas las 3 opciones tengan texto
+              if (gapData.options.length !== 3) {
+                errors[`clozeGapOptions_${gapNum}`] = true
+              }
+              const emptyOptions = gapData.options.filter(opt => !opt.trim())
+              if (emptyOptions.length > 0) {
+                errors[`clozeGapOptions_${gapNum}`] = true
+              }
+              // Validar que haya una respuesta correcta (A, B o C)
+              if (!gapData.correctAnswer || !['A', 'B', 'C'].includes(gapData.correctAnswer)) {
+                errors[`clozeGapAnswer_${gapNum}`] = true
+              }
+            }
+          })
+        } else if (inglesModality === 'reading_comprehension') {
+          // Validar Comprensión de Lectura
+          if (!readingText.trim()) {
+            errors['readingText'] = true
+          }
+          if (readingQuestions.length === 0) {
+            errors['readingQuestions'] = true
+          } else {
+            // Validar cada pregunta de lectura
+            readingQuestions.forEach((rq, rqIndex) => {
+              // El texto de la pregunta es opcional, no se valida
+              // Validar opciones de cada pregunta
+              const emptyOptions = rq.options.filter(opt => !opt.text || !opt.text.trim())
+              if (emptyOptions.length > 0) {
+                errors[`readingQuestionOptions_${rqIndex}`] = true
+              }
+              // Validar que haya una respuesta correcta
+              const correctOptions = rq.options.filter(opt => opt.isCorrect)
+              if (correctOptions.length !== 1) {
+                errors[`readingQuestionAnswer_${rqIndex}`] = true
+              }
+            })
+          }
+        } else {
+          // Modalidad estándar (standard_mc)
+          if (!formData.questionText.trim()) {
+            errors['questionText'] = true
+          }
+          // Validar que todas las opciones tengan contenido
+          const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id])
+          if (emptyOptions.length > 0) {
+            errors['options'] = true
+          }
+          // Validar que haya exactamente una respuesta correcta
+          const correctOptions = options.filter(opt => opt.isCorrect)
+          if (correctOptions.length !== 1) {
+            errors['correctAnswer'] = true
+          }
+        }
+      } else {
+        // Materia no es Inglés - validación estándar
+        if (!formData.questionText.trim()) {
+          errors['questionText'] = true
+        }
+        // Validar que todas las opciones tengan contenido
+        const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id])
+        if (emptyOptions.length > 0) {
+          errors['options'] = true
+        }
+        // Validar que haya exactamente una respuesta correcta
+        const correctOptions = options.filter(opt => opt.isCorrect)
+        if (correctOptions.length !== 1) {
+          errors['correctAnswer'] = true
+        }
       }
 
-      // Validar que haya exactamente una respuesta correcta
-      const correctOptions = options.filter(opt => opt.isCorrect)
-      if (correctOptions.length !== 1) {
+      // Si hay errores, mostrarlos y resaltar campos
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors)
+        const errorMessages: string[] = []
+        
+        if (errors['subject']) errorMessages.push('Materia')
+        if (errors['topic']) errorMessages.push('Tema')
+        if (errors['questionText']) errorMessages.push('Texto de la Pregunta')
+        if (errors['matchingQuestions']) errorMessages.push('Preguntas de Matching (debe agregar al menos una)')
+        
+        // Mensajes específicos para preguntas de matching
+        matchingQuestions.forEach((_, mqIndex) => {
+          if (errors[`matchingQuestionText_${mqIndex}`]) {
+            errorMessages.push(`Texto de Pregunta ${mqIndex + 1} de Matching`)
+          }
+          if (errors[`matchingQuestionOptions_${mqIndex}`]) {
+            errorMessages.push(`Opciones de Pregunta ${mqIndex + 1} de Matching (mínimo 2 opciones)`)
+          }
+          if (errors[`matchingQuestionAnswer_${mqIndex}`]) {
+            errorMessages.push(`Respuesta Correcta de Pregunta ${mqIndex + 1} de Matching`)
+          }
+        })
+        
+        if (errors['clozeText']) errorMessages.push('Texto a Completar (Cloze)')
+        if (errors['readingText']) errorMessages.push('Texto de Lectura')
+        if (errors['readingQuestions']) errorMessages.push('Preguntas de Lectura (debe agregar al menos una)')
+        if (errors['options']) errorMessages.push('Opciones de Respuesta')
+        if (errors['correctAnswer']) errorMessages.push('Respuesta Correcta')
+
+        // Mensajes específicos para preguntas de lectura
+        readingQuestions.forEach((_, rqIndex) => {
+          // El texto de la pregunta es opcional, no se incluye en mensajes de error
+          if (errors[`readingQuestionOptions_${rqIndex}`]) {
+            errorMessages.push(`Opciones de Pregunta ${rqIndex + 1} de Lectura`)
+          }
+          if (errors[`readingQuestionAnswer_${rqIndex}`]) {
+            errorMessages.push(`Respuesta Correcta de Pregunta ${rqIndex + 1} de Lectura`)
+          }
+        })
+
         notifyError({ 
           title: 'Error', 
-          message: 'Debe marcar exactamente una opción como correcta' 
+          message: `Complete los siguientes campos obligatorios: ${errorMessages.join(', ')}` 
         })
         return
       }
@@ -857,56 +1093,398 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       })
 
-      // Crear la pregunta
-      console.log('📝 Preparando datos de la pregunta...')
-      const questionData: any = {
-        ...formData,
-        answerType: 'MCQ' as const,
-        options: finalOptions,
-      }
+      // Manejar Matching / Columnas: crear múltiples preguntas
+      if (formData.subjectCode === 'IN' && inglesModality === 'matching_columns') {
+        console.log('🔗 Modo Matching / Columnas: Creando múltiples preguntas...')
+        
+        // Crear una pregunta por cada pregunta de matching
+        const createdQuestions: string[] = []
+        let successCount = 0
+        let errorCount = 0
 
-      // Solo agregar campos de imágenes si tienen contenido (evitar undefined)
-      if (informativeImageUrls.length > 0) {
-        questionData.informativeImages = informativeImageUrls
-      }
-      if (questionImageUrls.length > 0) {
-        questionData.questionImages = questionImageUrls
-      }
-
-      console.log('📝 Datos de la pregunta preparados:', questionData)
-      console.log('🚀 Llamando a questionService.createQuestion...')
-      
-      // Mostrar progreso
-      notifySuccess({ 
-        title: 'Creando pregunta', 
-        message: 'Guardando en la base de datos...' 
-      })
-      
-      // Agregar timeout para evitar que se cuelgue
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (20 segundos)')), 20000)
-      })
-      
-      const createPromise = questionService.createQuestion(questionData, currentUser.uid)
-      
-      const result = await Promise.race([createPromise, timeoutPromise]) as any
-      
-      console.log('📝 Resultado de createQuestion:', result)
-
-      if (result.success) {
         notifySuccess({ 
-          title: 'Éxito', 
-          message: `Pregunta creada con código: ${result.data.code}` 
+          title: 'Creando preguntas', 
+          message: `Guardando ${matchingQuestions.length} pregunta(s) en la base de datos...` 
         })
-        resetForm()
-        setIsCreateDialogOpen(false)
-        loadQuestions()
-        loadStats()
+
+        for (let i = 0; i < matchingQuestions.length; i++) {
+          const mq = matchingQuestions[i]
+          
+          try {
+            const questionData: any = {
+              ...formData,
+              questionText: mq.questionText,
+              answerType: 'MCQ' as const,
+              options: mq.options,
+            }
+
+            // Solo agregar campos de imágenes si tienen contenido
+            if (informativeImageUrls.length > 0) {
+              questionData.informativeImages = informativeImageUrls
+            }
+
+            const result = await questionService.createQuestion(questionData, currentUser.uid)
+            
+            if (result.success) {
+              createdQuestions.push(result.data.code)
+              successCount++
+              console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
+            } else {
+              errorCount++
+              console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+            }
+          } catch (error) {
+            errorCount++
+            console.error(`❌ Error creando pregunta ${i + 1}:`, error)
+          }
+        }
+
+        // Mostrar resultado final
+        if (successCount === matchingQuestions.length) {
+          notifySuccess({ 
+            title: 'Éxito', 
+            message: `${successCount} pregunta(s) creada(s) exitosamente. Códigos: ${createdQuestions.join(', ')}` 
+          })
+          resetForm()
+          setIsCreateDialogOpen(false)
+          loadQuestions()
+          loadStats()
+        } else if (successCount > 0) {
+          notifyError({ 
+            title: 'Advertencia', 
+            message: `Se crearon ${successCount} pregunta(s) de ${matchingQuestions.length}. ${errorCount} fallaron.` 
+          })
+          resetForm()
+          setIsCreateDialogOpen(false)
+          loadQuestions()
+          loadStats()
+        } else {
+          notifyError({ 
+            title: 'Error', 
+            message: `No se pudo crear ninguna pregunta. Verifique los datos e intente nuevamente.` 
+          })
+        }
+      } else if (formData.subjectCode === 'IN' && inglesModality === 'cloze_test') {
+        // Manejar Cloze Test: crear múltiples preguntas agrupadas (una por cada hueco)
+        console.log('📝 Modo Cloze Test: Creando múltiples preguntas agrupadas...')
+        
+        // Extraer texto plano para detectar marcadores
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = clozeText
+        const text = tempDiv.textContent || tempDiv.innerText || ''
+        const gapMatches = text.match(/\[(\d+)\]/g) || []
+        const gaps = new Set<number>()
+        gapMatches.forEach(match => {
+          const num = parseInt(match.replace(/[\[\]]/g, ''))
+          gaps.add(num)
+        })
+        
+        if (gaps.size === 0) {
+          notifyError({ 
+            title: 'Error', 
+            message: 'No se encontraron huecos en el texto. Usa [1], [2], etc. para marcar los huecos.' 
+          })
+          return
+        }
+
+        // Crear una pregunta por cada hueco
+        const createdQuestions: string[] = []
+        let successCount = 0
+        let errorCount = 0
+
+        notifySuccess({ 
+          title: 'Creando preguntas', 
+          message: `Guardando ${gaps.size} pregunta(s) agrupada(s) en la base de datos...` 
+        })
+
+        // Ordenar los huecos numéricamente
+        const sortedGaps = Array.from(gaps).sort((a, b) => a - b)
+
+        for (let i = 0; i < sortedGaps.length; i++) {
+          const gapNum = sortedGaps[i]
+          const gapData = clozeGaps[gapNum]
+          
+          if (!gapData) {
+            console.error(`❌ No hay datos para el hueco ${gapNum}`)
+            errorCount++
+            continue
+          }
+
+          // Crear opciones para esta pregunta (A, B, C)
+          const gapOptions: QuestionOption[] = ['A', 'B', 'C'].map((letter, optIndex) => ({
+            id: letter as 'A' | 'B' | 'C',
+            text: gapData.options[optIndex] || '',
+            imageUrl: null,
+            isCorrect: gapData.correctAnswer === letter
+          }))
+
+          // El texto de la pregunta será específico para este hueco
+          const questionText = `Selecciona la palabra correcta para completar el hueco [${gapNum}]:`
+
+          const questionData: any = {
+            ...formData,
+            answerType: 'MCQ' as const,
+            informativeText: clozeText, // El texto completo va en informativeText para que se muestre agrupado
+            questionText: questionText, // Texto específico del hueco
+            options: gapOptions,
+          }
+
+          // Agregar imágenes informativas si existen
+          if (informativeImageUrls.length > 0) {
+            questionData.informativeImages = informativeImageUrls
+          }
+
+          try {
+            console.log(`📝 Creando pregunta de cloze ${i + 1}/${sortedGaps.length} (Hueco ${gapNum})...`)
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Timeout')), 20000)
+            })
+            
+            const createPromise = questionService.createQuestion(questionData, currentUser.uid)
+            const result = await Promise.race([createPromise, timeoutPromise]) as any
+            
+            if (result.success) {
+              createdQuestions.push(result.data.code)
+              successCount++
+              console.log(`✅ Pregunta de cloze ${i + 1} creada: ${result.data.code} (Hueco ${gapNum})`)
+            } else {
+              errorCount++
+              console.error(`❌ Error creando pregunta de cloze ${i + 1} (Hueco ${gapNum}):`, result.error)
+            }
+          } catch (error) {
+            errorCount++
+            console.error(`❌ Error creando pregunta de cloze ${i + 1} (Hueco ${gapNum}):`, error)
+          }
+        }
+
+        // Mostrar resultado final
+        if (successCount === sortedGaps.length) {
+          notifySuccess({ 
+            title: 'Éxito', 
+            message: `${successCount} pregunta(s) agrupada(s) creada(s) exitosamente. Códigos: ${createdQuestions.join(', ')}` 
+          })
+          resetForm()
+          setIsCreateDialogOpen(false)
+          loadQuestions()
+          loadStats()
+        } else if (successCount > 0) {
+          notifyError({ 
+            title: 'Advertencia', 
+            message: `Se crearon ${successCount} pregunta(s) de ${sortedGaps.length}. ${errorCount} fallaron.` 
+          })
+          resetForm()
+          setIsCreateDialogOpen(false)
+          loadQuestions()
+          loadStats()
+        } else {
+          notifyError({ 
+            title: 'Error', 
+            message: `No se pudo crear ninguna pregunta. Verifique los datos e intente nuevamente.` 
+          })
+        }
+      } else if (formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') {
+      // Manejar Comprensión de Lectura: crear múltiples preguntas
+        console.log('📚 Modo Comprensión de Lectura: Creando múltiples preguntas...')
+        
+        // Procesar imagen de lectura si existe
+        let readingImageUrl: string | null = null
+        if (readingImage) {
+          try {
+            notifySuccess({ 
+              title: 'Procesando', 
+              message: 'Subiendo imagen de lectura...' 
+            })
+            const storagePromise = questionService.uploadImage(
+              readingImage, 
+              `questions/reading/${Date.now()}_reading.jpg`
+            )
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 10000)
+            )
+            const result = await Promise.race([storagePromise, timeoutPromise]) as any
+            if (result.success) {
+              readingImageUrl = result.data
+            } else {
+              const base64Url = await fileToBase64(readingImage)
+              readingImageUrl = base64Url
+            }
+          } catch (error) {
+            console.error('Error procesando imagen de lectura:', error)
+            const base64Url = await fileToBase64(readingImage)
+            readingImageUrl = base64Url
+          }
+        }
+
+        // Combinar imágenes informativas con la imagen de lectura
+        const allInformativeImages = [...informativeImageUrls]
+        if (readingImageUrl) {
+          allInformativeImages.push(readingImageUrl)
+        }
+
+        // Crear una pregunta por cada pregunta de lectura
+        const createdQuestions: string[] = []
+        let successCount = 0
+        let errorCount = 0
+
+        notifySuccess({ 
+          title: 'Creando preguntas', 
+          message: `Guardando ${readingQuestions.length} pregunta(s) en la base de datos...` 
+        })
+
+        for (let i = 0; i < readingQuestions.length; i++) {
+          const rq = readingQuestions[i]
+          
+          // Procesar imagen de pregunta individual si existe
+          let questionImageUrl: string | null = null
+          if (rq.questionImage) {
+            try {
+              const storagePromise = questionService.uploadImage(
+                rq.questionImage, 
+                `questions/reading/${Date.now()}_q${i + 1}.jpg`
+              )
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 10000)
+              )
+              const result = await Promise.race([storagePromise, timeoutPromise]) as any
+              if (result.success) {
+                questionImageUrl = result.data
+              } else {
+                const base64Url = await fileToBase64(rq.questionImage)
+                questionImageUrl = base64Url
+              }
+            } catch (error) {
+              console.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
+              const base64Url = await fileToBase64(rq.questionImage)
+              questionImageUrl = base64Url
+            }
+          }
+          
+          // Procesar opciones de esta pregunta
+          const rqOptions: QuestionOption[] = rq.options.map(opt => ({
+            id: opt.id,
+            text: opt.text || '',
+            imageUrl: null, // Las opciones de lectura no tienen imágenes por ahora
+            isCorrect: opt.isCorrect
+          }))
+
+          const questionData: any = {
+            ...formData,
+            answerType: 'MCQ' as const,
+            informativeText: readingText, // El texto base va en informativeText
+            questionText: rq.questionText, // La pregunta específica va en questionText
+            options: rqOptions,
+          }
+
+          // Agregar imágenes informativas (incluyendo la de lectura)
+          if (allInformativeImages.length > 0) {
+            questionData.informativeImages = allInformativeImages
+          }
+          
+          // Agregar imagen de pregunta individual si existe
+          if (questionImageUrl) {
+            questionData.questionImages = [questionImageUrl]
+          }
+
+          try {
+            console.log(`📝 Creando pregunta ${i + 1}/${readingQuestions.length}...`)
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Timeout')), 20000)
+            })
+            
+            const createPromise = questionService.createQuestion(questionData, currentUser.uid)
+            const result = await Promise.race([createPromise, timeoutPromise]) as any
+            
+            if (result.success) {
+              createdQuestions.push(result.data.code)
+              successCount++
+              console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
+            } else {
+              errorCount++
+              console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+            }
+          } catch (error) {
+            errorCount++
+            console.error(`❌ Error creando pregunta ${i + 1}:`, error)
+          }
+        }
+
+        // Mostrar resultado final
+        if (successCount === readingQuestions.length) {
+          notifySuccess({ 
+            title: 'Éxito', 
+            message: `${successCount} pregunta(s) creada(s) exitosamente. Códigos: ${createdQuestions.join(', ')}` 
+          })
+          resetForm()
+          setIsCreateDialogOpen(false)
+          loadQuestions()
+          loadStats()
+        } else if (successCount > 0) {
+          notifyError({ 
+            title: 'Advertencia', 
+            message: `Se crearon ${successCount} pregunta(s) de ${readingQuestions.length}. ${errorCount} fallaron.` 
+          })
+          resetForm()
+          setIsCreateDialogOpen(false)
+          loadQuestions()
+          loadStats()
+        } else {
+          notifyError({ 
+            title: 'Error', 
+            message: `No se pudo crear ninguna pregunta. Verifique los datos e intente nuevamente.` 
+          })
+        }
       } else {
-        notifyError({ 
-          title: 'Error', 
-          message: 'No se pudo crear la pregunta' 
+        // Crear pregunta estándar (modalidad normal o no es Inglés)
+        console.log('📝 Preparando datos de la pregunta...')
+        const questionData: any = {
+          ...formData,
+          answerType: 'MCQ' as const,
+          options: finalOptions,
+        }
+
+        // Solo agregar campos de imágenes si tienen contenido (evitar undefined)
+        if (informativeImageUrls.length > 0) {
+          questionData.informativeImages = informativeImageUrls
+        }
+        if (questionImageUrls.length > 0) {
+          questionData.questionImages = questionImageUrls
+        }
+
+        console.log('📝 Datos de la pregunta preparados:', questionData)
+        console.log('🚀 Llamando a questionService.createQuestion...')
+        
+        // Mostrar progreso
+        notifySuccess({ 
+          title: 'Creando pregunta', 
+          message: 'Guardando en la base de datos...' 
         })
+        
+        // Agregar timeout para evitar que se cuelgue
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (20 segundos)')), 20000)
+        })
+        
+        const createPromise = questionService.createQuestion(questionData, currentUser.uid)
+        
+        const result = await Promise.race([createPromise, timeoutPromise]) as any
+        
+        console.log('📝 Resultado de createQuestion:', result)
+
+        if (result.success) {
+          notifySuccess({ 
+            title: 'Éxito', 
+            message: `Pregunta creada con código: ${result.data.code}` 
+          })
+          resetForm()
+          setIsCreateDialogOpen(false)
+          loadQuestions()
+          loadStats()
+        } else {
+          notifyError({ 
+            title: 'Error', 
+            message: result.error || 'No se pudo crear la pregunta' 
+          })
+        }
       }
     } catch (error) {
       console.error('❌ Error al crear pregunta:', error)
@@ -936,6 +1514,24 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
   const handleViewQuestion = (question: Question) => {
     setSelectedQuestion(question)
+    
+    // Si es una pregunta de Inglés con texto informativo, buscar preguntas relacionadas
+    // (preguntas de comprensión de lectura que comparten el mismo texto base e imágenes)
+    if (question.subjectCode === 'IN' && question.informativeText) {
+      const related = questions.filter(q => 
+        q.subjectCode === 'IN' &&
+        q.id !== question.id &&
+        q.informativeText === question.informativeText &&
+        JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
+        q.topicCode === question.topicCode &&
+        q.grade === question.grade &&
+        q.levelCode === question.levelCode
+      )
+      setRelatedQuestions([question, ...related])
+    } else {
+      setRelatedQuestions([question])
+    }
+    
     setIsViewDialogOpen(true)
   }
 
@@ -951,39 +1547,110 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     })
     
     setSelectedQuestion(question)
-    // Cargar los datos de la pregunta en el formulario
-    // Asegurar que el grado sea string para consistencia
-    const gradeValue = String(question.grade || '').trim() as '6' | '7' | '8' | '9' | '0' | '1'
     
-    setFormData({
-      subject: question.subject,
-      subjectCode: question.subjectCode,
-      topic: question.topic,
-      topicCode: question.topicCode,
-      grade: gradeValue,
-      level: question.level as any,
-      levelCode: question.levelCode as any,
-      informativeText: question.informativeText || '',
-      questionText: question.questionText,
-    })
+    // Verificar si es una pregunta de cloze test
+    const isClozeTest = question.subjectCode === 'IN' && 
+                        question.informativeText && 
+                        question.questionText?.includes('completar el hueco')
     
-    console.log('📋 Formulario cargado con valores:', {
-      grade: gradeValue,
-      subjectCode: question.subjectCode,
-      topicCode: question.topicCode,
-      levelCode: question.levelCode,
-    })
-    // Cargar opciones
-    setOptions(question.options)
-    // Cargar imágenes existentes para mostrar
-    setInformativeImagePreviews(question.informativeImages || [])
-    setQuestionImagePreviews(question.questionImages || [])
-    setOptionImagePreviews({
-      A: question.options.find(o => o.id === 'A')?.imageUrl || null,
-      B: question.options.find(o => o.id === 'B')?.imageUrl || null,
-      C: question.options.find(o => o.id === 'C')?.imageUrl || null,
-      D: question.options.find(o => o.id === 'D')?.imageUrl || null,
-    })
+    if (isClozeTest) {
+      // Buscar todas las preguntas relacionadas del cloze test
+      const related = questions.filter(q => 
+        q.subjectCode === 'IN' &&
+        q.informativeText === question.informativeText &&
+        JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
+        q.topicCode === question.topicCode &&
+        q.grade === question.grade &&
+        q.levelCode === question.levelCode &&
+        q.questionText?.includes('completar el hueco')
+      )
+      
+      setEditClozeRelatedQuestions(related)
+      setIsEditingClozeTest(true)
+      
+      // Cargar el texto completo del cloze test
+      setEditClozeText(question.informativeText || '')
+      
+      // Extraer los datos de cada hueco de las preguntas relacionadas
+      const gapsData: { [key: number]: { options: string[], correctAnswer: string } } = {}
+      
+      related.forEach(q => {
+        const match = q.questionText?.match(/hueco \[(\d+)\]/)
+        if (match) {
+          const gapNum = parseInt(match[1])
+          // Extraer opciones A, B, C
+          const options = ['A', 'B', 'C'].map(letter => {
+            const option = q.options.find(opt => opt.id === letter)
+            return option?.text || ''
+          })
+          // Encontrar la respuesta correcta
+          const correctOption = q.options.find(opt => opt.isCorrect)
+          const correctAnswer = correctOption?.id || 'A'
+          
+          gapsData[gapNum] = {
+            options,
+            correctAnswer
+          }
+        }
+      })
+      
+      setEditClozeGaps(gapsData)
+      
+      // Cargar datos básicos del formulario
+      const gradeValue = String(question.grade || '').trim() as '6' | '7' | '8' | '9' | '0' | '1'
+      setFormData({
+        subject: question.subject,
+        subjectCode: question.subjectCode,
+        topic: question.topic,
+        topicCode: question.topicCode,
+        grade: gradeValue,
+        level: question.level as any,
+        levelCode: question.levelCode as any,
+        informativeText: question.informativeText || '',
+        questionText: question.questionText,
+      })
+      
+      // Cargar imágenes informativas
+      setInformativeImagePreviews(question.informativeImages || [])
+    } else {
+      // Modo de edición normal (no cloze test)
+      setIsEditingClozeTest(false)
+      
+      // Cargar los datos de la pregunta en el formulario
+      // Asegurar que el grado sea string para consistencia
+      const gradeValue = String(question.grade || '').trim() as '6' | '7' | '8' | '9' | '0' | '1'
+      
+      setFormData({
+        subject: question.subject,
+        subjectCode: question.subjectCode,
+        topic: question.topic,
+        topicCode: question.topicCode,
+        grade: gradeValue,
+        level: question.level as any,
+        levelCode: question.levelCode as any,
+        informativeText: question.informativeText || '',
+        questionText: question.questionText,
+      })
+      
+      console.log('📋 Formulario cargado con valores:', {
+        grade: gradeValue,
+        subjectCode: question.subjectCode,
+        topicCode: question.topicCode,
+        levelCode: question.levelCode,
+      })
+      // Cargar opciones
+      setOptions(question.options)
+      // Cargar imágenes existentes para mostrar
+      setInformativeImagePreviews(question.informativeImages || [])
+      setQuestionImagePreviews(question.questionImages || [])
+      setOptionImagePreviews({
+        A: question.options.find(o => o.id === 'A')?.imageUrl || null,
+        B: question.options.find(o => o.id === 'B')?.imageUrl || null,
+        C: question.options.find(o => o.id === 'C')?.imageUrl || null,
+        D: question.options.find(o => o.id === 'D')?.imageUrl || null,
+      })
+    }
+    
     // Limpiar estados de edición de imágenes
     setEditInformativeImages([])
     setEditQuestionImages([])
@@ -1097,32 +1764,220 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         return
       }
 
-      // Validaciones
-      if (!formData.subject || !formData.topic || !formData.questionText) {
-        notifyError({
-          title: 'Error',
-          message: 'Complete todos los campos obligatorios'
-        })
-        return
+      // Limpiar errores previos
+      setFieldErrors({})
+      const errors: { [key: string]: boolean } = {}
+
+      // Validaciones básicas comunes
+      if (!formData.subject || !formData.subjectCode) {
+        errors['subject'] = true
+      }
+      if (!formData.topic || !formData.topicCode) {
+        errors['topic'] = true
       }
 
-      // Validar que todas las opciones tengan contenido
-      const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id] && !opt.imageUrl)
-      if (emptyOptions.length > 0) {
-        notifyError({
-          title: 'Error',
-          message: 'Todas las opciones deben tener texto o imagen'
-        })
-        return
+      // Validaciones específicas según modalidad de Inglés
+      if (formData.subjectCode === 'IN') {
+        if (inglesModality === 'matching_columns') {
+          // Validar Matching / Columnas
+          if (matchingQuestions.length === 0) {
+            errors['matchingQuestions'] = true
+          }
+          // Validar cada pregunta de matching
+          matchingQuestions.forEach((mq, mqIndex) => {
+            if (!mq.questionText || !mq.questionText.trim()) {
+              errors[`matchingQuestionText_${mqIndex}`] = true
+            }
+            // Validar que tenga al menos 2 opciones
+            const validOptions = mq.options.filter(opt => opt.text && opt.text.trim())
+            if (validOptions.length < 2) {
+              errors[`matchingQuestionOptions_${mqIndex}`] = true
+            }
+            // Validar que tenga una respuesta correcta
+            const hasCorrectAnswer = mq.options.some(opt => opt.isCorrect)
+            if (!hasCorrectAnswer) {
+              errors[`matchingQuestionAnswer_${mqIndex}`] = true
+            }
+          })
+        } else if (inglesModality === 'cloze_test') {
+          // Validar Cloze Test
+          if (!clozeText.trim()) {
+            errors['clozeText'] = true
+          }
+          // Validar que todos los huecos tengan opciones y respuesta correcta
+          const tempDiv = document.createElement('div')
+          tempDiv.innerHTML = clozeText
+          const text = tempDiv.textContent || tempDiv.innerText || ''
+          const gapMatches = text.match(/\[(\d+)\]/g) || []
+          const gaps = new Set<number>()
+          gapMatches.forEach(match => {
+            const num = parseInt(match.replace(/[\[\]]/g, ''))
+            gaps.add(num)
+          })
+          gaps.forEach(gapNum => {
+            const gapData = clozeGaps[gapNum]
+            if (!gapData) {
+              errors[`clozeGap_${gapNum}`] = true
+            } else {
+              // Validar que todas las 3 opciones tengan texto
+              if (gapData.options.length !== 3) {
+                errors[`clozeGapOptions_${gapNum}`] = true
+              }
+              const emptyOptions = gapData.options.filter(opt => !opt.trim())
+              if (emptyOptions.length > 0) {
+                errors[`clozeGapOptions_${gapNum}`] = true
+              }
+              // Validar que haya una respuesta correcta (A, B o C)
+              if (!gapData.correctAnswer || !['A', 'B', 'C'].includes(gapData.correctAnswer)) {
+                errors[`clozeGapAnswer_${gapNum}`] = true
+              }
+            }
+          })
+        } else if (inglesModality === 'reading_comprehension') {
+          // Validar Comprensión de Lectura
+          if (!readingText.trim()) {
+            errors['readingText'] = true
+          }
+          if (readingQuestions.length === 0) {
+            errors['readingQuestions'] = true
+          } else {
+            // Validar cada pregunta de lectura
+            readingQuestions.forEach((rq, rqIndex) => {
+              // Validar opciones de cada pregunta
+              const emptyOptions = rq.options.filter(opt => !opt.text || !opt.text.trim())
+              if (emptyOptions.length > 0) {
+                errors[`readingQuestionOptions_${rqIndex}`] = true
+              }
+              // Validar que haya una respuesta correcta
+              const correctOptions = rq.options.filter(opt => opt.isCorrect)
+              if (correctOptions.length !== 1) {
+                errors[`readingQuestionAnswer_${rqIndex}`] = true
+              }
+            })
+          }
+        } else {
+          // Modalidad estándar (standard_mc)
+          if (!formData.questionText.trim()) {
+            errors['questionText'] = true
+          }
+          // Validar que todas las opciones tengan contenido
+          const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id] && !opt.imageUrl)
+          if (emptyOptions.length > 0) {
+            errors['options'] = true
+          }
+          // Validar que haya exactamente una respuesta correcta
+          const correctOptions = options.filter(opt => opt.isCorrect)
+          if (correctOptions.length !== 1) {
+            errors['correctAnswer'] = true
+          }
+        }
+      } else {
+        // Materia no es Inglés - validación estándar
+        if (!formData.questionText.trim()) {
+          errors['questionText'] = true
+        }
+        // Validar que todas las opciones tengan contenido
+        const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id] && !opt.imageUrl)
+        if (emptyOptions.length > 0) {
+          errors['options'] = true
+        }
+        // Validar que haya exactamente una respuesta correcta
+        const correctOptions = options.filter(opt => opt.isCorrect)
+        if (correctOptions.length !== 1) {
+          errors['correctAnswer'] = true
+        }
       }
 
-      // Validar que haya exactamente una respuesta correcta
-      const correctOptions = options.filter(opt => opt.isCorrect)
-      if (correctOptions.length !== 1) {
-        notifyError({
-          title: 'Error',
-          message: 'Debe marcar exactamente una opción como correcta'
+      // Si hay errores, mostrarlos y resaltar campos
+      // Si es cloze test en edición, NO mostrar errores aquí (se validan más adelante)
+      if (isEditingClozeTest) {
+        // Solo validar materia y tema, los demás errores se validan en la sección específica
+        if (Object.keys(errors).length > 0 && (errors['subject'] || errors['topic'])) {
+          setFieldErrors(errors)
+          const errorMessages: string[] = []
+          if (errors['subject']) errorMessages.push('Materia')
+          if (errors['topic']) errorMessages.push('Tema')
+          
+          notifyError({ 
+            title: 'Campos Obligatorios Faltantes', 
+            message: errorMessages.map(msg => `• ${msg}`).join('\n')
+          })
+          return
+        }
+        // Si no hay errores de materia/tema, continuar a la validación específica de cloze test
+      } else if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors)
+        const errorMessages: string[] = []
+        
+        if (errors['subject']) errorMessages.push('Materia')
+        if (errors['topic']) errorMessages.push('Tema')
+        if (errors['questionText']) errorMessages.push('Texto de la Pregunta')
+        if (errors['matchingQuestions']) errorMessages.push('Preguntas de Matching (debe agregar al menos una)')
+        
+        // Mensajes específicos para preguntas de matching
+        matchingQuestions.forEach((_, mqIndex) => {
+          if (errors[`matchingQuestionText_${mqIndex}`]) {
+            errorMessages.push(`Texto de Pregunta ${mqIndex + 1} de Matching`)
+          }
+          if (errors[`matchingQuestionOptions_${mqIndex}`]) {
+            errorMessages.push(`Opciones de Pregunta ${mqIndex + 1} de Matching (mínimo 2 opciones)`)
+          }
+          if (errors[`matchingQuestionAnswer_${mqIndex}`]) {
+            errorMessages.push(`Respuesta Correcta de Pregunta ${mqIndex + 1} de Matching`)
+          }
         })
+        
+        if (errors['clozeText']) errorMessages.push('Texto a Completar (Cloze)')
+        // Mensajes específicos para huecos de cloze (usar editClozeGaps si es edición)
+        const gapsToCheck = isEditingClozeTest ? editClozeGaps : clozeGaps
+        Object.keys(gapsToCheck).forEach(gapNum => {
+          if (errors[`clozeGap_${gapNum}`]) {
+            errorMessages.push(`Pregunta ${gapNum} (no se detectaron opciones)`)
+          }
+          if (errors[`clozeGapOptions_${gapNum}`]) {
+            errorMessages.push(`Opciones de la Pregunta ${gapNum} (deben completarse las 3 opciones)`)
+          }
+          if (errors[`clozeGapAnswer_${gapNum}`]) {
+            errorMessages.push(`Respuesta Correcta de la Pregunta ${gapNum}`)
+          }
+        })
+        
+        if (errors['readingText']) errorMessages.push('Texto de Lectura')
+        if (errors['readingQuestions']) errorMessages.push('Preguntas de Lectura (debe agregar al menos una)')
+        // Solo mostrar errores de opciones normales si NO es cloze test
+        if (!isEditingClozeTest) {
+          if (errors['options']) errorMessages.push('Opciones de Respuesta')
+          if (errors['correctAnswer']) errorMessages.push('Respuesta Correcta')
+        }
+
+        // Mensajes específicos para preguntas de lectura
+        readingQuestions.forEach((_, rqIndex) => {
+          if (errors[`readingQuestionOptions_${rqIndex}`]) {
+            errorMessages.push(`Opciones de Pregunta ${rqIndex + 1} de Lectura`)
+          }
+          if (errors[`readingQuestionAnswer_${rqIndex}`]) {
+            errorMessages.push(`Respuesta Correcta de Pregunta ${rqIndex + 1} de Lectura`)
+          }
+        })
+
+        // Mostrar error con lista detallada
+        const errorList = errorMessages.length > 0 
+          ? errorMessages.map(msg => `• ${msg}`).join('\n')
+          : 'Por favor complete todos los campos obligatorios'
+        
+        notifyError({ 
+          title: 'Campos Obligatorios Faltantes', 
+          message: errorList
+        })
+        
+        // Hacer scroll al primer campo con error
+        setTimeout(() => {
+          const firstErrorField = document.querySelector('[class*="border-red-500"]')
+          if (firstErrorField) {
+            firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 100)
+        
         return
       }
 
@@ -1320,55 +2175,307 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         console.log('ℹ️ No se detectaron cambios en los parámetros del código')
       }
 
-      // Preparar datos de actualización
-      const updates: any = {
-        subject: formData.subject,
-        subjectCode: formData.subjectCode,
-        topic: formData.topic,
-        topicCode: formData.topicCode,
-        grade: formData.grade,
-        level: formData.level,
-        levelCode: formData.levelCode,
-        informativeText: formData.informativeText || '',
-        questionText: formData.questionText,
-        options: finalOptions
-      }
-
-      // Si se generó un nuevo código, agregarlo a las actualizaciones
-      if (newCode) {
-        updates.code = newCode
-      }
-
-      // Agregar nuevas imágenes si las hay
-      if (newInformativeImageUrls.length > 0) {
-        updates.informativeImages = [...(selectedQuestion.informativeImages || []), ...newInformativeImageUrls]
-      }
-      if (newQuestionImageUrls.length > 0) {
-        updates.questionImages = [...(selectedQuestion.questionImages || []), ...newQuestionImageUrls]
-      }
-
-      // Actualizar la pregunta
-      const result = await questionService.updateQuestion(selectedQuestion.id, updates)
-
-      if (result.success) {
-        const successMessage = newCode 
-          ? `Pregunta actualizada correctamente. Código cambiado: ${selectedQuestion.code} → ${newCode}`
-          : `Pregunta ${selectedQuestion.code} actualizada correctamente`
+      // Manejar actualización de Cloze Test
+      if (isEditingClozeTest) {
+        // Validar que todos los huecos tengan opciones y respuesta correcta
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = editClozeText
+        const text = tempDiv.textContent || tempDiv.innerText || ''
+        const gapMatches = text.match(/\[(\d+)\]/g) || []
+        const gaps = new Set<number>()
+        gapMatches.forEach(match => {
+          const num = parseInt(match.replace(/[\[\]]/g, ''))
+          gaps.add(num)
+        })
+        
+        if (gaps.size === 0) {
+          notifyError({ 
+            title: 'Error', 
+            message: 'No se encontraron huecos en el texto. Usa [1], [2], etc. para marcar los huecos.' 
+          })
+          setIsLoading(false)
+          return
+        }
+        
+        // Validar que todos los huecos tengan datos
+        const clozeErrors: { [key: string]: boolean } = {}
+        
+        // Validar texto del cloze test
+        if (!editClozeText.trim()) {
+          clozeErrors['clozeText'] = true
+        }
+        
+        gaps.forEach(gapNum => {
+          const gapData = editClozeGaps[gapNum]
+          if (!gapData) {
+            clozeErrors[`clozeGap_${gapNum}`] = true
+          } else {
+            // Validar que tenga exactamente 3 opciones
+            if (!gapData.options || !Array.isArray(gapData.options) || gapData.options.length !== 3) {
+              clozeErrors[`clozeGapOptions_${gapNum}`] = true
+            } else {
+              // Validar que todas las opciones tengan texto (verificar que no sean null, undefined o string vacío)
+              const emptyOptions = gapData.options.filter(opt => {
+                if (opt === null || opt === undefined) return true
+                if (typeof opt === 'string' && !opt.trim()) return true
+                return false
+              })
+              if (emptyOptions.length > 0) {
+                clozeErrors[`clozeGapOptions_${gapNum}`] = true
+              }
+            }
+            // Validar que haya una respuesta correcta (A, B o C)
+            if (!gapData.correctAnswer || typeof gapData.correctAnswer !== 'string' || !['A', 'B', 'C'].includes(gapData.correctAnswer)) {
+              clozeErrors[`clozeGapAnswer_${gapNum}`] = true
+            }
+          }
+        })
+        
+        console.log('🔍 Validación de Cloze Test:', {
+          gaps: Array.from(gaps),
+          editClozeGaps,
+          clozeErrors,
+          hasErrors: Object.keys(clozeErrors).length > 0
+        })
+        
+        if (Object.keys(clozeErrors).length > 0) {
+          setFieldErrors(clozeErrors)
+          
+          // Crear mensaje de error detallado
+          const errorMessages: string[] = []
+          if (clozeErrors['clozeText']) {
+            errorMessages.push('Texto a Completar')
+          }
+          
+          gaps.forEach(gapNum => {
+            if (clozeErrors[`clozeGap_${gapNum}`]) {
+              errorMessages.push(`Pregunta ${gapNum} (no se detectaron opciones)`)
+            } else {
+              if (clozeErrors[`clozeGapOptions_${gapNum}`]) {
+                errorMessages.push(`Pregunta ${gapNum} - Complete las 3 opciones (A, B, C)`)
+              }
+              if (clozeErrors[`clozeGapAnswer_${gapNum}`]) {
+                errorMessages.push(`Pregunta ${gapNum} - Seleccione la respuesta correcta`)
+              }
+            }
+          })
+          
+          const errorList = errorMessages.length > 0 
+            ? errorMessages.map(msg => `• ${msg}`).join('\n')
+            : 'Por favor complete todos los campos requeridos para cada pregunta.'
+          
+          notifyError({
+            title: 'Campos Obligatorios Faltantes',
+            message: errorList
+          })
+          
+          // Hacer scroll al primer campo con error
+          setTimeout(() => {
+            const firstErrorField = document.querySelector('[class*="border-red-500"]')
+            if (firstErrorField) {
+              firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+          }, 100)
+          
+          setIsLoading(false)
+          return
+        }
+        
+        // Procesar nuevas imágenes informativas
+        let finalInformativeImages = [...(selectedQuestion.informativeImages || [])]
+        if (newInformativeImageUrls.length > 0) {
+          finalInformativeImages = [...finalInformativeImages, ...newInformativeImageUrls]
+        }
+        
+        // Actualizar todas las preguntas relacionadas del cloze test
+        const sortedGaps = Array.from(gaps).sort((a, b) => a - b)
+        let successCount = 0
+        let errorCount = 0
+        const updatedCodes: string[] = []
         
         notifySuccess({
-          title: 'Éxito',
-          message: successMessage
+          title: 'Actualizando',
+          message: `Actualizando ${sortedGaps.length} pregunta(s) del cloze test...`
         })
-        resetForm()
-        setIsEditDialogOpen(false)
-        setSelectedQuestion(null)
-        loadQuestions()
-        loadStats()
+        
+        for (let i = 0; i < sortedGaps.length; i++) {
+          const gapNum = sortedGaps[i]
+          const gapData = editClozeGaps[gapNum]
+          
+          // Buscar la pregunta correspondiente a este hueco
+          const relatedQuestion = editClozeRelatedQuestions.find(q => {
+            const match = q.questionText?.match(/hueco \[(\d+)\]/)
+            return match && parseInt(match[1]) === gapNum
+          })
+          
+          if (!relatedQuestion) {
+            console.error(`❌ No se encontró pregunta para el hueco ${gapNum}`)
+            errorCount++
+            continue
+          }
+          
+          // Crear opciones para esta pregunta (A, B, C)
+          const gapOptions: QuestionOption[] = ['A', 'B', 'C'].map((letter, optIndex) => ({
+            id: letter as 'A' | 'B' | 'C',
+            text: gapData.options[optIndex] || '',
+            imageUrl: null,
+            isCorrect: gapData.correctAnswer === letter
+          }))
+          
+          // El texto de la pregunta será específico para este hueco
+          const questionText = `Selecciona la palabra correcta para completar el hueco [${gapNum}]:`
+          
+          // Verificar si cambiaron los parámetros que afectan el código
+          const oldSubjectCode = String(relatedQuestion.subjectCode || '').trim()
+          const newSubjectCode = String(formData.subjectCode || '').trim()
+          const oldTopicCode = String(relatedQuestion.topicCode || '').trim()
+          const newTopicCode = String(formData.topicCode || '').trim()
+          const oldGrade = String(relatedQuestion.grade || '').trim()
+          const newGrade = String(formData.grade || '').trim()
+          const oldLevelCode = String(relatedQuestion.levelCode || '').trim()
+          const newLevelCode = String(formData.levelCode || '').trim()
+          
+          const codeParamsChanged = 
+            oldSubjectCode !== newSubjectCode ||
+            oldTopicCode !== newTopicCode ||
+            oldGrade !== newGrade ||
+            oldLevelCode !== newLevelCode
+          
+          // Generar nuevo código si es necesario
+          let questionNewCode: string | undefined = undefined
+          if (codeParamsChanged) {
+            const codeResult = await questionService.generateQuestionCode(
+              newSubjectCode,
+              newTopicCode,
+              newGrade,
+              newLevelCode
+            )
+            if (codeResult.success) {
+              questionNewCode = codeResult.data
+            }
+          }
+          
+          // Preparar datos de actualización
+          const updates: any = {
+            subject: formData.subject,
+            subjectCode: formData.subjectCode,
+            topic: formData.topic,
+            topicCode: formData.topicCode,
+            grade: formData.grade,
+            level: formData.level,
+            levelCode: formData.levelCode,
+            informativeText: editClozeText, // El texto completo del cloze test
+            questionText: questionText,
+            options: gapOptions,
+            informativeImages: finalInformativeImages
+          }
+          
+          if (questionNewCode) {
+            updates.code = questionNewCode
+          }
+          
+          if (!relatedQuestion.id) {
+            console.error(`❌ La pregunta del hueco ${gapNum} no tiene ID válido`)
+            errorCount++
+            continue
+          }
+          
+          const questionId = relatedQuestion.id // Guardar en variable para TypeScript
+          
+          try {
+            const result = await questionService.updateQuestion(questionId, updates)
+            if (result.success) {
+              successCount++
+              updatedCodes.push(questionNewCode || relatedQuestion.code)
+            } else {
+              errorCount++
+              console.error(`❌ Error actualizando pregunta del hueco ${gapNum}:`, result.error)
+            }
+          } catch (error) {
+            errorCount++
+            console.error(`❌ Error actualizando pregunta del hueco ${gapNum}:`, error)
+          }
+        }
+        
+        if (successCount === sortedGaps.length) {
+          notifySuccess({
+            title: 'Éxito',
+            message: `${successCount} pregunta(s) del cloze test actualizada(s) correctamente.`
+          })
+          resetForm()
+          setIsEditDialogOpen(false)
+          setSelectedQuestion(null)
+          setIsEditingClozeTest(false)
+          setEditClozeText('')
+          setEditClozeGaps({})
+          setEditClozeRelatedQuestions([])
+          loadQuestions()
+          loadStats()
+        } else if (successCount > 0) {
+          notifyError({
+            title: 'Advertencia',
+            message: `Se actualizaron ${successCount} pregunta(s) de ${sortedGaps.length}. ${errorCount} fallaron.`
+          })
+          loadQuestions()
+          loadStats()
+        } else {
+          notifyError({
+            title: 'Error',
+            message: 'No se pudo actualizar ninguna pregunta del cloze test.'
+          })
+        }
       } else {
-        notifyError({
-          title: 'Error',
-          message: result.error?.message || 'No se pudo actualizar la pregunta'
-        })
+        // Actualización normal (no cloze test)
+        // Preparar datos de actualización
+        const updates: any = {
+          subject: formData.subject,
+          subjectCode: formData.subjectCode,
+          topic: formData.topic,
+          topicCode: formData.topicCode,
+          grade: formData.grade,
+          level: formData.level,
+          levelCode: formData.levelCode,
+          informativeText: formData.informativeText || '',
+          questionText: formData.questionText,
+          options: finalOptions
+        }
+
+        // Si se generó un nuevo código, agregarlo a las actualizaciones
+        if (newCode) {
+          updates.code = newCode
+        }
+
+        // Agregar nuevas imágenes si las hay
+        if (newInformativeImageUrls.length > 0) {
+          updates.informativeImages = [...(selectedQuestion.informativeImages || []), ...newInformativeImageUrls]
+        }
+        if (newQuestionImageUrls.length > 0) {
+          updates.questionImages = [...(selectedQuestion.questionImages || []), ...newQuestionImageUrls]
+        }
+
+        // Actualizar la pregunta
+        const result = await questionService.updateQuestion(selectedQuestion.id, updates)
+
+        if (result.success) {
+          const successMessage = newCode 
+            ? `Pregunta actualizada correctamente. Código cambiado: ${selectedQuestion.code} → ${newCode}`
+            : `Pregunta ${selectedQuestion.code} actualizada correctamente`
+          
+          notifySuccess({
+            title: 'Éxito',
+            message: successMessage
+          })
+          resetForm()
+          setIsEditDialogOpen(false)
+          setSelectedQuestion(null)
+          loadQuestions()
+          loadStats()
+        } else {
+          notifyError({
+            title: 'Error',
+            message: result.error?.message || 'No se pudo actualizar la pregunta'
+          })
+        }
       }
     } catch (error) {
       console.error('Error actualizando pregunta:', error)
@@ -2187,89 +3294,236 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     </Button>
                   )}
                 </div>
-              ) : (
-                filteredQuestions.map((question) => {
-                  return (
-                    <div 
-                      key={question.id} 
-                      className={cn(
-                        'p-4 rounded-lg border cursor-pointer transition-colors',
-                        theme === 'dark' 
-                          ? 'border-zinc-700 hover:bg-zinc-800' 
-                          : 'border-gray-200 hover:bg-gray-50'
-                      )}
-                      onClick={() => handleViewQuestion(question)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {question.code}
-                            </Badge>
-                            <Badge variant="secondary">
-                              {question.subject}
-                            </Badge>
-                            <Badge variant="secondary">
-                              {question.topic}
-                            </Badge>
-                            <Badge variant="secondary">
-                              {GRADE_CODE_TO_NAME[question.grade]}
-                            </Badge>
-                            <Badge 
-                              variant={
-                                question.level === 'Fácil' ? 'default' : 
-                                question.level === 'Medio' ? 'secondary' : 
-                                'destructive'
-                              }
+              ) : (() => {
+                // Agrupar preguntas relacionadas (Cloze Test y Comprensión de Lectura)
+                const groupedQuestions: { [key: string]: Question[] } = {}
+                const ungroupedQuestions: Question[] = []
+                const processedIds = new Set<string>()
+                
+                filteredQuestions.forEach(question => {
+                  // Verificar si ya fue procesada en un grupo
+                  if (processedIds.has(question.id || '')) return
+                  
+                  // Para preguntas de Inglés con informativeText, buscar preguntas relacionadas
+                  if (question.subjectCode === 'IN' && question.informativeText && 
+                      (question.questionText?.includes('completar el hueco') || 
+                       questions.some(q => q.informativeText === question.informativeText && q.id !== question.id))) {
+                    const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
+                    
+                    if (!groupedQuestions[groupKey]) {
+                      groupedQuestions[groupKey] = []
+                    }
+                    
+                    // Buscar todas las preguntas relacionadas
+                    const related = filteredQuestions.filter(q => 
+                      q.subjectCode === 'IN' &&
+                      q.informativeText === question.informativeText &&
+                      JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
+                      q.topicCode === question.topicCode &&
+                      q.grade === question.grade &&
+                      q.levelCode === question.levelCode &&
+                      !processedIds.has(q.id || '')
+                    )
+                    
+                    related.forEach(q => {
+                      groupedQuestions[groupKey].push(q)
+                      processedIds.add(q.id || '')
+                    })
+                  } else {
+                    ungroupedQuestions.push(question)
+                    processedIds.add(question.id || '')
+                  }
+                })
+                
+                // Renderizar grupos y preguntas individuales
+                return (
+                  <>
+                    {/* Grupos de preguntas */}
+                    {Object.entries(groupedQuestions).map(([groupKey, groupQuestions]) => {
+                      const isClozeTest = groupQuestions.some(q => q.questionText?.includes('completar el hueco'))
+                      const firstQuestion = groupQuestions[0]
+                      
+                      return (
+                        <div 
+                          key={groupKey}
+                          className={cn(
+                            'rounded-lg border-2 overflow-hidden',
+                            theme === 'dark'
+                              ? 'border-purple-700 bg-purple-950/30'
+                              : 'border-purple-300 bg-purple-50/50'
+                          )}
+                        >
+                          {/* Header del grupo */}
+                          <div className={cn(
+                            'px-4 py-2 flex items-center justify-between',
+                            theme === 'dark' ? 'bg-purple-900/50' : 'bg-purple-100'
+                          )}>
+                            <div className="flex items-center gap-2">
+                              <BookOpen className={cn('h-4 w-4', theme === 'dark' ? 'text-purple-300' : 'text-purple-600')} />
+                              <span className={cn('font-semibold text-sm', theme === 'dark' ? 'text-purple-200' : 'text-purple-700')}>
+                                {isClozeTest ? 'Cloze Test / Rellenar Huecos' : 'Comprensión de Lectura'} - {groupQuestions.length} pregunta{groupQuestions.length > 1 ? 's' : ''} agrupada{groupQuestions.length > 1 ? 's' : ''}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {firstQuestion.topic} • {GRADE_CODE_TO_NAME[firstQuestion.grade]} • {firstQuestion.level}
+                              </Badge>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleViewQuestion(firstQuestion)}
+                              className="text-xs"
                             >
-                              {question.level}
-                            </Badge>
+                              <Eye className="h-3 w-3 mr-1" />
+                              Ver todas
+                            </Button>
                           </div>
-                          <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                            {stripHtmlTags(question.questionText).substring(0, 120)}
-                            {stripHtmlTags(question.questionText).length > 120 && '...'}
-                          </p>
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <span>4 opciones</span>
-                            {(question.questionImages && question.questionImages.length > 0) && (
-                              <span className="flex items-center gap-1">
-                                <ImageIcon className="h-3 w-3" />
-                                {question.questionImages.length} imagen{question.questionImages.length > 1 ? 'es' : ''}
-                              </span>
-                            )}
-                            {(question.informativeImages && question.informativeImages.length > 0) && (
-                              <span className="flex items-center gap-1">
-                                <ImageIcon className="h-3 w-3" />
-                                {question.informativeImages.length} info
-                              </span>
-                            )}
-                            {question.options.some(opt => opt.imageUrl) && (
-                              <span className="flex items-center gap-1">
-                                <ImageIcon className="h-3 w-3" />
-                                opciones con imagen
-                              </span>
-                            )}
-                            <span>
-                              {new Date(question.createdAt).toLocaleDateString('es-ES')}
-                            </span>
+                          
+                          {/* Preguntas del grupo */}
+                          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {groupQuestions.sort((a, b) => {
+                              // Ordenar por código o por número de hueco si es cloze test
+                              const aMatch = a.questionText?.match(/hueco \[(\d+)\]/)
+                              const bMatch = b.questionText?.match(/hueco \[(\d+)\]/)
+                              if (aMatch && bMatch) {
+                                return parseInt(aMatch[1]) - parseInt(bMatch[1])
+                              }
+                              return a.code.localeCompare(b.code)
+                            }).map((question) => (
+                              <div
+                                key={question.id}
+                                className={cn(
+                                  'p-4 cursor-pointer transition-colors',
+                                  theme === 'dark'
+                                    ? 'hover:bg-zinc-800'
+                                    : 'hover:bg-gray-50'
+                                )}
+                                onClick={() => handleViewQuestion(question)}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Badge variant="outline" className="font-mono text-xs">
+                                        {question.code}
+                                      </Badge>
+                                      {isClozeTest && question.questionText?.match(/hueco \[(\d+)\]/) && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          Pregunta {question.questionText.match(/hueco \[(\d+)\]/)?.[1]}
+                                        </Badge>
+                                      )}
+                                      <Badge variant="secondary">
+                                        {question.options.length} opciones
+                                      </Badge>
+                                      <span className="text-xs text-gray-500">
+                                        {new Date(question.createdAt).toLocaleDateString('es-ES')}
+                                      </span>
+                                    </div>
+                                    <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                      {stripHtmlTags(question.questionText || '').substring(0, 100)}
+                                      {stripHtmlTags(question.questionText || '').length > 100 && '...'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-4">
+                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
+                      )
+                    })}
+                    
+                    {/* Preguntas individuales */}
+                    {ungroupedQuestions.map((question) => (
+                      <div 
+                        key={question.id} 
+                        className={cn(
+                          'p-4 rounded-lg border cursor-pointer transition-colors',
+                          theme === 'dark' 
+                            ? 'border-zinc-700 hover:bg-zinc-800' 
+                            : 'border-gray-200 hover:bg-gray-50'
+                        )}
+                        onClick={() => handleViewQuestion(question)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {question.code}
+                              </Badge>
+                              <Badge variant="secondary">
+                                {question.subject}
+                              </Badge>
+                              <Badge variant="secondary">
+                                {question.topic}
+                              </Badge>
+                              <Badge variant="secondary">
+                                {GRADE_CODE_TO_NAME[question.grade]}
+                              </Badge>
+                              <Badge 
+                                variant={
+                                  question.level === 'Fácil' ? 'default' : 
+                                  question.level === 'Medio' ? 'secondary' : 
+                                  'destructive'
+                                }
+                              >
+                                {question.level}
+                              </Badge>
+                            </div>
+                            <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                              {stripHtmlTags(question.questionText).substring(0, 120)}
+                              {stripHtmlTags(question.questionText).length > 120 && '...'}
+                            </p>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <span>{question.options.length} opciones</span>
+                              {(question.questionImages && question.questionImages.length > 0) && (
+                                <span className="flex items-center gap-1">
+                                  <ImageIcon className="h-3 w-3" />
+                                  {question.questionImages.length} imagen{question.questionImages.length > 1 ? 'es' : ''}
+                                </span>
+                              )}
+                              {(question.informativeImages && question.informativeImages.length > 0) && (
+                                <span className="flex items-center gap-1">
+                                  <ImageIcon className="h-3 w-3" />
+                                  {question.informativeImages.length} info
+                                </span>
+                              )}
+                              {question.options.some(opt => opt.imageUrl) && (
+                                <span className="flex items-center gap-1">
+                                  <ImageIcon className="h-3 w-3" />
+                                  opciones con imagen
+                                </span>
+                              )}
+                              <span>
+                                {new Date(question.createdAt).toLocaleDateString('es-ES')}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })
-              )}
+                    ))}
+                  </>
+                )
+              })()}
               </div>
             )}
           </ScrollArea>
@@ -2290,9 +3544,24 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Información básica */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="subject">Materia *</Label>
-                <Select value={formData.subjectCode} onValueChange={handleSubjectChange}>
-                  <SelectTrigger>
+                <Label htmlFor="subject" className={fieldErrors['subject'] ? 'text-red-600' : ''}>
+                  Materia *
+                  {fieldErrors['subject'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                </Label>
+                <Select 
+                  value={formData.subjectCode} 
+                  onValueChange={(value) => {
+                    handleSubjectChange(value)
+                    if (fieldErrors['subject']) {
+                      setFieldErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors['subject']
+                        return newErrors
+                      })
+                    }
+                  }}
+                >
+                  <SelectTrigger className={fieldErrors['subject'] ? 'border-red-500 border-2' : ''}>
                     <SelectValue placeholder="Seleccionar materia" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2306,13 +3575,25 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="topic">Tema *</Label>
+                <Label htmlFor="topic" className={fieldErrors['topic'] ? 'text-red-600' : ''}>
+                  Tema *
+                  {fieldErrors['topic'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                </Label>
                 <Select 
                   value={formData.topicCode} 
-                  onValueChange={handleTopicChange}
+                  onValueChange={(value) => {
+                    handleTopicChange(value)
+                    if (fieldErrors['topic']) {
+                      setFieldErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors['topic']
+                        return newErrors
+                      })
+                    }
+                  }}
                   disabled={!formData.subjectCode}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={fieldErrors['topic'] ? 'border-red-500 border-2' : ''}>
                     <SelectValue placeholder="Seleccionar tema" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2358,178 +3639,805 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
             </div>
 
-            {/* Texto informativo (opcional) */}
-            <div className="space-y-2">
-              <Label htmlFor="informativeText">Texto Informativo (opcional)</Label>
-              <RichTextEditor
-                ref={informativeTextEditorRef}
-                value={formData.informativeText}
-                onChange={(html) => setFormData({ ...formData, informativeText: html })}
-                placeholder="Información adicional o contexto para la pregunta..."
-              />
-            </div>
-
-            {/* Imágenes informativas */}
-            <div className="space-y-2">
-              <Label>Imágenes Informativas (opcional, máx. 5)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleInformativeImageUpload}
-                  className="hidden"
-                  id="informative-images"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById('informative-images')?.click()}
-                  disabled={informativeImages.length >= 5}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Subir Imágenes
-                </Button>
+            {/* Campo de Modalidad de Inglés - Solo visible cuando materia es Inglés */}
+            {formData.subjectCode === 'IN' && (
+              <div className="space-y-2">
+                <Label htmlFor="modalidad_ingles">Modalidad de Pregunta Específica *</Label>
+                <Select value={inglesModality} onValueChange={(value: any) => setInglesModality(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar modalidad" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard_mc">Opción Múltiple Estándar</SelectItem>
+                    <SelectItem value="matching_columns">Matching / Columnas</SelectItem>
+                    <SelectItem value="cloze_test">Cloze Test / Rellenar Huecos</SelectItem>
+                    <SelectItem value="reading_comprehension">Comprensión de Lectura Corta</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              {informativeImagePreviews.length > 0 && (
-                <div className="grid grid-cols-5 gap-2 mt-2">
-                  {informativeImagePreviews.map((preview, index) => (
-                    <div key={index} className="relative">
-                      <img src={preview} alt={`Preview ${index}`} className="w-full h-20 object-cover rounded" />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-0 right-0 h-6 w-6 p-0"
-                        onClick={() => removeInformativeImage(index)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
 
-            {/* Pregunta */}
-            <div className="space-y-2">
-              <Label htmlFor="questionText">Texto de la Pregunta *</Label>
-              <RichTextEditor
-                ref={questionTextEditorRef}
-                value={formData.questionText}
-                onChange={(html) => setFormData({ ...formData, questionText: html })}
-                placeholder="Escribe la pregunta aquí..."
-              />
-            </div>
-
-            {/* Imágenes de la pregunta */}
-            <div className="space-y-2">
-              <Label>Imágenes de la Pregunta (opcional, máx. 3)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleQuestionImageUpload}
-                  className="hidden"
-                  id="question-images"
+            {/* Texto informativo (opcional) - Oculto para Inglés modalidad Comprensión de Lectura */}
+            {!(formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') && (
+              <div className="space-y-2">
+                <Label htmlFor="informativeText">Texto Informativo (opcional)</Label>
+                <RichTextEditor
+                  ref={informativeTextEditorRef}
+                  value={formData.informativeText}
+                  onChange={(html) => setFormData({ ...formData, informativeText: html })}
+                  placeholder="Información adicional o contexto para la pregunta..."
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById('question-images')?.click()}
-                  disabled={questionImages.length >= 3}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Subir Imágenes
-                </Button>
               </div>
-              {questionImagePreviews.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  {questionImagePreviews.map((preview, index) => (
-                    <div key={index} className="relative">
-                      <img src={preview} alt={`Preview ${index}`} className="w-full h-32 object-cover rounded" />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-0 right-0 h-6 w-6 p-0"
-                        onClick={() => removeQuestionImage(index)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
 
-            {/* Opciones de respuesta */}
-            <div className="space-y-2">
-              <Label>Opciones de Respuesta *</Label>
-              <p className="text-sm text-gray-500">
-                Cada opción debe tener texto o imagen. Marque la opción correcta.
-              </p>
-              <div className="space-y-3">
-                {options.map((option) => (
-                  <div key={option.id} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <input
-                        type="radio"
-                        name="correctAnswer"
-                        checked={option.isCorrect}
-                        onChange={() => handleCorrectAnswerChange(option.id)}
-                        className="w-4 h-4 mt-2"
-                      />
-                      <span className="font-medium mt-2">{option.id})</span>
-                      <div className="flex-1">
-                        <RichTextEditor
-                          value={option.text || ''}
-                          onChange={(html) => handleOptionTextChange(option.id, html)}
-                          placeholder={`Texto de la opción ${option.id}`}
-                          className="min-h-[100px]"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
-                          className="hidden"
-                          id={`option-${option.id}-image`}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => document.getElementById(`option-${option.id}-image`)?.click()}
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    {optionImagePreviews[option.id] && (
-                      <div className="relative w-32 h-32">
-                        <img 
-                          src={optionImagePreviews[option.id]!} 
-                          alt={`Opción ${option.id}`} 
-                          className="w-full h-full object-cover rounded" 
-                        />
+            {/* Imágenes informativas - Oculto para Inglés modalidad Comprensión de Lectura */}
+            {!(formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') && (
+              <div className="space-y-2">
+                <Label>Imágenes Informativas (opcional, máx. 5)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleInformativeImageUpload}
+                    className="hidden"
+                    id="informative-images"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('informative-images')?.click()}
+                    disabled={informativeImages.length >= 5}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Subir Imágenes
+                  </Button>
+                </div>
+                {informativeImagePreviews.length > 0 && (
+                  <div className="grid grid-cols-5 gap-2 mt-2">
+                    {informativeImagePreviews.map((preview, index) => (
+                      <div key={index} className="relative">
+                        <img src={preview} alt={`Preview ${index}`} className="w-full h-20 object-cover rounded" />
                         <Button
                           type="button"
                           variant="destructive"
                           size="sm"
                           className="absolute top-0 right-0 h-6 w-6 p-0"
-                          onClick={() => removeOptionImage(option.id)}
+                          onClick={() => removeInformativeImage(index)}
                         >
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
+            )}
+
+            {/* Pregunta - Lógica condicional según modalidad de Inglés */}
+            {formData.subjectCode === 'IN' && inglesModality === 'matching_columns' ? (
+              /* Modalidad: Matching / Columnas (nueva estructura por bloques) */
+              <>
+                  <div className="space-y-2">
+                  <Label className={fieldErrors['matchingQuestions'] ? 'text-red-600' : ''}>
+                    Preguntas de Matching / Columnas *
+                    {fieldErrors['matchingQuestions'] && <span className="ml-2 text-red-600">⚠️ Debe agregar al menos una pregunta</span>}
+                    </Label>
+                  {matchingQuestions.map((mq, mqIndex) => {
+                    const hasTextError = fieldErrors[`matchingQuestionText_${mqIndex}`]
+                    const hasOptionsError = fieldErrors[`matchingQuestionOptions_${mqIndex}`]
+                    const hasAnswerError = fieldErrors[`matchingQuestionAnswer_${mqIndex}`]
+                    const hasAnyError = hasTextError || hasOptionsError || hasAnswerError
+                    
+                    return (
+                      <div key={mq.id} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                        <div className="flex items-center justify-between">
+                          <Label className={hasAnyError ? 'text-red-600' : ''}>
+                            Pregunta {mqIndex + 1}
+                            {hasAnyError && <span className="ml-2 text-red-600 text-xs">⚠️ Campos incompletos</span>}
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setMatchingQuestions(matchingQuestions.filter((_, i) => i !== mqIndex))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div>
+                          <RichTextEditor
+                            value={mq.questionText}
+                            onChange={(html) => {
+                              const updated = [...matchingQuestions]
+                              updated[mqIndex].questionText = html
+                              setMatchingQuestions(updated)
+                              // Limpiar error cuando el usuario empiece a escribir
+                              if (fieldErrors[`matchingQuestionText_${mqIndex}`]) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                                  delete newErrors[`matchingQuestionText_${mqIndex}`]
+                            return newErrors
+                          })
+                        }
+                      }}
+                            placeholder="Escribe la pregunta aquí..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                            Opciones de Respuesta (A-H, máximo 6 opciones) *
+                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                    </Label>
+                          {mq.options.map((opt) => (
+                            <div key={opt.id} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name={`matching-q-${mq.id}`}
+                                checked={opt.isCorrect}
+                                onChange={() => {
+                                  const updated = [...matchingQuestions]
+                                  updated[mqIndex].options = updated[mqIndex].options.map(o => ({
+                                    ...o,
+                                    isCorrect: o.id === opt.id
+                                  }))
+                                  setMatchingQuestions(updated)
+                                  // Limpiar error cuando se selecciona una respuesta
+                                  if (fieldErrors[`matchingQuestionAnswer_${mqIndex}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`matchingQuestionAnswer_${mqIndex}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <Label className="font-medium w-6">{opt.id}:</Label>
+                              <Input
+                                value={opt.text || ''}
+                      onChange={(e) => {
+                                  const updated = [...matchingQuestions]
+                                  updated[mqIndex].options = updated[mqIndex].options.map(o =>
+                                    o.id === opt.id ? { ...o, text: e.target.value } : o
+                                  )
+                                  setMatchingQuestions(updated)
+                                  // Limpiar error cuando el usuario empiece a escribir
+                                  if (fieldErrors[`matchingQuestionOptions_${mqIndex}`]) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                                      delete newErrors[`matchingQuestionOptions_${mqIndex}`]
+                            return newErrors
+                          })
+                        }
+                      }}
+                                placeholder={`Opción ${opt.id}`}
+                                className={`flex-1 ${hasOptionsError && !opt.text?.trim() ? 'border-red-500' : ''}`}
+                    />
+                  </div>
+                          ))}
+                </div>
+                        {hasAnswerError && (
+                          <p className="text-xs text-red-600">⚠️ Debe marcar exactamente una opción como correcta</p>
+                        )}
+                          </div>
+                        )
+                      })}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full mt-4"
+                    onClick={() => {
+                      const newId = `mq${matchingQuestions.length + 1}`
+                      // Crear opciones A-H (máximo 6 opciones)
+                      const optionLetters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].slice(0, 6) as ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[]
+                      setMatchingQuestions([
+                        ...matchingQuestions,
+                        {
+                          id: newId,
+                          questionText: '',
+                          options: optionLetters.map((letter): QuestionOption => ({
+                            id: letter as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+                            text: '',
+                            imageUrl: null,
+                            isCorrect: false
+                          }))
+                        }
+                      ])
+                      // Limpiar error cuando se agrega una pregunta
+                      if (fieldErrors['matchingQuestions']) {
+                        setFieldErrors(prev => {
+                          const newErrors = { ...prev }
+                          delete newErrors['matchingQuestions']
+                          return newErrors
+                        })
+                      }
+                      // Hacer scroll al nuevo botón después de un pequeño delay para que se renderice
+                      setTimeout(() => {
+                        const button = document.getElementById('add-matching-question-btn')
+                        if (button) {
+                          button.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                        }
+                      }, 100)
+                    }}
+                    id="add-matching-question-btn"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir Pregunta de Matching
+                  </Button>
+                    </div>
+              </>
+            ) : formData.subjectCode === 'IN' && inglesModality === 'cloze_test' ? (
+              /* Modalidad: Cloze Test - Mejorada para texto largo y 3 opciones por hueco */
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="clozeText" className={fieldErrors['clozeText'] ? 'text-red-600' : ''}>
+                    Texto a Completar (Usar [#] para el hueco) *
+                    {fieldErrors['clozeText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                  </Label>
+                  <div className={fieldErrors['clozeText'] ? 'border-2 border-red-500 rounded-md p-2' : ''}>
+                    <RichTextEditor
+                      value={clozeText}
+                      onChange={(html) => {
+                        setClozeText(html)
+                        // Extraer texto plano para detectar marcadores
+                        // Primero intentar extraer del HTML de forma más robusta
+                        const tempDiv = document.createElement('div')
+                        tempDiv.innerHTML = html
+                        const text = tempDiv.textContent || tempDiv.innerText || ''
+                        // También buscar en el HTML directamente en caso de que los corchetes estén escapados
+                        const htmlMatches = html.match(/\[(\d+)\]/g) || []
+                        // Combinar ambas detecciones
+                        const textMatches = text.match(/\[(\d+)\]/g) || []
+                        const allMatches = [...new Set([...htmlMatches, ...textMatches])]
+                        
+                        const gaps = new Set<number>()
+                        allMatches.forEach(match => {
+                          const num = parseInt(match.replace(/[\[\]]/g, ''))
+                          if (!isNaN(num)) {
+                            gaps.add(num)
+                          }
+                        })
+                        
+                        // Inicializar huecos que no existen (3 opciones por defecto)
+                        const newGaps = { ...clozeGaps }
+                        gaps.forEach(gapNum => {
+                          if (!newGaps[gapNum]) {
+                            newGaps[gapNum] = { options: ['', '', ''], correctAnswer: '' }
+                          }
+                        })
+                        // Limpiar huecos que ya no existen
+                        Object.keys(newGaps).forEach(key => {
+                          const num = parseInt(key)
+                          if (!gaps.has(num)) {
+                            delete newGaps[num]
+                          }
+                        })
+                        setClozeGaps(newGaps)
+                        
+                        // Si se detectaron nuevos huecos, hacer scroll a la sección de opciones
+                        if (gaps.size > 0 && Object.keys(newGaps).length > Object.keys(clozeGaps).length) {
+                          setTimeout(() => {
+                            const optionsSection = document.getElementById('cloze-options-section')
+                            if (optionsSection) {
+                              optionsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                            }
+                          }, 100)
+                        }
+                        
+                        // Limpiar error cuando el usuario empiece a escribir
+                        if (fieldErrors['clozeText']) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors['clozeText']
+                            return newErrors
+                          })
+                        }
+                      }}
+                      placeholder="Escribe un texto largo. Usa [1], [2], [3], etc. para marcar los huecos donde irán las palabras a completar."
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
+                  {Object.keys(clozeGaps).length > 0 && (
+                    <p className="text-xs text-green-600 font-medium mt-1">
+                      ✓ Se detectaron {Object.keys(clozeGaps).length} hueco(s). Abajo podrás agregar las opciones de respuesta.
+                    </p>
+                  )}
+                </div>
+                {/* Opciones por cada hueco detectado - Solo 3 opciones */}
+                {Object.keys(clozeGaps).length > 0 ? (
+                  <div id="cloze-options-section" className="space-y-4 mt-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-semibold">Opciones por Hueco * (3 opciones por hueco)</Label>
+                      <Badge variant="outline" className="text-xs">
+                        {Object.keys(clozeGaps).length} hueco(s) detectado(s)
+                      </Badge>
+                    </div>
+                    {Object.entries(clozeGaps).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([gapNum, gapData]) => {
+                      const hasGapError = fieldErrors[`clozeGap_${gapNum}`]
+                      const hasOptionsError = fieldErrors[`clozeGapOptions_${gapNum}`]
+                      const hasAnswerError = fieldErrors[`clozeGapAnswer_${gapNum}`]
+                      const hasAnyError = hasGapError || hasOptionsError || hasAnswerError
+                      return (
+                      <div key={gapNum} className={`border rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'bg-gray-50'}`}>
+                        <Label className={`font-semibold text-lg ${hasAnyError ? 'text-red-600' : ''}`}>
+                          Pregunta {gapNum} *
+                          {hasOptionsError && <span className="ml-2 text-red-600 text-sm">⚠️ Complete las 3 opciones</span>}
+                          {hasAnswerError && <span className="ml-2 text-red-600 text-sm">⚠️ Seleccione la respuesta correcta</span>}
+                        </Label>
+                        <div className="space-y-3">
+                          {['A', 'B', 'C'].map((letter, optIndex) => {
+                            const isEmpty = !gapData.options[optIndex] || !gapData.options[optIndex].trim()
+                            const hasOptionError = hasOptionsError && isEmpty
+                            return (
+                            <div key={letter} className="flex items-center gap-3">
+                              <input
+                                type="radio"
+                                name={`cloze-gap-${gapNum}`}
+                                checked={gapData.correctAnswer === letter}
+                                onChange={() => {
+                                  setClozeGaps({
+                                    ...clozeGaps,
+                                    [gapNum]: { ...gapData, correctAnswer: letter }
+                                  })
+                                  if (fieldErrors[`clozeGapAnswer_${gapNum}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`clozeGapAnswer_${gapNum}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <Label className="font-medium w-6">{letter}:</Label>
+                              <Input
+                                value={gapData.options[optIndex] || ''}
+                                onChange={(e) => {
+                                  const newOptions = [...gapData.options]
+                                  newOptions[optIndex] = e.target.value
+                                  setClozeGaps({
+                                    ...clozeGaps,
+                                    [gapNum]: { ...gapData, options: newOptions }
+                                  })
+                                  // Limpiar error cuando el usuario empiece a escribir
+                                  if (fieldErrors[`clozeGapOptions_${gapNum}`] && newOptions.every(opt => opt && opt.trim())) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`clozeGapOptions_${gapNum}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                placeholder={`Opción ${letter}`}
+                                className={`flex-1 ${hasOptionError ? 'border-red-500 border-2' : ''}`}
+                              />
+                            </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
+                    <p className="text-sm text-gray-500">
+                      No se detectaron huecos aún. Escribe el texto y usa marcadores como <code className="bg-white px-1 py-0.5 rounded text-xs">[1]</code>, <code className="bg-white px-1 py-0.5 rounded text-xs">[2]</code>, etc. para marcar los huecos.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension' ? (
+              /* Modalidad: Comprensión de Lectura */
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="readingText" className={fieldErrors['readingText'] ? 'text-red-600' : ''}>
+                    Texto de Lectura / Aviso / Cartel *
+                    {fieldErrors['readingText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                  </Label>
+                  <div className={fieldErrors['readingText'] ? 'border-2 border-red-500 rounded-md' : ''}>
+                    <RichTextEditor
+                      value={readingText}
+                      onChange={(html) => {
+                        setReadingText(html)
+                        // Limpiar error cuando el usuario empiece a escribir
+                        if (fieldErrors['readingText']) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors['readingText']
+                            return newErrors
+                          })
+                        }
+                      }}
+                      placeholder="Ingresa el texto base para la comprensión de lectura..."
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Imagen Informativa (opcional)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setReadingImage(file)
+                          const reader = new FileReader()
+                          reader.onloadend = () => setReadingImagePreview(reader.result as string)
+                          reader.readAsDataURL(file)
+                        }
+                      }}
+                      className="hidden"
+                      id="reading-image"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('reading-image')?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Subir Imagen
+                    </Button>
+                  </div>
+                  {readingImagePreview && (
+                    <div className="relative w-full max-w-md">
+                      <img src={readingImagePreview} alt="Reading" className="w-full h-auto rounded" />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-0 right-0"
+                        onClick={() => {
+                          setReadingImage(null)
+                          setReadingImagePreview(null)
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className={fieldErrors['readingQuestions'] ? 'text-red-600' : ''}>
+                    Preguntas Vinculadas *
+                    {fieldErrors['readingQuestions'] && <span className="ml-2 text-red-600">⚠️ Debe agregar al menos una pregunta</span>}
+                  </Label>
+                  {readingQuestions.map((rq, rqIndex) => {
+                    const hasOptionsError = fieldErrors[`readingQuestionOptions_${rqIndex}`]
+                    const hasAnswerError = fieldErrors[`readingQuestionAnswer_${rqIndex}`]
+                    const hasAnyError = hasOptionsError || hasAnswerError
+                    
+                    return (
+                      <div key={rq.id} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                        <div className="flex items-center justify-between">
+                          <Label className={hasAnyError ? 'text-red-600' : ''}>
+                            Pregunta {rqIndex + 1}
+                            {hasAnyError && <span className="ml-2 text-red-600 text-xs">⚠️ Campos incompletos</span>}
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setReadingQuestions(readingQuestions.filter((_, i) => i !== rqIndex))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div>
+                          <RichTextEditor
+                            value={rq.questionText}
+                            onChange={(html) => {
+                              const updated = [...readingQuestions]
+                              updated[rqIndex].questionText = html
+                              setReadingQuestions(updated)
+                            }}
+                            placeholder="Texto de la pregunta (opcional)..."
+                          />
+                        </div>
+                        {/* Imagen por pregunta (opcional) */}
+                        <div className="space-y-2">
+                          <Label>Imagen por Pregunta (opcional)</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  const updated = [...readingQuestions]
+                                  updated[rqIndex].questionImage = file
+                                  const reader = new FileReader()
+                                  reader.onloadend = () => {
+                                    const updatedWithPreview = [...readingQuestions]
+                                    updatedWithPreview[rqIndex].questionImagePreview = reader.result as string
+                                    setReadingQuestions(updatedWithPreview)
+                                  }
+                                  reader.readAsDataURL(file)
+                                  setReadingQuestions(updated)
+                                }
+                              }}
+                              className="hidden"
+                              id={`reading-question-image-${rq.id}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => document.getElementById(`reading-question-image-${rq.id}`)?.click()}
+                            >
+                              <Upload className="h-4 w-4 mr-2" />
+                              Subir Imagen
+                            </Button>
+                          </div>
+                          {rq.questionImagePreview && (
+                            <div className="relative w-full max-w-md">
+                              <img src={rq.questionImagePreview} alt={`Pregunta ${rqIndex + 1}`} className="w-full h-auto rounded" />
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="absolute top-0 right-0"
+                                onClick={() => {
+                                  const updated = [...readingQuestions]
+                                  updated[rqIndex].questionImage = null
+                                  updated[rqIndex].questionImagePreview = null
+                                  setReadingQuestions(updated)
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                            Opciones *
+                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                          </Label>
+                          {rq.options.map((opt) => (
+                            <div key={opt.id} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name={`reading-q-${rq.id}`}
+                                checked={opt.isCorrect}
+                                onChange={() => {
+                                  const updated = [...readingQuestions]
+                                  updated[rqIndex].options = updated[rqIndex].options.map(o => ({
+                                    ...o,
+                                    isCorrect: o.id === opt.id
+                                  }))
+                                  setReadingQuestions(updated)
+                                  // Limpiar error cuando se selecciona una respuesta
+                                  if (fieldErrors[`readingQuestionAnswer_${rqIndex}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`readingQuestionAnswer_${rqIndex}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <Label className="font-medium w-6">{opt.id}:</Label>
+                              <Input
+                                value={opt.text || ''}
+                                onChange={(e) => {
+                                  const updated = [...readingQuestions]
+                                  updated[rqIndex].options = updated[rqIndex].options.map(o =>
+                                    o.id === opt.id ? { ...o, text: e.target.value } : o
+                                  )
+                                  setReadingQuestions(updated)
+                                  // Limpiar error cuando el usuario empiece a escribir
+                                  if (fieldErrors[`readingQuestionOptions_${rqIndex}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`readingQuestionOptions_${rqIndex}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                placeholder={`Opción ${opt.id}`}
+                                className={`flex-1 ${hasOptionsError && !opt.text?.trim() ? 'border-red-500' : ''}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        {hasAnswerError && (
+                          <p className="text-xs text-red-600">⚠️ Debe marcar exactamente una opción como correcta</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full mt-4"
+                    onClick={() => {
+                      const newId = `q${readingQuestions.length + 1}`
+                      setReadingQuestions([
+                        ...readingQuestions,
+                        {
+                          id: newId,
+                          questionText: '',
+                          questionImage: null,
+                          questionImagePreview: null,
+                          options: [
+                            { id: 'A', text: '', imageUrl: null, isCorrect: false },
+                            { id: 'B', text: '', imageUrl: null, isCorrect: false },
+                            { id: 'C', text: '', imageUrl: null, isCorrect: false },
+                            { id: 'D', text: '', imageUrl: null, isCorrect: false },
+                          ]
+                        }
+                      ])
+                      // Limpiar error cuando se agrega una pregunta
+                      if (fieldErrors['readingQuestions']) {
+                        setFieldErrors(prev => {
+                          const newErrors = { ...prev }
+                          delete newErrors['readingQuestions']
+                          return newErrors
+                        })
+                      }
+                      // Hacer scroll al nuevo botón después de un pequeño delay para que se renderice
+                      setTimeout(() => {
+                        const button = document.getElementById('add-reading-question-btn')
+                        if (button) {
+                          button.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                        }
+                      }, 100)
+                    }}
+                    id="add-reading-question-btn"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir Pregunta 
+                  </Button>
+                </div>
+              </>
+            ) : (
+              /* Modalidad: Opción Múltiple Estándar (o materia no es Inglés) */
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="questionText" className={fieldErrors['questionText'] ? 'text-red-600' : ''}>
+                    Texto de la Pregunta *
+                    {fieldErrors['questionText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                  </Label>
+                  <div className={fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : ''}>
+                    <RichTextEditor
+                      ref={questionTextEditorRef}
+                      value={formData.questionText}
+                      onChange={(html) => {
+                        setFormData({ ...formData, questionText: html })
+                        if (fieldErrors['questionText']) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors['questionText']
+                            return newErrors
+                          })
+                        }
+                      }}
+                      placeholder="Escribe la pregunta aquí..."
+                    />
+                  </div>
+                </div>
+
+                {/* Imágenes de la pregunta */}
+                <div className="space-y-2">
+                  <Label>Imágenes de la Pregunta (opcional, máx. 3)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleQuestionImageUpload}
+                      className="hidden"
+                      id="question-images"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('question-images')?.click()}
+                      disabled={questionImages.length >= 3}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Subir Imágenes
+                    </Button>
+                  </div>
+                  {questionImagePreviews.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {questionImagePreviews.map((preview, index) => (
+                        <div key={index} className="relative">
+                          <img src={preview} alt={`Preview ${index}`} className="w-full h-32 object-cover rounded" />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-0 right-0 h-6 w-6 p-0"
+                            onClick={() => removeQuestionImage(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Opciones de respuesta */}
+                <div className="space-y-2">
+                  <Label className={fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : ''}>
+                    Opciones de Respuesta *
+                    {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
+                    {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Cada opción debe tener texto o imagen. Marque la opción correcta.
+                  </p>
+                  <div className={`space-y-3 ${fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : ''}`}>
+                    {options.map((option) => {
+                      const hasError = fieldErrors['options'] && (!option.text && !optionFiles[option.id] && !optionImagePreviews[option.id])
+                      return (
+                      <div key={option.id} className={`border rounded-lg p-3 space-y-2 ${hasError ? 'border-red-500 bg-red-50' : ''}`}>
+                        <div className="flex items-start gap-2">
+                          <input
+                            type="radio"
+                            name="correctAnswer"
+                            checked={option.isCorrect}
+                            onChange={() => handleCorrectAnswerChange(option.id)}
+                            className="w-4 h-4 mt-2"
+                          />
+                          <span className="font-medium mt-2">{option.id})</span>
+                          <div className="flex-1">
+                            <RichTextEditor
+                              value={option.text || ''}
+                              onChange={(html) => handleOptionTextChange(option.id, html)}
+                              placeholder={`Texto de la opción ${option.id}`}
+                              className="min-h-[100px]"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
+                              className="hidden"
+                              id={`option-${option.id}-image`}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => document.getElementById(`option-${option.id}-image`)?.click()}
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {optionImagePreviews[option.id] && (
+                          <div className="relative w-32 h-32">
+                            <img 
+                              src={optionImagePreviews[option.id]!} 
+                              alt={`Opción ${option.id}`} 
+                              className="w-full h-full object-cover rounded" 
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-0 right-0 h-6 w-6 p-0"
+                              onClick={() => removeOptionImage(option.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <DialogFooter>
@@ -2596,9 +4504,24 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Información básica */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-subject">Materia *</Label>
-                <Select value={formData.subjectCode} onValueChange={handleSubjectChange}>
-                  <SelectTrigger>
+                <Label htmlFor="edit-subject" className={fieldErrors['subject'] ? 'text-red-600 font-semibold' : ''}>
+                  Materia *
+                  {fieldErrors['subject'] && <span className="ml-2 text-red-600 font-semibold">⚠️ Este campo es obligatorio</span>}
+                </Label>
+                <Select 
+                  value={formData.subjectCode} 
+                  onValueChange={(value) => {
+                    handleSubjectChange(value)
+                    if (fieldErrors['subject']) {
+                      setFieldErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors['subject']
+                        return newErrors
+                      })
+                    }
+                  }}
+                >
+                  <SelectTrigger className={fieldErrors['subject'] ? 'border-red-500 border-2 bg-red-50' : ''}>
                     <SelectValue placeholder="Seleccionar materia" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2612,13 +4535,25 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-topic">Tema *</Label>
+                <Label htmlFor="edit-topic" className={fieldErrors['topic'] ? 'text-red-600 font-semibold' : ''}>
+                  Tema *
+                  {fieldErrors['topic'] && <span className="ml-2 text-red-600 font-semibold">⚠️ Este campo es obligatorio</span>}
+                </Label>
                 <Select 
                   value={formData.topicCode} 
-                  onValueChange={handleTopicChange}
+                  onValueChange={(value) => {
+                    handleTopicChange(value)
+                    if (fieldErrors['topic']) {
+                      setFieldErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors['topic']
+                        return newErrors
+                      })
+                    }
+                  }}
                   disabled={!formData.subjectCode}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={fieldErrors['topic'] ? 'border-red-500 border-2 bg-red-50' : ''}>
                     <SelectValue placeholder="Seleccionar tema" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2664,242 +4599,538 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
             </div>
 
-            {/* Texto informativo */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-informativeText">Texto Informativo (opcional)</Label>
-              <RichTextEditor
-                ref={editInformativeTextEditorRef}
-                value={formData.informativeText}
-                onChange={(html) => setFormData({ ...formData, informativeText: html })}
-                placeholder="Información adicional o contexto para la pregunta..."
-              />
-            </div>
-
-            {/* Imágenes informativas - Edición */}
-            <div className="space-y-2">
-              <Label>Imágenes Informativas (opcional)</Label>
-              <p className="text-sm text-gray-500">
-                Agregar nuevas imágenes informativas. Máximo 5 imágenes.
-              </p>
-              
-              {/* Mostrar imágenes existentes */}
-              {informativeImagePreviews.length > 0 && (
+            {/* Formulario de Cloze Test para edición */}
+            {isEditingClozeTest ? (
+              <>
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {informativeImagePreviews.map((preview, index) => (
-                      <div key={index} className="relative w-full h-32">
-                        <img 
-                          src={preview} 
-                          alt={`Imagen informativa ${index + 1}`} 
-                          className="w-full h-full object-cover rounded border" 
-                        />
+                  <Label htmlFor="edit-clozeText" className={fieldErrors['clozeText'] ? 'text-red-600' : ''}>
+                    Texto a Completar (Usar [#] para el hueco) *
+                    {fieldErrors['clozeText'] && (
+                      <span className="ml-2 text-red-600 font-semibold">⚠️ Este campo es obligatorio</span>
+                    )}
+                  </Label>
+                  <div className={fieldErrors['clozeText'] ? 'border-2 border-red-500 rounded-md p-2 bg-red-50 shadow-md' : ''}>
+                    <RichTextEditor
+                      value={editClozeText}
+                      onChange={(html) => {
+                        setEditClozeText(html)
+                        // Extraer texto plano para detectar marcadores
+                        const tempDiv = document.createElement('div')
+                        tempDiv.innerHTML = html
+                        const text = tempDiv.textContent || tempDiv.innerText || ''
+                        const htmlMatches = html.match(/\[(\d+)\]/g) || []
+                        const textMatches = text.match(/\[(\d+)\]/g) || []
+                        const allMatches = [...new Set([...htmlMatches, ...textMatches])]
+                        
+                        const gaps = new Set<number>()
+                        allMatches.forEach(match => {
+                          const num = parseInt(match.replace(/[\[\]]/g, ''))
+                          if (!isNaN(num)) {
+                            gaps.add(num)
+                          }
+                        })
+                        
+                        // Inicializar huecos que no existen (3 opciones por defecto)
+                        const updatedGaps = { ...editClozeGaps }
+                        gaps.forEach(gapNum => {
+                          if (!updatedGaps[gapNum]) {
+                            updatedGaps[gapNum] = {
+                              options: ['', '', ''],
+                              correctAnswer: 'A'
+                            }
+                          }
+                        })
+                        
+                        // Limpiar huecos que ya no existen
+                        Object.keys(updatedGaps).forEach(gapNumStr => {
+                          const gapNum = parseInt(gapNumStr)
+                          if (!gaps.has(gapNum)) {
+                            delete updatedGaps[gapNum]
+                          }
+                        })
+                        
+                        setEditClozeGaps(updatedGaps)
+                        
+                        // Limpiar error cuando el usuario empiece a escribir
+                        if (fieldErrors['clozeText']) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors['clozeText']
+                            return newErrors
+                          })
+                        }
+                      }}
+                      placeholder="Escribe un texto largo. Usa [1], [2], [3], etc. para marcar los huecos donde irán las palabras a completar."
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
+                  {Object.keys(editClozeGaps).length > 0 && (
+                    <p className="text-xs text-green-600 font-medium mt-1">
+                      ✓ Se detectaron {Object.keys(editClozeGaps).length} pregunta(s). Abajo podrás editar las opciones de respuesta.
+                    </p>
+                  )}
+                </div>
+                
+                {/* Opciones por cada hueco detectado - Solo 3 opciones */}
+                {Object.keys(editClozeGaps).length > 0 ? (
+                  <div id="edit-cloze-options-section" className="space-y-4 mt-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-semibold">Opciones por Pregunta * (3 opciones por pregunta)</Label>
+                      <Badge variant="outline" className="text-xs">
+                        {Object.keys(editClozeGaps).length} pregunta(s) detectada(s)
+                      </Badge>
+                    </div>
+                    {Object.entries(editClozeGaps).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([gapNum, gapData]) => {
+                      const hasGapError = fieldErrors[`clozeGap_${gapNum}`]
+                      const hasOptionsError = fieldErrors[`clozeGapOptions_${gapNum}`]
+                      const hasAnswerError = fieldErrors[`clozeGapAnswer_${gapNum}`]
+                      const hasAnyError = hasGapError || hasOptionsError || hasAnswerError
+                      return (
+                      <div key={gapNum} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50 shadow-md' : 'bg-gray-50 border-gray-200'}`}>
+                        <Label className={`font-semibold text-lg ${hasAnyError ? 'text-red-700' : ''}`}>
+                          Pregunta {gapNum} *
+                          {hasGapError && (
+                            <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Esta pregunta requiere opciones</span>
+                          )}
+                          {hasOptionsError && (
+                            <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Complete las 3 opciones (A, B, C)</span>
+                          )}
+                          {hasAnswerError && (
+                            <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Seleccione la respuesta correcta</span>
+                          )}
+                        </Label>
+                        <div className="space-y-3">
+                          {['A', 'B', 'C'].map((letter, optIndex) => {
+                            const isEmpty = !gapData.options[optIndex] || !gapData.options[optIndex].trim()
+                            const hasOptionError = hasOptionsError && isEmpty
+                            return (
+                            <div key={letter} className="flex items-center gap-3">
+                              <input
+                                type="radio"
+                                name={`edit-cloze-gap-${gapNum}`}
+                                checked={gapData.correctAnswer === letter}
+                                onChange={() => {
+                                  setEditClozeGaps({
+                                    ...editClozeGaps,
+                                    [gapNum]: { ...gapData, correctAnswer: letter }
+                                  })
+                                  if (fieldErrors[`clozeGapAnswer_${gapNum}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`clozeGapAnswer_${gapNum}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <Label className="font-medium w-6">{letter}:</Label>
+                              <Input
+                                value={gapData.options[optIndex] || ''}
+                                onChange={(e) => {
+                                  const newOptions = [...gapData.options]
+                                  newOptions[optIndex] = e.target.value
+                                  setEditClozeGaps({
+                                    ...editClozeGaps,
+                                    [gapNum]: { ...gapData, options: newOptions }
+                                  })
+                                  // Limpiar error cuando el usuario empiece a escribir
+                                  if (fieldErrors[`clozeGapOptions_${gapNum}`] && newOptions.every(opt => opt && opt.trim())) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`clozeGapOptions_${gapNum}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                placeholder={`Opción ${letter}`}
+                                className={`flex-1 ${hasOptionError ? 'border-red-500 border-2 bg-red-50' : hasAnyError ? 'border-red-300' : ''}`}
+                              />
+                            </div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    ))}
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
+                    <p className="text-sm text-gray-500">
+                      No se detectaron preguntas aún. Escribe el texto y usa marcadores como <code className="bg-white px-1 py-0.5 rounded text-xs">[1]</code>, <code className="bg-white px-1 py-0.5 rounded text-xs">[2]</code>, etc. para marcar los huecos.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Texto informativo */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-informativeText">Texto Informativo (opcional)</Label>
+                  <RichTextEditor
+                    ref={editInformativeTextEditorRef}
+                    value={formData.informativeText}
+                    onChange={(html) => setFormData({ ...formData, informativeText: html })}
+                    placeholder="Información adicional o contexto para la pregunta..."
+                  />
+                </div>
+
+                {/* Pregunta */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-questionText" className={fieldErrors['questionText'] ? 'text-red-600' : ''}>
+                    Texto de la Pregunta *
+                    {fieldErrors['questionText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                  </Label>
+                  <div className={fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : ''}>
+                    <RichTextEditor
+                      ref={editQuestionTextEditorRef}
+                      value={formData.questionText}
+                      onChange={(html) => {
+                        setFormData({ ...formData, questionText: html })
+                        if (fieldErrors['questionText']) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors['questionText']
+                            return newErrors
+                          })
+                        }
+                      }}
+                      placeholder="Escribe la pregunta aquí..."
+                    />
                   </div>
                 </div>
-              )}
+              </>
+            )}
 
-              {/* Input para nuevas imágenes */}
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleEditInformativeImageUpload}
-                  className="hidden"
-                  id="edit-informative-images"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById('edit-informative-images')?.click()}
-                  disabled={editInformativeImages.length >= 5}
-                >
-                  <ImageIcon className="h-4 w-4 mr-2" />
-                  Agregar Imágenes ({editInformativeImages.length}/5)
-                </Button>
+            {/* Imágenes informativas - Edición - Solo para cloze test - Solo mostrar si hay imágenes existentes o nuevas */}
+            {isEditingClozeTest && (informativeImagePreviews.length > 0 || editInformativeImages.length > 0) && (
+              <div className="space-y-2">
+                <Label>Imágenes Informativas (opcional)</Label>
+                <p className="text-sm text-gray-500">
+                  Agregar nuevas imágenes informativas. Máximo 5 imágenes.
+                </p>
+                
+                {/* Mostrar imágenes existentes */}
+                {informativeImagePreviews.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {informativeImagePreviews.map((preview, index) => (
+                        <div key={index} className="relative w-full h-32">
+                          <img 
+                            src={preview} 
+                            alt={`Imagen informativa ${index + 1}`} 
+                            className="w-full h-full object-cover rounded border" 
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Input para nuevas imágenes */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleEditInformativeImageUpload}
+                    className="hidden"
+                    id="edit-informative-images"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('edit-informative-images')?.click()}
+                    disabled={editInformativeImages.length >= 5}
+                  >
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Agregar Imágenes ({editInformativeImages.length}/5)
+                  </Button>
+                </div>
+
+                {/* Mostrar nuevas imágenes seleccionadas */}
+                {editInformativeImages.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {editInformativeImages.map((file, index) => (
+                        <div key={index} className="relative w-full h-32">
+                          <img 
+                            src={URL.createObjectURL(file)} 
+                            alt={`Nueva imagen ${index + 1}`} 
+                            className="w-full h-full object-cover rounded border" 
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-1 right-1 h-6 w-6 p-0"
+                            onClick={() => removeEditInformativeImage(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
 
-              {/* Mostrar nuevas imágenes seleccionadas */}
-              {editInformativeImages.length > 0 && (
+            {/* Secciones para preguntas normales (NO cloze test) */}
+            {!isEditingClozeTest && (
+              <>
+                {/* Imágenes informativas - Edición */}
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {editInformativeImages.map((file, index) => (
-                      <div key={index} className="relative w-full h-32">
-                        <img 
-                          src={URL.createObjectURL(file)} 
-                          alt={`Nueva imagen ${index + 1}`} 
-                          className="w-full h-full object-cover rounded border" 
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="absolute top-1 right-1 h-6 w-6 p-0"
-                          onClick={() => removeEditInformativeImage(index)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Pregunta */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-questionText">Texto de la Pregunta *</Label>
-              <RichTextEditor
-                ref={editQuestionTextEditorRef}
-                value={formData.questionText}
-                onChange={(html) => setFormData({ ...formData, questionText: html })}
-                placeholder="Escribe la pregunta aquí..."
-              />
-            </div>
-
-            {/* Imágenes de pregunta - Edición */}
-            <div className="space-y-2">
-              <Label>Imágenes de Pregunta (opcional)</Label>
-              <p className="text-sm text-gray-500">
-                Agregar nuevas imágenes para la pregunta. Máximo 3 imágenes.
-              </p>
-              
-              {/* Mostrar imágenes existentes */}
-              {questionImagePreviews.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {questionImagePreviews.map((preview, index) => (
-                      <div key={index} className="relative w-full h-32">
-                        <img 
-                          src={preview} 
-                          alt={`Imagen de pregunta ${index + 1}`} 
-                          className="w-full h-full object-cover rounded border" 
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Input para nuevas imágenes */}
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleEditQuestionImageUpload}
-                  className="hidden"
-                  id="edit-question-images"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById('edit-question-images')?.click()}
-                  disabled={editQuestionImages.length >= 3}
-                >
-                  <ImageIcon className="h-4 w-4 mr-2" />
-                  Agregar Imágenes ({editQuestionImages.length}/3)
-                </Button>
-              </div>
-
-              {/* Mostrar nuevas imágenes seleccionadas */}
-              {editQuestionImages.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {editQuestionImages.map((file, index) => (
-                      <div key={index} className="relative w-full h-32">
-                        <img 
-                          src={URL.createObjectURL(file)} 
-                          alt={`Nueva imagen ${index + 1}`} 
-                          className="w-full h-full object-cover rounded border" 
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="absolute top-1 right-1 h-6 w-6 p-0"
-                          onClick={() => removeEditQuestionImage(index)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Opciones de respuesta */}
-            <div className="space-y-2">
-              <Label>Opciones de Respuesta *</Label>
-              <p className="text-sm text-gray-500">
-                Cada opción debe tener texto o imagen. Marque la opción correcta.
-              </p>
-              <div className="space-y-3">
-                {options.map((option) => (
-                  <div key={option.id} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <input
-                        type="radio"
-                        name="edit-correctAnswer"
-                        checked={option.isCorrect}
-                        onChange={() => handleCorrectAnswerChange(option.id)}
-                        className="w-4 h-4 mt-2"
-                      />
-                      <span className="font-medium mt-2">{option.id})</span>
-                      <div className="flex-1">
-                        <RichTextEditor
-                          value={option.text || ''}
-                          onChange={(html) => handleOptionTextChange(option.id, html)}
-                          placeholder={`Texto de la opción ${option.id}`}
-                          className="min-h-[100px]"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
-                          className="hidden"
-                          id={`edit-option-${option.id}-image`}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => document.getElementById(`edit-option-${option.id}-image`)?.click()}
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </Button>
+                  <Label>Imágenes Informativas (opcional)</Label>
+                  <p className="text-sm text-gray-500">
+                    Agregar nuevas imágenes informativas. Máximo 5 imágenes.
+                  </p>
+                  
+                  {/* Mostrar imágenes existentes */}
+                  {informativeImagePreviews.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {informativeImagePreviews.map((preview, index) => (
+                          <div key={index} className="relative w-full h-32">
+                            <img 
+                              src={preview} 
+                              alt={`Imagen informativa ${index + 1}`} 
+                              className="w-full h-full object-cover rounded border" 
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    {optionImagePreviews[option.id] && (
-                      <div className="relative w-32 h-32">
-                        <img 
-                          src={optionImagePreviews[option.id]!} 
-                          alt={`Opción ${option.id}`} 
-                          className="w-full h-full object-cover rounded" 
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="absolute top-0 right-0 h-6 w-6 p-0"
-                          onClick={() => removeOptionImage(option.id)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
+                  )}
+
+                  {/* Input para nuevas imágenes */}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleEditInformativeImageUpload}
+                      className="hidden"
+                      id="edit-informative-images"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('edit-informative-images')?.click()}
+                      disabled={editInformativeImages.length >= 5}
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Agregar Imágenes ({editInformativeImages.length}/5)
+                    </Button>
                   </div>
-                ))}
+
+                  {/* Mostrar nuevas imágenes seleccionadas */}
+                  {editInformativeImages.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {editInformativeImages.map((file, index) => (
+                          <div key={index} className="relative w-full h-32">
+                            <img 
+                              src={URL.createObjectURL(file)} 
+                              alt={`Nueva imagen ${index + 1}`} 
+                              className="w-full h-full object-cover rounded border" 
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => removeEditInformativeImage(index)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pregunta */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-questionText" className={fieldErrors['questionText'] ? 'text-red-600' : ''}>
+                    Texto de la Pregunta *
+                    {fieldErrors['questionText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                  </Label>
+                  <div className={fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : ''}>
+                    <RichTextEditor
+                      ref={editQuestionTextEditorRef}
+                      value={formData.questionText}
+                      onChange={(html) => {
+                        setFormData({ ...formData, questionText: html })
+                        if (fieldErrors['questionText']) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors['questionText']
+                            return newErrors
+                          })
+                        }
+                      }}
+                      placeholder="Escribe la pregunta aquí..."
+                    />
+                  </div>
+                </div>
+
+                {/* Imágenes de pregunta - Edición */}
+                <div className="space-y-2">
+                  <Label>Imágenes de Pregunta (opcional)</Label>
+                  <p className="text-sm text-gray-500">
+                    Agregar nuevas imágenes para la pregunta. Máximo 3 imágenes.
+                  </p>
+                  
+                  {/* Mostrar imágenes existentes */}
+                  {questionImagePreviews.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {questionImagePreviews.map((preview, index) => (
+                          <div key={index} className="relative w-full h-32">
+                            <img 
+                              src={preview} 
+                              alt={`Imagen de pregunta ${index + 1}`} 
+                              className="w-full h-full object-cover rounded border" 
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Input para nuevas imágenes */}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleEditQuestionImageUpload}
+                      className="hidden"
+                      id="edit-question-images"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('edit-question-images')?.click()}
+                      disabled={editQuestionImages.length >= 3}
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Agregar Imágenes ({editQuestionImages.length}/3)
+                    </Button>
+                  </div>
+
+                  {/* Mostrar nuevas imágenes seleccionadas */}
+                  {editQuestionImages.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {editQuestionImages.map((file, index) => (
+                          <div key={index} className="relative w-full h-32">
+                            <img 
+                              src={URL.createObjectURL(file)} 
+                              alt={`Nueva imagen ${index + 1}`} 
+                              className="w-full h-full object-cover rounded border" 
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => removeEditQuestionImage(index)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Opciones de respuesta - Solo mostrar si NO es cloze test */}
+            {!isEditingClozeTest && (
+              <div className="space-y-2">
+                <Label className={fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : ''}>
+                  Opciones de Respuesta *
+                  {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
+                  {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
+                </Label>
+                <p className="text-sm text-gray-500">
+                  Cada opción debe tener texto o imagen. Marque la opción correcta.
+                </p>
+                <div className={`space-y-3 ${fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : ''}`}>
+                  {options.map((option) => {
+                    const hasError = fieldErrors['options'] && (!option.text && !optionFiles[option.id] && !optionImagePreviews[option.id] && !option.imageUrl)
+                    return (
+                    <div key={option.id} className={`border rounded-lg p-3 space-y-2 ${hasError ? 'border-red-500 bg-red-50' : ''}`}>
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="radio"
+                          name="edit-correctAnswer"
+                          checked={option.isCorrect}
+                          onChange={() => handleCorrectAnswerChange(option.id)}
+                          className="w-4 h-4 mt-2"
+                        />
+                        <span className="font-medium mt-2">{option.id})</span>
+                        <div className="flex-1">
+                          <RichTextEditor
+                            value={option.text || ''}
+                            onChange={(html) => handleOptionTextChange(option.id, html)}
+                            placeholder={`Texto de la opción ${option.id}`}
+                            className="min-h-[100px]"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => e.target.files && handleOptionImageUpload(option.id, e.target.files[0])}
+                            className="hidden"
+                            id={`edit-option-${option.id}-image`}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => document.getElementById(`edit-option-${option.id}-image`)?.click()}
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {optionImagePreviews[option.id] && (
+                        <div className="relative w-32 h-32">
+                          <img 
+                            src={optionImagePreviews[option.id]!} 
+                            alt={`Opción ${option.id}`} 
+                            className="w-full h-full object-cover rounded" 
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-0 right-0 h-6 w-6 p-0"
+                            onClick={() => removeOptionImage(option.id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -2909,6 +5140,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 setIsEditDialogOpen(false)
                 resetForm()
                 setSelectedQuestion(null)
+                setIsEditingClozeTest(false)
+                setEditClozeText('')
+                setEditClozeGaps({})
+                setEditClozeRelatedQuestions([])
               }}
             >
               Cancelar
@@ -2937,7 +5172,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
              {/* Dialog para ver pregunta - VISTA COMPLETA del examen como estudiante */}
                <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
           <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden p-0 bg-gray-50">
-            {selectedQuestion && (
+            {selectedQuestion && relatedQuestions.length > 0 && (
               <div className="flex flex-col h-full bg-gray-50">
                 {/* Botón de cerrar fijo */}
                 <Button
@@ -2949,231 +5184,548 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   <X className="h-5 w-5" />
                 </Button>
 
-                                 {/* Layout completo como en el examen con scroll */}
-                 <ScrollArea className="h-[calc(95vh-2rem)]">
-                 <div className="flex flex-col lg:flex-row gap-6 p-4">
-                  {/* Contenido principal del examen - EXACTO al examen */}
-                  <div className="flex-1">
-                   {/* Header "Estás realizando" */}
-                   <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
-                     <div className="flex items-center gap-4">
-                       <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                         <BookOpen className="w-10 h-10 text-white" />
-                       </div>
-                       <div>
-                         <h3 className="text-sm text-gray-500 font-medium">Vista Previa - Estás realizando:</h3>
-                         <h2 className="text-lg font-bold">Pregunta del Banco de Datos</h2>
-                         <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                           <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
-                             {selectedQuestion.subject}
-                           </span>
-                           <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
-                             {GRADE_CODE_TO_NAME[selectedQuestion.grade]}
-                           </span>
-                         </div>
-                       </div>
-                     </div>
-                   </div>
+                {/* Layout completo como en el examen con scroll */}
+                <ScrollArea className="h-[calc(95vh-2rem)]">
+                  <div className="flex flex-col lg:flex-row gap-6 p-4">
+                    {/* Contenido principal del examen - EXACTO al examen */}
+                    <div className="flex-1">
+                      {/* Header "Estás realizando" */}
+                      <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                            <BookOpen className="w-10 h-10 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm text-gray-500 font-medium">Vista Previa - Estás realizando:</h3>
+                            <h2 className="text-lg font-bold">
+                              {relatedQuestions.length > 1 
+                                ? (relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
+                                    ? `Cloze Test / Rellenar Huecos (${relatedQuestions.length} preguntas agrupadas)`
+                                    : `Comprensión de Lectura (${relatedQuestions.length} preguntas)`)
+                                : 'Pregunta del Banco de Datos'}
+                            </h2>
+                            <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                              <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
+                                {selectedQuestion.subject}
+                              </span>
+                              <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
+                                {GRADE_CODE_TO_NAME[selectedQuestion.grade]}
+                              </span>
+                              {relatedQuestions.length > 1 && (
+                                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs font-medium">
+                                  {relatedQuestions.length} preguntas agrupadas
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                   {/* Badge de progreso simulado */}
-                   <div className="flex justify-between items-center mb-4">
-                     <div className="flex items-center gap-2">
-                       <BarChart3 className="h-5 w-5 text-purple-600" />
-                       <h2 className="text-lg font-semibold">Pregunta 1</h2>
-                     </div>
-                     <div className="flex items-center gap-4">
-                       <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200 shadow-sm">
-                         <Clock className="h-4 w-4 text-green-500" />
-                         <span className="text-sm font-medium font-mono">15:00</span>
-                       </div>
-                     </div>
-                   </div>
+                      {/* Texto base e imágenes compartidas - Manejo especial para Cloze Test */}
+                      {relatedQuestions.length > 1 && selectedQuestion.informativeText && (
+                        <Card className="mb-6 border-2 border-purple-200 bg-purple-50/30">
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <BookOpen className="h-5 w-5 text-purple-600" />
+                              {/* Detectar si es Cloze Test basándose en el patrón del questionText */}
+                              {relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco')) 
+                                ? 'Texto de Cloze Test (Rellenar Huecos)' 
+                                : 'Texto de Lectura Compartido'}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="prose prose-lg max-w-none">
+                              {/* Detectar si es Cloze Test */}
+                              {relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco')) ? (
+                                /* Visualización especial para Cloze Test con botones expandibles */
+                                (() => {
+                                  const clozeText = selectedQuestion.informativeText || ''
+                                  // Extraer texto plano para detectar marcadores
+                                  const tempDiv = document.createElement('div')
+                                  tempDiv.innerHTML = clozeText
+                                  const text = tempDiv.textContent || tempDiv.innerText || ''
+                                  const gapMatches = text.match(/\[(\d+)\]/g) || []
+                                  const gaps = new Set<number>()
+                                  gapMatches.forEach(match => {
+                                    const num = parseInt(match.replace(/[\[\]]/g, ''))
+                                    gaps.add(num)
+                                  })
+                                  
+                                  // Crear un mapeo de hueco número a opciones basándose en las preguntas relacionadas
+                                  const gapOptionsMap: { [key: number]: QuestionOption[] } = {}
+                                  relatedQuestions.forEach(q => {
+                                    const match = q.questionText?.match(/hueco \[(\d+)\]/)
+                                    if (match) {
+                                      const gapNum = parseInt(match[1])
+                                      gapOptionsMap[gapNum] = q.options || []
+                                    }
+                                  })
+                                  
+                                  // Dividir el texto en partes usando los marcadores de hueco
+                                  const sortedGaps = Array.from(gaps).sort((a, b) => a - b)
+                                  const parts: Array<{ type: 'text' | 'gap', content: string, gapNum?: number }> = []
+                                  let remainingText = clozeText
+                                  
+                                  sortedGaps.forEach((gapNum) => {
+                                    const gapMarker = `[${gapNum}]`
+                                    const splitIndex = remainingText.indexOf(gapMarker)
+                                    if (splitIndex > 0) {
+                                      parts.push({ type: 'text', content: remainingText.substring(0, splitIndex) })
+                                    }
+                                    parts.push({ type: 'gap', content: gapMarker, gapNum })
+                                    remainingText = remainingText.substring(splitIndex + gapMarker.length)
+                                  })
+                                  if (remainingText) {
+                                    parts.push({ type: 'text', content: remainingText })
+                                  }
+                                  
+                                  return (
+                                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                      <p className="text-gray-700 leading-relaxed prose max-w-none whitespace-pre-wrap">
+                                        {parts.map((part, idx) => {
+                                          if (part.type === 'text') {
+                                            // Renderizar texto manteniendo el flujo inline
+                                            const html = sanitizeHtml(renderMathInHtml(part.content))
+                                            return (
+                                              <span 
+                                                key={`text-${idx}`} 
+                                                className="inline"
+                                                dangerouslySetInnerHTML={{ __html: html }} 
+                                              />
+                                            )
+                                          } else {
+                                            const gapNum = part.gapNum!
+                                            const options = gapOptionsMap[gapNum] || []
+                                            const selectedAnswer = selectedClozeAnswers[gapNum] || ''
+                                            
+                                            // Encontrar la opción seleccionada para mostrar su texto (sin mostrar si es correcta)
+                                            const selectedOption = options.find(opt => opt.id === selectedAnswer)
+                                            
+                                            return (
+                                              <span key={`gap-${gapNum}`} className="inline-flex items-center gap-1 mx-0 my-0 align-middle">
+                                                <Select
+                                                  value={selectedAnswer}
+                                                  onValueChange={(value) => {
+                                                    setSelectedClozeAnswers({
+                                                      ...selectedClozeAnswers,
+                                                      [gapNum]: value
+                                                    })
+                                                  }}
+                                                >
+                                                  <SelectTrigger className="h-8 px-3 text-xs font-semibold bg-white hover:bg-gray-100 border-2 border-blue-400 text-blue-700 min-w-[100px] max-w-[250px] inline-flex">
+                                                    <SelectValue placeholder={`[${gapNum}]`}>
+                                                      {selectedOption 
+                                                        ? `${selectedOption.id}: ${selectedOption.text}` 
+                                                        : `[${gapNum}]`}
+                                                    </SelectValue>
+                                                  </SelectTrigger>
+                                                  <SelectContent className="max-h-[200px]">
+                                                    {options.length > 0 ? (
+                                                      options.map((option) => (
+                                                        <SelectItem 
+                                                          key={option.id} 
+                                                          value={option.id}
+                                                        >
+                                                          <div className="flex items-center gap-2 w-full">
+                                                            <span className="font-semibold min-w-[20px]">{option.id}:</span>
+                                                            <span className="flex-1">{option.text || 'Sin texto'}</span>
+                                                          </div>
+                                                        </SelectItem>
+                                                      ))
+                                                    ) : (
+                                                      <SelectItem value="none" disabled>
+                                                        Sin opciones disponibles
+                                                      </SelectItem>
+                                                    )}
+                                                  </SelectContent>
+                                                </Select>
+                                              </span>
+                                            )
+                                          }
+                                        })}
+                                      </p>
+                                    </div>
+                                  )
+                                })()
+                              ) : (
+                                /* Visualización normal para comprensión de lectura */
+                                <>
+                                  {/* Texto informativo compartido */}
+                                  {selectedQuestion.informativeText && (
+                                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                      <div
+                                        className="text-gray-700 leading-relaxed prose max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(selectedQuestion.informativeText)) }}
+                                      />
+                                    </div>
+                                  )}
+                                </>
+                              )}
 
-                   {/* Barra de progreso simulada */}
-                   <div className="mb-6">
-                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                       <div className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style={{ width: '10%' }}></div>
-                     </div>
-                     <div className="flex justify-between mt-2 text-sm text-gray-500">
-                       <span>Pregunta 1 de 10</span>
-                       <span>1 respondida</span>
-                     </div>
-                   </div>
+                              {/* Imágenes informativas compartidas */}
+                              {selectedQuestion.informativeImages && selectedQuestion.informativeImages.length > 0 && (
+                                <div className="mb-4">
+                                  <ImageGallery images={selectedQuestion.informativeImages} />
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                   {/* Card principal de la pregunta - IGUAL AL EXAMEN */}
-                   <Card className="mb-6">
-                     <CardHeader>
-                       <div className="flex items-center justify-between">
-                         <CardTitle className="text-xl">Pregunta 1</CardTitle>
-                         <div className="flex items-center gap-2 text-sm text-gray-500">
-                           <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                             {selectedQuestion.topic}
-                           </span>
-                           <span className={cn(
-                             "px-2 py-1 rounded-full",
-                             selectedQuestion.level === 'Fácil' ? 'bg-green-100 text-green-700' :
-                             selectedQuestion.level === 'Medio' ? 'bg-yellow-100 text-yellow-700' :
-                             'bg-red-100 text-red-700'
-                           )}>
-                             {selectedQuestion.level}
-                           </span>
-                         </div>
-                       </div>
-                     </CardHeader>
-                     <CardContent>
-                       <div className="prose prose-lg max-w-none">
-                         {/* Texto informativo */}
-                         {selectedQuestion.informativeText && (
-                           <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                             <div
-                               className="text-gray-700 leading-relaxed prose max-w-none"
-                               dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(selectedQuestion.informativeText)) }}
-                             />
-                           </div>
-                         )}
+                      {/* Mostrar todas las preguntas relacionadas - Omitir si es Cloze Test */}
+                      {!relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco')) && 
+                        relatedQuestions.map((question, index) => (
+                        <Card key={question.id || question.code} className="mb-6">
+                          <CardHeader>
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-xl">
+                                {relatedQuestions.length > 1 
+                                  ? `Pregunta ${index + 1} de ${relatedQuestions.length}` 
+                                  : 'Pregunta 1'}
+                              </CardTitle>
+                              <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                  {question.topic}
+                                </span>
+                                <span className={cn(
+                                  "px-2 py-1 rounded-full",
+                                  question.level === 'Fácil' ? 'bg-green-100 text-green-700' :
+                                  question.level === 'Medio' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-red-100 text-red-700'
+                                )}>
+                                  {question.level}
+                                </span>
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {question.code}
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="prose prose-lg max-w-none">
+                              {/* Texto informativo (solo si es pregunta individual, no agrupada) */}
+                              {relatedQuestions.length === 1 && question.informativeText && (
+                                <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                  <div
+                                    className="text-gray-700 leading-relaxed prose max-w-none"
+                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(question.informativeText)) }}
+                                  />
+                                </div>
+                              )}
 
-                         {/* Imágenes informativas */}
-                         {selectedQuestion.informativeImages && selectedQuestion.informativeImages.length > 0 && (
-                           <div className="mb-4">
-                             <ImageGallery images={selectedQuestion.informativeImages} />
-                           </div>
-                         )}
+                              {/* Imágenes informativas (solo si es pregunta individual) */}
+                              {relatedQuestions.length === 1 && question.informativeImages && question.informativeImages.length > 0 && (
+                                <div className="mb-4">
+                                  <ImageGallery images={question.informativeImages} />
+                                </div>
+                              )}
 
-                         {/* Imágenes de la pregunta */}
-                         {selectedQuestion.questionImages && selectedQuestion.questionImages.length > 0 && (
-                           <div className="mb-4">
-                             <ImageGallery images={selectedQuestion.questionImages} />
-                           </div>
-                         )}
+                              {/* Imágenes de la pregunta */}
+                              {question.questionImages && question.questionImages.length > 0 && (
+                                <div className="mb-4">
+                                  <ImageGallery images={question.questionImages} />
+                                </div>
+                              )}
 
-                         {/* Texto de la pregunta */}
-                         {selectedQuestion.questionText && (
-                           <div
-                             className="text-gray-900 leading-relaxed text-lg font-medium prose max-w-none"
-                             dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(selectedQuestion.questionText)) }}
-                           />
-                         )}
-                       </div>
-                       
-                       {/* RadioGroup de opciones - IDÉNTICO al examen */}
-                       <RadioGroup className="space-y-4 mt-6" defaultValue="">
-                         {selectedQuestion.options.map((option) => (
-                           <div
-                             key={option.id}
-                             className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
-                           >
-                             <RadioGroupItem
-                               value={option.id}
-                               id={`view-${option.id}`}
-                               className="mt-1"
-                             />
-                             <Label
-                               htmlFor={`view-${option.id}`}
-                               className="flex-1 cursor-pointer"
-                             >
-                               <div className="flex items-start gap-3">
-                                 <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
-                                 <div className="flex-1">
-                                   {option.text && (
-                                     <div
-                                       className="text-gray-900 prose max-w-none"
-                                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
-                                     />
-                                   )}
-                                   {option.imageUrl && (
-                                     <div className="mt-2">
-                                       <img 
-                                         src={option.imageUrl} 
-                                         alt={`Opción ${option.id}`}
-                                         className="max-w-full h-auto rounded-lg border shadow-sm"
-                                         onError={(e) => {
-                                           console.error('Error cargando imagen de opción:', option.imageUrl);
-                                           e.currentTarget.style.display = 'none';
-                                         }}
-                                       />
-                                     </div>
-                                   )}
-                                 </div>
-                               </div>
-                             </Label>
-                           </div>
-                         ))}
-                       </RadioGroup>
-                     </CardContent>
-                     <CardFooter className="flex justify-end">
-                       <div className="flex items-center gap-2 text-sm text-gray-500">
-                         <CheckCircle2 className="h-4 w-4 text-green-500" />
-                         <span>Puedes seleccionar una respuesta</span>
-                       </div>
-                     </CardFooter>
-                   </Card>
-                 </div>
+                              {/* Texto de la pregunta */}
+                              {question.questionText && (
+                                <div
+                                  className="text-gray-900 leading-relaxed text-lg font-medium prose max-w-none"
+                                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(question.questionText)) }}
+                                />
+                              )}
+                            </div>
+                            
+                            {/* RadioGroup de opciones - Formato especial para Matching / Columnas */}
+                            {question.subjectCode === 'IN' && question.options && question.options.length > 0 ? (
+                              /* Formato Matching: Pregunta y Respuesta al frente con botón expandible superpuesto */
+                              <div className="mt-4">
+                                <div className="border rounded-lg overflow-visible relative">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                                    {/* Columna de Pregunta */}
+                                    <div className="bg-gray-50 p-3 border-r border-gray-200">
+                                      <div className="text-gray-900 leading-relaxed text-sm">
+                                        {question.questionText && (
+                                          <div
+                                            className="prose prose-sm max-w-none"
+                                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(question.questionText)) }}
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Columna de Respuestas con botón expandible */}
+                                    <div 
+                                      className="bg-white p-3 relative"
+                                      ref={(el) => {
+                                        const questionKey = question.id || question.code
+                                        if (el) {
+                                          matchingDropdownRefs.current[questionKey] = el
+                                        } else {
+                                          delete matchingDropdownRefs.current[questionKey]
+                                        }
+                                      }}
+                                    >
+                                      <Collapsible
+                                        open={expandedViewOptions.has(question.id || question.code)}
+                                        onOpenChange={(open) => {
+                                          const newExpanded = new Set(expandedViewOptions)
+                                          const questionKey = question.id || question.code
+                                          if (open) {
+                                            newExpanded.add(questionKey)
+                                          } else {
+                                            newExpanded.delete(questionKey)
+                                          }
+                                          setExpandedViewOptions(newExpanded)
+                                        }}
+                                      >
+                                        <CollapsibleTrigger asChild>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="w-full justify-between p-2 h-auto hover:bg-gray-50 rounded-full z-10 relative"
+                                          >
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="text-xs font-medium text-gray-700">Ver Opciones de Respuesta</span>
+                                              {selectedMatchingAnswers[question.id || question.code] && (() => {
+                                                const selectedOptionId = selectedMatchingAnswers[question.id || question.code]
+                                                const selectedOption = question.options.find(opt => opt.id === selectedOptionId)
+                                                const selectedText = selectedOption?.text ? stripHtmlTags(selectedOption.text) : ''
+                                                return selectedText ? (
+                                                  <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded max-w-[300px] truncate" title={selectedText}>
+                                                    {selectedOptionId}: {selectedText}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
+                                                    Seleccionada: {selectedOptionId}
+                                                  </span>
+                                                )
+                                              })()}
+                                            </div>
+                                            <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                              <ChevronDown className={cn(
+                                                "h-3 w-3 text-gray-600 transition-transform duration-200",
+                                                expandedViewOptions.has(question.id || question.code) ? "transform rotate-180" : ""
+                                              )} />
+                                            </div>
+                                          </Button>
+                                        </CollapsibleTrigger>
+                                        <CollapsibleContent className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3 max-h-[400px] overflow-y-auto">
+                                          <RadioGroup 
+                                            className="space-y-1.5" 
+                                            value={selectedMatchingAnswers[question.id || question.code] || ''}
+                                            onValueChange={(value) => {
+                                              const questionKey = question.id || question.code
+                                              setSelectedMatchingAnswers(prev => ({
+                                                ...prev,
+                                                [questionKey]: value
+                                              }))
+                                            }}
+                                          >
+                                            {question.options.map((option) => (
+                                              <div
+                                                key={option.id}
+                                                className={cn(
+                                                  "flex items-start space-x-2 border rounded p-2 hover:bg-gray-50 transition-colors",
+                                                  selectedMatchingAnswers[question.id || question.code] === option.id && "bg-purple-50 border-purple-300"
+                                                )}
+                                              >
+                                                <RadioGroupItem
+                                                  value={option.id}
+                                                  id={`view-${question.id || question.code}-${option.id}`}
+                                                  className="mt-0.5 flex-shrink-0 h-4 w-4"
+                                                />
+                                                <Label
+                                                  htmlFor={`view-${question.id || question.code}-${option.id}`}
+                                                  className="flex-1 cursor-pointer"
+                                                >
+                                                  <div className="flex items-start gap-2">
+                                                    <span className="font-semibold text-purple-600 text-xs flex-shrink-0">{option.id}.</span>
+                                                    <div className="flex-1 min-w-0">
+                                                      {option.text && (
+                                                        <div
+                                                          className="text-gray-900 prose prose-sm max-w-none text-xs break-words"
+                                                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
+                                                        />
+                                                      )}
+                                                      {option.imageUrl && (
+                                                        <div className="mt-1">
+                                                          <img 
+                                                            src={option.imageUrl} 
+                                                            alt={`Opción ${option.id}`}
+                                                            className="max-w-full h-auto max-h-16 rounded border shadow-sm"
+                                                            onError={(e) => {
+                                                              console.error('Error cargando imagen de opción:', option.imageUrl);
+                                                              e.currentTarget.style.display = 'none';
+                                                            }}
+                                                          />
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                </Label>
+                                              </div>
+                                            ))}
+                                          </RadioGroup>
+                                        </CollapsibleContent>
+                                      </Collapsible>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              /* Formato estándar para otras preguntas */
+                            <RadioGroup className="space-y-4 mt-6" defaultValue="">
+                              {question.options.map((option) => (
+                                <div
+                                  key={option.id}
+                                  className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                                >
+                                  <RadioGroupItem
+                                    value={option.id}
+                                    id={`view-${question.id || question.code}-${option.id}`}
+                                    className="mt-1"
+                                  />
+                                  <Label
+                                    htmlFor={`view-${question.id || question.code}-${option.id}`}
+                                    className="flex-1 cursor-pointer"
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
+                                      <div className="flex-1">
+                                        {option.text && (
+                                          <div
+                                            className="text-gray-900 prose max-w-none"
+                                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
+                                          />
+                                        )}
+                                        {option.imageUrl && (
+                                          <div className="mt-2">
+                                            <img 
+                                              src={option.imageUrl} 
+                                              alt={`Opción ${option.id}`}
+                                              className="max-w-full h-auto rounded-lg border shadow-sm"
+                                              onError={(e) => {
+                                                console.error('Error cargando imagen de opción:', option.imageUrl);
+                                                e.currentTarget.style.display = 'none';
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </Label>
+                                </div>
+                              ))}
+                            </RadioGroup>
+                            )}
+                          </CardContent>
+                          <CardFooter className="flex justify-between items-center">
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              <span>Puedes seleccionar una respuesta</span>
+                            </div>
+                            {relatedQuestions.length > 1 && (
+                              <div className="text-xs text-gray-400">
+                                Pregunta {index + 1}/{relatedQuestions.length}
+                              </div>
+                            )}
+                          </CardFooter>
+                        </Card>
+                      ))}
+                    </div>
 
-                                                                       {/* Panel lateral derecho con navegación - IGUAL AL EXAMEN */}
-                   <div className="w-full lg:w-64 flex-shrink-0">
-                     <div className="bg-white border rounded-lg p-4 sticky top-4 flex flex-col">
-                       <h3 className="font-medium mb-3 flex items-center gap-2">
-                         <BarChart3 className="h-4 w-4 text-purple-600" />
-                         Navegación
-                       </h3>
-                       <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                        {/* Simular 10 preguntas para la navegación */}
-                        {Array.from({ length: 10 }, (_, index) => (
-                         <button
-                           key={index}
-                           className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${
-                             index === 0
-                               ? "bg-purple-50 border-purple-200 border"
-                               : "border hover:bg-gray-50"
-                           }`}
-                         >
-                           <div
-                             className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                               index === 0
-                                 ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
-                                 : "bg-gray-100 text-gray-700 border"
-                             }`}
-                           >
-                             {index + 1}
-                           </div>
-                           <div className="flex-1">
-                             <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
-                             <div className="text-xs text-gray-500 flex items-center gap-1">
-                               {index === 0 ? (
-                                 <>
-                                   <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                   <span>Respondida</span>
-                                 </>
-                               ) : (
-                                 <>
-                                   <AlertCircle className="h-3 w-3 text-orange-500" />
-                                   <span>Sin responder</span>
-                                 </>
-                               )}
-                             </div>
-                           </div>
-                                                   </button>
-                                                  ))}
+                    {/* Panel lateral derecho con navegación - IGUAL AL EXAMEN */}
+                    <div className="w-full lg:w-64 flex-shrink-0">
+                      <div className="bg-white border rounded-lg p-4 sticky top-4 flex flex-col">
+                        <h3 className="font-medium mb-3 flex items-center gap-2">
+                          <BarChart3 className="h-4 w-4 text-purple-600" />
+                          {relatedQuestions.length > 1 ? 'Preguntas Agrupadas' : 'Navegación'}
+                        </h3>
+                        <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                          {/* Mostrar preguntas relacionadas o simular navegación */}
+                          {relatedQuestions.length > 1 ? (
+                            relatedQuestions.map((q, index) => (
+                              <div
+                                key={q.id || q.code}
+                                className="w-full text-left p-3 rounded-lg flex items-center gap-2 bg-purple-50 border-purple-200 border"
+                              >
+                                <div className="h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium bg-gradient-to-r from-purple-600 to-blue-500 text-white">
+                                  {index + 1}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium truncate">
+                                    Pregunta {index + 1}
+                                  </div>
+                                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Badge variant="outline" className="font-mono text-xs px-1 py-0">
+                                      {q.code}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            // Simular navegación para pregunta individual
+                            Array.from({ length: 10 }, (_, index) => (
+                              <button
+                                key={index}
+                                className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${
+                                  index === 0
+                                    ? "bg-purple-50 border-purple-200 border"
+                                    : "border hover:bg-gray-50"
+                                }`}
+                              >
+                                <div
+                                  className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                                    index === 0
+                                      ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
+                                      : "bg-gray-100 text-gray-700 border"
+                                  }`}
+                                >
+                                  {index + 1}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
+                                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                                    {index === 0 ? (
+                                      <>
+                                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                        <span>Respondida</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <AlertCircle className="h-3 w-3 text-orange-500" />
+                                        <span>Sin responder</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            ))
+                          )}
                         </div>
 
                         <div className="mt-4 pt-4 border-t">
-                          <div className="text-sm text-gray-500 mb-2">Progreso del examen</div>
+                          <div className="text-sm text-gray-500 mb-2">Información</div>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium">1/10</span>
-                            <span className="text-sm text-gray-500">10%</span>
+                            <span className="text-sm font-medium">
+                              {relatedQuestions.length > 1 
+                                ? `${relatedQuestions.length} preguntas agrupadas`
+                                : '1 pregunta'}
+                            </span>
                           </div>
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style={{ width: '10%' }}></div>
-                          </div>
-
-                          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                            <div className="flex items-start gap-2">
-                              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
-                              <div className="text-xs text-amber-700">
-                                Tienes 9 preguntas sin responder
+                          {relatedQuestions.length > 1 && (
+                            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                              <div className="flex items-start gap-2">
+                                <BookOpen className="h-4 w-4 text-purple-600 mt-0.5" />
+                                <div className="text-xs text-purple-700">
+                                  Estas preguntas comparten el mismo texto de lectura e imágenes.
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </div>
                     </div>

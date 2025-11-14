@@ -13,6 +13,7 @@ import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import DOMPurify from 'dompurify'
 import katex from 'katex'
+import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import 'katex/dist/katex.min.css'
 
 const db = getFirestore(firebaseApp);
@@ -1061,6 +1062,7 @@ const ExamWithFirebase = () => {
     const currentQ = quizData.questions[currentQuestion]
     const answeredQuestions = Object.keys(answers).length
     const questionId = currentQ.id || currentQ.code;
+    const theme = getQuizTheme('física')
 
     // Efecto para renderizar fórmulas matemáticas en las opciones después de montar
     useEffect(() => {
@@ -1089,10 +1091,13 @@ const ExamWithFirebase = () => {
     }, [currentQuestion, questionId])
 
     return (
-      <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-25 pt-2 px-4 pb-4">
+      <div 
+        className="flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-8 pb-4 quiz-gradient-bg relative"
+        style={getQuizBackgroundStyle(theme)}
+      >
         {/* Contenido principal del examen */}
-        <div className="flex-1">
-          <div className="bg-white border rounded-lg p-3 mb-2 shadow-sm">
+        <div className="flex-1 relative z-10">
+          <div className={`${theme.cardBackground} border rounded-lg p-3 mb-2 shadow-lg backdrop-blur-sm`}>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
@@ -1143,10 +1148,10 @@ const ExamWithFirebase = () => {
             </div>
           </div>
 
-          <Card className="mb-6">
+          <Card className={`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Pregunta {currentQuestion + 1}</CardTitle>
+                <CardTitle className={`text-xl ${theme.primaryColor}`}>Pregunta {currentQuestion + 1}</CardTitle>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                     {currentQ.topic}
@@ -1218,23 +1223,24 @@ const ExamWithFirebase = () => {
                 {currentQ.options.map((option) => (
                   <div
                     key={option.id}
-                    className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                    className={`flex items-start space-x-3 ${theme.answerBorder} rounded-lg p-4 transition-all duration-200 ${theme.answerBackground} relative overflow-hidden ${theme.answerHover}`}
+                    style={theme.pattern ? { backgroundImage: theme.pattern } : {}}
                   >
                     <RadioGroupItem
                       value={option.id}
                       id={`${questionId}-${option.id}`}
-                      className="mt-1"
+                      className="mt-1 relative z-10"
                     />
                     <Label
                       htmlFor={`${questionId}-${option.id}`}
-                      className="flex-1 cursor-pointer"
+                      className="flex-1 cursor-pointer relative z-10"
                     >
                       <div className="flex items-start gap-3">
-                        <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
+                        <span className={`font-bold ${theme.primaryColor} mr-2 text-base flex-shrink-0`}>{option.id}.</span>
                         <div className="flex-1">
                           {option.text && (
                             <div 
-                              className="text-gray-900"
+                              className={`${theme.answerText} text-base leading-relaxed`}
                               dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
                             />
                           )}

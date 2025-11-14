@@ -22,68 +22,54 @@ const Quiz = () => {
   // Si hay parámetros de cuestionario dinámico, usar el componente específico
   if (subject && phase) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <>
         <Header />
-        <main className="container mx-auto py-2 px-4">
-          {subject === 'Lenguaje' ? (
-            <ExamFormLecture />
-          ) : subject === 'Matemáticas' ? (
-            <ExamFormMath />
-          ) : subject === 'Ciencias Sociales' ? (
-            <ExamFormSociales />
-          ) : subject === 'Ciencias Naturales' ? (
-            <ExamFormNaturales />
-          ) : subject === 'Inglés' ? (
-            <ExamFormIngles />
-          ) : subject === 'Biologia' ? (
-            <ExamFormBiologia />
-          ) : subject === 'Física' ? (
-            <ExamFormFisica />
-          ) : subject === 'Quimica' ? (
-            <ExamFormQuimica />
-          ) : (
-            <DynamicQuizForm 
-              subject={subject} 
-              phase={phase} 
-              grade={grade || undefined} 
-            />
-          )}
-        </main>
-        <footer className="bg-white border-t py-6">
-          <div className="container mx-auto px-4 text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} Supérate. Todos los derechos reservados.
-          </div>
-        </footer>
-      </div>
+        {subject === 'Lenguaje' ? (
+          <ExamFormLecture />
+        ) : subject === 'Matemáticas' ? (
+          <ExamFormMath />
+        ) : subject === 'Ciencias Sociales' ? (
+          <ExamFormSociales />
+        ) : subject === 'Ciencias Naturales' ? (
+          <ExamFormNaturales />
+        ) : subject === 'Inglés' ? (
+          <ExamFormIngles />
+        ) : subject === 'Biologia' ? (
+          <ExamFormBiologia />
+        ) : subject === 'Física' ? (
+          <ExamFormFisica />
+        ) : subject === 'Quimica' ? (
+          <ExamFormQuimica />
+        ) : (
+          <DynamicQuizForm 
+            subject={subject} 
+            phase={phase} 
+            grade={grade || undefined} 
+          />
+        )}
+      </>
     )
   }
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
       <Header />
-      <main className="container mx-auto py-2 px-4">
-        {id === 'lectura' ? (
-          <ExamFormLecture />
-        ) : id === 'quiz' ? (
-          <ExamFormMath />
-        ) : id === 'sociales' ? (
-          <ExamFormSociales />
-        ) : id === 'naturales' ? (
-          <ExamFormNaturales />
-        ) : id === 'ingles' ? (
-          <ExamFormIngles />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-screen">
-            <h1 className="text-2xl font-bold">No se encontró el examen</h1>
-          </div>
-        )}
-      </main>
-      <footer className="bg-white border-t py-6">
-        <div className="container mx-auto px-4 text-center text-sm text-gray-500">
-          © {new Date().getFullYear()} Supérate. Todos los derechos reservados.
+      {id === 'lectura' ? (
+        <ExamFormLecture />
+      ) : id === 'quiz' ? (
+        <ExamFormMath />
+      ) : id === 'sociales' ? (
+        <ExamFormSociales />
+      ) : id === 'naturales' ? (
+        <ExamFormNaturales />
+      ) : id === 'ingles' ? (
+        <ExamFormIngles />
+      ) : (
+        <div className="flex flex-col items-center justify-center h-screen">
+          <h1 className="text-2xl font-bold">No se encontró el examen</h1>
         </div>
-      </footer>
-    </div>
+      )}
+    </>
   )
 }
 

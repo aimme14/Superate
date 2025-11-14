@@ -32,7 +32,7 @@ const storage = getStorage(firebaseApp);
  * Interfaz para las opciones de una pregunta
  */
 export interface QuestionOption {
-  id: 'A' | 'B' | 'C' | 'D';
+  id: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
   text: string | null;
   imageUrl: string | null;
   isCorrect: boolean;
