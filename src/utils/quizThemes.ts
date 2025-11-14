@@ -213,7 +213,7 @@ export function getQuizTheme(subject: string): QuizTheme {
 /**
  * Obtiene las clases CSS para el contenedor principal del cuestionario
  */
-export function getQuizContainerClasses(theme: QuizTheme): string {
+export function getQuizContainerClasses(): string {
   return `min-h-screen relative overflow-hidden`;
 }
 
