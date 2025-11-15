@@ -10,6 +10,8 @@ import Prueba from "../prueba"
 import Intento from "../Intento"
 import { useEffect } from "react"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
+import { useThemeContext } from "@/context/ThemeContext"
+import { cn } from "@/lib/utils"
   
 
 export function Home() {
@@ -24,15 +26,16 @@ export function Home() {
   }, [])
   const { user } = useAuthContext()
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution()
+  const { theme } = useThemeContext()
 
   const userId = user?.uid
   const { data: userFound } = useQueryUser().fetchUserById<User>(userId as string, !!user)
 
   console.log(userFound)
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className={cn("min-h-screen flex flex-col", theme === 'dark' ? 'bg-zinc-900' : '')}>
       {/* Sección 1: Encabezado y Navegación */}
-      <header className="bg-white shadow-sm">
+      <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -45,17 +48,17 @@ export function Home() {
                 e.currentTarget.src = '/assets/agustina.png'
               }}
             />
-            <span className="text-red-600 font-bold text-2xl">
+            <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-            <NavItem href="/exam-analyzer" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso"/>
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" active/>
+            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+            <NavItem href="/exam-analyzer" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso" theme={theme}/>
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" theme={theme} />
+            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" active theme={theme}/>
           </nav>
         </div>
       </header>
@@ -68,18 +71,18 @@ export function Home() {
         </section>
 
         {/* Alert Section Mejorado */}
-        <section className="py-8 bg-gradient-to-r from-blue-50/50 to-indigo-50/50">
+        <section className={cn("py-8", theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-r from-blue-50/50 to-indigo-50/50')}>
           <div className="max-w-6xl mx-auto px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white/80 backdrop-blur-sm border border-blue-200/50 rounded-xl p-6 shadow-lg"
+              className={cn("backdrop-blur-sm rounded-xl p-6 shadow-lg", theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-white/80 border border-blue-200/50')}
             >
               <div className="flex items-start space-x-4">
                 <AlertCircle className="w-6 h-6 text-blue-500 mt-1 flex-shrink-0" />
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Información Importante</h3>
-                  <p className="text-gray-700 leading-relaxed">
+                  <h3 className={cn("font-semibold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Información Importante</h3>
+                  <p className={cn("leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                     El examen Saber 11.° evalúa competencias. En las preguntas encontrarás situaciones donde deberás
                     aplicar tus conocimientos para tomar decisiones y elegir la respuesta correcta.
                   </p>
@@ -90,17 +93,17 @@ export function Home() {
         </section>
 
         {/* Tarjetas de Contenido */}
-        <section id="evaluacion" className="py-12">
+        <section id="evaluacion" className={cn("py-12", theme === 'dark' ? 'bg-zinc-900' : '')}>
           <div className="container mx-auto px-4">
             {/* Título Principal */}
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              <h2 className={cn("text-4xl font-bold mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 Módulos de{" "}
                 <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
                   Evaluación
                 </span>
               </h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              <p className={cn("text-xl max-w-3xl mx-auto", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                 Selecciona un módulo para comenzar tu evaluación. Nuestra IA analizará tus respuestas en tiempo real.
               </p>
               <Intento />
@@ -118,14 +121,20 @@ interface NavItemProps {
   active?: boolean;
   href: string;
   text: string;
+  theme?: 'light' | 'dark';
 }
 
 // Componentes auxiliares
-function NavItem({ href, icon, text, active = false }: NavItemProps) {
+function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps) {
   return (
     <Link
       to={href}
-      className={`flex items-center ${active ? "text-red-600 font-medium" : "text-gray-600 hover:text-gray-900"}`}
+      className={cn(
+        "flex items-center",
+        active 
+          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
+          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
+      )}
     >
       <span className="mr-2">{icon}</span>
       <span>{text}</span>

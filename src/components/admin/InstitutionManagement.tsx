@@ -617,16 +617,16 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
           setSelectedInstitution(null)
         }
       }}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>Crear Nueva Sede</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nueva Sede</DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Agrega una nueva sede a una institución.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="campusInstitution">Institución *</Label>
+              <Label htmlFor="campusInstitution" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución *</Label>
               <Select 
                 value={selectedInstitution?.id || ''} 
                 onValueChange={(value) => {
@@ -634,7 +634,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                   setSelectedInstitution(institution || null)
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                   <SelectValue placeholder="Seleccionar institución" />
                 </SelectTrigger>
                 <SelectContent>
@@ -647,49 +647,53 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="campusName">Nombre de la sede *</Label>
+              <Label htmlFor="campusName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre de la sede *</Label>
               <Input
                 id="campusName"
                 value={newCampus.name}
                 onChange={(e) => setNewCampus(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Ej: Sede Principal"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="campusAddress">Dirección *</Label>
+              <Label htmlFor="campusAddress" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Dirección *</Label>
               <Textarea
                 id="campusAddress"
                 value={newCampus.address}
                 onChange={(e) => setNewCampus(prev => ({ ...prev, address: e.target.value }))}
                 placeholder="Dirección completa de la sede"
                 rows={2}
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="campusPhone">Teléfono</Label>
+                <Label htmlFor="campusPhone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono</Label>
                 <Input
                   id="campusPhone"
                   value={newCampus.phone}
                   onChange={(e) => setNewCampus(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="+57 1 234-5678"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="campusEmail">Email</Label>
+                <Label htmlFor="campusEmail" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Email</Label>
                 <Input
                   id="campusEmail"
                   type="email"
                   value={newCampus.email}
                   onChange={(e) => setNewCampus(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="sede@institucion.edu.co"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
             </div>
             
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateCampusDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsCreateCampusDialogOpen(false)} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
               Cancelar
             </Button>
             <Button onClick={handleCreateCampus} className="bg-black text-white hover:bg-gray-800">
@@ -708,16 +712,16 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
           setSelectedCampus(null)
         }
       }}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>Crear Nuevo Grado</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nuevo Grado</DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Agrega un nuevo grado a una sede.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="gradeInstitution">Institución *</Label>
+              <Label htmlFor="gradeInstitution" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución *</Label>
               <Select 
                 value={selectedInstitution?.id || ''} 
                 onValueChange={(value) => {
@@ -726,7 +730,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                   setSelectedCampus(null) // Reset campus when institution changes
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                   <SelectValue placeholder="Seleccionar institución" />
                 </SelectTrigger>
                 <SelectContent>
@@ -741,7 +745,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             
             {selectedInstitution && (
               <div className="grid gap-2">
-                <Label htmlFor="gradeCampus">Sede *</Label>
+                <Label htmlFor="gradeCampus" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sede *</Label>
                 {selectedInstitution.campuses.length > 0 ? (
                   <Select 
                     value={selectedCampus?.id || ''} 
@@ -750,7 +754,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                       setSelectedCampus(campus || null)
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                       <SelectValue placeholder="Seleccionar sede" />
                     </SelectTrigger>
                     <SelectContent>
@@ -762,7 +766,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="p-3 border border-dashed border-gray-300 rounded-md text-center text-gray-500">
+                  <div className={cn("p-3 border border-dashed rounded-md text-center", theme === 'dark' ? 'border-zinc-600 text-gray-400' : 'border-gray-300 text-gray-500')}>
                     <p className="text-sm">Esta institución no tiene sedes.</p>
                     <p className="text-xs">Crea una sede primero para poder agregar grados.</p>
                   </div>
@@ -771,18 +775,19 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             )}
             
             <div className="grid gap-2">
-              <Label htmlFor="gradeName">Nombre del grado *</Label>
+              <Label htmlFor="gradeName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre del grado *</Label>
               <Input
                 id="gradeName"
                 value={newGrade.name}
                 onChange={(e) => setNewGrade(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Ej: 6°, 7°, 8°..."
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="gradeLevel">Nivel del grado</Label>
+              <Label htmlFor="gradeLevel" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nivel del grado</Label>
               <Select value={newGrade.level.toString()} onValueChange={(value) => setNewGrade(prev => ({ ...prev, level: parseInt(value) }))}>
-                <SelectTrigger>
+                <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                   <SelectValue placeholder="Seleccionar nivel" />
                 </SelectTrigger>
                 <SelectContent>
@@ -796,7 +801,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateGradeDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsCreateGradeDialogOpen(false)} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
               Cancelar
             </Button>
             <Button onClick={handleCreateGrade} className="bg-black text-white hover:bg-gray-800">
@@ -1005,31 +1010,32 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
 
       {/* Modal para editar institución */}
       <Dialog open={isEditInstitutionDialogOpen} onOpenChange={setIsEditInstitutionDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className={cn("sm:max-w-[600px] max-h-[80vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>Editar Institución</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Institución</DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Modifica la información de {selectedInstitution?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="editInstitutionName">Nombre de la institución *</Label>
+              <Label htmlFor="editInstitutionName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre de la institución *</Label>
               <Input
                 id="editInstitutionName"
                 value={editInstitution.name}
                 onChange={(e) => setEditInstitution(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Ej: Colegio San José"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionType">Tipo de institución *</Label>
+                <Label htmlFor="editInstitutionType" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Tipo de institución *</Label>
                 <Select value={editInstitution.type} onValueChange={(value: 'public' | 'private') => setEditInstitution(prev => ({ ...prev, type: value }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar tipo" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {institutionTypes.map(type => (
                       <SelectItem key={type.value} value={type.value}>
                         {type.label}
@@ -1039,63 +1045,69 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionNIT">NIT (opcional)</Label>
+                <Label htmlFor="editInstitutionNIT" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>NIT (opcional)</Label>
                 <Input
                   id="editInstitutionNIT"
                   value={editInstitution.nit}
                   onChange={(e) => setEditInstitution(prev => ({ ...prev, nit: e.target.value }))}
                   placeholder="900123456-1"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editInstitutionAddress">Dirección *</Label>
+              <Label htmlFor="editInstitutionAddress" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Dirección *</Label>
               <Textarea
                 id="editInstitutionAddress"
                 value={editInstitution.address}
                 onChange={(e) => setEditInstitution(prev => ({ ...prev, address: e.target.value }))}
                 placeholder="Dirección completa de la institución"
                 rows={2}
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionPhone">Teléfono</Label>
+                <Label htmlFor="editInstitutionPhone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono</Label>
                 <Input
                   id="editInstitutionPhone"
                   value={editInstitution.phone}
                   onChange={(e) => setEditInstitution(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="+57 1 234-5678"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionEmail">Email</Label>
+                <Label htmlFor="editInstitutionEmail" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Email</Label>
                 <Input
                   id="editInstitutionEmail"
                   type="email"
                   value={editInstitution.email}
                   onChange={(e) => setEditInstitution(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="info@institucion.edu.co"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionWebsite">Sitio web</Label>
+                <Label htmlFor="editInstitutionWebsite" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sitio web</Label>
                 <Input
                   id="editInstitutionWebsite"
                   value={editInstitution.website}
                   onChange={(e) => setEditInstitution(prev => ({ ...prev, website: e.target.value }))}
                   placeholder="www.institucion.edu.co"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionRector">Rector</Label>
+                <Label htmlFor="editInstitutionRector" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Rector</Label>
                 <Input
                   id="editInstitutionRector"
                   value={editInstitution.rector}
                   onChange={(e) => setEditInstitution(prev => ({ ...prev, rector: e.target.value }))}
                   placeholder="Dr. María González"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
             </div>
@@ -1119,11 +1131,11 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 onChange={(e) => setEditInstitution(prev => ({ ...prev, isActive: e.target.checked }))}
                 className="rounded"
               />
-              <Label htmlFor="editInstitutionActive">Institución activa</Label>
+              <Label htmlFor="editInstitutionActive" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución activa</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditInstitutionDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditInstitutionDialogOpen(false)} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
               Cancelar
             </Button>
             <Button onClick={handleUpdateInstitution} className="bg-black text-white hover:bg-gray-800">
@@ -1135,61 +1147,66 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
 
       {/* Modal para editar sede */}
       <Dialog open={isEditCampusDialogOpen} onOpenChange={setIsEditCampusDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>Editar Sede</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Sede</DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Modifica la información de {selectedCampus?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="editCampusName">Nombre de la sede *</Label>
+              <Label htmlFor="editCampusName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre de la sede *</Label>
               <Input
                 id="editCampusName"
                 value={editCampus.name}
                 onChange={(e) => setEditCampus(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Ej: Sede Principal"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editCampusAddress">Dirección *</Label>
+              <Label htmlFor="editCampusAddress" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Dirección *</Label>
               <Textarea
                 id="editCampusAddress"
                 value={editCampus.address}
                 onChange={(e) => setEditCampus(prev => ({ ...prev, address: e.target.value }))}
                 placeholder="Dirección completa de la sede"
                 rows={2}
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editCampusPhone">Teléfono</Label>
+                <Label htmlFor="editCampusPhone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono</Label>
                 <Input
                   id="editCampusPhone"
                   value={editCampus.phone}
                   onChange={(e) => setEditCampus(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="+57 1 234-5678"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editCampusEmail">Email</Label>
+                <Label htmlFor="editCampusEmail" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Email</Label>
                 <Input
                   id="editCampusEmail"
                   type="email"
                   value={editCampus.email}
                   onChange={(e) => setEditCampus(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="sede@institucion.edu.co"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editCampusPrincipal">Director</Label>
+              <Label htmlFor="editCampusPrincipal" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Director</Label>
               <Input
                 id="editCampusPrincipal"
                 value={editCampus.principal}
                 onChange={(e) => setEditCampus(prev => ({ ...prev, principal: e.target.value }))}
                 placeholder="Lic. Carlos Mendoza"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -1200,11 +1217,11 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 onChange={(e) => setEditCampus(prev => ({ ...prev, isActive: e.target.checked }))}
                 className="rounded"
               />
-              <Label htmlFor="editCampusActive">Sede activa</Label>
+              <Label htmlFor="editCampusActive" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sede activa</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditCampusDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditCampusDialogOpen(false)} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
               Cancelar
             </Button>
             <Button onClick={handleUpdateCampus} className="bg-black text-white hover:bg-gray-800">
@@ -1216,30 +1233,31 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
 
       {/* Modal para editar grado */}
       <Dialog open={isEditGradeDialogOpen} onOpenChange={setIsEditGradeDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>Editar Grado</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Grado</DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Modifica la información del grado {selectedGrade?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="editGradeName">Nombre del grado *</Label>
+              <Label htmlFor="editGradeName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre del grado *</Label>
               <Input
                 id="editGradeName"
                 value={editGrade.name}
                 onChange={(e) => setEditGrade(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Ej: 6°, 7°, 8°..."
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editGradeLevel">Nivel del grado</Label>
+              <Label htmlFor="editGradeLevel" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nivel del grado</Label>
               <Select value={editGrade.level.toString()} onValueChange={(value) => setEditGrade(prev => ({ ...prev, level: parseInt(value) }))}>
-                <SelectTrigger>
+                <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                   <SelectValue placeholder="Seleccionar nivel" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                   {gradeLevels.map(level => (
                     <SelectItem key={level} value={level.toString()}>
                       {level}°
@@ -1256,11 +1274,11 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 onChange={(e) => setEditGrade(prev => ({ ...prev, isActive: e.target.checked }))}
                 className="rounded"
               />
-              <Label htmlFor="editGradeActive">Grado activo</Label>
+              <Label htmlFor="editGradeActive" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Grado activo</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditGradeDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditGradeDialogOpen(false)} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
               Cancelar
             </Button>
             <Button onClick={handleUpdateGrade} className="bg-black text-white hover:bg-gray-800">

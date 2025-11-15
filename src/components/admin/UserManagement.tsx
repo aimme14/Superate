@@ -846,37 +846,39 @@ export default function UserManagement({ theme }: UserManagementProps) {
                 Nuevo Usuario
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className={cn("sm:max-w-[425px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
               <DialogHeader>
-                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nuevo Usuario</DialogTitle>
+                <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
                   Crea una nueva cuenta de estudiante, docente o coordinador en el sistema.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Nombre completo</Label>
+                  <Label htmlFor="name" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre completo</Label>
                   <Input
                     id="name"
                     value={newUser.name}
                     onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Nombre completo del usuario"
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Correo electrónico</Label>
+                  <Label htmlFor="email" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Correo electrónico</Label>
                   <Input
                     id="email"
                     type="email"
                     value={newUser.email}
                     onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
                     placeholder="correo@institucion.edu"
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="role">Rol</Label>
+                  <Label htmlFor="role" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Rol</Label>
                   <Select value={newUser.role} onValueChange={(value: 'student' | 'teacher' | 'principal' | 'rector') => setNewUser(prev => ({ ...prev, role: value, grade: (value === 'principal' || value === 'rector') ? '' : prev.grade, campus: value === 'rector' ? '' : prev.campus }))}>
-                    <SelectTrigger>
+                    <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                       <SelectValue placeholder="Seleccionar rol" />
                     </SelectTrigger>
                     <SelectContent>
@@ -888,12 +890,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="institution">Institución</Label>
+                  <Label htmlFor="institution" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
                   <Select 
                     value={newUser.institution} 
                     onValueChange={(value) => setNewUser(prev => ({ ...prev, institution: value, campus: '', grade: '' }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                       <SelectValue placeholder={institutionsLoading ? 'Cargando instituciones...' : 'Seleccionar institución'} />
                     </SelectTrigger>
                     <SelectContent>
@@ -908,12 +910,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
                 {newUser.institution && newUser.role !== 'rector' && (
                   <div className="grid gap-2">
-                    <Label htmlFor="campus">Sede</Label>
+                    <Label htmlFor="campus" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sede</Label>
                     <Select 
                       value={newUser.campus} 
                       onValueChange={(value) => setNewUser(prev => ({ ...prev, campus: value, grade: '' }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                         <SelectValue placeholder={campusLoading ? 'Cargando sedes...' : 'Seleccionar sede'} />
                       </SelectTrigger>
                       <SelectContent>
@@ -929,9 +931,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
                 {newUser.campus && (newUser.role === 'student' || newUser.role === 'teacher') && (
                   <div className="grid gap-2">
-                    <Label htmlFor="grade">Grado</Label>
+                    <Label htmlFor="grade" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Grado</Label>
                     <Select value={newUser.grade} onValueChange={(value) => setNewUser(prev => ({ ...prev, grade: value }))}>
-                      <SelectTrigger>
+                      <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                         <SelectValue placeholder={gradeLoading ? 'Cargando grados...' : 'Seleccionar grado'} />
                       </SelectTrigger>
                       <SelectContent>
@@ -947,8 +949,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
                 {newUser.role === 'teacher' && newUser.grade && (
                   <div className="grid gap-2">
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <div className="text-sm text-blue-800">
+                    <div className={cn("p-3 border rounded-md", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                      <div className={cn("text-sm", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
                         <strong>Información del Docente:</strong>
                         <br />
                         • Se asignará como docente del grado seleccionado
@@ -963,8 +965,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
                 {newUser.role === 'principal' && newUser.campus && (
                   <div className="grid gap-2">
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <div className="text-sm text-blue-800">
+                    <div className={cn("p-3 border rounded-md", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                      <div className={cn("text-sm", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
                         <strong>Información del Coordinador:</strong>
                         <br />
                         • Se asignará como coordinador general de toda la sede
@@ -979,8 +981,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
                 {newUser.role === 'rector' && newUser.institution && (
                   <div className="grid gap-2">
-                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-md">
-                      <div className="text-sm text-purple-800">
+                    <div className={cn("p-3 border rounded-md", theme === 'dark' ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200')}>
+                      <div className={cn("text-sm", theme === 'dark' ? 'text-purple-300' : 'text-purple-800')}>
                         <strong>Información del Rector:</strong>
                         <br />
                         • Se asignará como rector de toda la institución
@@ -995,23 +997,25 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   </div>
                 )}
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Contraseña temporal</Label>
+                  <Label htmlFor="password" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Contraseña temporal</Label>
                   <Input
                     id="password"
                     type="password"
                     value={newUser.password}
                     onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
                     placeholder="Contraseña temporal"
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
+                  <Label htmlFor="confirmPassword" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Confirmar contraseña</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
                     value={newUser.confirmPassword}
                     onChange={(e) => setNewUser(prev => ({ ...prev, confirmPassword: e.target.value }))}
                     placeholder="Confirmar contraseña"
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                   />
                 </div>
               </div>
@@ -1409,16 +1413,16 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
       {/* Dialog para editar docente/coordinador */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className={cn("sm:max-w-[425px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>
               {selectedTeacher ? 'Actualizar Docente' : 
                selectedPrincipal ? 'Actualizar Coordinador' : 
                selectedRector ? 'Actualizar Rector' : 
                selectedStudent ? 'Actualizar Estudiante' : 
                'Actualizar Usuario'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Modifica los datos del {selectedTeacher ? 'docente' : 
                                    selectedPrincipal ? 'coordinador' : 
                                    selectedRector ? 'rector' : 
@@ -1428,7 +1432,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="edit-name">Nombre completo</Label>
+              <Label htmlFor="edit-name" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre completo</Label>
               <Input
                 id="edit-name"
                 value={selectedTeacher ? editTeacherData.name : selectedPrincipal ? editPrincipalData.name : selectedRector ? editRectorData.name : editStudentData.name}
@@ -1444,10 +1448,11 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   }
                 }}
                 placeholder={`Nombre completo del ${selectedTeacher ? 'docente' : selectedPrincipal ? 'coordinador' : selectedRector ? 'rector' : selectedStudent ? 'estudiante' : 'usuario'}`}
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-email">Correo electrónico</Label>
+              <Label htmlFor="edit-email" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Correo electrónico</Label>
               <Input
                 id="edit-email"
                 type="email"
@@ -1464,10 +1469,11 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   }
                 }}
                 placeholder="correo@institucion.edu"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-phone">Teléfono (opcional)</Label>
+              <Label htmlFor="edit-phone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono (opcional)</Label>
               <Input
                 id="edit-phone"
                 value={selectedTeacher ? editTeacherData.phone : selectedPrincipal ? editPrincipalData.phone : selectedRector ? editRectorData.phone : editStudentData.phone}
@@ -1483,11 +1489,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   }
                 }}
                 placeholder="Número de teléfono"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
             {selectedStudent && (
               <div className="grid gap-2">
-                <Label htmlFor="edit-userdoc">Documento de identidad</Label>
+                <Label htmlFor="edit-userdoc" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Documento de identidad</Label>
                 <Input
                   id="edit-userdoc"
                   value={editStudentData.userdoc}
@@ -1495,11 +1502,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
                     setEditStudentData(prev => ({ ...prev, userdoc: e.target.value }))
                   }}
                   placeholder="Número de documento"
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                 />
               </div>
             )}
             <div className="grid gap-2">
-              <Label htmlFor="edit-password">Nueva contraseña (opcional)</Label>
+              <Label htmlFor="edit-password" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nueva contraseña (opcional)</Label>
               <Input
                 id="edit-password"
                 type="password"
@@ -1516,8 +1524,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   }
                 }}
                 placeholder="Dejar vacío para mantener la contraseña actual"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
-              <p className="text-xs text-gray-500">
+              <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                 Si cambias el email, el usuario deberá hacer login con las nuevas credenciales
               </p>
             </div>
@@ -1539,7 +1548,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
                 }}
                 className="rounded"
               />
-              <Label htmlFor="edit-active">
+              <Label htmlFor="edit-active" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
                 {selectedTeacher ? 'Docente' : selectedPrincipal ? 'Coordinador' : selectedRector ? 'Rector' : selectedStudent ? 'Estudiante' : 'Usuario'} activo
               </Label>
             </div>
@@ -1551,7 +1560,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
               setSelectedPrincipal(null)
               setSelectedRector(null)
               setSelectedStudent(null)
-            }}>
+            }} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
               Cancelar
             </Button>
             <Button 
@@ -1573,21 +1582,21 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
       {/* Dialog de confirmación para eliminar */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Esta acción no se puede deshacer. Se eliminará permanentemente el{' '}
               {selectedTeacher ? 'docente' : 
                selectedPrincipal ? 'coordinador' : 
                selectedRector ? 'rector' : 
                selectedStudent ? 'estudiante' : 
                'usuario'}{' '}
-              <strong>{selectedTeacher?.name || selectedPrincipal?.name || selectedRector?.name || selectedStudent?.name}</strong> del sistema.
+              <strong className={cn(theme === 'dark' ? 'text-white' : '')}>{selectedTeacher?.name || selectedPrincipal?.name || selectedRector?.name || selectedStudent?.name}</strong> del sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={selectedTeacher ? confirmDeleteTeacher : selectedPrincipal ? confirmDeletePrincipal : selectedRector ? confirmDeleteRector : confirmDeleteStudent}
               className="bg-red-600 hover:bg-red-700"

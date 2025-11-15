@@ -425,6 +425,7 @@ export type RichTextEditorProps = {
   onChange: (html: string) => void
   placeholder?: string
   className?: string
+  theme?: 'light' | 'dark'
 }
 
 export type RichTextEditorRef = {
@@ -459,7 +460,7 @@ const formats = [
 ]
 
 const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
-  ({ value, onChange, placeholder, className }, ref) => {
+  ({ value, onChange, placeholder, className, theme = 'light' }, ref) => {
     const quillRef = useRef<ReactQuill | null>(null)
     const [mathEditorOpen, setMathEditorOpen] = useState(false)
 
@@ -914,12 +915,65 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
 
     // Añadir estilos personalizados para los botones de la toolbar y fórmulas
     useMemo(() => {
-      const styleId = 'rich-text-editor-math-toolbar-styles'
-      if (document.getElementById(styleId)) return
+      const styleId = `rich-text-editor-math-toolbar-styles-${theme}`
+      const existingStyle = document.getElementById(styleId)
+      if (existingStyle) {
+        existingStyle.remove()
+      }
       
       const style = document.createElement('style')
       style.id = styleId
       style.textContent = `
+        ${theme === 'dark' ? `
+        .ql-toolbar {
+          background-color: #27272a !important;
+          border-color: #3f3f46 !important;
+        }
+        .ql-toolbar .ql-stroke {
+          stroke: #e4e4e7 !important;
+        }
+        .ql-toolbar .ql-fill {
+          fill: #e4e4e7 !important;
+        }
+        .ql-toolbar button:hover,
+        .ql-toolbar button:focus,
+        .ql-toolbar button.ql-active {
+          background-color: #3f3f46 !important;
+        }
+        .ql-toolbar .ql-picker-label {
+          color: #e4e4e7 !important;
+        }
+        .ql-toolbar .ql-picker-options {
+          background-color: #27272a !important;
+          border-color: #3f3f46 !important;
+        }
+        .ql-toolbar .ql-picker-item {
+          color: #e4e4e7 !important;
+        }
+        .ql-toolbar .ql-picker-item:hover {
+          background-color: #3f3f46 !important;
+        }
+        .ql-container {
+          background-color: #18181b !important;
+          color: #e4e4e7 !important;
+        }
+        .ql-editor {
+          background-color: #18181b !important;
+          color: #e4e4e7 !important;
+        }
+        .ql-editor.ql-blank::before {
+          color: #71717a !important;
+        }
+        .ql-snow .ql-stroke {
+          stroke: #e4e4e7 !important;
+        }
+        .ql-snow .ql-fill {
+          fill: #e4e4e7 !important;
+        }
+        .ql-snow .ql-picker {
+          color: #e4e4e7 !important;
+        }
+        ` : ''}
         .ql-toolbar .ql-math::before {
           content: "f(x)";
           font-weight: bold;
@@ -1056,7 +1110,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           document.head.removeChild(existingStyle)
         }
       }
-    }, [])
+    }, [theme])
 
     // Wrapper para onChange que restaura fórmulas antes de guardar
     const handleChange = (html: string) => {

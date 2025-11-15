@@ -3133,15 +3133,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 placeholder="Buscar preguntas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className={cn("pl-10", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
               />
             </div>
 
             <Select value={filterSubject} onValueChange={setFilterSubject}>
-              <SelectTrigger>
+              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                 <SelectValue placeholder="Todas las materias" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <SelectItem value="all">Todas las materias</SelectItem>
                 {SUBJECTS_CONFIG.map(subject => (
                   <SelectItem key={subject.code} value={subject.code}>
@@ -3152,10 +3152,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             </Select>
 
             <Select value={filterTopic} onValueChange={setFilterTopic} disabled={filterSubject === 'all'}>
-              <SelectTrigger>
+              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                 <SelectValue placeholder="Todos los temas" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <SelectItem value="all">Todos los temas</SelectItem>
                 {filterAvailableTopics.map(topic => (
                   <SelectItem key={topic.code} value={topic.code}>
@@ -3166,10 +3166,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             </Select>
 
             <Select value={filterGrade} onValueChange={setFilterGrade}>
-              <SelectTrigger>
+              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                 <SelectValue placeholder="Todos los grados" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <SelectItem value="all">Todos los grados</SelectItem>
                 {Object.entries(GRADE_CODE_TO_NAME).map(([code, name]) => (
                   <SelectItem key={code} value={code}>
@@ -3180,10 +3180,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             </Select>
 
             <Select value={filterLevel} onValueChange={setFilterLevel}>
-              <SelectTrigger>
+              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                 <SelectValue placeholder="Todos los niveles" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <SelectItem value="all">Todos los niveles</SelectItem>
                 {DIFFICULTY_LEVELS.map(level => (
                   <SelectItem key={level.code} value={level.code}>
@@ -3532,10 +3532,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
       {/* Dialog para crear pregunta - continuará en la siguiente parte... */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className={cn("max-w-4xl max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>Crear Nueva Pregunta</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nueva Pregunta</DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Complete todos los campos para crear una nueva pregunta en el banco
             </DialogDescription>
           </DialogHeader>
@@ -3544,7 +3544,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Información básica */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="subject" className={fieldErrors['subject'] ? 'text-red-600' : ''}>
+                <Label htmlFor="subject" className={cn(fieldErrors['subject'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['subject'] ? 'text-gray-300' : '')}>
                   Materia *
                   {fieldErrors['subject'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
                 </Label>
@@ -3561,10 +3561,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     }
                   }}
                 >
-                  <SelectTrigger className={fieldErrors['subject'] ? 'border-red-500 border-2' : ''}>
+                  <SelectTrigger className={cn(fieldErrors['subject'] ? 'border-red-500 border-2' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar materia" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {SUBJECTS_CONFIG.map(subject => (
                       <SelectItem key={subject.code} value={subject.code}>
                         {subject.icon} {subject.name}
@@ -3575,7 +3575,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="topic" className={fieldErrors['topic'] ? 'text-red-600' : ''}>
+                <Label htmlFor="topic" className={cn(fieldErrors['topic'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['topic'] ? 'text-gray-300' : '')}>
                   Tema *
                   {fieldErrors['topic'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
                 </Label>
@@ -3593,10 +3593,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   }}
                   disabled={!formData.subjectCode}
                 >
-                  <SelectTrigger className={fieldErrors['topic'] ? 'border-red-500 border-2' : ''}>
+                  <SelectTrigger className={cn(fieldErrors['topic'] ? 'border-red-500 border-2' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar tema" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {availableTopics.map(topic => (
                       <SelectItem key={topic.code} value={topic.code}>
                         {topic.name}
@@ -3607,12 +3607,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="grade">Grado *</Label>
+                <Label htmlFor="grade" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Grado *</Label>
                 <Select value={formData.grade} onValueChange={(value: any) => setFormData({...formData, grade: value})}>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar grado" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {Object.entries(GRADE_CODE_TO_NAME).map(([code, name]) => (
                       <SelectItem key={code} value={code}>
                         {name}
@@ -3623,12 +3623,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="level">Nivel de Dificultad *</Label>
+                <Label htmlFor="level" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nivel de Dificultad *</Label>
                 <Select value={formData.level} onValueChange={(value: any) => handleLevelChange(value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar nivel" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {DIFFICULTY_LEVELS.map(level => (
                       <SelectItem key={level.code} value={level.name}>
                         {level.name}
@@ -3642,12 +3642,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Campo de Modalidad de Inglés - Solo visible cuando materia es Inglés */}
             {formData.subjectCode === 'IN' && (
               <div className="space-y-2">
-                <Label htmlFor="modalidad_ingles">Modalidad de Pregunta Específica *</Label>
+                <Label htmlFor="modalidad_ingles" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Modalidad de Pregunta Específica *</Label>
                 <Select value={inglesModality} onValueChange={(value: any) => setInglesModality(value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar modalidad" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     <SelectItem value="standard_mc">Opción Múltiple Estándar</SelectItem>
                     <SelectItem value="matching_columns">Matching / Columnas</SelectItem>
                     <SelectItem value="cloze_test">Cloze Test / Rellenar Huecos</SelectItem>
@@ -3660,12 +3660,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Texto informativo (opcional) - Oculto para Inglés modalidad Comprensión de Lectura */}
             {!(formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') && (
               <div className="space-y-2">
-                <Label htmlFor="informativeText">Texto Informativo (opcional)</Label>
+                <Label htmlFor="informativeText" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Texto Informativo (opcional)</Label>
                 <RichTextEditor
                   ref={informativeTextEditorRef}
                   value={formData.informativeText}
                   onChange={(html) => setFormData({ ...formData, informativeText: html })}
                   placeholder="Información adicional o contexto para la pregunta..."
+                  theme={theme}
                 />
               </div>
             )}
@@ -3673,7 +3674,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Imágenes informativas - Oculto para Inglés modalidad Comprensión de Lectura */}
             {!(formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') && (
               <div className="space-y-2">
-                <Label>Imágenes Informativas (opcional, máx. 5)</Label>
+                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imágenes Informativas (opcional, máx. 5)</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="file"
@@ -3688,6 +3689,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     variant="outline"
                     onClick={() => document.getElementById('informative-images')?.click()}
                     disabled={informativeImages.length >= 5}
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     Subir Imágenes
@@ -3719,7 +3721,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               /* Modalidad: Matching / Columnas (nueva estructura por bloques) */
               <>
                   <div className="space-y-2">
-                  <Label className={fieldErrors['matchingQuestions'] ? 'text-red-600' : ''}>
+                  <Label className={cn(fieldErrors['matchingQuestions'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['matchingQuestions'] ? 'text-gray-300' : '')}>
                     Preguntas de Matching / Columnas *
                     {fieldErrors['matchingQuestions'] && <span className="ml-2 text-red-600">⚠️ Debe agregar al menos una pregunta</span>}
                     </Label>
@@ -3730,9 +3732,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     const hasAnyError = hasTextError || hasOptionsError || hasAnswerError
                     
                     return (
-                      <div key={mq.id} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                      <div key={mq.id} className={cn(`border-2 rounded-lg p-4 space-y-3`, hasAnyError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-200')}>
                         <div className="flex items-center justify-between">
-                          <Label className={hasAnyError ? 'text-red-600' : ''}>
+                          <Label className={cn(hasAnyError ? 'text-red-600' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
                             Pregunta {mqIndex + 1}
                             {hasAnyError && <span className="ml-2 text-red-600 text-xs">⚠️ Campos incompletos</span>}
                           </Label>
@@ -3763,10 +3765,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         }
                       }}
                             placeholder="Escribe la pregunta aquí..."
+                            theme={theme}
                     />
                   </div>
                   <div className="space-y-2">
-                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                          <Label className={cn(hasOptionsError || hasAnswerError ? 'text-red-600' : '', theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-gray-300' : '')}>
                             Opciones de Respuesta (A-H, máximo 6 opciones) *
                             {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
                     </Label>
@@ -3794,7 +3797,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 }}
                                 className="w-4 h-4"
                               />
-                              <Label className="font-medium w-6">{opt.id}:</Label>
+                              <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{opt.id}:</Label>
                               <Input
                                 value={opt.text || ''}
                       onChange={(e) => {
@@ -3813,7 +3816,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         }
                       }}
                                 placeholder={`Opción ${opt.id}`}
-                                className={`flex-1 ${hasOptionsError && !opt.text?.trim() ? 'border-red-500' : ''}`}
+                                className={cn(`flex-1`, hasOptionsError && !opt.text?.trim() ? 'border-red-500' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                     />
                   </div>
                           ))}
@@ -3872,11 +3875,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               /* Modalidad: Cloze Test - Mejorada para texto largo y 3 opciones por hueco */
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="clozeText" className={fieldErrors['clozeText'] ? 'text-red-600' : ''}>
+                  <Label htmlFor="clozeText" className={cn(fieldErrors['clozeText'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['clozeText'] ? 'text-gray-300' : '')}>
                     Texto a Completar (Usar [#] para el hueco) *
                     {fieldErrors['clozeText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
                   </Label>
-                  <div className={fieldErrors['clozeText'] ? 'border-2 border-red-500 rounded-md p-2' : ''}>
+                  <div className={cn(fieldErrors['clozeText'] ? 'border-2 border-red-500 rounded-md p-2' : '', theme === 'dark' && !fieldErrors['clozeText'] ? 'border-zinc-600' : '')}>
                     <RichTextEditor
                       value={clozeText}
                       onChange={(html) => {
@@ -3935,10 +3938,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           })
                         }
                       }}
-                      placeholder="Escribe un texto largo. Usa [1], [2], [3], etc. para marcar los huecos donde irán las palabras a completar."
+                      placeholder="Escribe el texto con [#] para marcar los huecos..."
+                      theme={theme}
                     />
                   </div>
-                  <p className="text-xs text-gray-500">Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
+                  <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
                   {Object.keys(clozeGaps).length > 0 && (
                     <p className="text-xs text-green-600 font-medium mt-1">
                       ✓ Se detectaron {Object.keys(clozeGaps).length} hueco(s). Abajo podrás agregar las opciones de respuesta.
@@ -3949,7 +3953,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 {Object.keys(clozeGaps).length > 0 ? (
                   <div id="cloze-options-section" className="space-y-4 mt-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base font-semibold">Opciones por Hueco * (3 opciones por hueco)</Label>
+                      <Label className={cn("text-base font-semibold", theme === 'dark' ? 'text-gray-300' : '')}>Opciones por Hueco * (3 opciones por hueco)</Label>
                       <Badge variant="outline" className="text-xs">
                         {Object.keys(clozeGaps).length} hueco(s) detectado(s)
                       </Badge>
@@ -3960,8 +3964,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       const hasAnswerError = fieldErrors[`clozeGapAnswer_${gapNum}`]
                       const hasAnyError = hasGapError || hasOptionsError || hasAnswerError
                       return (
-                      <div key={gapNum} className={`border rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'bg-gray-50'}`}>
-                        <Label className={`font-semibold text-lg ${hasAnyError ? 'text-red-600' : ''}`}>
+                      <div key={gapNum} className={cn(`border rounded-lg p-4 space-y-3`, hasAnyError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-gray-50')}>
+                        <Label className={cn(`font-semibold text-lg`, hasAnyError ? 'text-red-600' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
                           Pregunta {gapNum} *
                           {hasOptionsError && <span className="ml-2 text-red-600 text-sm">⚠️ Complete las 3 opciones</span>}
                           {hasAnswerError && <span className="ml-2 text-red-600 text-sm">⚠️ Seleccione la respuesta correcta</span>}
@@ -3991,7 +3995,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 }}
                                 className="w-4 h-4"
                               />
-                              <Label className="font-medium w-6">{letter}:</Label>
+                              <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{letter}:</Label>
                               <Input
                                 value={gapData.options[optIndex] || ''}
                                 onChange={(e) => {
@@ -4011,7 +4015,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   }
                                 }}
                                 placeholder={`Opción ${letter}`}
-                                className={`flex-1 ${hasOptionError ? 'border-red-500 border-2' : ''}`}
+                                className={cn(`flex-1`, hasOptionError ? 'border-red-500 border-2' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                               />
                             </div>
                             )
@@ -4022,9 +4026,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     })}
                   </div>
                 ) : (
-                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
-                    <p className="text-sm text-gray-500">
-                      No se detectaron huecos aún. Escribe el texto y usa marcadores como <code className="bg-white px-1 py-0.5 rounded text-xs">[1]</code>, <code className="bg-white px-1 py-0.5 rounded text-xs">[2]</code>, etc. para marcar los huecos.
+                  <div className={cn("p-4 border-2 border-dashed rounded-lg text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-300 bg-gray-50')}>
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      No se detectaron huecos aún. Escribe el texto y usa marcadores como <code className={cn("px-1 py-0.5 rounded text-xs", theme === 'dark' ? 'bg-zinc-600 text-gray-300' : 'bg-white')}>[1]</code>, <code className={cn("px-1 py-0.5 rounded text-xs", theme === 'dark' ? 'bg-zinc-600 text-gray-300' : 'bg-white')}>[2]</code>, etc. para marcar los huecos.
                     </p>
                   </div>
                 )}
@@ -4033,11 +4037,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               /* Modalidad: Comprensión de Lectura */
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="readingText" className={fieldErrors['readingText'] ? 'text-red-600' : ''}>
+                  <Label htmlFor="readingText" className={cn(fieldErrors['readingText'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['readingText'] ? 'text-gray-300' : '')}>
                     Texto de Lectura / Aviso / Cartel *
                     {fieldErrors['readingText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
                   </Label>
-                  <div className={fieldErrors['readingText'] ? 'border-2 border-red-500 rounded-md' : ''}>
+                  <div className={cn(fieldErrors['readingText'] ? 'border-2 border-red-500 rounded-md' : '', theme === 'dark' && !fieldErrors['readingText'] ? 'border-zinc-600' : '')}>
                     <RichTextEditor
                       value={readingText}
                       onChange={(html) => {
@@ -4052,11 +4056,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         }
                       }}
                       placeholder="Ingresa el texto base para la comprensión de lectura..."
+                      theme={theme}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Imagen Informativa (opcional)</Label>
+                  <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imagen Informativa (opcional)</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="file"
@@ -4077,6 +4082,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       type="button"
                       variant="outline"
                       onClick={() => document.getElementById('reading-image')?.click()}
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                     >
                       <Upload className="h-4 w-4 mr-2" />
                       Subir Imagen
@@ -4101,7 +4107,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className={fieldErrors['readingQuestions'] ? 'text-red-600' : ''}>
+                  <Label className={cn(fieldErrors['readingQuestions'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['readingQuestions'] ? 'text-gray-300' : '')}>
                     Preguntas Vinculadas *
                     {fieldErrors['readingQuestions'] && <span className="ml-2 text-red-600">⚠️ Debe agregar al menos una pregunta</span>}
                   </Label>
@@ -4111,9 +4117,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     const hasAnyError = hasOptionsError || hasAnswerError
                     
                     return (
-                      <div key={rq.id} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                      <div key={rq.id} className={cn(`border-2 rounded-lg p-4 space-y-3`, hasAnyError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-200')}>
                         <div className="flex items-center justify-between">
-                          <Label className={hasAnyError ? 'text-red-600' : ''}>
+                          <Label className={cn(hasAnyError ? 'text-red-600' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
                             Pregunta {rqIndex + 1}
                             {hasAnyError && <span className="ml-2 text-red-600 text-xs">⚠️ Campos incompletos</span>}
                           </Label>
@@ -4135,11 +4141,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               setReadingQuestions(updated)
                             }}
                             placeholder="Texto de la pregunta (opcional)..."
+                            theme={theme}
                           />
                         </div>
                         {/* Imagen por pregunta (opcional) */}
                         <div className="space-y-2">
-                          <Label>Imagen por Pregunta (opcional)</Label>
+                          <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imagen por Pregunta (opcional)</Label>
                           <div className="flex items-center gap-2">
                             <Input
                               type="file"
@@ -4166,6 +4173,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               type="button"
                               variant="outline"
                               onClick={() => document.getElementById(`reading-question-image-${rq.id}`)?.click()}
+                              className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                             >
                               <Upload className="h-4 w-4 mr-2" />
                               Subir Imagen
@@ -4192,7 +4200,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           )}
                         </div>
                         <div className="space-y-2">
-                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                          <Label className={cn(hasOptionsError || hasAnswerError ? 'text-red-600' : '', theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-gray-300' : '')}>
                             Opciones *
                             {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
                           </Label>
@@ -4220,7 +4228,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 }}
                                 className="w-4 h-4"
                               />
-                              <Label className="font-medium w-6">{opt.id}:</Label>
+                              <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{opt.id}:</Label>
                               <Input
                                 value={opt.text || ''}
                                 onChange={(e) => {
@@ -4239,7 +4247,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   }
                                 }}
                                 placeholder={`Opción ${opt.id}`}
-                                className={`flex-1 ${hasOptionsError && !opt.text?.trim() ? 'border-red-500' : ''}`}
+                                className={cn(`flex-1`, hasOptionsError && !opt.text?.trim() ? 'border-red-500' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                               />
                             </div>
                           ))}
@@ -4298,11 +4306,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               /* Modalidad: Opción Múltiple Estándar (o materia no es Inglés) */
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="questionText" className={fieldErrors['questionText'] ? 'text-red-600' : ''}>
+                  <Label htmlFor="questionText" className={cn(fieldErrors['questionText'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['questionText'] ? 'text-gray-300' : '')}>
                     Texto de la Pregunta *
                     {fieldErrors['questionText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
                   </Label>
-                  <div className={fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : ''}>
+                  <div className={cn(fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : '', theme === 'dark' && !fieldErrors['questionText'] ? 'border-zinc-600' : '')}>
                     <RichTextEditor
                       ref={questionTextEditorRef}
                       value={formData.questionText}
@@ -4317,13 +4325,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         }
                       }}
                       placeholder="Escribe la pregunta aquí..."
+                      theme={theme}
                     />
                   </div>
                 </div>
 
                 {/* Imágenes de la pregunta */}
                 <div className="space-y-2">
-                  <Label>Imágenes de la Pregunta (opcional, máx. 3)</Label>
+                  <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imágenes de la Pregunta (opcional, máx. 3)</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="file"
@@ -4338,6 +4347,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       variant="outline"
                       onClick={() => document.getElementById('question-images')?.click()}
                       disabled={questionImages.length >= 3}
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                     >
                       <Upload className="h-4 w-4 mr-2" />
                       Subir Imágenes
@@ -4365,19 +4375,19 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
                 {/* Opciones de respuesta */}
                 <div className="space-y-2">
-                  <Label className={fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : ''}>
+                  <Label className={cn(fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['options'] && !fieldErrors['correctAnswer'] ? 'text-gray-300' : '')}>
                     Opciones de Respuesta *
                     {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
                     {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
                   </Label>
-                  <p className="text-sm text-gray-500">
+                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                     Cada opción debe tener texto o imagen. Marque la opción correcta.
                   </p>
-                  <div className={`space-y-3 ${fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : ''}`}>
+                  <div className={cn(`space-y-3`, fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : '')}>
                     {options.map((option) => {
                       const hasError = fieldErrors['options'] && (!option.text && !optionFiles[option.id] && !optionImagePreviews[option.id])
                       return (
-                      <div key={option.id} className={`border rounded-lg p-3 space-y-2 ${hasError ? 'border-red-500 bg-red-50' : ''}`}>
+                      <div key={option.id} className={cn(`border rounded-lg p-3 space-y-2`, hasError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : '')}>
                         <div className="flex items-start gap-2">
                           <input
                             type="radio"
@@ -4386,13 +4396,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             onChange={() => handleCorrectAnswerChange(option.id)}
                             className="w-4 h-4 mt-2"
                           />
-                          <span className="font-medium mt-2">{option.id})</span>
+                          <span className={cn("font-medium mt-2", theme === 'dark' ? 'text-gray-300' : '')}>{option.id})</span>
                           <div className="flex-1">
                             <RichTextEditor
                               value={option.text || ''}
                               onChange={(html) => handleOptionTextChange(option.id, html)}
                               placeholder={`Texto de la opción ${option.id}`}
                               className="min-h-[100px]"
+                              theme={theme}
                             />
                           </div>
                           <div className="flex flex-col gap-2">
@@ -4408,6 +4419,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               variant="outline"
                               size="sm"
                               onClick={() => document.getElementById(`option-${option.id}-image`)?.click()}
+                              className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                             >
                               <ImageIcon className="h-4 w-4" />
                             </Button>
@@ -4492,10 +4504,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
       {/* Dialog para editar pregunta */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className={cn("max-w-4xl max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle>Editar Pregunta {selectedQuestion?.code}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Pregunta {selectedQuestion?.code}</DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
               Modifica los campos necesarios y guarda los cambios
             </DialogDescription>
           </DialogHeader>
@@ -4504,7 +4516,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Información básica */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-subject" className={fieldErrors['subject'] ? 'text-red-600 font-semibold' : ''}>
+                <Label htmlFor="edit-subject" className={cn(fieldErrors['subject'] ? 'text-red-600 font-semibold' : '', theme === 'dark' && !fieldErrors['subject'] ? 'text-gray-300' : '')}>
                   Materia *
                   {fieldErrors['subject'] && <span className="ml-2 text-red-600 font-semibold">⚠️ Este campo es obligatorio</span>}
                 </Label>
@@ -4521,10 +4533,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     }
                   }}
                 >
-                  <SelectTrigger className={fieldErrors['subject'] ? 'border-red-500 border-2 bg-red-50' : ''}>
+                  <SelectTrigger className={cn(fieldErrors['subject'] ? 'border-red-500 border-2 bg-red-50' : '', theme === 'dark' && !fieldErrors['subject'] ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar materia" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {SUBJECTS_CONFIG.map(subject => (
                       <SelectItem key={subject.code} value={subject.code}>
                         {subject.icon} {subject.name}
@@ -4535,7 +4547,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-topic" className={fieldErrors['topic'] ? 'text-red-600 font-semibold' : ''}>
+                <Label htmlFor="edit-topic" className={cn(fieldErrors['topic'] ? 'text-red-600 font-semibold' : '', theme === 'dark' && !fieldErrors['topic'] ? 'text-gray-300' : '')}>
                   Tema *
                   {fieldErrors['topic'] && <span className="ml-2 text-red-600 font-semibold">⚠️ Este campo es obligatorio</span>}
                 </Label>
@@ -4553,10 +4565,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   }}
                   disabled={!formData.subjectCode}
                 >
-                  <SelectTrigger className={fieldErrors['topic'] ? 'border-red-500 border-2 bg-red-50' : ''}>
+                  <SelectTrigger className={cn(fieldErrors['topic'] ? 'border-red-500 border-2 bg-red-50' : '', theme === 'dark' && !fieldErrors['topic'] ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar tema" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {availableTopics.map(topic => (
                       <SelectItem key={topic.code} value={topic.code}>
                         {topic.name}
@@ -4567,12 +4579,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-grade">Grado *</Label>
+                <Label htmlFor="edit-grade" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Grado *</Label>
                 <Select value={formData.grade} onValueChange={(value: any) => setFormData({...formData, grade: value})}>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar grado" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {Object.entries(GRADE_CODE_TO_NAME).map(([code, name]) => (
                       <SelectItem key={code} value={code}>
                         {name}
@@ -4583,12 +4595,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-level">Nivel de Dificultad *</Label>
+                <Label htmlFor="edit-level" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nivel de Dificultad *</Label>
                 <Select value={formData.level} onValueChange={(value: any) => handleLevelChange(value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar nivel" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                     {DIFFICULTY_LEVELS.map(level => (
                       <SelectItem key={level.code} value={level.name}>
                         {level.name}
@@ -4603,13 +4615,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {isEditingClozeTest ? (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-clozeText" className={fieldErrors['clozeText'] ? 'text-red-600' : ''}>
+                  <Label htmlFor="edit-clozeText" className={cn(fieldErrors['clozeText'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['clozeText'] ? 'text-gray-300' : '')}>
                     Texto a Completar (Usar [#] para el hueco) *
                     {fieldErrors['clozeText'] && (
                       <span className="ml-2 text-red-600 font-semibold">⚠️ Este campo es obligatorio</span>
                     )}
                   </Label>
-                  <div className={fieldErrors['clozeText'] ? 'border-2 border-red-500 rounded-md p-2 bg-red-50 shadow-md' : ''}>
+                  <div className={cn(fieldErrors['clozeText'] ? 'border-2 border-red-500 rounded-md p-2 bg-red-50 shadow-md' : '', theme === 'dark' && !fieldErrors['clozeText'] ? 'border-zinc-600' : '')}>
                     <RichTextEditor
                       value={editClozeText}
                       onChange={(html) => {
@@ -4660,10 +4672,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           })
                         }
                       }}
-                      placeholder="Escribe un texto largo. Usa [1], [2], [3], etc. para marcar los huecos donde irán las palabras a completar."
+                      placeholder="Escribe el texto con [#] para marcar los huecos..."
+                      theme={theme}
                     />
                   </div>
-                  <p className="text-xs text-gray-500">Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
+                  <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
                   {Object.keys(editClozeGaps).length > 0 && (
                     <p className="text-xs text-green-600 font-medium mt-1">
                       ✓ Se detectaron {Object.keys(editClozeGaps).length} pregunta(s). Abajo podrás editar las opciones de respuesta.
@@ -4675,7 +4688,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 {Object.keys(editClozeGaps).length > 0 ? (
                   <div id="edit-cloze-options-section" className="space-y-4 mt-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base font-semibold">Opciones por Pregunta * (3 opciones por pregunta)</Label>
+                      <Label className={cn("text-base font-semibold", theme === 'dark' ? 'text-gray-300' : '')}>Opciones por Pregunta * (3 opciones por pregunta)</Label>
                       <Badge variant="outline" className="text-xs">
                         {Object.keys(editClozeGaps).length} pregunta(s) detectada(s)
                       </Badge>
@@ -4686,8 +4699,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       const hasAnswerError = fieldErrors[`clozeGapAnswer_${gapNum}`]
                       const hasAnyError = hasGapError || hasOptionsError || hasAnswerError
                       return (
-                      <div key={gapNum} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50 shadow-md' : 'bg-gray-50 border-gray-200'}`}>
-                        <Label className={`font-semibold text-lg ${hasAnyError ? 'text-red-700' : ''}`}>
+                      <div key={gapNum} className={cn(`border-2 rounded-lg p-4 space-y-3`, hasAnyError ? 'border-red-500 bg-red-50 shadow-md' : theme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-gray-50 border-gray-200')}>
+                        <Label className={cn(`font-semibold text-lg`, hasAnyError ? 'text-red-700' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
                           Pregunta {gapNum} *
                           {hasGapError && (
                             <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Esta pregunta requiere opciones</span>
@@ -4724,7 +4737,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 }}
                                 className="w-4 h-4"
                               />
-                              <Label className="font-medium w-6">{letter}:</Label>
+                              <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{letter}:</Label>
                               <Input
                                 value={gapData.options[optIndex] || ''}
                                 onChange={(e) => {
@@ -4744,7 +4757,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   }
                                 }}
                                 placeholder={`Opción ${letter}`}
-                                className={`flex-1 ${hasOptionError ? 'border-red-500 border-2 bg-red-50' : hasAnyError ? 'border-red-300' : ''}`}
+                                className={cn(`flex-1`, hasOptionError ? 'border-red-500 border-2 bg-red-50' : hasAnyError ? 'border-red-300' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                               />
                             </div>
                             )
@@ -4755,9 +4768,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     })}
                   </div>
                 ) : (
-                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
-                    <p className="text-sm text-gray-500">
-                      No se detectaron preguntas aún. Escribe el texto y usa marcadores como <code className="bg-white px-1 py-0.5 rounded text-xs">[1]</code>, <code className="bg-white px-1 py-0.5 rounded text-xs">[2]</code>, etc. para marcar los huecos.
+                  <div className={cn("p-4 border-2 border-dashed rounded-lg text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-300 bg-gray-50')}>
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      No se detectaron preguntas aún. Escribe el texto y usa marcadores como <code className={cn("px-1 py-0.5 rounded text-xs", theme === 'dark' ? 'bg-zinc-600 text-gray-300' : 'bg-white')}>[1]</code>, <code className={cn("px-1 py-0.5 rounded text-xs", theme === 'dark' ? 'bg-zinc-600 text-gray-300' : 'bg-white')}>[2]</code>, etc. para marcar los huecos.
                     </p>
                   </div>
                 )}
@@ -4766,22 +4779,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <>
                 {/* Texto informativo */}
                 <div className="space-y-2">
-                  <Label htmlFor="edit-informativeText">Texto Informativo (opcional)</Label>
+                  <Label htmlFor="edit-informativeText" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Texto Informativo (opcional)</Label>
                   <RichTextEditor
                     ref={editInformativeTextEditorRef}
                     value={formData.informativeText}
                     onChange={(html) => setFormData({ ...formData, informativeText: html })}
                     placeholder="Información adicional o contexto para la pregunta..."
+                    theme={theme}
                   />
                 </div>
 
                 {/* Pregunta */}
                 <div className="space-y-2">
-                  <Label htmlFor="edit-questionText" className={fieldErrors['questionText'] ? 'text-red-600' : ''}>
+                  <Label htmlFor="edit-questionText" className={cn(fieldErrors['questionText'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['questionText'] ? 'text-gray-300' : '')}>
                     Texto de la Pregunta *
                     {fieldErrors['questionText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
                   </Label>
-                  <div className={fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : ''}>
+                  <div className={cn(fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : '', theme === 'dark' && !fieldErrors['questionText'] ? 'border-zinc-600' : '')}>
                     <RichTextEditor
                       ref={editQuestionTextEditorRef}
                       value={formData.questionText}
@@ -4796,6 +4810,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         }
                       }}
                       placeholder="Escribe la pregunta aquí..."
+                      theme={theme}
                     />
                   </div>
                 </div>
@@ -4805,15 +4820,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Imágenes informativas - Edición - Solo para cloze test - Solo mostrar si hay imágenes existentes o nuevas */}
             {isEditingClozeTest && (informativeImagePreviews.length > 0 || editInformativeImages.length > 0) && (
               <div className="space-y-2">
-                <Label>Imágenes Informativas (opcional)</Label>
-                <p className="text-sm text-gray-500">
+                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imágenes Informativas (opcional)</Label>
+                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                   Agregar nuevas imágenes informativas. Máximo 5 imágenes.
                 </p>
                 
                 {/* Mostrar imágenes existentes */}
                 {informativeImagePreviews.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                    <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Imágenes existentes:</p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {informativeImagePreviews.map((preview, index) => (
                         <div key={index} className="relative w-full h-32">
@@ -4843,6 +4858,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     variant="outline"
                     onClick={() => document.getElementById('edit-informative-images')?.click()}
                     disabled={editInformativeImages.length >= 5}
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                   >
                     <ImageIcon className="h-4 w-4 mr-2" />
                     Agregar Imágenes ({editInformativeImages.length}/5)
@@ -4852,7 +4868,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 {/* Mostrar nuevas imágenes seleccionadas */}
                 {editInformativeImages.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                    <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Nuevas imágenes:</p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {editInformativeImages.map((file, index) => (
                         <div key={index} className="relative w-full h-32">
@@ -4883,15 +4899,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <>
                 {/* Imágenes informativas - Edición */}
                 <div className="space-y-2">
-                  <Label>Imágenes Informativas (opcional)</Label>
-                  <p className="text-sm text-gray-500">
+                  <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imágenes Informativas (opcional)</Label>
+                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                     Agregar nuevas imágenes informativas. Máximo 5 imágenes.
                   </p>
                   
                   {/* Mostrar imágenes existentes */}
                   {informativeImagePreviews.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                      <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Imágenes existentes:</p>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         {informativeImagePreviews.map((preview, index) => (
                           <div key={index} className="relative w-full h-32">
@@ -4921,6 +4937,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       variant="outline"
                       onClick={() => document.getElementById('edit-informative-images')?.click()}
                       disabled={editInformativeImages.length >= 5}
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                     >
                       <ImageIcon className="h-4 w-4 mr-2" />
                       Agregar Imágenes ({editInformativeImages.length}/5)
@@ -4930,7 +4947,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   {/* Mostrar nuevas imágenes seleccionadas */}
                   {editInformativeImages.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                      <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Nuevas imágenes:</p>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         {editInformativeImages.map((file, index) => (
                           <div key={index} className="relative w-full h-32">
@@ -4957,7 +4974,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
                 {/* Pregunta */}
                 <div className="space-y-2">
-                  <Label htmlFor="edit-questionText" className={fieldErrors['questionText'] ? 'text-red-600' : ''}>
+                  <Label htmlFor="edit-questionText" className={cn(fieldErrors['questionText'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['questionText'] ? 'text-gray-300' : '')}>
                     Texto de la Pregunta *
                     {fieldErrors['questionText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
                   </Label>
@@ -4976,21 +4993,22 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         }
                       }}
                       placeholder="Escribe la pregunta aquí..."
+                      theme={theme}
                     />
                   </div>
                 </div>
 
                 {/* Imágenes de pregunta - Edición */}
                 <div className="space-y-2">
-                  <Label>Imágenes de Pregunta (opcional)</Label>
-                  <p className="text-sm text-gray-500">
+                  <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imágenes de Pregunta (opcional)</Label>
+                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                     Agregar nuevas imágenes para la pregunta. Máximo 3 imágenes.
                   </p>
                   
                   {/* Mostrar imágenes existentes */}
                   {questionImagePreviews.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700">Imágenes existentes:</p>
+                      <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Imágenes existentes:</p>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         {questionImagePreviews.map((preview, index) => (
                           <div key={index} className="relative w-full h-32">
@@ -5020,6 +5038,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       variant="outline"
                       onClick={() => document.getElementById('edit-question-images')?.click()}
                       disabled={editQuestionImages.length >= 3}
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                     >
                       <ImageIcon className="h-4 w-4 mr-2" />
                       Agregar Imágenes ({editQuestionImages.length}/3)
@@ -5029,7 +5048,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   {/* Mostrar nuevas imágenes seleccionadas */}
                   {editQuestionImages.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700">Nuevas imágenes:</p>
+                      <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Nuevas imágenes:</p>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         {editQuestionImages.map((file, index) => (
                           <div key={index} className="relative w-full h-32">
@@ -5059,19 +5078,19 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Opciones de respuesta - Solo mostrar si NO es cloze test */}
             {!isEditingClozeTest && (
               <div className="space-y-2">
-                <Label className={fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : ''}>
+                <Label className={cn(fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['options'] && !fieldErrors['correctAnswer'] ? 'text-gray-300' : '')}>
                   Opciones de Respuesta *
                   {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
                   {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
                 </Label>
-                <p className="text-sm text-gray-500">
+                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                   Cada opción debe tener texto o imagen. Marque la opción correcta.
                 </p>
-                <div className={`space-y-3 ${fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : ''}`}>
+                <div className={cn(`space-y-3`, fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : '')}>
                   {options.map((option) => {
                     const hasError = fieldErrors['options'] && (!option.text && !optionFiles[option.id] && !optionImagePreviews[option.id] && !option.imageUrl)
                     return (
-                    <div key={option.id} className={`border rounded-lg p-3 space-y-2 ${hasError ? 'border-red-500 bg-red-50' : ''}`}>
+                    <div key={option.id} className={cn(`border rounded-lg p-3 space-y-2`, hasError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : '')}>
                       <div className="flex items-start gap-2">
                         <input
                           type="radio"
@@ -5080,13 +5099,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           onChange={() => handleCorrectAnswerChange(option.id)}
                           className="w-4 h-4 mt-2"
                         />
-                        <span className="font-medium mt-2">{option.id})</span>
+                        <span className={cn("font-medium mt-2", theme === 'dark' ? 'text-gray-300' : '')}>{option.id})</span>
                         <div className="flex-1">
                           <RichTextEditor
                             value={option.text || ''}
                             onChange={(html) => handleOptionTextChange(option.id, html)}
                             placeholder={`Texto de la opción ${option.id}`}
                             className="min-h-[100px]"
+                            theme={theme}
                           />
                         </div>
                         <div className="flex flex-col gap-2">
@@ -5102,6 +5122,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => document.getElementById(`edit-option-${option.id}-image`)?.click()}
+                            className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                           >
                             <ImageIcon className="h-4 w-4" />
                           </Button>
@@ -5145,6 +5166,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 setEditClozeGaps({})
                 setEditClozeRelatedQuestions([])
               }}
+              className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
             >
               Cancelar
             </Button>
@@ -5171,15 +5193,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
              {/* Dialog para ver pregunta - VISTA COMPLETA del examen como estudiante */}
                <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden p-0 bg-gray-50">
+          <DialogContent className={cn("max-w-[95vw] max-h-[95vh] overflow-hidden p-0", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-50')}>
             {selectedQuestion && relatedQuestions.length > 0 && (
-              <div className="flex flex-col h-full bg-gray-50">
+              <div className={cn("flex flex-col h-full", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
                 {/* Botón de cerrar fijo */}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setIsViewDialogOpen(false)}
-                  className="absolute top-2 right-2 z-50 bg-white shadow-lg hover:bg-gray-100"
+                  className={cn("absolute top-2 right-2 z-50 shadow-lg", theme === 'dark' ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white hover:bg-gray-100')}
                 >
                   <X className="h-5 w-5" />
                 </Button>
@@ -5190,29 +5212,29 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     {/* Contenido principal del examen - EXACTO al examen */}
                     <div className="flex-1">
                       {/* Header "Estás realizando" */}
-                      <div className="bg-white border rounded-lg p-4 mb-6 shadow-sm">
+                      <div className={cn("border rounded-lg p-4 mb-6 shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
                         <div className="flex items-center gap-4">
                           <div className="relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
                             <BookOpen className="w-10 h-10 text-white" />
                           </div>
                           <div>
-                            <h3 className="text-sm text-gray-500 font-medium">Vista Previa - Estás realizando:</h3>
-                            <h2 className="text-lg font-bold">
+                            <h3 className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Vista Previa - Estás realizando:</h3>
+                            <h2 className={cn("text-lg font-bold", theme === 'dark' ? 'text-white' : '')}>
                               {relatedQuestions.length > 1 
                                 ? (relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
                                     ? `Cloze Test / Rellenar Huecos (${relatedQuestions.length} preguntas agrupadas)`
                                     : `Comprensión de Lectura (${relatedQuestions.length} preguntas)`)
                                 : 'Pregunta del Banco de Datos'}
                             </h2>
-                            <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                              <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
+                            <div className="flex items-center gap-2 text-sm mt-1">
+                              <span className={cn("px-2 py-1 rounded-full text-xs font-medium", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
                                 {selectedQuestion.subject}
                               </span>
-                              <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
+                              <span className={cn("px-2 py-1 rounded-full text-xs font-medium", theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>
                                 {GRADE_CODE_TO_NAME[selectedQuestion.grade]}
                               </span>
                               {relatedQuestions.length > 1 && (
-                                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs font-medium">
+                                <span className={cn("px-2 py-1 rounded-full text-xs font-medium", theme === 'dark' ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700')}>
                                   {relatedQuestions.length} preguntas agrupadas
                                 </span>
                               )}
@@ -5223,10 +5245,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
                       {/* Texto base e imágenes compartidas - Manejo especial para Cloze Test */}
                       {relatedQuestions.length > 1 && selectedQuestion.informativeText && (
-                        <Card className="mb-6 border-2 border-purple-200 bg-purple-50/30">
+                        <Card className={cn("mb-6 border-2", theme === 'dark' ? 'border-purple-700 bg-purple-900/30' : 'border-purple-200 bg-purple-50/30')}>
                           <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <BookOpen className="h-5 w-5 text-purple-600" />
+                            <CardTitle className={cn("text-lg flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
+                              <BookOpen className={cn("h-5 w-5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
                               {/* Detectar si es Cloze Test basándose en el patrón del questionText */}
                               {relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco')) 
                                 ? 'Texto de Cloze Test (Rellenar Huecos)' 
@@ -5280,8 +5302,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   }
                                   
                                   return (
-                                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                      <p className="text-gray-700 leading-relaxed prose max-w-none whitespace-pre-wrap">
+                                    <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                                      <p className={cn("leading-relaxed prose max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                                         {parts.map((part, idx) => {
                                           if (part.type === 'text') {
                                             // Renderizar texto manteniendo el flujo inline
@@ -5312,14 +5334,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                                     })
                                                   }}
                                                 >
-                                                  <SelectTrigger className="h-8 px-3 text-xs font-semibold bg-white hover:bg-gray-100 border-2 border-blue-400 text-blue-700 min-w-[100px] max-w-[250px] inline-flex">
+                                                  <SelectTrigger className={cn("h-8 px-3 text-xs font-semibold border-2 min-w-[100px] max-w-[250px] inline-flex", theme === 'dark' ? 'bg-zinc-700 hover:bg-zinc-600 border-blue-500 text-blue-300' : 'bg-white hover:bg-gray-100 border-blue-400 text-blue-700')}>
                                                     <SelectValue placeholder={`[${gapNum}]`}>
                                                       {selectedOption 
                                                         ? `${selectedOption.id}: ${selectedOption.text}` 
                                                         : `[${gapNum}]`}
                                                     </SelectValue>
                                                   </SelectTrigger>
-                                                  <SelectContent className="max-h-[200px]">
+                                                  <SelectContent className={cn("max-h-[200px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                                                     {options.length > 0 ? (
                                                       options.map((option) => (
                                                         <SelectItem 
@@ -5352,9 +5374,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 <>
                                   {/* Texto informativo compartido */}
                                   {selectedQuestion.informativeText && (
-                                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
                                       <div
-                                        className="text-gray-700 leading-relaxed prose max-w-none"
+                                        className={cn("leading-relaxed prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                                         dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(selectedQuestion.informativeText)) }}
                                       />
                                     </div>
@@ -5376,27 +5398,27 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       {/* Mostrar todas las preguntas relacionadas - Omitir si es Cloze Test */}
                       {!relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco')) && 
                         relatedQuestions.map((question, index) => (
-                        <Card key={question.id || question.code} className="mb-6">
+                        <Card key={question.id || question.code} className={cn("mb-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                           <CardHeader>
                             <div className="flex items-center justify-between">
-                              <CardTitle className="text-xl">
+                              <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : '')}>
                                 {relatedQuestions.length > 1 
                                   ? `Pregunta ${index + 1} de ${relatedQuestions.length}` 
                                   : 'Pregunta 1'}
                               </CardTitle>
-                              <div className="flex items-center gap-2 text-sm text-gray-500">
-                                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
                                   {question.topic}
                                 </span>
                                 <span className={cn(
                                   "px-2 py-1 rounded-full",
-                                  question.level === 'Fácil' ? 'bg-green-100 text-green-700' :
-                                  question.level === 'Medio' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-red-100 text-red-700'
+                                  question.level === 'Fácil' ? (theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700') :
+                                  question.level === 'Medio' ? (theme === 'dark' ? 'bg-yellow-900/50 text-yellow-300' : 'bg-yellow-100 text-yellow-700') :
+                                  (theme === 'dark' ? 'bg-red-900/50 text-red-300' : 'bg-red-100 text-red-700')
                                 )}>
                                   {question.level}
                                 </span>
-                                <Badge variant="outline" className="font-mono text-xs">
+                                <Badge variant="outline" className={cn("font-mono text-xs", theme === 'dark' ? 'border-zinc-600 text-gray-300' : '')}>
                                   {question.code}
                                 </Badge>
                               </div>
@@ -5406,9 +5428,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             <div className="prose prose-lg max-w-none">
                               {/* Texto informativo (solo si es pregunta individual, no agrupada) */}
                               {relatedQuestions.length === 1 && question.informativeText && (
-                                <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
                                   <div
-                                    className="text-gray-700 leading-relaxed prose max-w-none"
+                                    className={cn("leading-relaxed prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(question.informativeText)) }}
                                   />
                                 </div>
@@ -5431,7 +5453,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               {/* Texto de la pregunta */}
                               {question.questionText && (
                                 <div
-                                  className="text-gray-900 leading-relaxed text-lg font-medium prose max-w-none"
+                                  className={cn("leading-relaxed text-lg font-medium prose max-w-none", theme === 'dark' ? 'text-white' : 'text-gray-900')}
                                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(question.questionText)) }}
                                 />
                               )}
@@ -5441,11 +5463,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             {question.subjectCode === 'IN' && question.options && question.options.length > 0 ? (
                               /* Formato Matching: Pregunta y Respuesta al frente con botón expandible superpuesto */
                               <div className="mt-4">
-                                <div className="border rounded-lg overflow-visible relative">
+                                <div className={cn("border rounded-lg overflow-visible relative", theme === 'dark' ? 'border-zinc-700' : '')}>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                                     {/* Columna de Pregunta */}
-                                    <div className="bg-gray-50 p-3 border-r border-gray-200">
-                                      <div className="text-gray-900 leading-relaxed text-sm">
+                                    <div className={cn("p-3 border-r", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                                      <div className={cn("leading-relaxed text-sm", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                                         {question.questionText && (
                                           <div
                                             className="prose prose-sm max-w-none"
@@ -5456,7 +5478,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     </div>
                                     {/* Columna de Respuestas con botón expandible */}
                                     <div 
-                                      className="bg-white p-3 relative"
+                                      className={cn("p-3 relative", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
                                       ref={(el) => {
                                         const questionKey = question.id || question.code
                                         if (el) {
@@ -5484,34 +5506,35 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            className="w-full justify-between p-2 h-auto hover:bg-gray-50 rounded-full z-10 relative"
+                                            className={cn("w-full justify-between p-2 h-auto rounded-full z-10 relative", theme === 'dark' ? 'hover:bg-zinc-700 text-white' : 'hover:bg-gray-50')}
                                           >
                                             <div className="flex items-center gap-2 flex-wrap">
-                                              <span className="text-xs font-medium text-gray-700">Ver Opciones de Respuesta</span>
+                                              <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Ver Opciones de Respuesta</span>
                                               {selectedMatchingAnswers[question.id || question.code] && (() => {
                                                 const selectedOptionId = selectedMatchingAnswers[question.id || question.code]
                                                 const selectedOption = question.options.find(opt => opt.id === selectedOptionId)
                                                 const selectedText = selectedOption?.text ? stripHtmlTags(selectedOption.text) : ''
                                                 return selectedText ? (
-                                                  <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded max-w-[300px] truncate" title={selectedText}>
+                                                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded max-w-[300px] truncate", theme === 'dark' ? 'text-purple-300 bg-purple-900/50' : 'text-purple-600 bg-purple-100')} title={selectedText}>
                                                     {selectedOptionId}: {selectedText}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
+                                                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded", theme === 'dark' ? 'text-purple-300 bg-purple-900/50' : 'text-purple-600 bg-purple-100')}>
                                                     Seleccionada: {selectedOptionId}
                                                   </span>
                                                 )
                                               })()}
                                             </div>
-                                            <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                            <div className={cn("h-6 w-6 rounded-full flex items-center justify-center", theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-200')}>
                                               <ChevronDown className={cn(
-                                                "h-3 w-3 text-gray-600 transition-transform duration-200",
+                                                "h-3 w-3 transition-transform duration-200",
+                                                theme === 'dark' ? 'text-gray-300' : 'text-gray-600',
                                                 expandedViewOptions.has(question.id || question.code) ? "transform rotate-180" : ""
                                               )} />
                                             </div>
                                           </Button>
                                         </CollapsibleTrigger>
-                                        <CollapsibleContent className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3 max-h-[400px] overflow-y-auto">
+                                        <CollapsibleContent className={cn("absolute top-full left-0 right-0 mt-1 z-20 border rounded-lg shadow-lg p-3 max-h-[400px] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200')}>
                                           <RadioGroup 
                                             className="space-y-1.5" 
                                             value={selectedMatchingAnswers[question.id || question.code] || ''}
@@ -5527,8 +5550,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                               <div
                                                 key={option.id}
                                                 className={cn(
-                                                  "flex items-start space-x-2 border rounded p-2 hover:bg-gray-50 transition-colors",
-                                                  selectedMatchingAnswers[question.id || question.code] === option.id && "bg-purple-50 border-purple-300"
+                                                  "flex items-start space-x-2 border rounded p-2 transition-colors",
+                                                  theme === 'dark' 
+                                                    ? (selectedMatchingAnswers[question.id || question.code] === option.id ? "bg-purple-900/50 border-purple-600 hover:bg-purple-900/70" : "border-zinc-700 hover:bg-zinc-700")
+                                                    : (selectedMatchingAnswers[question.id || question.code] === option.id ? "bg-purple-50 border-purple-300 hover:bg-gray-50" : "hover:bg-gray-50")
                                                 )}
                                               >
                                                 <RadioGroupItem
@@ -5541,11 +5566,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                                   className="flex-1 cursor-pointer"
                                                 >
                                                   <div className="flex items-start gap-2">
-                                                    <span className="font-semibold text-purple-600 text-xs flex-shrink-0">{option.id}.</span>
+                                                    <span className={cn("font-semibold text-xs flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
                                                     <div className="flex-1 min-w-0">
                                                       {option.text && (
                                                         <div
-                                                          className="text-gray-900 prose prose-sm max-w-none text-xs break-words"
+                                                          className={cn("prose prose-sm max-w-none text-xs break-words", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
                                                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
                                                         />
                                                       )}
@@ -5580,7 +5605,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               {question.options.map((option) => (
                                 <div
                                   key={option.id}
-                                  className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                                  className={cn("flex items-start space-x-3 border rounded-lg p-3 transition-colors", theme === 'dark' ? 'border-zinc-700 hover:bg-zinc-700' : 'hover:bg-gray-50')}
                                 >
                                   <RadioGroupItem
                                     value={option.id}
@@ -5592,11 +5617,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     className="flex-1 cursor-pointer"
                                   >
                                     <div className="flex items-start gap-3">
-                                      <span className="font-semibold text-purple-600 mr-2">{option.id}.</span>
+                                      <span className={cn("font-semibold mr-2", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
                                       <div className="flex-1">
                                         {option.text && (
                                           <div
-                                            className="text-gray-900 prose max-w-none"
+                                            className={cn("prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
                                             dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
                                           />
                                         )}
@@ -5622,12 +5647,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             )}
                           </CardContent>
                           <CardFooter className="flex justify-between items-center">
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <div className={cn("flex items-center gap-2 text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                               <CheckCircle2 className="h-4 w-4 text-green-500" />
                               <span>Puedes seleccionar una respuesta</span>
                             </div>
                             {relatedQuestions.length > 1 && (
-                              <div className="text-xs text-gray-400">
+                              <div className={cn("text-xs", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
                                 Pregunta {index + 1}/{relatedQuestions.length}
                               </div>
                             )}
@@ -5638,9 +5663,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
                     {/* Panel lateral derecho con navegación - IGUAL AL EXAMEN */}
                     <div className="w-full lg:w-64 flex-shrink-0">
-                      <div className="bg-white border rounded-lg p-4 sticky top-4 flex flex-col">
-                        <h3 className="font-medium mb-3 flex items-center gap-2">
-                          <BarChart3 className="h-4 w-4 text-purple-600" />
+                      <div className={cn("border rounded-lg p-4 sticky top-4 flex flex-col", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
+                        <h3 className={cn("font-medium mb-3 flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
+                          <BarChart3 className={cn("h-4 w-4", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
                           {relatedQuestions.length > 1 ? 'Preguntas Agrupadas' : 'Navegación'}
                         </h3>
                         <div className="space-y-3 max-h-[500px] overflow-y-auto">
@@ -5649,17 +5674,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             relatedQuestions.map((q, index) => (
                               <div
                                 key={q.id || q.code}
-                                className="w-full text-left p-3 rounded-lg flex items-center gap-2 bg-purple-50 border-purple-200 border"
+                                className={cn("w-full text-left p-3 rounded-lg flex items-center gap-2 border", theme === 'dark' ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200')}
                               >
                                 <div className="h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium bg-gradient-to-r from-purple-600 to-blue-500 text-white">
                                   {index + 1}
                                 </div>
                                 <div className="flex-1">
-                                  <div className="text-sm font-medium truncate">
+                                  <div className={cn("text-sm font-medium truncate", theme === 'dark' ? 'text-white' : '')}>
                                     Pregunta {index + 1}
                                   </div>
-                                  <div className="text-xs text-gray-500 flex items-center gap-1">
-                                    <Badge variant="outline" className="font-mono text-xs px-1 py-0">
+                                  <div className={cn("text-xs flex items-center gap-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                                    <Badge variant="outline" className={cn("font-mono text-xs px-1 py-0", theme === 'dark' ? 'border-zinc-600 text-gray-300' : '')}>
                                       {q.code}
                                     </Badge>
                                   </div>
@@ -5671,24 +5696,26 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             Array.from({ length: 10 }, (_, index) => (
                               <button
                                 key={index}
-                                className={`w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors ${
+                                className={cn(
+                                  "w-full text-left p-3 rounded-lg flex items-center gap-2 transition-colors",
                                   index === 0
-                                    ? "bg-purple-50 border-purple-200 border"
-                                    : "border hover:bg-gray-50"
-                                }`}
+                                    ? (theme === 'dark' ? "bg-purple-900/30 border-purple-700 border" : "bg-purple-50 border-purple-200 border")
+                                    : (theme === 'dark' ? "border-zinc-700 hover:bg-zinc-700 border" : "border hover:bg-gray-50")
+                                )}
                               >
                                 <div
-                                  className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                                  className={cn(
+                                    "h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium",
                                     index === 0
                                       ? "bg-gradient-to-r from-purple-600 to-blue-500 text-white"
-                                      : "bg-gray-100 text-gray-700 border"
-                                  }`}
+                                      : (theme === 'dark' ? "bg-zinc-700 text-gray-300 border-zinc-600 border" : "bg-gray-100 text-gray-700 border")
+                                  )}
                                 >
                                   {index + 1}
                                 </div>
                                 <div className="flex-1">
-                                  <div className="text-sm font-medium truncate">Pregunta {index + 1}</div>
-                                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                                  <div className={cn("text-sm font-medium truncate", theme === 'dark' ? 'text-white' : '')}>Pregunta {index + 1}</div>
+                                  <div className={cn("text-xs flex items-center gap-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                                     {index === 0 ? (
                                       <>
                                         <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -5707,20 +5734,20 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           )}
                         </div>
 
-                        <div className="mt-4 pt-4 border-t">
-                          <div className="text-sm text-gray-500 mb-2">Información</div>
+                        <div className={cn("mt-4 pt-4 border-t", theme === 'dark' ? 'border-zinc-700' : '')}>
+                          <div className={cn("text-sm mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Información</div>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium">
+                            <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : '')}>
                               {relatedQuestions.length > 1 
                                 ? `${relatedQuestions.length} preguntas agrupadas`
                                 : '1 pregunta'}
                             </span>
                           </div>
                           {relatedQuestions.length > 1 && (
-                            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                            <div className={cn("mt-4 p-3 border rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200')}>
                               <div className="flex items-start gap-2">
-                                <BookOpen className="h-4 w-4 text-purple-600 mt-0.5" />
-                                <div className="text-xs text-purple-700">
+                                <BookOpen className={cn("h-4 w-4 mt-0.5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
+                                <div className={cn("text-xs", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
                                   Estas preguntas comparten el mismo texto de lectura e imágenes.
                                 </div>
                               </div>

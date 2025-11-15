@@ -83,35 +83,35 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
             Panel de control del sistema educativo
           </p>
         </div>
-        <Badge variant="secondary" className="text-sm">
+        <Badge variant="secondary" className={cn("text-sm", theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600' : '')}>
           Rol: Administrador
         </Badge>
       </div>
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview" className="flex items-center space-x-2">
+        <TabsList className={cn("grid w-full grid-cols-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <TabsTrigger value="overview" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <Home className="h-4 w-4" />
             <span>Resumen</span>
           </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center space-x-2">
+          <TabsTrigger value="users" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <Users className="h-4 w-4" />
             <span>Usuarios</span>
           </TabsTrigger>
-          <TabsTrigger value="institutions" className="flex items-center space-x-2">
+          <TabsTrigger value="institutions" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <Building className="h-4 w-4" />
             <span>Instituciones</span>
           </TabsTrigger>
-          <TabsTrigger value="questions" className="flex items-center space-x-2">
+          <TabsTrigger value="questions" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <BookOpen className="h-4 w-4" />
             <span>Preguntas</span>
           </TabsTrigger>
-          <TabsTrigger value="forms" className="flex items-center space-x-2">
+          <TabsTrigger value="forms" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <FileText className="h-4 w-4" />
             <span>Formularios</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center space-x-2">
+          <TabsTrigger value="analytics" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <BarChart3 className="h-4 w-4" />
             <span>Analíticas</span>
           </TabsTrigger>
@@ -272,7 +272,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
         <CardContent>
           <div className="space-y-3">
             {dashboardData.systemAlerts.map((alert) => (
-              <div key={alert.id} className="flex items-center justify-between p-3 rounded-lg border">
+              <div key={alert.id} className={cn("flex items-center justify-between p-3 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
                 <div className="flex items-center space-x-3">
                   <div className={`w-2 h-2 rounded-full ${
                     alert.priority === 'high' ? 'bg-red-500' : 
@@ -282,7 +282,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
                     {alert.message}
                   </p>
                 </div>
-                <Badge variant={alert.priority === 'high' ? 'destructive' : 'secondary'}>
+                <Badge variant={alert.priority === 'high' ? 'destructive' : 'secondary'} className={cn(theme === 'dark' && alert.priority !== 'high' ? 'bg-zinc-700 text-white border-zinc-600' : '')}>
                   {alert.priority === 'high' ? 'Crítico' : alert.priority === 'medium' ? 'Medio' : 'Bajo'}
                 </Badge>
               </div>
@@ -337,7 +337,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboardData.userActivity.map((institution, index) => (
-              <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
+              <div key={index} className={cn("flex items-center justify-between p-3 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
                 <div>
                   <p className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                     {institution.institution}
@@ -347,7 +347,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
                   </p>
                 </div>
                 <div className="text-right">
-                  <Badge variant={institution.status === 'active' ? 'default' : 'secondary'}>
+                  <Badge variant={institution.status === 'active' ? 'default' : 'secondary'} className={cn(theme === 'dark' && institution.status === 'active' ? 'bg-blue-600 text-white' : theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600' : '')}>
                     {institution.status === 'active' ? 'Activo' : 'Inactivo'}
                   </Badge>
                   <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
@@ -372,32 +372,32 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-red-600">
+            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
                 {dashboardData.securityMetrics.blockedAttempts}
               </div>
               <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 Intentos Bloqueados
               </p>
             </div>
-            <div className="text-center p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-green-600">
+            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
                 {dashboardData.securityMetrics.successfulLogins.toLocaleString()}
               </div>
               <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 Accesos Exitosos
               </p>
             </div>
-            <div className="text-center p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-amber-600">
+            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')}>
                 {dashboardData.securityMetrics.failedLogins}
               </div>
               <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 Accesos Fallidos
               </p>
             </div>
-            <div className="text-center p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-blue-600">
+            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
                 {dashboardData.securityMetrics.securityScore}%
               </div>
               <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
@@ -437,7 +437,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="text-center py-8">
-                <BarChart3 className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <BarChart3 className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
                 <h3 className={cn('text-lg font-medium mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                   Analíticas Avanzadas
                 </h3>

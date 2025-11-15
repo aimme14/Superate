@@ -4,6 +4,8 @@ import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, Book
 import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
 import { useRole } from "@/hooks/core/useRole"
+import { useThemeContext } from "@/context/ThemeContext"
+import { cn } from "@/lib/utils"
 
 // Componente de tarjeta giratoria
 function FlipCard({
@@ -16,6 +18,7 @@ function FlipCard({
   isFlipped,
   onFlip,
   isAI = false,
+  theme = 'light',
 }: {
   title: string
   link: string
@@ -26,6 +29,7 @@ function FlipCard({
   isFlipped: boolean
   onFlip: () => void
   isAI?: boolean
+  theme?: 'light' | 'dark'
 }) {
   const colorClasses: { [key: string]: string } = {
     orange: "from-orange-500 to-red-500 bg-orange-500",
@@ -45,7 +49,10 @@ function FlipCard({
       >
         {/* Frente de la tarjeta */}
         <div
-          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-white/50 shadow-lg p-6 flex flex-col items-center justify-center text-center`}
+          className={cn(
+            "absolute inset-0 w-full h-full backface-hidden rounded-2xl border shadow-lg p-6 flex flex-col items-center justify-center text-center",
+            theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-cyan-50 border-white/50'
+          )}
         >
           {isAI && (
             <motion.div
@@ -63,10 +70,10 @@ function FlipCard({
             {icon}
           </div>
 
-          <h3 className="text-xl font-bold text-gray-900 mb-1">{title}</h3>
-          <p className="text-sm text-gray-600 mb-4">{subtitle}</p>
+          <h3 className={cn("text-xl font-bold mb-1", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{title}</h3>
+          <p className={cn("text-sm mb-4", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{subtitle}</p>
 
-          <div className="text-xs text-gray-500 flex items-center">
+          <div className={cn("text-xs flex items-center", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
             <RotateCcw className="w-3 h-3 mr-1" />
             Clic para ver más
           </div>
@@ -74,13 +81,16 @@ function FlipCard({
 
         {/* Reverso de la tarjeta */}
         <div
-          className={`absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-gray-200 shadow-lg p-6 flex flex-col justify-between transform rotateY-180`}
+          className={cn(
+            "absolute inset-0 w-full h-full backface-hidden rounded-2xl border shadow-lg p-6 flex flex-col justify-between transform rotateY-180",
+            theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-cyan-50 border-gray-200'
+          )}
         >
           <div>
-            <h4 className="font-bold text-gray-900 mb-3">
+            <h4 className={cn("font-bold mb-3", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               {title} {subtitle}
             </h4>
-            <p className="text-sm text-gray-600 leading-relaxed mb-4">{description}</p>
+            <p className={cn("text-sm leading-relaxed mb-4", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{description}</p>
           </div>
           <Link to={link}>
             <Button
@@ -105,9 +115,11 @@ function FlipCard({
 function NaturalSciencesCard({
   isFlipped,
   onFlip,
+  theme = 'light',
 }: {
   isFlipped: boolean
   onFlip: () => void
+  theme?: 'light' | 'dark'
 }) {
   const subjects = [
     {
@@ -139,16 +151,19 @@ function NaturalSciencesCard({
       >
         {/* Frente de la tarjeta */}
         <div
-          className="absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-white/50 shadow-lg p-6 flex flex-col items-center justify-center text-center"
+          className={cn(
+            "absolute inset-0 w-full h-full backface-hidden rounded-2xl border shadow-lg p-6 flex flex-col items-center justify-center text-center",
+            theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-cyan-50 border-white/50'
+          )}
         >
           <div className="w-12 h-12 rounded-xl bg-pink-500 flex items-center justify-center text-white mb-4 shadow-lg">
             <Leaf className="w-6 h-6" />
           </div>
 
-          <h3 className="text-xl font-bold text-gray-900 mb-1">Ciencias Naturales</h3>
-          <p className="text-sm text-gray-600 mb-4">y ambientales</p>
+          <h3 className={cn("text-xl font-bold mb-1", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Ciencias Naturales</h3>
+          <p className={cn("text-sm mb-4", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>y ambientales</p>
 
-          <div className="text-xs text-gray-500 flex items-center">
+          <div className={cn("text-xs flex items-center", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
             <RotateCcw className="w-3 h-3 mr-1" />
             Clic para ver más
           </div>
@@ -156,10 +171,13 @@ function NaturalSciencesCard({
 
         {/* Reverso de la tarjeta */}
         <div
-          className="absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-cyan-50 border border-gray-200 shadow-lg p-4 flex flex-col transform rotateY-180"
+          className={cn(
+            "absolute inset-0 w-full h-full backface-hidden rounded-2xl border shadow-lg p-4 flex flex-col transform rotateY-180",
+            theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-cyan-50 border-gray-200'
+          )}
         >
           <div className="flex-1 flex flex-col">
-            <h4 className="font-bold text-gray-900 mb-3 text-center text-sm">
+            <h4 className={cn("font-bold mb-3 text-center text-sm", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               Ciencias Naturales y ambientales
             </h4>
             <div className="flex flex-col gap-3 flex-1 justify-center">
@@ -189,6 +207,7 @@ function NaturalSciencesCard({
 export default function InteractiveCards() {
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
   const { isStudent } = useRole()
+  const { theme } = useThemeContext()
 
   const toggleCard = (cardId: string) => {
     setFlippedCards((prev) => ({
@@ -215,6 +234,7 @@ export default function InteractiveCards() {
         isFlipped={flippedCards.reading}
         onFlip={() => toggleCard("reading")}
         link="/quiz?subject=Lenguaje&phase=first"
+        theme={theme}
       />
 
       {/* Matemáticas */}
@@ -227,6 +247,7 @@ export default function InteractiveCards() {
         isFlipped={flippedCards.math}
         onFlip={() => toggleCard("math")}
         link="/quiz/quiz"
+        theme={theme}
       />
 
       {/* Ciencias Sociales */}
@@ -239,12 +260,14 @@ export default function InteractiveCards() {
         isFlipped={flippedCards.social}
         onFlip={() => toggleCard("social")}
         link="/quiz?subject=Ciencias Sociales&phase=first"
+        theme={theme}
       />
 
       {/* Ciencias Naturales - Componente especial */}
       <NaturalSciencesCard
         isFlipped={flippedCards.natural}
         onFlip={() => toggleCard("natural")}
+        theme={theme}
       />
 
       {/* Inglés */}
@@ -257,6 +280,7 @@ export default function InteractiveCards() {
         isFlipped={flippedCards.english}
         onFlip={() => toggleCard("english")}
         link="/quiz?subject=Inglés&phase=first"
+        theme={theme}
       />
     </div>
   )

@@ -9,6 +9,8 @@ import { doc, getDoc, getFirestore } from "firebase/firestore"
 import { getAuth } from "firebase/auth"
 import { firebaseApp } from "@/services/firebase/db.service"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
+import { useThemeContext } from "@/context/ThemeContext"
+import { cn } from "@/lib/utils"
 import {
   Brain,
   Download,
@@ -129,11 +131,16 @@ interface NavItemProps {
   text: string;
 }
 
-function NavItem({ href, icon, text, active = false }: NavItemProps) {
+function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps & { theme?: 'light' | 'dark' }) {
   return (
     <Link
       to={href}
-      className={`flex items-center ${active ? "text-red-600 font-medium" : "text-gray-600 hover:text-gray-900"}`}
+      className={cn(
+        "flex items-center",
+        active 
+          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
+          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
+      )}
     >
       <span className="mr-2">{icon}</span>
       <span>{text}</span>
@@ -142,14 +149,14 @@ function NavItem({ href, icon, text, active = false }: NavItemProps) {
 }
 
 // Componente de gráfico de rendimiento
-function PerformanceChart({ data }: { data: SubjectAnalysis[] }) {
+function PerformanceChart({ data, theme = 'light' }: { data: SubjectAnalysis[], theme?: 'light' | 'dark' }) {
   return (
     <div className="space-y-4">
       {data.map((subject) => (
         <div key={subject.name} className="space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium">{subject.name}</span>
-            <span className="text-sm text-gray-500">{subject.percentage}%</span>
+            <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</span>
+            <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{subject.percentage}%</span>
           </div>
           <Progress value={subject.percentage} className="h-2" />
         </div>
@@ -159,15 +166,15 @@ function PerformanceChart({ data }: { data: SubjectAnalysis[] }) {
 }
 
 // Componente de análisis por materia
-function SubjectAnalysis({ subjects }: { subjects: SubjectAnalysis[] }) {
+function SubjectAnalysis({ subjects, theme = 'light' }: { subjects: SubjectAnalysis[], theme?: 'light' | 'dark' }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {subjects.map((subject) => (
-        <Card key={subject.name}>
+        <Card key={subject.name} className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className={cn("flex items-center justify-between", theme === 'dark' ? 'text-white' : '')}>
               <span>{subject.name}</span>
-              <Badge className={subject.percentage >= 70 ? "bg-green-100 text-green-800" : subject.percentage >= 50 ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}>
+              <Badge className={subject.percentage >= 70 ? (theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800") : subject.percentage >= 50 ? (theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800") : (theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800")}>
                 {subject.percentage}%
               </Badge>
             </CardTitle>
@@ -175,20 +182,20 @@ function SubjectAnalysis({ subjects }: { subjects: SubjectAnalysis[] }) {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-gray-500">Correctas:</span>
-                <span className="font-medium ml-2">{subject.correct}/{subject.total}</span>
+                <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Correctas:</span>
+                <span className={cn("font-medium ml-2", theme === 'dark' ? 'text-white' : '')}>{subject.correct}/{subject.total}</span>
               </div>
               <div>
-                <span className="text-gray-500">Tiempo:</span>
-                <span className="font-medium ml-2">{Math.floor(subject.timeSpent / 60)}m</span>
+                <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Tiempo:</span>
+                <span className={cn("font-medium ml-2", theme === 'dark' ? 'text-white' : '')}>{Math.floor(subject.timeSpent / 60)}m</span>
               </div>
             </div>
             <Progress value={subject.percentage} className="h-2" />
             
             <div className="space-y-3">
               <div>
-                <h4 className="text-sm font-medium text-green-600 mb-1">Fortalezas</h4>
-                <ul className="text-xs text-gray-600 space-y-1">
+                <h4 className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>Fortalezas</h4>
+                <ul className={cn("text-xs space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                   {subject.strengths.map((strength, index) => (
                     <li key={index} className="flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -199,8 +206,8 @@ function SubjectAnalysis({ subjects }: { subjects: SubjectAnalysis[] }) {
               </div>
               
               <div>
-                <h4 className="text-sm font-medium text-red-600 mb-1">Áreas de mejora</h4>
-                <ul className="text-xs text-gray-600 space-y-1">
+                <h4 className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Áreas de mejora</h4>
+                <ul className={cn("text-xs space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                   {subject.weaknesses.map((weakness, index) => (
                     <li key={index} className="flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3 text-red-500" />
@@ -218,22 +225,22 @@ function SubjectAnalysis({ subjects }: { subjects: SubjectAnalysis[] }) {
 }
 
 // Componente de plan de estudio
-function StudyPlan({ recommendations }: { recommendations: AnalysisData['recommendations'] }) {
+function StudyPlan({ recommendations, theme = 'light' }: { recommendations: AnalysisData['recommendations'], theme?: 'light' | 'dark' }) {
   return (
     <div className="space-y-4">
       {recommendations.map((rec, index) => (
-        <Card key={index}>
+        <Card key={index} className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <CardContent className="pt-6">
             <div className="flex items-start gap-4">
-              <Badge className={rec.priority === "Alta" ? "bg-red-100 text-red-800" : rec.priority === "Media" ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}>
+              <Badge className={rec.priority === "Alta" ? (theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800") : rec.priority === "Media" ? (theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800") : (theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800")}>
                 {rec.priority}
               </Badge>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg">{rec.subject} - {rec.topic}</h3>
-                <p className="text-sm text-gray-600 mt-1">Tiempo estimado: {rec.timeEstimate}</p>
+                <h3 className={cn("font-semibold text-lg", theme === 'dark' ? 'text-white' : '')}>{rec.subject} - {rec.topic}</h3>
+                <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Tiempo estimado: {rec.timeEstimate}</p>
                 <div className="mt-3">
-                  <h4 className="text-sm font-medium mb-2">Recursos recomendados:</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
+                  <h4 className={cn("text-sm font-medium mb-2", theme === 'dark' ? 'text-white' : '')}>Recursos recomendados:</h4>
+                  <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                     {rec.resources.map((resource, i) => (
                       <li key={i} className="flex items-center gap-2">
                         <BookOpen className="h-3 w-3" />
@@ -252,32 +259,32 @@ function StudyPlan({ recommendations }: { recommendations: AnalysisData['recomme
 }
 
 // Componente de comparación/progreso
-function ComparisonChart({ subjects }: { subjects: SubjectAnalysis[] }) {
+function ComparisonChart({ subjects, theme = 'light' }: { subjects: SubjectAnalysis[], theme?: 'light' | 'dark' }) {
   const averageScore = subjects.reduce((acc, subject) => acc + subject.percentage, 0) / subjects.length;
   
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
         <CardHeader>
-          <CardTitle>Progreso por Materia</CardTitle>
-          <CardDescription>Análisis comparativo de tu desempeño</CardDescription>
+          <CardTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Progreso por Materia</CardTitle>
+          <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Análisis comparativo de tu desempeño</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {subjects.map((subject) => (
-              <div key={subject.name} className="flex items-center justify-between p-4 border rounded-lg">
+              <div key={subject.name} className={cn("flex items-center justify-between p-4 border rounded-lg", theme === 'dark' ? 'border-zinc-700' : '')}>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{subject.name}</span>
-                    <span className="text-2xl font-bold">{subject.percentage}%</span>
+                    <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</span>
+                    <span className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>{subject.percentage}%</span>
                   </div>
                   <Progress value={subject.percentage} className="h-3" />
                 </div>
                 <div className="ml-4 text-center">
-                  <div className={`text-sm font-medium ${subject.percentage > averageScore ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className={cn("text-sm font-medium", subject.percentage > averageScore ? (theme === 'dark' ? 'text-green-400' : 'text-green-600') : (theme === 'dark' ? 'text-red-400' : 'text-red-600'))}>
                     {subject.percentage > averageScore ? '↑' : '↓'} {Math.abs(subject.percentage - averageScore).toFixed(1)}%
                   </div>
-                  <div className="text-xs text-gray-500">vs promedio</div>
+                  <div className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>vs promedio</div>
                 </div>
               </div>
             ))}
@@ -294,6 +301,7 @@ export default function ICFESAnalysisInterface() {
   const [loading, setLoading] = useState(true);
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
+  const { theme } = useThemeContext();
 
   useEffect(() => {
     const fetchDataAndAnalyze = async () => {
@@ -498,8 +506,8 @@ export default function ICFESAnalysisInterface() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm">
+      <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
+        <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
               <img 
@@ -512,22 +520,22 @@ export default function ICFESAnalysisInterface() {
                   e.currentTarget.src = '/assets/agustina.png'
                 }}
               />
-              <span className="text-red-600 font-bold text-2xl">
+              <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" active theme={theme} />
+              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-          <span className="ml-3 text-lg text-gray-600">Cargando análisis...</span>
+          <div className={cn("animate-spin rounded-full h-12 w-12 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
+          <span className={cn("ml-3 text-lg", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Cargando análisis...</span>
         </div>
       </div>
     );
@@ -535,8 +543,8 @@ export default function ICFESAnalysisInterface() {
 
   if (!analysisData || evaluations.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm">
+      <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
+        <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
               <img 
@@ -549,24 +557,24 @@ export default function ICFESAnalysisInterface() {
                   e.currentTarget.src = '/assets/agustina.png'
                 }}
               />
-              <span className="text-red-600 font-bold text-2xl">
+              <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" active theme={theme} />
+              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
         <div className="container mx-auto px-4 py-20">
           <div className="text-center">
-            <Brain className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Sin datos para analizar</h2>
-            <p className="text-gray-600 mb-6">Necesitas presentar al menos una evaluación para generar tu análisis inteligente.</p>
+            <Brain className={cn("h-16 w-16 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+            <h2 className={cn("text-2xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Sin datos para analizar</h2>
+            <p className={cn("mb-6", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Necesitas presentar al menos una evaluación para generar tu análisis inteligente.</p>
             <Link to="/dashboard#evaluacion">
               <Button className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600">
                 Presentar Primera Evaluación
@@ -579,9 +587,9 @@ export default function ICFESAnalysisInterface() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -594,16 +602,16 @@ export default function ICFESAnalysisInterface() {
                 e.currentTarget.src = '/assets/agustina.png'
               }}
             />
-            <span className="text-red-600 font-bold text-2xl">
+            <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-            <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" active />
-            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+            <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" theme={theme} />
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" active theme={theme} />
+            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>
       </header>
@@ -616,8 +624,8 @@ export default function ICFESAnalysisInterface() {
               <Brain className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Análisis Inteligente ICFES</h1>
-              <p className="text-gray-600">Reporte personalizado generado por IA</p>
+              <h1 className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>Análisis Inteligente ICFES</h1>
+              <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Reporte personalizado generado por IA</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -625,7 +633,7 @@ export default function ICFESAnalysisInterface() {
               <Download className="h-4 w-4" />
               Descargar PDF
             </Button>
-            <Button onClick={handleSendEmail} variant="outline" className="flex items-center gap-2 bg-transparent">
+            <Button onClick={handleSendEmail} variant="outline" className={cn("flex items-center gap-2", theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent')}>
               <Mail className="h-4 w-4" />
               Enviar por correo
             </Button>
@@ -633,24 +641,24 @@ export default function ICFESAnalysisInterface() {
         </div>
 
         {/* Student Info Card */}
-        <Card className="mb-6">
+        <Card className={cn("mb-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-gray-500">Estudiante</p>
-                <p className="font-semibold">{analysisData.student.name}</p>
+                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estudiante</p>
+                <p className={cn("font-semibold", theme === 'dark' ? 'text-white' : '')}>{analysisData.student.name}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">ID</p>
-                <p className="font-semibold">{analysisData.student.id}</p>
+                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>ID</p>
+                <p className={cn("font-semibold", theme === 'dark' ? 'text-white' : '')}>{analysisData.student.id}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Última evaluación</p>
-                <p className="font-semibold">{analysisData.student.testDate}</p>
+                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Última evaluación</p>
+                <p className={cn("font-semibold", theme === 'dark' ? 'text-white' : '')}>{analysisData.student.testDate}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Evaluaciones</p>
-                <p className="font-semibold">{analysisData.student.testType}</p>
+                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Evaluaciones</p>
+                <p className={cn("font-semibold", theme === 'dark' ? 'text-white' : '')}>{analysisData.student.testType}</p>
               </div>
             </div>
           </CardContent>
@@ -658,24 +666,24 @@ export default function ICFESAnalysisInterface() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+          <TabsList className={cn("grid w-full grid-cols-2 md:grid-cols-5", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+            <TabsTrigger value="overview" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Resumen</span>
             </TabsTrigger>
-            <TabsTrigger value="performance" className="flex items-center gap-2">
+            <TabsTrigger value="performance" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
               <TrendingUp className="h-4 w-4" />
               <span className="hidden sm:inline">Desempeño</span>
             </TabsTrigger>
-            <TabsTrigger value="diagnosis" className="flex items-center gap-2">
+            <TabsTrigger value="diagnosis" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">Diagnóstico</span>
             </TabsTrigger>
-            <TabsTrigger value="study-plan" className="flex items-center gap-2">
+            <TabsTrigger value="study-plan" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
               <BookOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Plan de Estudio</span>
             </TabsTrigger>
-            <TabsTrigger value="progress" className="flex items-center gap-2">
+            <TabsTrigger value="progress" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
               <Trophy className="h-4 w-4" />
               <span className="hidden sm:inline">Progreso</span>
             </TabsTrigger>
@@ -684,49 +692,49 @@ export default function ICFESAnalysisInterface() {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold">{analysisData.overall.score}</p>
-                      <p className="text-sm text-gray-500">Puntaje Global</p>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>{analysisData.overall.score}</p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Puntaje Global</p>
                     </div>
                     <Award className="h-8 w-8 text-yellow-500" />
                   </div>
                   <div className="mt-2">
-                    <Badge variant="secondary">Percentil {analysisData.overall.percentile}</Badge>
+                    <Badge variant="secondary" className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600' : '')}>Percentil {analysisData.overall.percentile}</Badge>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-green-600">{analysisData.overall.predictedScore}</p>
-                      <p className="text-sm text-gray-500">Predicción IA</p>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>{analysisData.overall.predictedScore}</p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Predicción IA</p>
                     </div>
                     <TrendingUp className="h-8 w-8 text-green-500" />
                   </div>
                   <div className="mt-2">
-                    <Badge variant="outline" className="text-green-600">
+                    <Badge variant="outline" className={cn("text-green-600", theme === 'dark' ? 'border-zinc-600' : '')}>
                       +{analysisData.overall.predictedScore - analysisData.overall.score} pts
                     </Badge>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold">{analysisData.overall.timeSpent}m</p>
-                      <p className="text-sm text-gray-500">Tiempo Total</p>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>{analysisData.overall.timeSpent}m</p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Tiempo Total</p>
                     </div>
                     <Clock className="h-8 w-8 text-blue-500" />
                   </div>
                   <div className="mt-2">
-                    <Badge variant="outline">
+                    <Badge variant="outline" className={cn(theme === 'dark' ? 'border-zinc-600' : '')}>
                       {analysisData.overall.totalQuestions > 0 ? 
                         `${Math.round(analysisData.overall.timeSpent / analysisData.overall.totalQuestions * 60)}s por pregunta` : 
                         'Sin datos'
@@ -736,14 +744,14 @@ export default function ICFESAnalysisInterface() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold">
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>
                         {analysisData.overall.questionsAnswered}/{analysisData.overall.totalQuestions}
                       </p>
-                      <p className="text-sm text-gray-500">Respondidas</p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Respondidas</p>
                     </div>
                     <CheckCircle2 className="h-8 w-8 text-purple-500" />
                   </div>
@@ -758,25 +766,25 @@ export default function ICFESAnalysisInterface() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                     <PieChart className="h-5 w-5" />
                     Distribución por Materias
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {analysisData.subjects.length > 0 ? (
-                    <PerformanceChart data={analysisData.subjects} />
+                    <PerformanceChart data={analysisData.subjects} theme={theme} />
                   ) : (
-                    <p className="text-gray-500 text-center py-4">Sin datos de materias disponibles</p>
+                    <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sin datos de materias disponibles</p>
                   )}
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                     <Zap className="h-5 w-5" />
                     Fortalezas y Debilidades
                   </CardTitle>
@@ -785,31 +793,31 @@ export default function ICFESAnalysisInterface() {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Star className="h-4 w-4 text-yellow-500" />
-                      <span className="font-medium">Área más fuerte</span>
+                      <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Área más fuerte</span>
                     </div>
-                    <Badge className="bg-green-100 text-green-800">{analysisData.patterns.strongestArea}</Badge>
+                    <Badge className={theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800"}>{analysisData.patterns.strongestArea}</Badge>
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle className="h-4 w-4 text-orange-500" />
-                      <span className="font-medium">Área a mejorar</span>
+                      <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Área a mejorar</span>
                     </div>
-                    <Badge className="bg-red-100 text-red-800">{analysisData.patterns.weakestArea}</Badge>
+                    <Badge className={theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800"}>{analysisData.patterns.weakestArea}</Badge>
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium">Gestión del tiempo</span>
+                      <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Gestión del tiempo</span>
                     </div>
-                    <p className="text-sm text-gray-600">{analysisData.patterns.timeManagement}</p>
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{analysisData.patterns.timeManagement}</p>
                   </div>
                   {analysisData.patterns.securityIssues > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <Shield className="h-4 w-4 text-red-500" />
-                        <span className="font-medium">Alertas de seguridad</span>
+                        <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Alertas de seguridad</span>
                       </div>
-                      <Badge className="bg-red-100 text-red-800">
+                      <Badge className={theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800"}>
                         {analysisData.patterns.securityIssues} evaluación{analysisData.patterns.securityIssues > 1 ? 'es' : ''} con incidentes
                       </Badge>
                     </div>
@@ -822,14 +830,14 @@ export default function ICFESAnalysisInterface() {
           {/* Performance Tab */}
           <TabsContent value="performance" className="space-y-6">
             {analysisData.subjects.length > 0 ? (
-              <SubjectAnalysis subjects={analysisData.subjects} />
+              <SubjectAnalysis subjects={analysisData.subjects} theme={theme} />
             ) : (
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardContent className="pt-6">
                   <div className="text-center py-8">
-                    <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">No hay datos de desempeño por materia disponibles</p>
-                    <p className="text-sm text-gray-400 mt-2">Presenta más evaluaciones para obtener un análisis detallado</p>
+                    <BarChart3 className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                    <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos de desempeño por materia disponibles</p>
+                    <p className={cn("text-sm mt-2", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta más evaluaciones para obtener un análisis detallado</p>
                   </div>
                 </CardContent>
               </Card>
@@ -838,34 +846,34 @@ export default function ICFESAnalysisInterface() {
 
           {/* Diagnosis Tab */}
           <TabsContent value="diagnosis" className="space-y-6">
-            <Card>
+            <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                   <Target className="h-5 w-5" />
                   Análisis de Patrones de Error
                 </CardTitle>
-                <CardDescription>Identificación de tipos de errores y sus causas principales</CardDescription>
+                <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Identificación de tipos de errores y sus causas principales</CardDescription>
               </CardHeader>
               <CardContent>
                 {analysisData.patterns.errorTypes.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {analysisData.patterns.errorTypes.map((error, index) => (
-                      <div key={index} className="p-4 border rounded-lg">
-                        <div className="text-lg font-semibold mb-2">{error}</div>
+                      <div key={index} className={cn("p-4 border rounded-lg", theme === 'dark' ? 'border-zinc-700 bg-zinc-900' : '')}>
+                        <div className={cn("text-lg font-semibold mb-2", theme === 'dark' ? 'text-white' : '')}>{error}</div>
                         <Progress value={parseInt(error.split(": ")[1])} className="h-2" />
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-4">Datos insuficientes para análisis de errores</p>
+                  <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Datos insuficientes para análisis de errores</p>
                 )}
               </CardContent>
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-green-600">
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
                     <CheckCircle2 className="h-5 w-5" />
                     Fortalezas Identificadas
                   </CardTitle>
@@ -874,8 +882,8 @@ export default function ICFESAnalysisInterface() {
                   {analysisData.subjects.length > 0 ? (
                     analysisData.subjects.map((subject) => (
                       <div key={subject.name} className="border-l-4 border-green-500 pl-4">
-                        <h4 className="font-medium">{subject.name}</h4>
-                        <ul className="text-sm text-gray-600 mt-1">
+                        <h4 className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</h4>
+                        <ul className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                           {subject.strengths.map((strength, index) => (
                             <li key={index} className="flex items-center gap-2">
                               <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -886,14 +894,14 @@ export default function ICFESAnalysisInterface() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-gray-500 text-center py-4">No hay datos de fortalezas disponibles</p>
+                    <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos de fortalezas disponibles</p>
                   )}
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-red-600">
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
                     <AlertTriangle className="h-5 w-5" />
                     Áreas de Mejora
                   </CardTitle>
@@ -902,8 +910,8 @@ export default function ICFESAnalysisInterface() {
                   {analysisData.subjects.length > 0 ? (
                     analysisData.subjects.map((subject) => (
                       <div key={subject.name} className="border-l-4 border-red-500 pl-4">
-                        <h4 className="font-medium">{subject.name}</h4>
-                        <ul className="text-sm text-gray-600 mt-1">
+                        <h4 className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</h4>
+                        <ul className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                           {subject.weaknesses.map((weakness, index) => (
                             <li key={index} className="flex items-center gap-2">
                               <AlertTriangle className="h-3 w-3 text-red-500" />
@@ -914,7 +922,7 @@ export default function ICFESAnalysisInterface() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-gray-500 text-center py-4">No hay datos de debilidades disponibles</p>
+                    <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos de debilidades disponibles</p>
                   )}
                 </CardContent>
               </Card>
@@ -924,21 +932,21 @@ export default function ICFESAnalysisInterface() {
           {/* Study Plan Tab */}
           <TabsContent value="study-plan" className="space-y-6">
             {analysisData.recommendations.length > 0 ? (
-              <StudyPlan recommendations={analysisData.recommendations} />
+              <StudyPlan recommendations={analysisData.recommendations} theme={theme} />
             ) : (
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                     <BookOpen className="h-5 w-5" />
                     Plan de Estudio Personalizado
                   </CardTitle>
-                  <CardDescription>Recomendaciones basadas en tu desempeño</CardDescription>
+                  <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Recomendaciones basadas en tu desempeño</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center py-8">
-                    <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 mb-2">No hay recomendaciones específicas disponibles</p>
-                    <p className="text-sm text-gray-400">Presenta más evaluaciones para generar un plan de estudio personalizado</p>
+                    <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                    <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay recomendaciones específicas disponibles</p>
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta más evaluaciones para generar un plan de estudio personalizado</p>
                   </div>
                 </CardContent>
               </Card>
@@ -948,21 +956,21 @@ export default function ICFESAnalysisInterface() {
           {/* Progress Tab */}
           <TabsContent value="progress" className="space-y-6">
             {analysisData.subjects.length > 0 ? (
-              <ComparisonChart subjects={analysisData.subjects} />
+              <ComparisonChart subjects={analysisData.subjects} theme={theme} />
             ) : (
-              <Card>
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                     <Trophy className="h-5 w-5" />
                     Seguimiento de Progreso
                   </CardTitle>
-                  <CardDescription>Análisis comparativo de tu evolución</CardDescription>
+                  <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Análisis comparativo de tu evolución</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center py-8">
-                    <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 mb-2">No hay suficientes datos para mostrar el progreso</p>
-                    <p className="text-sm text-gray-400">Presenta múltiples evaluaciones para ver tu evolución</p>
+                    <Trophy className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                    <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay suficientes datos para mostrar el progreso</p>
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta múltiples evaluaciones para ver tu evolución</p>
                   </div>
                 </CardContent>
               </Card>

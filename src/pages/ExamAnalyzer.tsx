@@ -9,6 +9,8 @@ import { getAuth } from "firebase/auth";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { CartesianGrid, Bar, ResponsiveContainer, XAxis, YAxis, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Tooltip } from "recharts";
 import { useUserInstitution } from "@/hooks/query/useUserInstitution";
+import { useThemeContext } from "@/context/ThemeContext";
+import { cn } from "@/lib/utils";
 
 const db = getFirestore(firebaseApp);
 
@@ -68,11 +70,16 @@ interface NavItemProps {
   text: string;
 }
 
-function NavItem({ href, icon, text, active = false }: NavItemProps) {
+function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps & { theme?: 'light' | 'dark' }) {
   return (
     <Link
       to={href}
-      className={`flex items-center ${active ? "text-red-600 font-medium" : "text-gray-600 hover:text-gray-900"}`}
+      className={cn(
+        "flex items-center",
+        active 
+          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
+          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
+      )}
     >
       <span className="mr-2">{icon}</span>
       <span>{text}</span>
@@ -85,6 +92,7 @@ const ExamAnalyzer = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
+  const { theme } = useThemeContext();
 
   useEffect(() => {
     const fetchEvaluations = async () => {
@@ -231,9 +239,9 @@ const ExamAnalyzer = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
         {/* Header igual al de EvaluationsTab */}
-        <header className="bg-white shadow-sm">
+        <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
               <img 
@@ -246,24 +254,24 @@ const ExamAnalyzer = () => {
                   e.currentTarget.src = '/assets/agustina.png'
                 }}
               />
-              <span className="text-red-600 font-bold text-2xl">
+              <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" theme={theme} />
+              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
 
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Cargando análisis de progreso...</p>
+            <Loader2 className={cn("h-8 w-8 animate-spin mx-auto mb-4", theme === 'dark' ? 'text-purple-400' : '')} />
+            <p className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Cargando análisis de progreso...</p>
           </div>
         </div>
       </div>
@@ -272,9 +280,9 @@ const ExamAnalyzer = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
         {/* Header */}
-        <header className="bg-white shadow-sm">
+        <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
               <img 
@@ -287,22 +295,22 @@ const ExamAnalyzer = () => {
                   e.currentTarget.src = '/assets/agustina.png'
                 }}
               />
-              <span className="text-red-600 font-bold text-2xl">
+              <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" theme={theme} />
+              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
 
         <div className="flex items-center justify-center py-20">
-          <div className="text-center text-red-600">
+          <div className={cn("text-center", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
             <AlertTriangle className="h-8 w-8 mx-auto mb-4" />
             <p>Error al cargar los datos: {error}</p>
           </div>
@@ -315,9 +323,9 @@ const ExamAnalyzer = () => {
 
   if (!analysisData || evaluations.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
         {/* Header */}
-        <header className="bg-white shadow-sm">
+        <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
               <img 
@@ -330,25 +338,25 @@ const ExamAnalyzer = () => {
                   e.currentTarget.src = '/assets/agustina.png'
                 }}
               />
-              <span className="text-red-600 font-bold text-2xl">
+              <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" theme={theme} />
+              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
 
         <div className="container mx-auto px-4 py-8">
           <div className="text-center py-20">
-            <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg mb-2">No hay datos suficientes para el análisis</p>
-            <p className="text-gray-400 mb-4">Necesitas presentar al menos una evaluación para ver tu progreso</p>
+            <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+            <p className={cn("text-lg mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos suficientes para el análisis</p>
+            <p className={cn("mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Necesitas presentar al menos una evaluación para ver tu progreso</p>
             <Link to="/dashboard#evaluacion">
               <button className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-6 py-2 rounded-lg">
                 Presentar Evaluación
@@ -361,9 +369,9 @@ const ExamAnalyzer = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
       {/* Header igual al de EvaluationsTab */}
-      <header className="bg-white shadow-sm">
+      <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -376,16 +384,16 @@ const ExamAnalyzer = () => {
                 e.currentTarget.src = '/assets/agustina.png'
               }}
             />
-            <span className="text-red-600 font-bold text-2xl">
+            <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" />
-            <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" />
-            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" />
+            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
+            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
+            <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Plan de estudio actual" theme={theme} />
+            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>
       </header>
@@ -394,39 +402,39 @@ const ExamAnalyzer = () => {
       <div className="container mx-auto px-4 py-8 space-y-6">
         {/* Título */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Mi Progreso Académico</h1>
-          <p className="text-gray-600">Análisis detallado de tu evolución y rendimiento</p>
+          <h1 className={cn("text-3xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Mi Progreso Académico</h1>
+          <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Análisis detallado de tu evolución y rendimiento</p>
         </div>
 
         {/* Resumen General */}
-        <Card className="shadow-lg border-l-4 border-l-green-500">
+        <Card className={cn("shadow-lg border-l-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-l-green-500' : 'border-l-green-500')}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
               <TrendingUp className="h-6 w-6 text-green-600" />
               Resumen de Progreso General
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-3xl font-bold text-green-600">
+              <div className={cn("text-center p-4 rounded-lg", theme === 'dark' ? 'bg-green-900/30 border border-green-800' : 'bg-green-50')}>
+                <div className={cn("text-3xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
                   {analysisData.totalImprovement > 0 ? '+' : ''}{analysisData.totalImprovement}
                 </div>
-                <div className="text-sm text-green-600">Puntos de mejora total</div>
+                <div className={cn("text-sm", theme === 'dark' ? 'text-green-300' : 'text-green-600')}>Puntos de mejora total</div>
               </div>
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-3xl font-bold text-blue-600">{analysisData.averageScore}</div>
-                <div className="text-sm text-blue-600">Puntaje promedio actual</div>
+              <div className={cn("text-center p-4 rounded-lg", theme === 'dark' ? 'bg-blue-900/30 border border-blue-800' : 'bg-blue-50')}>
+                <div className={cn("text-3xl font-bold", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>{analysisData.averageScore}</div>
+                <div className={cn("text-sm", theme === 'dark' ? 'text-blue-300' : 'text-blue-600')}>Puntaje promedio actual</div>
               </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-3xl font-bold text-purple-600">
+              <div className={cn("text-center p-4 rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border border-purple-800' : 'bg-purple-50')}>
+                <div className={cn("text-3xl font-bold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
                   {analysisData.subjectsImproved}/{analysisData.totalSubjects}
                 </div>
-                <div className="text-sm text-purple-600">Materias con mejora</div>
+                <div className={cn("text-sm", theme === 'dark' ? 'text-purple-300' : 'text-purple-600')}>Materias con mejora</div>
               </div>
-              <div className="text-center p-4 bg-orange-50 rounded-lg">
-                <div className="text-3xl font-bold text-orange-600">{analysisData.totalExams}</div>
-                <div className="text-sm text-orange-600">Evaluaciones presentadas</div>
+              <div className={cn("text-center p-4 rounded-lg", theme === 'dark' ? 'bg-orange-900/30 border border-orange-800' : 'bg-orange-50')}>
+                <div className={cn("text-3xl font-bold", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>{analysisData.totalExams}</div>
+                <div className={cn("text-sm", theme === 'dark' ? 'text-orange-300' : 'text-orange-600')}>Evaluaciones presentadas</div>
               </div>
             </div>
           </CardContent>
@@ -434,9 +442,9 @@ const ExamAnalyzer = () => {
 
         {/* Evolución Temporal */}
         {analysisData.evolutionData.length > 1 && (
-          <Card className="shadow-lg">
+          <Card className={cn("shadow-lg", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                 <Target className="h-5 w-5 text-blue-600" />
                 Evolución de Puntajes
               </CardTitle>
@@ -465,9 +473,9 @@ const ExamAnalyzer = () => {
 
         {/* Radar de Competencias */}
         {analysisData.competencyData.length > 0 && (
-          <Card className="shadow-lg">
+          <Card className={cn("shadow-lg", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                 <Award className="h-5 w-5 text-purple-600" />
                 Radar de Competencias por Materia
               </CardTitle>
@@ -516,10 +524,10 @@ const ExamAnalyzer = () => {
         {/* Progreso por Materia */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {analysisData.subjectStats.map((subject) => (
-            <Card key={subject.name} className="shadow-lg">
+            <Card key={subject.name} className={cn("shadow-lg", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{subject.name}</CardTitle>
+                  <CardTitle className={cn("text-lg", theme === 'dark' ? 'text-white' : '')}>{subject.name}</CardTitle>
                   <div className="flex items-center gap-2">
                     {getImprovementIcon(subject.improvement)}
                     <Badge className={subject.improvement > 0 ? "bg-green-100 text-green-700" : subject.improvement < 0 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}>
@@ -531,13 +539,13 @@ const ExamAnalyzer = () => {
               <CardContent className="space-y-4">
                 {/* Comparación de Puntajes */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600">{Math.round(subject.previousScore)}</div>
-                    <div className="text-sm text-red-600">Puntaje Inicial</div>
+                  <div className={cn("text-center p-3 rounded-lg", theme === 'dark' ? 'bg-red-900/30 border border-red-800' : 'bg-red-50')}>
+                    <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>{Math.round(subject.previousScore)}</div>
+                    <div className={cn("text-sm", theme === 'dark' ? 'text-red-300' : 'text-red-600')}>Puntaje Inicial</div>
                   </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{Math.round(subject.score)}</div>
-                    <div className="text-sm text-green-600">Puntaje Actual</div>
+                  <div className={cn("text-center p-3 rounded-lg", theme === 'dark' ? 'bg-green-900/30 border border-green-800' : 'bg-green-50')}>
+                    <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>{Math.round(subject.score)}</div>
+                    <div className={cn("text-sm", theme === 'dark' ? 'text-green-300' : 'text-green-600')}>Puntaje Actual</div>
                   </div>
                 </div>
 
@@ -552,13 +560,13 @@ const ExamAnalyzer = () => {
 
                 {/* Información adicional */}
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="text-center p-2 bg-blue-50 rounded">
-                    <div className="font-bold text-blue-600">{subject.examsCount}</div>
-                    <div className="text-blue-600">Evaluaciones</div>
+                  <div className={cn("text-center p-2 rounded", theme === 'dark' ? 'bg-blue-900/30 border border-blue-800' : 'bg-blue-50')}>
+                    <div className={cn("font-bold", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>{subject.examsCount}</div>
+                    <div className={cn(theme === 'dark' ? 'text-blue-300' : 'text-blue-600')}>Evaluaciones</div>
                   </div>
-                  <div className="text-center p-2 bg-purple-50 rounded">
-                    <div className="font-bold text-purple-600">{Math.floor(subject.averageTimeSpent / 60)}m</div>
-                    <div className="text-purple-600">Tiempo promedio</div>
+                  <div className={cn("text-center p-2 rounded", theme === 'dark' ? 'bg-purple-900/30 border border-purple-800' : 'bg-purple-50')}>
+                    <div className={cn("font-bold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{Math.floor(subject.averageTimeSpent / 60)}m</div>
+                    <div className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-600')}>Tiempo promedio</div>
                   </div>
                 </div>
 
@@ -607,9 +615,9 @@ const ExamAnalyzer = () => {
         </div>
 
         {/* Velocidad de Mejora */}
-        <Card className="shadow-lg">
+        <Card className={cn("shadow-lg", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
               <TrendingUp className="h-5 w-5 text-blue-600" />
               Velocidad de Mejora por Materia
             </CardTitle>
