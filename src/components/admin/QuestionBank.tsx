@@ -4591,15 +4591,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Visible para matching/columnas y otras modalidades */}
             {!(formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') && (
               <div className="space-y-2">
-<<<<<<< HEAD
-                <Label htmlFor="informativeText" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Texto Informativo (opcional)</Label>
-=======
-                <Label htmlFor="informativeText">
+                <Label 
+                  htmlFor="informativeText" 
+                  className={cn(theme === 'dark' ? 'text-gray-300' : '')}
+                >
                   {formData.subjectCode === 'IN' && inglesModality === 'matching_columns'
                     ? 'Texto Compartido (opcional)'
                     : 'Texto Informativo (opcional)'}
                 </Label>
->>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                 <RichTextEditor
                   ref={informativeTextEditorRef}
                   value={formData.informativeText}
@@ -5510,30 +5509,28 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       </Dialog>
 
       {/* Dialog para editar pregunta */}
-<<<<<<< HEAD
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open)
+          if (!open) {
+            // Limpiar estados de edición cuando se cierra el diálogo
+            setIsEditingClozeTest(false)
+            setIsEditingReadingComprehension(false)
+            setEditClozeText('')
+            setEditClozeGaps({})
+            setEditClozeRelatedQuestions([])
+            setEditReadingText('')
+            setEditReadingImage(null)
+            setEditReadingImagePreview(null)
+            setEditReadingExistingImageUrl(null)
+            setEditReadingQuestions([])
+            setEditReadingRelatedQuestions([])
+            setSelectedQuestion(null)
+          }
+        }}
+      >
         <DialogContent className={cn("max-w-4xl max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-=======
-      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
-        setIsEditDialogOpen(open)
-        if (!open) {
-          // Limpiar estados de edición cuando se cierra el diálogo
-          setIsEditingClozeTest(false)
-          setIsEditingReadingComprehension(false)
-          setEditClozeText('')
-          setEditClozeGaps({})
-          setEditClozeRelatedQuestions([])
-          setEditReadingText('')
-          setEditReadingImage(null)
-          setEditReadingImagePreview(null)
-          setEditReadingExistingImageUrl(null)
-          setEditReadingQuestions([])
-          setEditReadingRelatedQuestions([])
-          setSelectedQuestion(null)
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
->>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
           <DialogHeader>
             <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Pregunta {selectedQuestion?.code}</DialogTitle>
             <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
@@ -6328,16 +6325,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <>
                 {/* Texto informativo */}
                 <div className="space-y-2">
-<<<<<<< HEAD
-                  <Label htmlFor="edit-informativeText" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Texto Informativo (opcional)</Label>
-=======
-                  <Label htmlFor="edit-informativeText">
+                  <Label 
+                    htmlFor="edit-informativeText" 
+                    className={cn(theme === 'dark' ? 'text-gray-300' : '')}
+                  >
                     {(formData.subjectCode === 'IN' && (inglesModality === 'matching_columns' || 
                       (formData.informativeText && typeof formData.informativeText === 'string' && formData.informativeText.includes('MATCHING_COLUMNS_'))))
                       ? 'Texto Compartido (opcional)'
                       : 'Texto Informativo (opcional)'}
                   </Label>
->>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                   <RichTextEditor
                     ref={editInformativeTextEditorRef}
                     value={formData.informativeText}
@@ -6819,16 +6815,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       {relatedQuestions.length > 1 && selectedQuestion.informativeText && (
                         <Card className={cn("mb-6 border-2", theme === 'dark' ? 'border-purple-700 bg-purple-900/30' : 'border-purple-200 bg-purple-50/30')}>
                           <CardHeader>
-<<<<<<< HEAD
                             <CardTitle className={cn("text-lg flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                               <BookOpen className={cn("h-5 w-5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
-                              {/* Detectar si es Cloze Test basándose en el patrón del questionText */}
-                              {relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco')) 
-                                ? 'Texto de Cloze Test (Rellenar Huecos)' 
-                                : 'Texto de Lectura Compartido'}
-=======
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <BookOpen className="h-5 w-5 text-purple-600" />
                               {/* Detectar el tipo de modalidad para mostrar el título correcto */}
                               {(() => {
                                 const isClozeTest = relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
@@ -6847,7 +6835,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   return 'Texto de Lectura Compartido'
                                 }
                               })()}
->>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
@@ -6968,16 +6955,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 /* Visualización normal para comprensión de lectura o matching/columnas */
                                 <>
                                   {/* Texto informativo compartido */}
-<<<<<<< HEAD
-                                  {selectedQuestion.informativeText && (
-                                    <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
-                                      <div
-                                        className={cn("leading-relaxed prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
-                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(selectedQuestion.informativeText)) }}
-                                      />
-                                    </div>
-                                  )}
-=======
                                   {selectedQuestion.informativeText && (() => {
                                     // Extraer el texto real si es matching/columnas
                                     const isMatchingColumns = selectedQuestion.subjectCode === 'IN' && 
@@ -6992,15 +6969,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     if (!displayText || !displayText.trim()) return null
                                     
                                     return (
-                                      <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                      <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
                                         <div
-                                          className="text-gray-700 leading-relaxed prose max-w-none"
+                                          className={cn("leading-relaxed prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(displayText)) }}
                                         />
                                       </div>
                                     )
                                   })()}
->>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                                 </>
                               )}
 
@@ -7373,28 +7349,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           {relatedQuestions.length > 1 && (
                             <div className={cn("mt-4 p-3 border rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200')}>
                               <div className="flex items-start gap-2">
-<<<<<<< HEAD
                                 <BookOpen className={cn("h-4 w-4 mt-0.5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
                                 <div className={cn("text-xs", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
                                   Estas preguntas comparten el mismo texto de lectura e imágenes.
-=======
-                                <BookOpen className="h-4 w-4 text-purple-600 mt-0.5" />
-                                <div className="text-xs text-purple-700">
-                                  {(() => {
-                                    const isMatchingColumns = relatedQuestions.some(q => 
-                                      q.subjectCode === 'IN' && 
-                                      q.informativeText && 
-                                      typeof q.informativeText === 'string' &&
-                                      (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
-                                       q.informativeText.includes('MATCHING_COLUMNS_'))
-                                    )
-                                    if (isMatchingColumns) {
-                                      return 'Estas preguntas comparten el mismo texto compartido e imágenes.'
-                                    } else {
-                                      return 'Estas preguntas comparten el mismo texto de lectura e imágenes.'
-                                    }
-                                  })()}
->>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                                 </div>
                               </div>
                             </div>
