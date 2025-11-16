@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Checkbox } from '@/components/ui/checkbox'
 import { 
   Plus, 
   Search, 
@@ -208,6 +209,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   // Vista de organización
   const [viewMode, setViewMode] = useState<'list' | 'tree'>('list')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  
+  // Selección múltiple
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set())
 
   // Estado del formulario
   const [formData, setFormData] = useState({
@@ -363,6 +367,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
     }
   }, [expandedViewOptions])
+
+  // Limpiar selección cuando cambien los filtros
+  useEffect(() => {
+    setSelectedQuestionIds(new Set())
+  }, [filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
 
   const loadQuestions = async () => {
     setIsLoading(true)
@@ -2051,6 +2060,117 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     }
   }
 
+  // Funciones para selección múltiple
+  const toggleQuestionSelection = (questionId: string) => {
+    setSelectedQuestionIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(questionId)) {
+        newSet.delete(questionId)
+      } else {
+        newSet.add(questionId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllQuestions = () => {
+    const allIds = new Set(filteredQuestions.map(q => q.id).filter(Boolean) as string[])
+    setSelectedQuestionIds(allIds)
+  }
+
+  const deselectAllQuestions = () => {
+    setSelectedQuestionIds(new Set())
+  }
+
+  const handleDeleteSelectedQuestions = async () => {
+    if (selectedQuestionIds.size === 0) {
+      notifyError({
+        title: 'Error',
+        message: 'No hay preguntas seleccionadas para eliminar'
+      })
+      return
+    }
+
+    if (!confirm(`¿Estás seguro de que deseas eliminar ${selectedQuestionIds.size} pregunta(s)? Esta acción no se puede deshacer.`)) {
+      return
+    }
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      notifyError({
+        title: 'Error',
+        message: 'No tienes permisos para eliminar preguntas'
+      })
+      return
+    }
+
+    const idsToDelete = Array.from(selectedQuestionIds)
+    const originalQuestions = [...questions]
+    const originalFilteredQuestions = [...filteredQuestions]
+    
+    // Actualización optimista: eliminar del estado local inmediatamente
+    const updatedQuestions = questions.filter(q => q.id && !idsToDelete.includes(q.id))
+    setQuestions(updatedQuestions)
+    
+    const updatedFilteredQuestions = filteredQuestions.filter(q => q.id && !idsToDelete.includes(q.id))
+    setFilteredQuestions(updatedFilteredQuestions)
+    
+    // Limpiar selección
+    setSelectedQuestionIds(new Set())
+    
+    setIsLoading(true)
+    let successCount = 0
+    let errorCount = 0
+
+    try {
+      // Eliminar cada pregunta
+      for (const id of idsToDelete) {
+        try {
+          const result = await questionService.deleteQuestion(id)
+          if (result.success) {
+            successCount++
+          } else {
+            errorCount++
+            console.error(`Error al eliminar pregunta ${id}:`, result.error)
+          }
+        } catch (error) {
+          errorCount++
+          console.error(`Excepción al eliminar pregunta ${id}:`, error)
+        }
+      }
+
+      // Recargar las preguntas desde la base de datos para asegurar consistencia
+      await loadQuestions()
+      await loadStats()
+
+      if (errorCount === 0) {
+        notifySuccess({
+          title: 'Éxito',
+          message: `${successCount} pregunta(s) eliminada(s) correctamente`
+        })
+      } else {
+        notifyError({
+          title: 'Eliminación parcial',
+          message: `${successCount} pregunta(s) eliminada(s), ${errorCount} fallaron. Se restauraron las preguntas en el estado local.`
+        })
+        // Restaurar el estado original si hubo errores
+        setQuestions(originalQuestions)
+        setFilteredQuestions(originalFilteredQuestions)
+      }
+    } catch (error: any) {
+      console.error('Error general al eliminar preguntas:', error)
+      // Restaurar el estado original
+      setQuestions(originalQuestions)
+      setFilteredQuestions(originalFilteredQuestions)
+      
+      notifyError({
+        title: 'Error',
+        message: `Error al eliminar las preguntas: ${error?.message || 'Error desconocido'}`
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleUpdateQuestion = async () => {
     try {
       if (!selectedQuestion?.id) {
@@ -3597,43 +3717,63 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const hierarchy = organizeQuestionsHierarchy(filteredQuestions)
 
   // Componente para renderizar una pregunta
-  const renderQuestion = (question: Question) => (
-    <div 
-      key={question.id} 
-      className={cn(
-        'p-3 rounded-lg border cursor-pointer transition-colors ml-8',
-        theme === 'dark' 
-          ? 'border-zinc-700 hover:bg-zinc-800' 
-          : 'border-gray-200 hover:bg-gray-50'
-      )}
-      onClick={() => handleViewQuestion(question)}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline" className="font-mono text-xs">
-              {question.code}
-            </Badge>
+  const renderQuestion = (question: Question) => {
+    const isSelected = question.id ? selectedQuestionIds.has(question.id) : false
+    
+    return (
+      <div 
+        key={question.id} 
+        className={cn(
+          'p-3 rounded-lg border cursor-pointer transition-colors ml-8',
+          theme === 'dark' 
+            ? isSelected 
+              ? 'border-blue-500 bg-blue-950/20 hover:bg-blue-950/30' 
+              : 'border-zinc-700 hover:bg-zinc-800'
+            : isSelected
+              ? 'border-blue-500 bg-blue-50 hover:bg-blue-100'
+              : 'border-gray-200 hover:bg-gray-50'
+        )}
+        onClick={() => handleViewQuestion(question)}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1">
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1"
+            >
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => question.id && toggleQuestionSelection(question.id)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge variant="outline" className="font-mono text-xs">
+                  {question.code}
+                </Badge>
+              </div>
+              <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                {stripHtmlTags(question.questionText).substring(0, 100)}
+                {stripHtmlTags(question.questionText).length > 100 && '...'}
+              </p>
+            </div>
           </div>
-          <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            {stripHtmlTags(question.questionText).substring(0, 100)}
-            {stripHtmlTags(question.questionText).length > 100 && '...'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </Button>
+          <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   // Componente para renderizar el árbol jerárquico
   const renderTreeView = () => {
@@ -4066,10 +4206,46 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              Preguntas ({filteredQuestions.length})
-            </CardTitle>
+            <div className="flex items-center gap-4">
+              <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                Preguntas ({filteredQuestions.length})
+              </CardTitle>
+              {selectedQuestionIds.size > 0 && (
+                <Badge variant="secondary" className="text-sm">
+                  {selectedQuestionIds.size} seleccionada{selectedQuestionIds.size > 1 ? 's' : ''}
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2">
+              {selectedQuestionIds.size > 0 && (
+                <>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteSelectedQuestions}
+                    disabled={isLoading}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Borrar seleccionadas ({selectedQuestionIds.size})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={deselectAllQuestions}
+                  >
+                    Deseleccionar todo
+                  </Button>
+                </>
+              )}
+              {selectedQuestionIds.size === 0 && filteredQuestions.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllQuestions}
+                >
+                  Seleccionar todo
+                </Button>
+              )}
               <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="sm"
@@ -4316,126 +4492,164 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 return parseInt(aMatch[1]) - parseInt(bMatch[1])
                               }
                               return a.code.localeCompare(b.code)
-                            }).map((question) => (
-                              <div
-                                key={question.id}
-                                className={cn(
-                                  'p-4 cursor-pointer transition-colors',
-                                  theme === 'dark'
-                                    ? 'hover:bg-zinc-800'
-                                    : 'hover:bg-gray-50'
-                                )}
-                                onClick={() => handleViewQuestion(question)}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <Badge variant="outline" className="font-mono text-xs">
-                                        {question.code}
-                                      </Badge>
-                                      {isClozeTest && question.questionText?.match(/hueco \[(\d+)\]/) && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          Pregunta {question.questionText.match(/hueco \[(\d+)\]/)?.[1]}
-                                        </Badge>
-                                      )}
-                                      <Badge variant="secondary">
-                                        {question.options.length} opciones
-                                      </Badge>
-                                      <span className="text-xs text-gray-500">
-                                        {new Date(question.createdAt).toLocaleDateString('es-ES')}
-                                      </span>
+                            }).map((question) => {
+                              const isSelected = question.id ? selectedQuestionIds.has(question.id) : false
+                              
+                              return (
+                                <div
+                                  key={question.id}
+                                  className={cn(
+                                    'p-4 cursor-pointer transition-colors',
+                                    theme === 'dark'
+                                      ? isSelected
+                                        ? 'bg-blue-950/20 hover:bg-blue-950/30 border-l-2 border-blue-500'
+                                        : 'hover:bg-zinc-800'
+                                      : isSelected
+                                        ? 'bg-blue-50 hover:bg-blue-100 border-l-2 border-blue-500'
+                                        : 'hover:bg-gray-50'
+                                  )}
+                                  onClick={() => handleViewQuestion(question)}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-start gap-3 flex-1">
+                                      <div 
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="mt-1"
+                                      >
+                                        <Checkbox
+                                          checked={isSelected}
+                                          onCheckedChange={() => question.id && toggleQuestionSelection(question.id)}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Badge variant="outline" className="font-mono text-xs">
+                                            {question.code}
+                                          </Badge>
+                                          {isClozeTest && question.questionText?.match(/hueco \[(\d+)\]/) && (
+                                            <Badge variant="secondary" className="text-xs">
+                                              Pregunta {question.questionText.match(/hueco \[(\d+)\]/)?.[1]}
+                                            </Badge>
+                                          )}
+                                          <Badge variant="secondary">
+                                            {question.options.length} opciones
+                                          </Badge>
+                                          <span className="text-xs text-gray-500">
+                                            {new Date(question.createdAt).toLocaleDateString('es-ES')}
+                                          </span>
+                                        </div>
+                                        <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                          {stripHtmlTags(question.questionText || '').substring(0, 100)}
+                                          {stripHtmlTags(question.questionText || '').length > 100 && '...'}
+                                        </p>
+                                      </div>
                                     </div>
-                                    <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                      {stripHtmlTags(question.questionText || '').substring(0, 100)}
-                                      {stripHtmlTags(question.questionText || '').length > 100 && '...'}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2 ml-4">
-                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
-                                      <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
+                                    <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
+                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
+                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       )
                       } else {
                         // Renderizar pregunta individual
                         const { question } = item
+                        const isSelected = question.id ? selectedQuestionIds.has(question.id) : false
+                        
                         return (
                           <div 
                             key={question.id} 
                             className={cn(
                               'p-4 rounded-lg border cursor-pointer transition-colors',
                               theme === 'dark' 
-                                ? 'border-zinc-700 hover:bg-zinc-800' 
-                                : 'border-gray-200 hover:bg-gray-50'
+                                ? isSelected
+                                  ? 'border-blue-500 bg-blue-950/20 hover:bg-blue-950/30'
+                                  : 'border-zinc-700 hover:bg-zinc-800'
+                                : isSelected
+                                  ? 'border-blue-500 bg-blue-50 hover:bg-blue-100'
+                                  : 'border-gray-200 hover:bg-gray-50'
                             )}
                             onClick={() => handleViewQuestion(question)}
                           >
                             <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant="outline" className="font-mono text-xs">
-                                    {question.code}
-                                  </Badge>
-                                  <Badge variant="secondary">
-                                    {question.subject}
-                                  </Badge>
-                                  <Badge variant="secondary">
-                                    {question.topic}
-                                  </Badge>
-                                  <Badge variant="secondary">
-                                    {GRADE_CODE_TO_NAME[question.grade]}
-                                  </Badge>
-                                  <Badge 
-                                    variant={
-                                      question.level === 'Fácil' ? 'default' : 
-                                      question.level === 'Medio' ? 'secondary' : 
-                                      'destructive'
-                                    }
-                                  >
-                                    {question.level}
-                                  </Badge>
+                              <div className="flex items-start gap-3 flex-1">
+                                <div 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="mt-1"
+                                >
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => question.id && toggleQuestionSelection(question.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
                                 </div>
-                                <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                  {stripHtmlTags(question.questionText).substring(0, 120)}
-                                  {stripHtmlTags(question.questionText).length > 120 && '...'}
-                                </p>
-                                <div className="flex items-center gap-4 text-sm text-gray-500">
-                                  <span>{question.options.length} opciones</span>
-                                  {(question.questionImages && question.questionImages.length > 0) && (
-                                    <span className="flex items-center gap-1">
-                                      <ImageIcon className="h-3 w-3" />
-                                      {question.questionImages.length} imagen{question.questionImages.length > 1 ? 'es' : ''}
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline" className="font-mono text-xs">
+                                      {question.code}
+                                    </Badge>
+                                    <Badge variant="secondary">
+                                      {question.subject}
+                                    </Badge>
+                                    <Badge variant="secondary">
+                                      {question.topic}
+                                    </Badge>
+                                    <Badge variant="secondary">
+                                      {GRADE_CODE_TO_NAME[question.grade]}
+                                    </Badge>
+                                    <Badge 
+                                      variant={
+                                        question.level === 'Fácil' ? 'default' : 
+                                        question.level === 'Medio' ? 'secondary' : 
+                                        'destructive'
+                                      }
+                                    >
+                                      {question.level}
+                                    </Badge>
+                                  </div>
+                                  <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                    {stripHtmlTags(question.questionText).substring(0, 120)}
+                                    {stripHtmlTags(question.questionText).length > 120 && '...'}
+                                  </p>
+                                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                                    <span>{question.options.length} opciones</span>
+                                    {(question.questionImages && question.questionImages.length > 0) && (
+                                      <span className="flex items-center gap-1">
+                                        <ImageIcon className="h-3 w-3" />
+                                        {question.questionImages.length} imagen{question.questionImages.length > 1 ? 'es' : ''}
+                                      </span>
+                                    )}
+                                    {(question.informativeImages && question.informativeImages.length > 0) && (
+                                      <span className="flex items-center gap-1">
+                                        <ImageIcon className="h-3 w-3" />
+                                        {question.informativeImages.length} info
+                                      </span>
+                                    )}
+                                    {question.options.some(opt => opt.imageUrl) && (
+                                      <span className="flex items-center gap-1">
+                                        <ImageIcon className="h-3 w-3" />
+                                        opciones con imagen
+                                      </span>
+                                    )}
+                                    <span>
+                                      {new Date(question.createdAt).toLocaleDateString('es-ES')}
                                     </span>
-                                  )}
-                                  {(question.informativeImages && question.informativeImages.length > 0) && (
-                                    <span className="flex items-center gap-1">
-                                      <ImageIcon className="h-3 w-3" />
-                                      {question.informativeImages.length} info
-                                    </span>
-                                  )}
-                                  {question.options.some(opt => opt.imageUrl) && (
-                                    <span className="flex items-center gap-1">
-                                      <ImageIcon className="h-3 w-3" />
-                                      opciones con imagen
-                                    </span>
-                                  )}
-                                  <span>
-                                    {new Date(question.createdAt).toLocaleDateString('es-ES')}
-                                  </span>
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 ml-4">
+                              <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
                                 <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
