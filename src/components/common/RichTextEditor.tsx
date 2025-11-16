@@ -1270,23 +1270,56 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     }
 
     return (
-      <div className={className}>
-        <ReactQuill
-          ref={quillRef}
-          theme="snow"
-          value={value}
-          onChange={handleChange}
-          placeholder={placeholder}
-          modules={modules}
-          formats={formats}
-        />
-        
-        <MathEditor
-          open={mathEditorOpen}
-          onOpenChange={setMathEditorOpen}
-          onInsert={insertMathFormula}
-        />
-      </div>
+      <>
+        <style>{`
+          /* Cambiar el color del cursor de texto (caret) a negro para que sea visible en fondos blancos */
+          .ql-editor {
+            caret-color: #000000 !important;
+          }
+          
+          /* Para modo oscuro, usar color blanco */
+          .dark .ql-editor {
+            caret-color: #ffffff !important;
+          }
+          
+          /* Asegurar que el cursor sea visible en todos los casos */
+          .ql-editor:focus {
+            caret-color: #000000 !important;
+          }
+          
+          .dark .ql-editor:focus {
+            caret-color: #ffffff !important;
+          }
+          
+          /* También cambiar el color de selección de texto para mejor visibilidad */
+          .ql-editor ::selection {
+            background-color: rgba(0, 123, 255, 0.3) !important;
+            color: inherit !important;
+          }
+          
+          .ql-editor ::-moz-selection {
+            background-color: rgba(0, 123, 255, 0.3) !important;
+            color: inherit !important;
+          }
+        `}</style>
+        <div className={className}>
+          <ReactQuill
+            ref={quillRef}
+            theme="snow"
+            value={value}
+            onChange={handleChange}
+            placeholder={placeholder}
+            modules={modules}
+            formats={formats}
+          />
+          
+          <MathEditor
+            open={mathEditorOpen}
+            onOpenChange={setMathEditorOpen}
+            onInsert={insertMathFormula}
+          />
+        </div>
+      </>
     )
   }
 )

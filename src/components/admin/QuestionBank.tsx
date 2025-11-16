@@ -167,6 +167,26 @@ const renderMathInHtml = (html: string): string => {
 
 export default function QuestionBank({ theme }: QuestionBankProps) {
   const { notifySuccess, notifyError } = useNotification()
+  
+  // Función helper para extraer el texto real del usuario de matching/columnas
+  // Formato: MATCHING_COLUMNS_GROUP_ID|texto real o solo MATCHING_COLUMNS_GROUP_ID
+  const extractMatchingText = (informativeText: string | undefined | null): string => {
+    if (!informativeText) return ''
+    if (informativeText.includes('|')) {
+      const parts = informativeText.split('|')
+      return parts.slice(1).join('|') // En caso de que el texto tenga |, unir todo después del primer |
+    }
+    return '' // Si solo tiene el identificador sin texto, retornar vacío
+  }
+  
+  // Función helper para extraer el identificador de grupo de matching/columnas
+  const extractMatchingGroupId = (informativeText: string | undefined | null): string => {
+    if (!informativeText) return ''
+    if (informativeText.includes('|')) {
+      return informativeText.split('|')[0]
+    }
+    return informativeText // Si no tiene |, es solo el identificador
+  }
   const { user: currentUser } = useAuthContext()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -247,6 +267,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [matchingQuestions, setMatchingQuestions] = useState<Array<{
     id: string
     questionText: string // Texto de la pregunta
+    questionImage: File | null // Imagen de la pregunta (una por pregunta)
+    questionImagePreview: string | null // Vista previa de la imagen
     options: QuestionOption[] // Opciones de respuesta (A-H, máximo 6 opciones)
   }>>([])
   const [expandedViewOptions, setExpandedViewOptions] = useState<Set<string>>(new Set()) // Controlar qué preguntas tienen opciones expandidas en visualización
@@ -275,6 +297,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     questionImagePreview: string | null
     options: QuestionOption[]
   }>>([])
+
+  // Estados para edición de Comprensión de Lectura
+  const [isEditingReadingComprehension, setIsEditingReadingComprehension] = useState(false) // Indica si estamos editando comprensión de lectura
+  const [editReadingText, setEditReadingText] = useState<string>('') // Texto de lectura para edición
+  const [editReadingImage, setEditReadingImage] = useState<File | null>(null) // Nueva imagen de lectura para edición
+  const [editReadingImagePreview, setEditReadingImagePreview] = useState<string | null>(null) // Preview de nueva imagen
+  const [editReadingExistingImageUrl, setEditReadingExistingImageUrl] = useState<string | null>(null) // URL de imagen existente
+  const [editReadingQuestions, setEditReadingQuestions] = useState<Array<{
+    id: string // ID de la pregunta en la base de datos
+    questionId: string // ID único para el formulario
+    questionText: string
+    questionImage: File | null
+    questionImagePreview: string | null
+    existingQuestionImageUrl: string | null // URL de imagen existente
+    options: QuestionOption[]
+  }>>([])
+  const [editReadingRelatedQuestions, setEditReadingRelatedQuestions] = useState<Question[]>([]) // Preguntas relacionadas de comprensión de lectura
 
   // Estados para rastrear errores de validación
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: boolean }>({})
@@ -617,6 +656,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setExpandedViewOptions(new Set())
     setClozeText('')
     setClozeGaps({})
+    // Limpiar estados de comprensión de lectura
     setReadingText('')
     setReadingImage(null)
     setReadingImagePreview(null)
@@ -626,6 +666,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setEditClozeText('')
     setEditClozeGaps({})
     setEditClozeRelatedQuestions([])
+    // Limpiar estados de edición de comprensión de lectura
+    setIsEditingReadingComprehension(false)
+    setEditReadingText('')
+    setEditReadingImage(null)
+    setEditReadingImagePreview(null)
+    setEditReadingExistingImageUrl(null)
+    setEditReadingQuestions([])
+    setEditReadingRelatedQuestions([])
     // Limpiar errores de validación
     setFieldErrors({})
   }
@@ -1097,6 +1145,16 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       if (formData.subjectCode === 'IN' && inglesModality === 'matching_columns') {
         console.log('🔗 Modo Matching / Columnas: Creando múltiples preguntas...')
         
+        // Crear identificador común para agrupar preguntas de matching/columnas
+        // Usar un formato especial que combine el identificador con el texto real del usuario
+        // Formato: MATCHING_COLUMNS_GROUP_ID|texto real del usuario
+        const matchingGroupId = `${formData.topicCode}_${formData.grade}_${formData.levelCode}_${Date.now()}`
+        const matchingGroupIdentifier = `MATCHING_COLUMNS_${matchingGroupId}`
+        // Guardar el texto real del usuario (si existe) junto con el identificador
+        const informativeTextValue = formData.informativeText && formData.informativeText.trim() 
+          ? `${matchingGroupIdentifier}|${formData.informativeText.trim()}`
+          : matchingGroupIdentifier
+        
         // Crear una pregunta por cada pregunta de matching
         const createdQuestions: string[] = []
         let successCount = 0
@@ -1111,14 +1169,66 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const mq = matchingQuestions[i]
           
           try {
+            // Procesar imagen de la pregunta si existe
+            let questionImageUrl: string | null = null
+            if (mq.questionImage) {
+              console.log(`📤 Procesando imagen de pregunta ${i + 1}/${matchingQuestions.length}:`, mq.questionImage.name)
+              try {
+                // Intentar Firebase Storage primero con timeout
+                const storagePromise = questionService.uploadImage(
+                  mq.questionImage, 
+                  `questions/question/${Date.now()}_matching_${i}_${mq.questionImage.name}`
+                )
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout')), 10000) // 10 segundos
+                )
+                
+                const result = await Promise.race([storagePromise, timeoutPromise]) as any
+                
+                if (result.success) {
+                  console.log('✅ Imagen de pregunta matching subida a Firebase:', result.data)
+                  questionImageUrl = result.data
+                } else {
+                  throw new Error('Storage failed')
+                }
+              } catch (error) {
+                console.log('⚠️ Fallback a Base64 para imagen de pregunta matching')
+                try {
+                  const base64Url = await fileToBase64(mq.questionImage)
+                  console.log('✅ Imagen de pregunta matching convertida a Base64')
+                  questionImageUrl = base64Url
+                } catch (base64Error) {
+                  console.error('❌ Error procesando imagen de pregunta matching:', base64Error)
+                  questionImageUrl = null
+                }
+              }
+            }
+            
             const questionData: any = {
               ...formData,
+              // Guardar el texto real del usuario junto con el identificador para agrupar
+              informativeText: informativeTextValue,
               questionText: mq.questionText,
               answerType: 'MCQ' as const,
               options: mq.options,
             }
+            
+            // Debug: Verificar que el informativeText se esté estableciendo correctamente
+            console.log(`🔗 Creando pregunta matching ${i + 1}/${matchingQuestions.length}:`, {
+              code: questionData.code || 'N/A',
+              informativeText: questionData.informativeText,
+              questionText: questionData.questionText?.substring(0, 50) + '...',
+              topicCode: questionData.topicCode,
+              grade: questionData.grade,
+              levelCode: questionData.levelCode
+            })
 
-            // Solo agregar campos de imágenes si tienen contenido
+            // Agregar imagen de la pregunta si existe
+            if (questionImageUrl) {
+              questionData.questionImages = [questionImageUrl]
+            }
+
+            // Solo agregar campos de imágenes informativas si tienen contenido
             if (informativeImageUrls.length > 0) {
               questionData.informativeImages = informativeImageUrls
             }
@@ -1548,10 +1658,42 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     
     setSelectedQuestion(question)
     
+    // Verificar si es una pregunta de matching/columnas (PRIORIDAD MÁS ALTA)
+    // Formato: MATCHING_COLUMNS_GROUP_ID|texto real o solo MATCHING_COLUMNS_GROUP_ID
+    const isMatchingColumns = question.subjectCode === 'IN' && 
+                             question.informativeText && 
+                             typeof question.informativeText === 'string' &&
+                             (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                              question.informativeText.includes('MATCHING_COLUMNS_'))
+    
     // Verificar si es una pregunta de cloze test
-    const isClozeTest = question.subjectCode === 'IN' && 
+    const isClozeTest = !isMatchingColumns && 
+                        question.subjectCode === 'IN' && 
                         question.informativeText && 
                         question.questionText?.includes('completar el hueco')
+    
+    // Verificar si es una pregunta de comprensión de lectura
+    // Las preguntas de comprensión de lectura tienen informativeText pero NO tienen "completar el hueco" y NO son matching/columnas
+    const isReadingComprehension = !isMatchingColumns && 
+                                   !isClozeTest &&
+                                   question.subjectCode === 'IN' && 
+                                   question.informativeText && 
+                                   typeof question.informativeText === 'string' &&
+                                   question.informativeText.trim().length > 0 &&
+                                   !question.informativeText.includes('MATCHING_COLUMNS_') &&
+                                   !question.questionText?.includes('completar el hueco')
+    
+    // Debug: Verificar la detección de modalidad
+    console.log('🔍 Detección de modalidad para edición:', {
+      code: question.code,
+      subjectCode: question.subjectCode,
+      isMatchingColumns,
+      isClozeTest,
+      isReadingComprehension,
+      hasInformativeText: !!question.informativeText,
+      informativeTextPreview: question.informativeText?.substring(0, 50),
+      questionTextPreview: question.questionText?.substring(0, 50)
+    })
     
     if (isClozeTest) {
       // Buscar todas las preguntas relacionadas del cloze test
@@ -1612,9 +1754,161 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       
       // Cargar imágenes informativas
       setInformativeImagePreviews(question.informativeImages || [])
-    } else {
-      // Modo de edición normal (no cloze test)
+    } else if (isReadingComprehension) {
+      // Modo de edición de comprensión de lectura
+      console.log('📚 Modo de edición de comprensión de lectura detectado')
       setIsEditingClozeTest(false)
+      setIsEditingReadingComprehension(true)
+      setInglesModality('reading_comprehension')
+      
+      // Limpiar estados que no corresponden a comprensión de lectura
+      setMatchingQuestions([])
+      setClozeText('')
+      setClozeGaps({})
+      
+      // Buscar todas las preguntas relacionadas de comprensión de lectura
+      const related = questions.filter(q => 
+        q.subjectCode === 'IN' &&
+        q.informativeText === question.informativeText &&
+        JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
+        q.topicCode === question.topicCode &&
+        q.grade === question.grade &&
+        q.levelCode === question.levelCode &&
+        !q.questionText?.includes('completar el hueco') &&
+        !q.informativeText?.includes('MATCHING_COLUMNS_')
+      )
+      
+      console.log('📚 Preguntas relacionadas de comprensión de lectura encontradas:', related.length)
+      setEditReadingRelatedQuestions(related)
+      
+      // Cargar el texto de lectura
+      setEditReadingText(question.informativeText || '')
+      console.log('📚 Texto de lectura cargado:', question.informativeText?.substring(0, 50))
+      
+      // Separar la imagen de lectura de las imágenes informativas
+      // La última imagen en informativeImages suele ser la imagen de lectura
+      const informativeImages = question.informativeImages || []
+      if (informativeImages.length > 0) {
+        // Asumimos que la última imagen es la de lectura (como se guarda en la creación)
+        setEditReadingExistingImageUrl(informativeImages[informativeImages.length - 1])
+        setEditReadingImagePreview(informativeImages[informativeImages.length - 1])
+        // Las demás son imágenes informativas normales
+        setInformativeImagePreviews(informativeImages.slice(0, -1))
+      } else {
+        setEditReadingExistingImageUrl(null)
+        setEditReadingImagePreview(null)
+        setInformativeImagePreviews([])
+      }
+      
+      // Cargar las preguntas relacionadas
+      const readingQuestionsData = related.map((q, index) => {
+        const questionImages = q.questionImages || []
+        const questionImageUrl = questionImages.length > 0 ? questionImages[0] : null
+        
+        return {
+          id: q.id || '',
+          questionId: `edit-reading-q-${index}-${Date.now()}`,
+          questionText: q.questionText || '',
+          questionImage: null,
+          questionImagePreview: questionImageUrl,
+          existingQuestionImageUrl: questionImageUrl,
+          options: q.options || []
+        }
+      })
+      
+      setEditReadingQuestions(readingQuestionsData)
+      
+      // Cargar datos básicos del formulario
+      const gradeValue = String(question.grade || '').trim() as '6' | '7' | '8' | '9' | '0' | '1'
+      setFormData({
+        subject: question.subject,
+        subjectCode: question.subjectCode,
+        topic: question.topic,
+        topicCode: question.topicCode,
+        grade: gradeValue,
+        level: question.level as any,
+        levelCode: question.levelCode as any,
+        informativeText: question.informativeText || '',
+        questionText: question.questionText,
+      })
+    } else if (isMatchingColumns) {
+      // Modo de edición de matching/columnas
+      setIsEditingClozeTest(false)
+      setIsEditingReadingComprehension(false)
+      setInglesModality('matching_columns')
+      
+      // Buscar todas las preguntas relacionadas de matching/columnas
+      // Agrupar por identificador de grupo, no por texto completo
+      const questionGroupId = extractMatchingGroupId(question.informativeText)
+      const related = questions.filter(q => {
+        if (q.subjectCode !== 'IN' || q.topicCode !== question.topicCode ||
+            q.grade !== question.grade || q.levelCode !== question.levelCode) {
+          return false
+        }
+        const qGroupId = extractMatchingGroupId(q.informativeText)
+        return qGroupId && questionGroupId && qGroupId === questionGroupId
+      })
+      
+      // Convertir preguntas relacionadas al formato de matching/columnas
+      // IMPORTANTE: Preservar el ID real de Firestore para poder actualizar correctamente
+      const matchingQuestionsData = related.map(q => {
+        const questionImages = q.questionImages || []
+        const questionImageUrl = questionImages.length > 0 ? questionImages[0] : null
+        
+        return {
+          id: q.id || `mq-temp-${Date.now()}-${Math.random()}`, // Usar prefijo 'mq-temp-' para IDs temporales
+          questionText: q.questionText || '',
+          questionImage: null,
+          questionImagePreview: questionImageUrl,
+          options: q.options || []
+        }
+      })
+      
+      console.log('🔗 Preguntas de matching/columnas cargadas para edición:', {
+        count: matchingQuestionsData.length,
+        ids: matchingQuestionsData.map(mq => ({ id: mq.id, hasQuestionText: !!mq.questionText }))
+      })
+      
+      setMatchingQuestions(matchingQuestionsData)
+      
+      // Cargar datos básicos del formulario
+      const gradeValue = String(question.grade || '').trim() as '6' | '7' | '8' | '9' | '0' | '1'
+      // Extraer el texto real del usuario (sin el identificador)
+      const realText = extractMatchingText(question.informativeText)
+      setFormData({
+        subject: question.subject,
+        subjectCode: question.subjectCode,
+        topic: question.topic,
+        topicCode: question.topicCode,
+        grade: gradeValue,
+        level: question.level as any,
+        levelCode: question.levelCode as any,
+        informativeText: realText, // Cargar solo el texto real del usuario
+        questionText: question.questionText,
+      })
+      
+      // Cargar imágenes informativas si existen
+      setInformativeImagePreviews(question.informativeImages || [])
+      
+      console.log('🔗 Pregunta de matching/columnas cargada para edición:', {
+        matchingQuestionsCount: matchingQuestionsData.length,
+        informativeText: question.informativeText,
+        relatedQuestionsCount: related.length
+      })
+    } else {
+      // Modo de edición normal (no cloze test, no comprensión de lectura, no matching/columnas)
+      console.log('📝 Modo de edición normal detectado (no modalidades especiales)')
+      setIsEditingClozeTest(false)
+      setIsEditingReadingComprehension(false)
+      setInglesModality('standard_mc')
+      
+      // Limpiar estados de modalidades especiales
+      setMatchingQuestions([])
+      setClozeText('')
+      setClozeGaps({})
+      setEditReadingText('')
+      setEditReadingQuestions([])
+      setEditReadingRelatedQuestions([])
       
       // Cargar los datos de la pregunta en el formulario
       // Asegurar que el grado sea string para consistencia
@@ -1637,6 +1931,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         subjectCode: question.subjectCode,
         topicCode: question.topicCode,
         levelCode: question.levelCode,
+        isEditingReadingComprehension: false,
+        isEditingClozeTest: false,
+        inglesModality: 'standard_mc'
       })
       // Cargar opciones
       setOptions(question.options)
@@ -1833,16 +2130,19 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               }
             }
           })
-        } else if (inglesModality === 'reading_comprehension') {
-          // Validar Comprensión de Lectura
-          if (!readingText.trim()) {
+        } else if (inglesModality === 'reading_comprehension' || isEditingReadingComprehension) {
+          // Validar Comprensión de Lectura (creación o edición)
+          const textToValidate = isEditingReadingComprehension ? editReadingText : readingText
+          const questionsToValidate = isEditingReadingComprehension ? editReadingQuestions : readingQuestions
+          
+          if (!textToValidate.trim()) {
             errors['readingText'] = true
           }
-          if (readingQuestions.length === 0) {
+          if (questionsToValidate.length === 0) {
             errors['readingQuestions'] = true
           } else {
             // Validar cada pregunta de lectura
-            readingQuestions.forEach((rq, rqIndex) => {
+            questionsToValidate.forEach((rq, rqIndex) => {
               // Validar opciones de cada pregunta
               const emptyOptions = rq.options.filter(opt => !opt.text || !opt.text.trim())
               if (emptyOptions.length > 0) {
@@ -2424,8 +2724,530 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             message: 'No se pudo actualizar ninguna pregunta del cloze test.'
           })
         }
+      } else if (isEditingReadingComprehension) {
+        // Manejar actualización de Comprensión de Lectura
+        // Validar que todos los campos estén completos
+        if (!editReadingText.trim()) {
+          notifyError({ 
+            title: 'Error', 
+            message: 'El texto de lectura es obligatorio' 
+          })
+          setIsLoading(false)
+          return
+        }
+        
+        if (editReadingQuestions.length === 0) {
+          notifyError({ 
+            title: 'Error', 
+            message: 'Debe agregar al menos una pregunta' 
+          })
+          setIsLoading(false)
+          return
+        }
+        
+        // Procesar nueva imagen de lectura si existe
+        let newReadingImageUrl: string | null = null
+        if (editReadingImage) {
+          try {
+            notifySuccess({ 
+              title: 'Procesando', 
+              message: 'Subiendo nueva imagen de lectura...' 
+            })
+            const storagePromise = questionService.uploadImage(
+              editReadingImage, 
+              `questions/reading/${Date.now()}_reading.jpg`
+            )
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 10000)
+            )
+            const result = await Promise.race([storagePromise, timeoutPromise]) as any
+            if (result.success) {
+              newReadingImageUrl = result.data
+            } else {
+              const base64Url = await fileToBase64(editReadingImage)
+              newReadingImageUrl = base64Url
+            }
+          } catch (error) {
+            console.error('Error procesando imagen de lectura:', error)
+            const base64Url = await fileToBase64(editReadingImage)
+            newReadingImageUrl = base64Url
+          }
+        }
+        
+        // Combinar imágenes informativas con la imagen de lectura
+        const allInformativeImages = [...informativeImagePreviews]
+        if (newReadingImageUrl) {
+          allInformativeImages.push(newReadingImageUrl)
+        } else if (editReadingExistingImageUrl) {
+          allInformativeImages.push(editReadingExistingImageUrl)
+        }
+        
+        // Actualizar todas las preguntas relacionadas de comprensión de lectura
+        let successCount = 0
+        let errorCount = 0
+        const updatedCodes: string[] = []
+        
+        notifySuccess({
+          title: 'Actualizando',
+          message: `Actualizando ${editReadingQuestions.length} pregunta(s) de comprensión de lectura...`
+        })
+        
+        for (let i = 0; i < editReadingQuestions.length; i++) {
+          const rq = editReadingQuestions[i]
+          
+          // Procesar imagen de pregunta individual si existe
+          let questionImageUrl: string | null = null
+          if (rq.questionImage) {
+            try {
+              const storagePromise = questionService.uploadImage(
+                rq.questionImage, 
+                `questions/reading/${Date.now()}_q${i + 1}.jpg`
+              )
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 10000)
+              )
+              const result = await Promise.race([storagePromise, timeoutPromise]) as any
+              if (result.success) {
+                questionImageUrl = result.data
+              } else {
+                const base64Url = await fileToBase64(rq.questionImage)
+                questionImageUrl = base64Url
+              }
+            } catch (error) {
+              console.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
+              const base64Url = await fileToBase64(rq.questionImage)
+              questionImageUrl = base64Url
+            }
+          } else if (rq.existingQuestionImageUrl) {
+            questionImageUrl = rq.existingQuestionImageUrl
+          }
+          
+          // Buscar la pregunta correspondiente
+          let relatedQuestion: Question | undefined
+          if (rq.id) {
+            relatedQuestion = editReadingRelatedQuestions.find(q => q.id === rq.id)
+          }
+          
+          // Verificar si cambiaron los parámetros que afectan el código
+          const oldSubjectCode = relatedQuestion ? String(relatedQuestion.subjectCode || '').trim() : String(formData.subjectCode || '').trim()
+          const newSubjectCode = String(formData.subjectCode || '').trim()
+          const oldTopicCode = relatedQuestion ? String(relatedQuestion.topicCode || '').trim() : String(formData.topicCode || '').trim()
+          const newTopicCode = String(formData.topicCode || '').trim()
+          const oldGrade = relatedQuestion ? String(relatedQuestion.grade || '').trim() : String(formData.grade || '').trim()
+          const newGrade = String(formData.grade || '').trim()
+          const oldLevelCode = relatedQuestion ? String(relatedQuestion.levelCode || '').trim() : String(formData.levelCode || '').trim()
+          const newLevelCode = String(formData.levelCode || '').trim()
+          
+          const codeParamsChanged = 
+            oldSubjectCode !== newSubjectCode ||
+            oldTopicCode !== newTopicCode ||
+            oldGrade !== newGrade ||
+            oldLevelCode !== newLevelCode
+          
+          // Generar nuevo código si es necesario
+          let questionNewCode: string | undefined = undefined
+          if (codeParamsChanged || !relatedQuestion) {
+            const codeResult = await questionService.generateQuestionCode(
+              newSubjectCode,
+              newTopicCode,
+              newGrade,
+              newLevelCode
+            )
+            if (codeResult.success) {
+              questionNewCode = codeResult.data
+            }
+          }
+          
+          // Preparar opciones
+          const rqOptions: QuestionOption[] = rq.options.map(opt => ({
+            id: opt.id,
+            text: opt.text || '',
+            imageUrl: null,
+            isCorrect: opt.isCorrect
+          }))
+          
+          // Preparar datos de actualización o creación
+          const questionData: any = {
+            subject: formData.subject,
+            subjectCode: formData.subjectCode,
+            topic: formData.topic,
+            topicCode: formData.topicCode,
+            grade: formData.grade,
+            level: formData.level,
+            levelCode: formData.levelCode,
+            answerType: 'MCQ' as const,
+            informativeText: editReadingText,
+            questionText: rq.questionText,
+            options: rqOptions,
+          }
+          
+          if (allInformativeImages.length > 0) {
+            questionData.informativeImages = allInformativeImages
+          }
+          
+          if (questionImageUrl) {
+            questionData.questionImages = [questionImageUrl]
+          }
+          
+          if (questionNewCode) {
+            questionData.code = questionNewCode
+          }
+          
+          try {
+            if (relatedQuestion && relatedQuestion.id) {
+              const result = await questionService.updateQuestion(relatedQuestion.id, questionData)
+              if (result.success) {
+                successCount++
+                updatedCodes.push(questionNewCode || relatedQuestion.code)
+              } else {
+                errorCount++
+                console.error(`❌ Error actualizando pregunta ${i + 1}:`, result.error)
+              }
+            } else {
+              if (!currentUser) {
+                errorCount++
+                continue
+              }
+              const result = await questionService.createQuestion(questionData, currentUser.uid)
+              if (result.success) {
+                successCount++
+                updatedCodes.push(result.data.code)
+              } else {
+                errorCount++
+                console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+              }
+            }
+          } catch (error) {
+            errorCount++
+            console.error(`❌ Error procesando pregunta ${i + 1}:`, error)
+          }
+        }
+        
+        // Eliminar preguntas que fueron removidas del formulario
+        const currentQuestionIds = editReadingQuestions.filter(rq => rq.id).map(rq => rq.id!).filter((id): id is string => Boolean(id))
+        const questionsToDelete = editReadingRelatedQuestions.filter(q => {
+          if (!q.id) return false
+          return !currentQuestionIds.includes(q.id)
+        })
+        
+        for (const questionToDelete of questionsToDelete) {
+          if (questionToDelete.id) {
+            try {
+              await questionService.deleteQuestion(questionToDelete.id)
+              console.log(`✅ Pregunta ${questionToDelete.code} eliminada`)
+            } catch (error) {
+              console.error(`❌ Error eliminando pregunta ${questionToDelete.code}:`, error)
+            }
+          }
+        }
+        
+        if (successCount === editReadingQuestions.length) {
+          notifySuccess({
+            title: 'Éxito',
+            message: `${successCount} pregunta(s) de comprensión de lectura actualizada(s) correctamente.`
+          })
+          resetForm()
+          setIsEditDialogOpen(false)
+          setSelectedQuestion(null)
+          setIsEditingReadingComprehension(false)
+          setEditReadingText('')
+          setEditReadingImage(null)
+          setEditReadingImagePreview(null)
+          setEditReadingExistingImageUrl(null)
+          setEditReadingQuestions([])
+          setEditReadingRelatedQuestions([])
+          loadQuestions()
+          loadStats()
+        } else if (successCount > 0) {
+          notifyError({
+            title: 'Advertencia',
+            message: `Se actualizaron ${successCount} pregunta(s) de ${editReadingQuestions.length}. ${errorCount} fallaron.`
+          })
+          loadQuestions()
+          loadStats()
+            } else {
+              notifyError({
+                title: 'Error',
+                message: 'No se pudo actualizar ninguna pregunta de comprensión de lectura.'
+              })
+            }
+          } else if (inglesModality === 'matching_columns' || 
+                     (formData.subjectCode === 'IN' && 
+                      formData.informativeText && 
+                      typeof formData.informativeText === 'string' &&
+                      formData.informativeText.startsWith('MATCHING_COLUMNS_'))) {
+        // Manejar actualización de Matching / Columnas
+        // Validar que todas las preguntas estén completas
+        if (matchingQuestions.length === 0) {
+          notifyError({ 
+            title: 'Error', 
+            message: 'Debe agregar al menos una pregunta de matching/columnas' 
+          })
+          setIsLoading(false)
+          return
+        }
+        
+        // Validar cada pregunta de matching
+        const matchingErrors: { [key: string]: boolean } = {}
+        matchingQuestions.forEach((mq, mqIndex) => {
+          if (!mq.questionText || !mq.questionText.trim()) {
+            matchingErrors[`matchingQuestionText_${mqIndex}`] = true
+          }
+          const validOptions = mq.options.filter(opt => opt.text && opt.text.trim())
+          if (validOptions.length < 2) {
+            matchingErrors[`matchingQuestionOptions_${mqIndex}`] = true
+          }
+          const hasCorrectAnswer = mq.options.some(opt => opt.isCorrect)
+          if (!hasCorrectAnswer) {
+            matchingErrors[`matchingQuestionAnswer_${mqIndex}`] = true
+          }
+        })
+        
+        if (Object.keys(matchingErrors).length > 0) {
+          setFieldErrors(matchingErrors)
+          notifyError({
+            title: 'Error',
+            message: 'Complete todos los campos de las preguntas de matching/columnas'
+          })
+          setIsLoading(false)
+          return
+        }
+        
+        // Buscar todas las preguntas relacionadas de matching/columnas
+        // IMPORTANTE: Usar selectedQuestion.informativeText para obtener el identificador original
+        // porque formData.informativeText solo contiene el texto real del usuario (sin el identificador)
+        const currentGroupId = extractMatchingGroupId(selectedQuestion?.informativeText || '')
+        
+        console.log('🔍 Actualizando matching/columnas:', {
+          currentGroupId,
+          selectedQuestionInformativeText: selectedQuestion?.informativeText,
+          formDataInformativeText: formData.informativeText,
+          matchingQuestionsCount: matchingQuestions.length,
+          matchingQuestionsIds: matchingQuestions.map(mq => mq.id)
+        })
+        
+        const related = currentGroupId ? questions.filter(q => {
+          if (q.subjectCode !== 'IN' || q.topicCode !== formData.topicCode || 
+              q.grade !== formData.grade || q.levelCode !== formData.levelCode) {
+            return false
+          }
+          // Comparar por identificador de grupo
+          const qGroupId = extractMatchingGroupId(q.informativeText)
+          return qGroupId && qGroupId === currentGroupId
+        }) : []
+        
+        console.log('🔍 Preguntas relacionadas encontradas:', related.length)
+        
+        // Procesar imágenes informativas nuevas
+        let finalInformativeImages = [...informativeImagePreviews]
+        if (newInformativeImageUrls.length > 0) {
+          finalInformativeImages = [...finalInformativeImages, ...newInformativeImageUrls]
+        }
+        
+        // Actualizar todas las preguntas relacionadas de matching/columnas
+        let successCount = 0
+        let errorCount = 0
+        const updatedCodes: string[] = []
+        
+        notifySuccess({
+          title: 'Actualizando',
+          message: `Actualizando ${matchingQuestions.length} pregunta(s) de matching/columnas...`
+        })
+        
+        for (let i = 0; i < matchingQuestions.length; i++) {
+          const mq = matchingQuestions[i]
+          
+          // Procesar imagen de la pregunta si existe
+          let questionImageUrl: string | null = null
+          if (mq.questionImage) {
+            try {
+              const storagePromise = questionService.uploadImage(
+                mq.questionImage, 
+                `questions/question/${Date.now()}_matching_${i}_${mq.questionImage.name}`
+              )
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 10000)
+              )
+              const result = await Promise.race([storagePromise, timeoutPromise]) as any
+              if (result.success) {
+                questionImageUrl = result.data
+              } else {
+                const base64Url = await fileToBase64(mq.questionImage)
+                questionImageUrl = base64Url
+              }
+            } catch (error) {
+              console.error('Error procesando imagen de pregunta matching:', error)
+              const base64Url = await fileToBase64(mq.questionImage)
+              questionImageUrl = base64Url
+            }
+          } else if (mq.questionImagePreview && 
+                     (mq.questionImagePreview.startsWith('data:') || mq.questionImagePreview.startsWith('http'))) {
+            // Mantener imagen existente
+            questionImageUrl = mq.questionImagePreview
+          }
+          
+          // Buscar la pregunta correspondiente por ID si existe, o por índice si no hay ID
+          let relatedQuestion: Question | null = null
+          
+          // Si la pregunta de matching tiene un ID (pregunta existente), buscarla por ID
+          // Solo usar IDs que no sean temporales (los IDs temporales empiezan con 'mq-temp-' o 'mq-edit-')
+          // Los IDs de Firestore suelen ser strings alfanuméricos largos, no empiezan con 'mq-'
+          const isTemporaryId = mq.id && (mq.id.startsWith('mq-temp-') || mq.id.startsWith('mq-edit-') || mq.id.startsWith('mq-') || mq.id.length < 10)
+          
+          if (mq.id && mq.id.trim() !== '' && !isTemporaryId) {
+            relatedQuestion = related.find(q => q.id === mq.id) || null
+            console.log(`🔍 Buscando pregunta por ID: ${mq.id}, encontrada: ${!!relatedQuestion}`)
+          } else {
+            console.log(`🔍 ID temporal o inválido para matching ${i + 1}: ${mq.id}, isTemporary: ${isTemporaryId}`)
+          }
+          
+          // Si no se encontró por ID o no hay ID válido, buscar por índice
+          if (!relatedQuestion && i < related.length) {
+            relatedQuestion = related[i]
+            console.log(`🔍 Usando pregunta relacionada por índice ${i}`)
+          }
+          
+          // Si no hay pregunta relacionada, es una nueva pregunta que debe crearse
+          if (!relatedQuestion) {
+            console.log(`🆕 Nueva pregunta de matching ${i + 1} - se procesará después`)
+            // Marcar para creación posterior si no hay currentGroupId
+            if (!currentGroupId) {
+              console.error(`❌ No se puede crear nueva pregunta sin identificador de grupo`)
+              errorCount++
+              continue
+            }
+            // Si hay currentGroupId, podemos crear la pregunta nueva
+            // Pero primero necesitamos procesar las actualizaciones existentes
+            // Por ahora, marcamos error pero podríamos implementar creación aquí
+            console.error(`❌ Nueva pregunta no soportada en actualización (índice ${i + 1})`)
+            errorCount++
+            continue
+          }
+          
+          // Verificar si cambiaron los parámetros que afectan el código
+          const oldSubjectCode = String(relatedQuestion.subjectCode || '').trim()
+          const newSubjectCode = String(formData.subjectCode || '').trim()
+          const oldTopicCode = String(relatedQuestion.topicCode || '').trim()
+          const newTopicCode = String(formData.topicCode || '').trim()
+          const oldGrade = String(relatedQuestion.grade || '').trim()
+          const newGrade = String(formData.grade || '').trim()
+          const oldLevelCode = String(relatedQuestion.levelCode || '').trim()
+          const newLevelCode = String(formData.levelCode || '').trim()
+          
+          const codeParamsChanged = 
+            oldSubjectCode !== newSubjectCode ||
+            oldTopicCode !== newTopicCode ||
+            oldGrade !== newGrade ||
+            oldLevelCode !== newLevelCode
+          
+          // Generar nuevo código si es necesario
+          let questionNewCode: string | undefined = undefined
+          if (codeParamsChanged) {
+            const codeResult = await questionService.generateQuestionCode(
+              newSubjectCode,
+              newTopicCode,
+              newGrade,
+              newLevelCode
+            )
+            if (codeResult.success) {
+              questionNewCode = codeResult.data
+            }
+          }
+          
+          // Preparar datos de actualización - IMPORTANTE: Reconstruir el formato con el texto real
+          // Obtener el identificador de grupo original (del relatedQuestion o usar el currentGroupId)
+          const originalGroupId = extractMatchingGroupId(relatedQuestion.informativeText) || currentGroupId
+          
+          if (!originalGroupId) {
+            console.error(`❌ No se pudo obtener el identificador de grupo para matching ${i + 1}`)
+            errorCount++
+            continue
+          }
+          
+          // Construir el nuevo informativeText con el formato: GROUP_ID|texto real
+          const newInformativeText = formData.informativeText && formData.informativeText.trim()
+            ? `${originalGroupId}|${formData.informativeText.trim()}`
+            : originalGroupId
+          
+          console.log(`📝 Actualizando pregunta matching ${i + 1}:`, {
+            questionId: relatedQuestion.id,
+            originalGroupId,
+            newInformativeText: newInformativeText.substring(0, 50) + '...'
+          })
+          
+          const updates: any = {
+            subject: formData.subject,
+            subjectCode: formData.subjectCode,
+            topic: formData.topic,
+            topicCode: formData.topicCode,
+            grade: formData.grade,
+            level: formData.level,
+            levelCode: formData.levelCode,
+            informativeText: newInformativeText, // Mantener el formato: GROUP_ID|texto real
+            questionText: mq.questionText,
+            options: mq.options,
+            informativeImages: finalInformativeImages
+          }
+          
+          // Agregar imagen de la pregunta si existe
+          if (questionImageUrl) {
+            updates.questionImages = [questionImageUrl]
+          }
+          
+          if (questionNewCode) {
+            updates.code = questionNewCode
+          }
+          
+          const questionId = relatedQuestion.id
+          
+          if (!questionId) {
+            console.error(`❌ La pregunta relacionada no tiene ID para matching ${i + 1}`)
+            errorCount++
+            continue
+          }
+          
+          try {
+            const result = await questionService.updateQuestion(questionId, updates)
+            if (result.success) {
+              successCount++
+              updatedCodes.push(questionNewCode || relatedQuestion.code)
+            } else {
+              errorCount++
+              console.error(`❌ Error actualizando pregunta matching ${i + 1}:`, result.error)
+            }
+          } catch (error) {
+            errorCount++
+            console.error(`❌ Error actualizando pregunta matching ${i + 1}:`, error)
+          }
+        }
+        
+        if (successCount === matchingQuestions.length) {
+          notifySuccess({
+            title: 'Éxito',
+            message: `${successCount} pregunta(s) de matching/columnas actualizada(s) correctamente.`
+          })
+          resetForm()
+          setIsEditDialogOpen(false)
+          setSelectedQuestion(null)
+          setMatchingQuestions([])
+          setInglesModality('standard_mc')
+          loadQuestions()
+          loadStats()
+        } else if (successCount > 0) {
+          notifyError({
+            title: 'Advertencia',
+            message: `Se actualizaron ${successCount} pregunta(s) de ${matchingQuestions.length}. ${errorCount} fallaron.`
+          })
+          loadQuestions()
+          loadStats()
+        } else {
+          notifyError({
+            title: 'Error',
+            message: 'No se pudo actualizar ninguna pregunta de matching/columnas.'
+          })
+        }
       } else {
-        // Actualización normal (no cloze test)
+        // Actualización normal (no cloze test, no comprensión de lectura)
         // Preparar datos de actualización
         const updates: any = {
           subject: formData.subject,
@@ -2717,6 +3539,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
       
       hierarchy[subjectCode][topicCode][grade][level].push(question)
+    })
+    
+    // Ordenar preguntas dentro de cada nivel por fecha de creación (más reciente primero)
+    Object.keys(hierarchy).forEach(subjectCode => {
+      Object.keys(hierarchy[subjectCode]).forEach(topicCode => {
+        Object.keys(hierarchy[subjectCode][topicCode]).forEach(grade => {
+          Object.keys(hierarchy[subjectCode][topicCode][grade]).forEach(level => {
+            hierarchy[subjectCode][topicCode][grade][level].sort((a, b) => {
+              const dateA = new Date(a.createdAt).getTime()
+              const dateB = new Date(b.createdAt).getTime()
+              return dateB - dateA // Más reciente primero
+            })
+          })
+        })
+      })
     })
     
     return hierarchy
@@ -3304,26 +4141,47 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   // Verificar si ya fue procesada en un grupo
                   if (processedIds.has(question.id || '')) return
                   
+                  // Detectar preguntas de matching/columnas (identificadas por informativeText que contiene "MATCHING_COLUMNS_")
+                  const isMatchingColumns = question.subjectCode === 'IN' && 
+                                          question.informativeText && 
+                                          typeof question.informativeText === 'string' &&
+                                          (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                           question.informativeText.includes('MATCHING_COLUMNS_'))
+                  
                   // Para preguntas de Inglés con informativeText, buscar preguntas relacionadas
+                  // (Cloze Test, Comprensión de Lectura o Matching/Columnas)
                   if (question.subjectCode === 'IN' && question.informativeText && 
-                      (question.questionText?.includes('completar el hueco') || 
+                      (isMatchingColumns ||
+                       question.questionText?.includes('completar el hueco') || 
                        questions.some(q => q.informativeText === question.informativeText && q.id !== question.id))) {
-                    const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
+                    // Para matching/columnas, usar el identificador de grupo como parte del key
+                    const groupKey = isMatchingColumns
+                      ? `${extractMatchingGroupId(question.informativeText)}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
+                      : `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
                     
                     if (!groupedQuestions[groupKey]) {
                       groupedQuestions[groupKey] = []
                     }
                     
                     // Buscar todas las preguntas relacionadas
-                    const related = filteredQuestions.filter(q => 
-                      q.subjectCode === 'IN' &&
-                      q.informativeText === question.informativeText &&
-                      JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
-                      q.topicCode === question.topicCode &&
-                      q.grade === question.grade &&
-                      q.levelCode === question.levelCode &&
-                      !processedIds.has(q.id || '')
-                    )
+                    const related = filteredQuestions.filter(q => {
+                      if (q.subjectCode !== 'IN' || q.topicCode !== question.topicCode ||
+                          q.grade !== question.grade || q.levelCode !== question.levelCode ||
+                          processedIds.has(q.id || '')) {
+                        return false
+                      }
+                      
+                      if (isMatchingColumns) {
+                        // Para matching/columnas, agrupar por identificador de grupo
+                        const qGroupId = extractMatchingGroupId(q.informativeText)
+                        const questionGroupId = extractMatchingGroupId(question.informativeText)
+                        return qGroupId && questionGroupId && qGroupId === questionGroupId
+                      } else {
+                        // Para cloze test y comprensión, agrupar por informativeText completo e imágenes
+                        return q.informativeText === question.informativeText &&
+                               JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || [])
+                      }
+                    })
                     
                     related.forEach(q => {
                       groupedQuestions[groupKey].push(q)
@@ -3335,24 +4193,86 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   }
                 })
                 
-                // Renderizar grupos y preguntas individuales
+                // Crear un array combinado de grupos y preguntas individuales para ordenarlos juntos
+                // Primero preparar los grupos con su fecha más reciente
+                const groupEntries = Object.entries(groupedQuestions).map(([groupKey, groupQuestions]) => ({
+                  type: 'group' as const,
+                  groupKey,
+                  groupQuestions,
+                  latestDate: Math.max(...groupQuestions.map(q => new Date(q.createdAt).getTime()))
+                }))
+                
+                // Preparar preguntas individuales con su fecha
+                const ungroupedWithDates = ungroupedQuestions.map(question => ({
+                  type: 'question' as const,
+                  question,
+                  latestDate: new Date(question.createdAt).getTime()
+                }))
+                
+                // Combinar y ordenar por fecha más reciente primero (independientemente de si es grupo o pregunta individual)
+                const combinedItems = [...groupEntries, ...ungroupedWithDates].sort((a, b) => {
+                  return b.latestDate - a.latestDate // Más reciente primero
+                })
+                
+                // Renderizar grupos y preguntas individuales mezclados, ordenados por fecha más reciente
                 return (
                   <>
-                    {/* Grupos de preguntas */}
-                    {Object.entries(groupedQuestions).map(([groupKey, groupQuestions]) => {
-                      const isClozeTest = groupQuestions.some(q => q.questionText?.includes('completar el hueco'))
-                      const firstQuestion = groupQuestions[0]
-                      
-                      return (
-                        <div 
-                          key={groupKey}
-                          className={cn(
-                            'rounded-lg border-2 overflow-hidden',
-                            theme === 'dark'
-                              ? 'border-purple-700 bg-purple-950/30'
-                              : 'border-purple-300 bg-purple-50/50'
-                          )}
-                        >
+                    {combinedItems.map((item) => {
+                      if (item.type === 'group') {
+                        const { groupKey, groupQuestions } = item
+                        const firstQuestion = groupQuestions[0]
+                        // Verificar SIEMPRE si es matching/columnas primero (prioridad más alta)
+                        // Verificar en TODAS las preguntas del grupo, no solo la primera
+                        const isMatchingColumns = groupQuestions.some(q => {
+                          const isMatch = q.subjectCode === 'IN' && 
+                                         q.informativeText && 
+                                         typeof q.informativeText === 'string' &&
+                                         (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                          q.informativeText.includes('MATCHING_COLUMNS_'))
+                          // Debug: Solo mostrar para debugging si es necesario
+                          if (isMatch) {
+                            console.log('🔍 Pregunta de matching/columnas detectada:', {
+                              code: q.code,
+                              informativeText: q.informativeText,
+                              subjectCode: q.subjectCode
+                            })
+                          }
+                          return isMatch
+                        })
+                        const isClozeTest = groupQuestions.some(q => q.questionText?.includes('completar el hueco'))
+                        
+                        // Determinar el nombre del grupo
+                        // IMPORTANTE: Priorizar matching/columnas sobre otras modalidades
+                        let groupName: string
+                        if (isMatchingColumns) {
+                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
+                          // Ejemplo: "Inglés - matching / columnas - 2 preguntas - Sexto - Medio"
+                          groupName = `Inglés - matching / columnas - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
+                          console.log('✅ Grupo de matching/columnas detectado:', {
+                            groupName,
+                            questionsCount: groupQuestions.length,
+                            firstQuestionCode: firstQuestion.code,
+                            firstQuestionInformativeText: firstQuestion.informativeText
+                          })
+                        } else if (isClozeTest) {
+                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
+                          groupName = `Inglés - Cloze Test / Rellenar Huecos - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
+                        } else {
+                          // Comprensión de Lectura Corta
+                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
+                          groupName = `Inglés - Comprensión de Lectura Corta - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
+                        }
+                        
+                        return (
+                          <div 
+                            key={groupKey}
+                            className={cn(
+                              'rounded-lg border-2 overflow-hidden',
+                              theme === 'dark'
+                                ? 'border-purple-700 bg-purple-950/30'
+                                : 'border-purple-300 bg-purple-50/50'
+                            )}
+                          >
                           {/* Header del grupo */}
                           <div className={cn(
                             'px-4 py-2 flex items-center justify-between',
@@ -3361,11 +4281,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             <div className="flex items-center gap-2">
                               <BookOpen className={cn('h-4 w-4', theme === 'dark' ? 'text-purple-300' : 'text-purple-600')} />
                               <span className={cn('font-semibold text-sm', theme === 'dark' ? 'text-purple-200' : 'text-purple-700')}>
-                                {isClozeTest ? 'Cloze Test / Rellenar Huecos' : 'Comprensión de Lectura'} - {groupQuestions.length} pregunta{groupQuestions.length > 1 ? 's' : ''} agrupada{groupQuestions.length > 1 ? 's' : ''}
+                                {groupName}
                               </span>
-                              <Badge variant="outline" className="text-xs">
-                                {firstQuestion.topic} • {GRADE_CODE_TO_NAME[firstQuestion.grade]} • {firstQuestion.level}
-                              </Badge>
+                              {!isMatchingColumns && (
+                                <Badge variant="outline" className="text-xs">
+                                  {firstQuestion.topic} • {GRADE_CODE_TO_NAME[firstQuestion.grade]} • {firstQuestion.level}
+                                </Badge>
+                              )}
                             </div>
                             <Button 
                               variant="ghost" 
@@ -3381,7 +4303,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           {/* Preguntas del grupo */}
                           <div className="divide-y divide-gray-200 dark:divide-gray-700">
                             {groupQuestions.sort((a, b) => {
-                              // Ordenar por código o por número de hueco si es cloze test
+                              // Primero, ordenar por fecha de creación (más reciente primero)
+                              const dateA = new Date(a.createdAt).getTime()
+                              const dateB = new Date(b.createdAt).getTime()
+                              if (dateB !== dateA) {
+                                return dateB - dateA // Más reciente primero
+                              }
+                              // Si tienen la misma fecha, ordenar por código o por número de hueco si es cloze test
                               const aMatch = a.questionText?.match(/hueco \[(\d+)\]/)
                               const bMatch = b.questionText?.match(/hueco \[(\d+)\]/)
                               if (aMatch && bMatch) {
@@ -3439,88 +4367,90 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           </div>
                         </div>
                       )
+                      } else {
+                        // Renderizar pregunta individual
+                        const { question } = item
+                        return (
+                          <div 
+                            key={question.id} 
+                            className={cn(
+                              'p-4 rounded-lg border cursor-pointer transition-colors',
+                              theme === 'dark' 
+                                ? 'border-zinc-700 hover:bg-zinc-800' 
+                                : 'border-gray-200 hover:bg-gray-50'
+                            )}
+                            onClick={() => handleViewQuestion(question)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant="outline" className="font-mono text-xs">
+                                    {question.code}
+                                  </Badge>
+                                  <Badge variant="secondary">
+                                    {question.subject}
+                                  </Badge>
+                                  <Badge variant="secondary">
+                                    {question.topic}
+                                  </Badge>
+                                  <Badge variant="secondary">
+                                    {GRADE_CODE_TO_NAME[question.grade]}
+                                  </Badge>
+                                  <Badge 
+                                    variant={
+                                      question.level === 'Fácil' ? 'default' : 
+                                      question.level === 'Medio' ? 'secondary' : 
+                                      'destructive'
+                                    }
+                                  >
+                                    {question.level}
+                                  </Badge>
+                                </div>
+                                <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                  {stripHtmlTags(question.questionText).substring(0, 120)}
+                                  {stripHtmlTags(question.questionText).length > 120 && '...'}
+                                </p>
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <span>{question.options.length} opciones</span>
+                                  {(question.questionImages && question.questionImages.length > 0) && (
+                                    <span className="flex items-center gap-1">
+                                      <ImageIcon className="h-3 w-3" />
+                                      {question.questionImages.length} imagen{question.questionImages.length > 1 ? 'es' : ''}
+                                    </span>
+                                  )}
+                                  {(question.informativeImages && question.informativeImages.length > 0) && (
+                                    <span className="flex items-center gap-1">
+                                      <ImageIcon className="h-3 w-3" />
+                                      {question.informativeImages.length} info
+                                    </span>
+                                  )}
+                                  {question.options.some(opt => opt.imageUrl) && (
+                                    <span className="flex items-center gap-1">
+                                      <ImageIcon className="h-3 w-3" />
+                                      opciones con imagen
+                                    </span>
+                                  )}
+                                  <span>
+                                    {new Date(question.createdAt).toLocaleDateString('es-ES')}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 ml-4">
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
                     })}
-                    
-                    {/* Preguntas individuales */}
-                    {ungroupedQuestions.map((question) => (
-                      <div 
-                        key={question.id} 
-                        className={cn(
-                          'p-4 rounded-lg border cursor-pointer transition-colors',
-                          theme === 'dark' 
-                            ? 'border-zinc-700 hover:bg-zinc-800' 
-                            : 'border-gray-200 hover:bg-gray-50'
-                        )}
-                        onClick={() => handleViewQuestion(question)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {question.code}
-                              </Badge>
-                              <Badge variant="secondary">
-                                {question.subject}
-                              </Badge>
-                              <Badge variant="secondary">
-                                {question.topic}
-                              </Badge>
-                              <Badge variant="secondary">
-                                {GRADE_CODE_TO_NAME[question.grade]}
-                              </Badge>
-                              <Badge 
-                                variant={
-                                  question.level === 'Fácil' ? 'default' : 
-                                  question.level === 'Medio' ? 'secondary' : 
-                                  'destructive'
-                                }
-                              >
-                                {question.level}
-                              </Badge>
-                            </div>
-                            <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                              {stripHtmlTags(question.questionText).substring(0, 120)}
-                              {stripHtmlTags(question.questionText).length > 120 && '...'}
-                            </p>
-                            <div className="flex items-center gap-4 text-sm text-gray-500">
-                              <span>{question.options.length} opciones</span>
-                              {(question.questionImages && question.questionImages.length > 0) && (
-                                <span className="flex items-center gap-1">
-                                  <ImageIcon className="h-3 w-3" />
-                                  {question.questionImages.length} imagen{question.questionImages.length > 1 ? 'es' : ''}
-                                </span>
-                              )}
-                              {(question.informativeImages && question.informativeImages.length > 0) && (
-                                <span className="flex items-center gap-1">
-                                  <ImageIcon className="h-3 w-3" />
-                                  {question.informativeImages.length} info
-                                </span>
-                              )}
-                              {question.options.some(opt => opt.imageUrl) && (
-                                <span className="flex items-center gap-1">
-                                  <ImageIcon className="h-3 w-3" />
-                                  opciones con imagen
-                                </span>
-                              )}
-                              <span>
-                                {new Date(question.createdAt).toLocaleDateString('es-ES')}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 ml-4">
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
                   </>
                 )
               })()}
@@ -3658,9 +4588,18 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             )}
 
             {/* Texto informativo (opcional) - Oculto para Inglés modalidad Comprensión de Lectura */}
+            {/* Visible para matching/columnas y otras modalidades */}
             {!(formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') && (
               <div className="space-y-2">
+<<<<<<< HEAD
                 <Label htmlFor="informativeText" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Texto Informativo (opcional)</Label>
+=======
+                <Label htmlFor="informativeText">
+                  {formData.subjectCode === 'IN' && inglesModality === 'matching_columns'
+                    ? 'Texto Compartido (opcional)'
+                    : 'Texto Informativo (opcional)'}
+                </Label>
+>>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                 <RichTextEditor
                   ref={informativeTextEditorRef}
                   value={formData.informativeText}
@@ -3768,6 +4707,72 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             theme={theme}
                     />
                   </div>
+                  {/* Campo para imagen de la pregunta */}
+                  <div className="space-y-2">
+                    <Label>Imagen de la Pregunta (Opcional)</Label>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              // Validar tamaño (máximo 5MB)
+                              if (file.size > 5 * 1024 * 1024) {
+                                notifyError({
+                                  title: 'Error',
+                                  message: 'La imagen es demasiado grande. Tamaño máximo: 5MB'
+                                })
+                                return
+                              }
+                              // Validar tipo
+                              if (!file.type.startsWith('image/')) {
+                                notifyError({
+                                  title: 'Error',
+                                  message: 'El archivo debe ser una imagen'
+                                })
+                                return
+                              }
+                              // Crear vista previa
+                              const reader = new FileReader()
+                              reader.onloadend = () => {
+                                const updated = [...matchingQuestions]
+                                updated[mqIndex].questionImage = file
+                                updated[mqIndex].questionImagePreview = reader.result as string
+                                setMatchingQuestions(updated)
+                              }
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                          className="cursor-pointer"
+                        />
+                      </div>
+                      {mq.questionImagePreview && (
+                        <div className="relative">
+                          <img
+                            src={mq.questionImagePreview}
+                            alt="Vista previa"
+                            className="h-20 w-20 object-cover rounded border"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-red-500 hover:bg-red-600 text-white"
+                            onClick={() => {
+                              const updated = [...matchingQuestions]
+                              updated[mqIndex].questionImage = null
+                              updated[mqIndex].questionImagePreview = null
+                              setMatchingQuestions(updated)
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div className="space-y-2">
                           <Label className={cn(hasOptionsError || hasAnswerError ? 'text-red-600' : '', theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-gray-300' : '')}>
                             Opciones de Respuesta (A-H, máximo 6 opciones) *
@@ -3840,6 +4845,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         {
                           id: newId,
                           questionText: '',
+                          questionImage: null,
+                          questionImagePreview: null,
                           options: optionLetters.map((letter): QuestionOption => ({
                             id: letter as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
                             text: '',
@@ -4503,8 +5510,30 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       </Dialog>
 
       {/* Dialog para editar pregunta */}
+<<<<<<< HEAD
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className={cn("max-w-4xl max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+=======
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open)
+        if (!open) {
+          // Limpiar estados de edición cuando se cierra el diálogo
+          setIsEditingClozeTest(false)
+          setIsEditingReadingComprehension(false)
+          setEditClozeText('')
+          setEditClozeGaps({})
+          setEditClozeRelatedQuestions([])
+          setEditReadingText('')
+          setEditReadingImage(null)
+          setEditReadingImagePreview(null)
+          setEditReadingExistingImageUrl(null)
+          setEditReadingQuestions([])
+          setEditReadingRelatedQuestions([])
+          setSelectedQuestion(null)
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+>>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
           <DialogHeader>
             <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Pregunta {selectedQuestion?.code}</DialogTitle>
             <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
@@ -4775,11 +5804,540 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   </div>
                 )}
               </>
+            ) : isEditingReadingComprehension ? (
+              /* Modalidad: Comprensión de Lectura - Edición */
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-readingText" className={fieldErrors['readingText'] ? 'text-red-600' : ''}>
+                    {(formData.subjectCode === 'IN' && (inglesModality === 'matching_columns' || 
+                      (formData.informativeText && typeof formData.informativeText === 'string' && formData.informativeText.startsWith('MATCHING_COLUMNS_'))))
+                      ? 'Texto Compartido *' 
+                      : 'Texto de Lectura / Aviso / Cartel *'}
+                    {fieldErrors['readingText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
+                  </Label>
+                  <div className={fieldErrors['readingText'] ? 'border-2 border-red-500 rounded-md' : ''}>
+                    <RichTextEditor
+                      value={editReadingText}
+                      onChange={(html) => {
+                        setEditReadingText(html)
+                        // Limpiar error cuando el usuario empiece a escribir
+                        if (fieldErrors['readingText']) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors['readingText']
+                            return newErrors
+                          })
+                        }
+                      }}
+                      placeholder="Ingresa el texto base para la comprensión de lectura..."
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Imagen Informativa (opcional)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setEditReadingImage(file)
+                          const reader = new FileReader()
+                          reader.onloadend = () => setEditReadingImagePreview(reader.result as string)
+                          reader.readAsDataURL(file)
+                        }
+                      }}
+                      className="hidden"
+                      id="edit-reading-image"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('edit-reading-image')?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {editReadingExistingImageUrl ? 'Cambiar Imagen' : 'Subir Imagen'}
+                    </Button>
+                    {editReadingExistingImageUrl && !editReadingImagePreview && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setEditReadingExistingImageUrl(null)
+                          setEditReadingImagePreview(null)
+                        }}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Eliminar Imagen Existente
+                      </Button>
+                    )}
+                  </div>
+                  {(editReadingImagePreview || editReadingExistingImageUrl) && (
+                    <div className="relative w-full max-w-md">
+                      <img 
+                        src={editReadingImagePreview || editReadingExistingImageUrl || ''} 
+                        alt="Reading" 
+                        className="w-full h-auto rounded" 
+                      />
+                      {editReadingImagePreview && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-0 right-0"
+                          onClick={() => {
+                            setEditReadingImage(null)
+                            setEditReadingImagePreview(null)
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className={fieldErrors['readingQuestions'] ? 'text-red-600' : ''}>
+                    Preguntas Vinculadas *
+                    {fieldErrors['readingQuestions'] && <span className="ml-2 text-red-600">⚠️ Debe agregar al menos una pregunta</span>}
+                  </Label>
+                  {editReadingQuestions.map((rq, rqIndex) => {
+                    const hasOptionsError = fieldErrors[`readingQuestionOptions_${rqIndex}`]
+                    const hasAnswerError = fieldErrors[`readingQuestionAnswer_${rqIndex}`]
+                    const hasAnyError = hasOptionsError || hasAnswerError
+                    
+                    return (
+                      <div key={rq.questionId} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                        <div className="flex items-center justify-between">
+                          <Label className={hasAnyError ? 'text-red-600' : ''}>
+                            Pregunta {rqIndex + 1}
+                            {hasAnyError && <span className="ml-2 text-red-600 text-xs">⚠️ Campos incompletos</span>}
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditReadingQuestions(editReadingQuestions.filter((_, i) => i !== rqIndex))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div>
+                          <RichTextEditor
+                            value={rq.questionText}
+                            onChange={(html) => {
+                              const updated = [...editReadingQuestions]
+                              updated[rqIndex].questionText = html
+                              setEditReadingQuestions(updated)
+                            }}
+                            placeholder="Texto de la pregunta (opcional)..."
+                          />
+                        </div>
+                        {/* Imagen por pregunta (opcional) */}
+                        <div className="space-y-2">
+                          <Label>Imagen por Pregunta (opcional)</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  const updated = [...editReadingQuestions]
+                                  updated[rqIndex].questionImage = file
+                                  const reader = new FileReader()
+                                  reader.onloadend = () => {
+                                    const updatedWithPreview = [...editReadingQuestions]
+                                    updatedWithPreview[rqIndex].questionImagePreview = reader.result as string
+                                    setEditReadingQuestions(updatedWithPreview)
+                                  }
+                                  reader.readAsDataURL(file)
+                                  setEditReadingQuestions(updated)
+                                }
+                              }}
+                              className="hidden"
+                              id={`edit-reading-question-image-${rq.questionId}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => document.getElementById(`edit-reading-question-image-${rq.questionId}`)?.click()}
+                            >
+                              <Upload className="h-4 w-4 mr-2" />
+                              {rq.existingQuestionImageUrl ? 'Cambiar Imagen' : 'Subir Imagen'}
+                            </Button>
+                            {rq.existingQuestionImageUrl && !rq.questionImagePreview && (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  const updated = [...editReadingQuestions]
+                                  updated[rqIndex].existingQuestionImageUrl = null
+                                  updated[rqIndex].questionImagePreview = null
+                                  setEditReadingQuestions(updated)
+                                }}
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Eliminar Imagen Existente
+                              </Button>
+                            )}
+                          </div>
+                          {(rq.questionImagePreview || rq.existingQuestionImageUrl) && (
+                            <div className="relative w-full max-w-md">
+                              <img 
+                                src={rq.questionImagePreview || rq.existingQuestionImageUrl || ''} 
+                                alt={`Pregunta ${rqIndex + 1}`} 
+                                className="w-full h-auto rounded" 
+                              />
+                              {rq.questionImagePreview && (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute top-0 right-0"
+                                  onClick={() => {
+                                    const updated = [...editReadingQuestions]
+                                    updated[rqIndex].questionImage = null
+                                    updated[rqIndex].questionImagePreview = null
+                                    setEditReadingQuestions(updated)
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                            Opciones *
+                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                          </Label>
+                          {rq.options.map((opt) => (
+                            <div key={opt.id} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name={`edit-reading-q-${rq.questionId}`}
+                                checked={opt.isCorrect}
+                                onChange={() => {
+                                  const updated = [...editReadingQuestions]
+                                  updated[rqIndex].options = updated[rqIndex].options.map(o => ({
+                                    ...o,
+                                    isCorrect: o.id === opt.id
+                                  }))
+                                  setEditReadingQuestions(updated)
+                                  // Limpiar error cuando se selecciona una respuesta
+                                  if (fieldErrors[`readingQuestionAnswer_${rqIndex}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`readingQuestionAnswer_${rqIndex}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <Label className="font-medium w-6">{opt.id}:</Label>
+                              <Input
+                                value={opt.text || ''}
+                                onChange={(e) => {
+                                  const updated = [...editReadingQuestions]
+                                  updated[rqIndex].options = updated[rqIndex].options.map(o =>
+                                    o.id === opt.id ? { ...o, text: e.target.value } : o
+                                  )
+                                  setEditReadingQuestions(updated)
+                                  // Limpiar error cuando el usuario empiece a escribir
+                                  if (fieldErrors[`readingQuestionOptions_${rqIndex}`]) {
+                                    const allFilled = updated[rqIndex].options.every(o => o.text && o.text.trim())
+                                    if (allFilled) {
+                                      setFieldErrors(prev => {
+                                        const newErrors = { ...prev }
+                                        delete newErrors[`readingQuestionOptions_${rqIndex}`]
+                                        return newErrors
+                                      })
+                                    }
+                                  }
+                                }}
+                                placeholder={`Opción ${opt.id}`}
+                                className="flex-1"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const newQuestionId = `edit-reading-q-${editReadingQuestions.length}-${Date.now()}`
+                      setEditReadingQuestions([
+                        ...editReadingQuestions,
+                        {
+                          id: '',
+                          questionId: newQuestionId,
+                          questionText: '',
+                          questionImage: null,
+                          questionImagePreview: null,
+                          existingQuestionImageUrl: null,
+                          options: [
+                            { id: 'A', text: '', imageUrl: null, isCorrect: false },
+                            { id: 'B', text: '', imageUrl: null, isCorrect: false },
+                            { id: 'C', text: '', imageUrl: null, isCorrect: false },
+                            { id: 'D', text: '', imageUrl: null, isCorrect: false },
+                          ]
+                        }
+                      ])
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar Pregunta
+                  </Button>
+                </div>
+              </>
+            ) : formData.subjectCode === 'IN' && inglesModality === 'matching_columns' ? (
+              /* Modalidad: Matching / Columnas - Edición */
+              <>
+                {/* Texto Compartido */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-informativeText">Texto Compartido (opcional)</Label>
+                  <RichTextEditor
+                    ref={editInformativeTextEditorRef}
+                    value={formData.informativeText}
+                    onChange={(html) => setFormData({ ...formData, informativeText: html })}
+                    placeholder="Texto compartido para todas las preguntas..."
+                  />
+                </div>
+
+                {/* Preguntas de Matching / Columnas */}
+                <div className="space-y-2">
+                  <Label className={fieldErrors['matchingQuestions'] ? 'text-red-600' : ''}>
+                    Preguntas de Matching / Columnas *
+                    {fieldErrors['matchingQuestions'] && <span className="ml-2 text-red-600">⚠️ Debe agregar al menos una pregunta</span>}
+                  </Label>
+                  {matchingQuestions.map((mq, mqIndex) => {
+                    const hasTextError = fieldErrors[`matchingQuestionText_${mqIndex}`]
+                    const hasOptionsError = fieldErrors[`matchingQuestionOptions_${mqIndex}`]
+                    const hasAnswerError = fieldErrors[`matchingQuestionAnswer_${mqIndex}`]
+                    const hasAnyError = hasTextError || hasOptionsError || hasAnswerError
+                    
+                    return (
+                      <div key={mq.id} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                        <div className="flex items-center justify-between">
+                          <Label className={hasAnyError ? 'text-red-600' : ''}>
+                            Pregunta {mqIndex + 1}
+                            {hasAnyError && <span className="ml-2 text-red-600 text-xs">⚠️ Campos incompletos</span>}
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setMatchingQuestions(matchingQuestions.filter((_, i) => i !== mqIndex))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div>
+                          <RichTextEditor
+                            value={mq.questionText}
+                            onChange={(html) => {
+                              const updated = [...matchingQuestions]
+                              updated[mqIndex].questionText = html
+                              setMatchingQuestions(updated)
+                              // Limpiar error cuando el usuario empiece a escribir
+                              if (fieldErrors[`matchingQuestionText_${mqIndex}`]) {
+                                setFieldErrors(prev => {
+                                  const newErrors = { ...prev }
+                                  delete newErrors[`matchingQuestionText_${mqIndex}`]
+                                  return newErrors
+                                })
+                              }
+                            }}
+                            placeholder="Escribe la pregunta aquí..."
+                          />
+                        </div>
+                        {/* Campo para imagen de la pregunta */}
+                        <div className="space-y-2">
+                          <Label>Imagen de la Pregunta (Opcional)</Label>
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1">
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (file) {
+                                    // Validar tamaño (máximo 5MB)
+                                    if (file.size > 5 * 1024 * 1024) {
+                                      notifyError({
+                                        title: 'Error',
+                                        message: 'La imagen es demasiado grande. Tamaño máximo: 5MB'
+                                      })
+                                      return
+                                    }
+                                    // Validar tipo
+                                    if (!file.type.startsWith('image/')) {
+                                      notifyError({
+                                        title: 'Error',
+                                        message: 'El archivo debe ser una imagen'
+                                      })
+                                      return
+                                    }
+                                    // Crear vista previa
+                                    const reader = new FileReader()
+                                    reader.onloadend = () => {
+                                      const updated = [...matchingQuestions]
+                                      updated[mqIndex].questionImage = file
+                                      updated[mqIndex].questionImagePreview = reader.result as string
+                                      setMatchingQuestions(updated)
+                                    }
+                                    reader.readAsDataURL(file)
+                                  }
+                                }}
+                                className="cursor-pointer"
+                              />
+                            </div>
+                            {mq.questionImagePreview && (
+                              <div className="relative">
+                                <img
+                                  src={mq.questionImagePreview}
+                                  alt="Vista previa"
+                                  className="h-20 w-20 object-cover rounded border"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-red-500 hover:bg-red-600 text-white"
+                                  onClick={() => {
+                                    const updated = [...matchingQuestions]
+                                    updated[mqIndex].questionImage = null
+                                    updated[mqIndex].questionImagePreview = null
+                                    setMatchingQuestions(updated)
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                            Opciones de Respuesta (A-H, máximo 6 opciones) *
+                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                          </Label>
+                          {mq.options.map((opt) => (
+                            <div key={opt.id} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name={`edit-matching-q-${mq.id}`}
+                                checked={opt.isCorrect}
+                                onChange={() => {
+                                  const updated = [...matchingQuestions]
+                                  updated[mqIndex].options = updated[mqIndex].options.map(o => ({
+                                    ...o,
+                                    isCorrect: o.id === opt.id
+                                  }))
+                                  setMatchingQuestions(updated)
+                                  // Limpiar error cuando se selecciona una respuesta
+                                  if (fieldErrors[`matchingQuestionAnswer_${mqIndex}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`matchingQuestionAnswer_${mqIndex}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <Label className="font-medium w-6">{opt.id}:</Label>
+                              <Input
+                                value={opt.text || ''}
+                                onChange={(e) => {
+                                  const updated = [...matchingQuestions]
+                                  updated[mqIndex].options = updated[mqIndex].options.map(o =>
+                                    o.id === opt.id ? { ...o, text: e.target.value } : o
+                                  )
+                                  setMatchingQuestions(updated)
+                                  // Limpiar error cuando el usuario empiece a escribir
+                                  if (fieldErrors[`matchingQuestionOptions_${mqIndex}`]) {
+                                    setFieldErrors(prev => {
+                                      const newErrors = { ...prev }
+                                      delete newErrors[`matchingQuestionOptions_${mqIndex}`]
+                                      return newErrors
+                                    })
+                                  }
+                                }}
+                                placeholder={`Opción ${opt.id}`}
+                                className={`flex-1 ${hasOptionsError && !opt.text?.trim() ? 'border-red-500' : ''}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        {hasAnswerError && (
+                          <p className="text-xs text-red-600">⚠️ Debe marcar exactamente una opción como correcta</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full mt-4"
+                    onClick={() => {
+                      const newId = `mq-edit-${matchingQuestions.length + 1}-${Date.now()}`
+                      // Crear opciones A-H (máximo 6 opciones)
+                      const optionLetters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].slice(0, 6) as ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[]
+                      setMatchingQuestions([
+                        ...matchingQuestions,
+                        {
+                          id: newId,
+                          questionText: '',
+                          questionImage: null,
+                          questionImagePreview: null,
+                          options: optionLetters.map((letter): QuestionOption => ({
+                            id: letter as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+                            text: '',
+                            imageUrl: null,
+                            isCorrect: false
+                          }))
+                        }
+                      ])
+                      // Limpiar error cuando se agrega una pregunta
+                      if (fieldErrors['matchingQuestions']) {
+                        setFieldErrors(prev => {
+                          const newErrors = { ...prev }
+                          delete newErrors['matchingQuestions']
+                          return newErrors
+                        })
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir Pregunta de Matching
+                  </Button>
+                </div>
+              </>
             ) : (
               <>
                 {/* Texto informativo */}
                 <div className="space-y-2">
+<<<<<<< HEAD
                   <Label htmlFor="edit-informativeText" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Texto Informativo (opcional)</Label>
+=======
+                  <Label htmlFor="edit-informativeText">
+                    {(formData.subjectCode === 'IN' && (inglesModality === 'matching_columns' || 
+                      (formData.informativeText && typeof formData.informativeText === 'string' && formData.informativeText.includes('MATCHING_COLUMNS_'))))
+                      ? 'Texto Compartido (opcional)'
+                      : 'Texto Informativo (opcional)'}
+                  </Label>
+>>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                   <RichTextEditor
                     ref={editInformativeTextEditorRef}
                     value={formData.informativeText}
@@ -4894,8 +6452,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </div>
             )}
 
-            {/* Secciones para preguntas normales (NO cloze test) */}
-            {!isEditingClozeTest && (
+            {/* Secciones para preguntas normales (NO cloze test, NO comprensión de lectura, NO matching/columnas) */}
+            {!isEditingClozeTest && !isEditingReadingComprehension && !(formData.subjectCode === 'IN' && inglesModality === 'matching_columns') && (
               <>
                 {/* Imágenes informativas - Edición */}
                 <div className="space-y-2">
@@ -5075,8 +6633,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </>
             )}
 
-            {/* Opciones de respuesta - Solo mostrar si NO es cloze test */}
-            {!isEditingClozeTest && (
+            {/* Opciones de respuesta - Solo mostrar si NO es cloze test, NO es comprensión de lectura, y NO es matching/columnas */}
+            {!isEditingClozeTest && !isEditingReadingComprehension && !(formData.subjectCode === 'IN' && inglesModality === 'matching_columns') && (
               <div className="space-y-2">
                 <Label className={cn(fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['options'] && !fieldErrors['correctAnswer'] ? 'text-gray-300' : '')}>
                   Opciones de Respuesta *
@@ -5221,9 +6779,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             <h3 className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Vista Previa - Estás realizando:</h3>
                             <h2 className={cn("text-lg font-bold", theme === 'dark' ? 'text-white' : '')}>
                               {relatedQuestions.length > 1 
-                                ? (relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
-                                    ? `Cloze Test / Rellenar Huecos (${relatedQuestions.length} preguntas agrupadas)`
-                                    : `Comprensión de Lectura (${relatedQuestions.length} preguntas)`)
+                                ? (() => {
+                                    const isClozeTest = relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
+                                    const isMatchingColumns = relatedQuestions.some(q => 
+                                      q.subjectCode === 'IN' && 
+                                      q.informativeText && 
+                                      typeof q.informativeText === 'string' &&
+                                      (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                       q.informativeText.includes('MATCHING_COLUMNS_'))
+                                    )
+                                    if (isClozeTest) {
+                                      return `Cloze Test / Rellenar Huecos (${relatedQuestions.length} preguntas agrupadas)`
+                                    } else if (isMatchingColumns) {
+                                      return `Matching / Columnas (${relatedQuestions.length} preguntas)`
+                                    } else {
+                                      return `Comprensión de Lectura Corta (${relatedQuestions.length} preguntas)`
+                                    }
+                                  })()
                                 : 'Pregunta del Banco de Datos'}
                             </h2>
                             <div className="flex items-center gap-2 text-sm mt-1">
@@ -5247,12 +6819,35 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       {relatedQuestions.length > 1 && selectedQuestion.informativeText && (
                         <Card className={cn("mb-6 border-2", theme === 'dark' ? 'border-purple-700 bg-purple-900/30' : 'border-purple-200 bg-purple-50/30')}>
                           <CardHeader>
+<<<<<<< HEAD
                             <CardTitle className={cn("text-lg flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
                               <BookOpen className={cn("h-5 w-5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
                               {/* Detectar si es Cloze Test basándose en el patrón del questionText */}
                               {relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco')) 
                                 ? 'Texto de Cloze Test (Rellenar Huecos)' 
                                 : 'Texto de Lectura Compartido'}
+=======
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <BookOpen className="h-5 w-5 text-purple-600" />
+                              {/* Detectar el tipo de modalidad para mostrar el título correcto */}
+                              {(() => {
+                                const isClozeTest = relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
+                                const isMatchingColumns = relatedQuestions.some(q => 
+                                  q.subjectCode === 'IN' && 
+                                  q.informativeText && 
+                                  typeof q.informativeText === 'string' &&
+                                  (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                   q.informativeText.includes('MATCHING_COLUMNS_'))
+                                )
+                                if (isClozeTest) {
+                                  return 'Texto de Cloze Test (Rellenar Huecos)'
+                                } else if (isMatchingColumns) {
+                                  return 'Texto Compartido'
+                                } else {
+                                  return 'Texto de Lectura Compartido'
+                                }
+                              })()}
+>>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
@@ -5370,9 +6965,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   )
                                 })()
                               ) : (
-                                /* Visualización normal para comprensión de lectura */
+                                /* Visualización normal para comprensión de lectura o matching/columnas */
                                 <>
                                   {/* Texto informativo compartido */}
+<<<<<<< HEAD
                                   {selectedQuestion.informativeText && (
                                     <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
                                       <div
@@ -5381,6 +6977,30 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                       />
                                     </div>
                                   )}
+=======
+                                  {selectedQuestion.informativeText && (() => {
+                                    // Extraer el texto real si es matching/columnas
+                                    const isMatchingColumns = selectedQuestion.subjectCode === 'IN' && 
+                                                             selectedQuestion.informativeText && 
+                                                             typeof selectedQuestion.informativeText === 'string' &&
+                                                             (selectedQuestion.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                                              selectedQuestion.informativeText.includes('MATCHING_COLUMNS_'))
+                                    const displayText = isMatchingColumns 
+                                      ? extractMatchingText(selectedQuestion.informativeText) 
+                                      : selectedQuestion.informativeText
+                                    
+                                    if (!displayText || !displayText.trim()) return null
+                                    
+                                    return (
+                                      <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div
+                                          className="text-gray-700 leading-relaxed prose max-w-none"
+                                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(displayText)) }}
+                                        />
+                                      </div>
+                                    )
+                                  })()}
+>>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                                 </>
                               )}
 
@@ -5459,8 +7079,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               )}
                             </div>
                             
-                            {/* RadioGroup de opciones - Formato especial para Matching / Columnas */}
-                            {question.subjectCode === 'IN' && question.options && question.options.length > 0 ? (
+                            {/* RadioGroup de opciones - Formato especial SOLO para Matching / Columnas */}
+                            {/* Para Opción Múltiple Estándar en inglés, usar formato estándar como otras materias */}
+                            {question.subjectCode === 'IN' && 
+                             question.options && 
+                             question.options.length > 0 &&
+                             question.informativeText &&
+                             typeof question.informativeText === 'string' &&
+                             (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                              question.informativeText.includes('MATCHING_COLUMNS_')) ? (
                               /* Formato Matching: Pregunta y Respuesta al frente con botón expandible superpuesto */
                               <div className="mt-4">
                                 <div className={cn("border rounded-lg overflow-visible relative", theme === 'dark' ? 'border-zinc-700' : '')}>
@@ -5746,9 +7373,28 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           {relatedQuestions.length > 1 && (
                             <div className={cn("mt-4 p-3 border rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200')}>
                               <div className="flex items-start gap-2">
+<<<<<<< HEAD
                                 <BookOpen className={cn("h-4 w-4 mt-0.5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
                                 <div className={cn("text-xs", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
                                   Estas preguntas comparten el mismo texto de lectura e imágenes.
+=======
+                                <BookOpen className="h-4 w-4 text-purple-600 mt-0.5" />
+                                <div className="text-xs text-purple-700">
+                                  {(() => {
+                                    const isMatchingColumns = relatedQuestions.some(q => 
+                                      q.subjectCode === 'IN' && 
+                                      q.informativeText && 
+                                      typeof q.informativeText === 'string' &&
+                                      (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                       q.informativeText.includes('MATCHING_COLUMNS_'))
+                                    )
+                                    if (isMatchingColumns) {
+                                      return 'Estas preguntas comparten el mismo texto compartido e imágenes.'
+                                    } else {
+                                      return 'Estas preguntas comparten el mismo texto de lectura e imágenes.'
+                                    }
+                                  })()}
+>>>>>>> 4799ef2c52f88d12eb6a7ce10d7fea1bb0250e74
                                 </div>
                               </div>
                             </div>
