@@ -12,8 +12,6 @@ import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
-import { useThemeContext } from "@/context/ThemeContext";
-import { cn } from "@/lib/utils";
 
 const db = getFirestore(firebaseApp);
 
@@ -136,7 +134,6 @@ const examConfig = {
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const { user } = useAuthContext();
-  const { theme: appTheme } = useThemeContext();
   const userId = user?.uid;
 
   // Estados principales
