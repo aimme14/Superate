@@ -133,7 +133,7 @@ const ExamWithFirebase = () => {
 
   // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout | undefined;
     let isMounted = true;
 
     const loadQuiz = async () => {
@@ -254,14 +254,14 @@ const ExamWithFirebase = () => {
     if (!quizData) return;
     
     // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = quizData.questions[currentQuestion].id;
+    const currentQuestionId = quizData.questions[currentQuestion].id || '';
     finalizeQuestionTime(currentQuestionId);
 
     // Cambiar a la nueva pregunta
     setCurrentQuestion(newQuestionIndex);
 
     // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = quizData.questions[newQuestionIndex].id;
+    const newQuestionId = quizData.questions[newQuestionIndex].id || '';
     initializeQuestionTime(newQuestionId);
   };
 
@@ -278,7 +278,10 @@ const ExamWithFirebase = () => {
       const now = Date.now();
       setExamStartTime(now);
       // Inicializar la primera pregunta
-      initializeQuestionTime(quizData.questions[0].id);
+      const firstQuestionId = quizData.questions[0].id || '';
+      if (firstQuestionId) {
+        initializeQuestionTime(firstQuestionId);
+      }
     }
   }, [examState, quizData]);
 
@@ -298,9 +301,12 @@ const ExamWithFirebase = () => {
     let totalAnswered = 0
 
     quizData.questions.forEach(question => {
-      if (answers[question.id]) {
+      const questionId = question.id || ''
+      const correctOption = question.options.find(opt => opt.isCorrect)
+      const correctAnswer = correctOption?.id || ''
+      if (answers[questionId]) {
         totalAnswered++
-        if (answers[question.id] === question.correctAnswer) {
+        if (answers[questionId] === correctAnswer) {
           correctAnswers++
         }
       }
@@ -322,7 +328,7 @@ const ExamWithFirebase = () => {
     setIsSubmitting(true)
 
     // Finalizar el tiempo de la pregunta actual antes de enviar
-    const currentQuestionId = quizData.questions[currentQuestion].id;
+    const currentQuestionId = quizData.questions[currentQuestion].id || '';
     finalizeQuestionTime(currentQuestionId);
 
     try {
@@ -349,16 +355,21 @@ const ExamWithFirebase = () => {
         questionTimeTracking: questionTimeData,
         totalExamTimeSeconds: totalExamTime,
         // Detalles por pregunta con tiempo incluido
-        questionDetails: quizData.questions.map(question => ({
-          questionId: question.id,
-          questionText: stripHtmlTags(question.text || ''),
-          userAnswer: answers[question.id] || null,
-          correctAnswer: question.correctAnswer,
-          topic: question.topic,
-          isCorrect: answers[question.id] === question.correctAnswer,
-          answered: !!answers[question.id],
-          timeSpent: questionTimeData[question.id]?.timeSpent || 0,
-        }))
+        questionDetails: quizData.questions.map(question => {
+          const correctOption = question.options.find(opt => opt.isCorrect)
+          const correctAnswer = correctOption?.id || ''
+          const questionId = question.id || ''
+          return {
+            questionId: questionId,
+            questionText: stripHtmlTags(question.questionText || ''),
+            userAnswer: answers[questionId] || null,
+            correctAnswer: correctAnswer,
+            topic: question.topic,
+            isCorrect: answers[questionId] === correctAnswer,
+            answered: !!answers[questionId],
+            timeSpent: questionTimeData[questionId]?.timeSpent || 0,
+          }
+        })
       }
 
       if (!userId || !quizData.id) {
@@ -1020,7 +1031,7 @@ const ExamWithFirebase = () => {
   }
 
   // Función para manejar el cambio de respuesta
-  const handleAnswerChange = (questionId: number, answer: string) => {
+  const handleAnswerChange = (questionId: string, answer: string) => {
     setAnswers(prev => ({
       ...prev,
       [questionId]: answer
@@ -1243,26 +1254,26 @@ const ExamWithFirebase = () => {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg max-w-none">
-                {currentQ.imageUrl && (
+                {currentQ.questionImages && currentQ.questionImages.length > 0 && (
                   <div className="mb-4">
                     <img 
-                      src={currentQ.imageUrl} 
-                      alt={currentQ.text || 'Pregunta con imagen'} 
+                      src={currentQ.questionImages[0]} 
+                      alt={currentQ.questionText || 'Pregunta con imagen'} 
                       className="max-w-full h-auto rounded-lg border shadow-sm"
                       onError={(e) => {
-                        console.error('Error cargando imagen:', currentQ.imageUrl);
+                        console.error('Error cargando imagen:', currentQ.questionImages?.[0]);
                         e.currentTarget.style.display = 'none';
                       }}
                     />
                   </div>
                 )}
-                {currentQ.text && (
-                  <p className="text-gray-900 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.text }} />
+                {currentQ.questionText && (
+                  <p className="text-gray-900 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.questionText }} />
                 )}
               </div>
               <RadioGroup
-                value={answers[currentQ.id] || ""}
-                onValueChange={(value) => handleAnswerChange(currentQ.id, value)}
+                value={answers[currentQ.id || ''] || ""}
+                onValueChange={(value) => handleAnswerChange(currentQ.id || '', value)}
                 className="space-y-4 mt-6"
               >
                 {currentQ.options.map((option) => (
@@ -1307,7 +1318,8 @@ const ExamWithFirebase = () => {
             </h3>
             <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
               {quizData.questions.map((q, index) => {
-                const isAnswered = answers[q.id];
+                const questionId = q.id || ''
+                const isAnswered = answers[questionId];
                 const isCurrent = currentQuestion === index;
                 return (
                   <button
