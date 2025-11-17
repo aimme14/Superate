@@ -187,7 +187,9 @@ const ExamWithFirebase = () => {
         
         if (isMounted) {
           setQuizData(quiz);
-          setTimeLeft(quiz.timeLimit * 60);
+          // Calcular tiempo límite: 2 minutos por pregunta
+          const timeLimitMinutes = quiz.questions.length * 2;
+          setTimeLeft(timeLimitMinutes * 60);
         }
 
         // Verificar si ya se presentó este examen
@@ -794,7 +796,7 @@ const ExamWithFirebase = () => {
             <div className="grid md:grid-cols-3 gap-4">
               <div className={cn("rounded-lg p-4 text-center border shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
                 <Timer className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-                <div className={cn("font-semibold", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>{quizData.timeLimit} minutos</div>
+                <div className={cn("font-semibold", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>{quizData.questions.length * 2} minutos</div>
                 <div className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Tiempo límite</div>
               </div>
               <div className={cn("rounded-lg p-4 text-center border shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
@@ -832,7 +834,7 @@ const ExamWithFirebase = () => {
               <AlertCircle className="h-4 w-4 text-red-600" />
               <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Control de Pestañas</AlertTitle>
               <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
-                El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 3 intentos, el examen se finalizará automáticamente.
+                El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 2 intentos, el examen se finalizará automáticamente.
               </AlertDescription>
             </Alert>
             
@@ -1223,7 +1225,7 @@ const ExamWithFirebase = () => {
                   <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", appTheme === 'dark' ? 'bg-orange-900/50 border-orange-700' : 'bg-orange-50 border-orange-200')}>
                     <AlertCircle className="h-4 w-4 text-orange-500" />
                     <span className={cn("text-sm font-medium", appTheme === 'dark' ? 'text-orange-300' : 'text-orange-700')}>
-                      {3 - tabChangeCount} intentos restantes
+                      {2 - tabChangeCount} intentos restantes
                     </span>
                   </div>
                 )}

@@ -135,7 +135,7 @@ const ExamWithFirebase = () => {
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
   const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
-  const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
+  const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
@@ -161,6 +161,9 @@ const ExamWithFirebase = () => {
       ...examDataBase,
       questions: shuffledQuestions
     });
+    // Calcular tiempo límite: 2 minutos por pregunta
+    const timeLimitMinutes = shuffledQuestions.length * 2;
+    setTimeLeft(timeLimitMinutes * 60);
   }, []);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
@@ -714,7 +717,7 @@ const ExamWithFirebase = () => {
           <div className="grid md:grid-cols-3 gap-4">
             <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
               <Timer className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-              <div className="font-semibold text-gray-900">{examData.timeLimit} minutos</div>
+              <div className="font-semibold text-gray-900">{examData.questions.length * 2} minutos</div>
               <div className="text-sm text-gray-500">Tiempo límite</div>
             </div>
             <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
@@ -752,7 +755,7 @@ const ExamWithFirebase = () => {
             <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertTitle className="text-red-800">Control de Pestañas</AlertTitle>
             <AlertDescription className="text-red-700">
-              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 3 intentos, el examen se finalizará automáticamente.
+              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 2 intentos, el examen se finalizará automáticamente.
             </AlertDescription>
           </Alert>
           <Alert className="border-purple-200 bg-purple-50">
@@ -823,7 +826,7 @@ const ExamWithFirebase = () => {
         <CardContent className="text-center">
           <div className="bg-orange-50 rounded-lg p-4 mb-4">
             <div className="text-sm text-orange-600 mb-1">Intentos restantes</div>
-            <div className="text-2xl font-bold text-orange-800">{3 - tabChangeCount}</div>
+            <div className="text-2xl font-bold text-orange-800">{2 - tabChangeCount}</div>
           </div>
           <p className="text-gray-700 mb-2">
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
@@ -831,7 +834,7 @@ const ExamWithFirebase = () => {
           <p className="text-sm text-red-600 font-medium">
             {tabChangeCount >= 2
               ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
-              : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
+              : `Después de ${2 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
             }
           </p>
         </CardContent>
@@ -1084,74 +1087,6 @@ const ExamWithFirebase = () => {
                 Progreso: {score.overallPercentage}% del total
               </div>
             </div>
-
-            {/* Tiempo por pregunta */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-500" />
-                Tiempo por Pregunta
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {examData.questions.map((question, index) => {
-                  const timeData = questionTimeData[question.id]
-                  const isCorrect = answers[question.id] === question.correctAnswer
-                  const isAnswered = !!answers[question.id]
-
-                  return (
-                    <div key={question.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isCorrect ? 'bg-green-100 text-green-600' :
-                          isAnswered ? 'bg-red-100 text-red-600' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">
-                            Pregunta {index + 1}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {isCorrect ? '✓ Correcta' : isAnswered ? '✗ Incorrecta' : '— Sin responder'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {formatTime(timeData?.timeSpent || 0)}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Estadísticas adicionales */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Estadísticas del Examen
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Tiempo total usado</div>
-                  <div className="text-lg font-medium text-gray-900">
-                    {formatTime(Math.floor((Date.now() - examStartTime) / 1000))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Tiempo promedio por pregunta</div>
-                  <div className="text-lg font-medium text-gray-900">
-                    {formatTime(Math.floor(Object.values(questionTimeData).reduce((acc, q) => acc + (q.timeSpent || 0), 0) / examData.questions.length))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Estado del examen</div>
-                  <div className="text-lg font-medium text-green-600">
-                    Completado
-                  </div>
-                </div>
-              </div>
-            </div>
           </CardContent>
 
           <CardFooter className="flex justify-center pt-6">
@@ -1221,7 +1156,7 @@ const ExamWithFirebase = () => {
                   <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
                     <AlertCircle className="h-4 w-4 text-orange-500" />
                     <span className="text-sm font-medium text-orange-700">
-                      {3 - tabChangeCount} intentos restantes
+                      {2 - tabChangeCount} intentos restantes
                     </span>
                   </div>
                 )}

@@ -267,13 +267,32 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   // Estados para modalidades de Inglés
   const [inglesModality, setInglesModality] = useState<'standard_mc' | 'matching_columns' | 'cloze_test' | 'reading_comprehension'>('standard_mc')
   
+  // Función helper para generar letras de opciones dinámicamente (A, B, C, ..., Z)
+  const getOptionLetter = (index: number): string => {
+    return String.fromCharCode(65 + index) // 65 es el código ASCII de 'A'
+  }
+
+  // Función helper para encontrar la siguiente letra disponible sin duplicados
+  const getNextAvailableOptionLetter = (existingOptions: QuestionOption[]): string => {
+    const existingIds = new Set(existingOptions.map(opt => opt.id))
+    // Buscar desde A hasta Z
+    for (let i = 0; i < 26; i++) {
+      const letter = getOptionLetter(i)
+      if (!existingIds.has(letter as any)) {
+        return letter
+      }
+    }
+    // Si todas las letras están ocupadas, retornar la siguiente (aunque no debería pasar)
+    return getOptionLetter(existingOptions.length)
+  }
+
   // Estados para Matching / Columnas (nueva estructura por bloques)
   const [matchingQuestions, setMatchingQuestions] = useState<Array<{
     id: string
     questionText: string // Texto de la pregunta
     questionImage: File | null // Imagen de la pregunta (una por pregunta)
     questionImagePreview: string | null // Vista previa de la imagen
-    options: QuestionOption[] // Opciones de respuesta (A-H, máximo 6 opciones)
+    options: QuestionOption[] // Opciones de respuesta dinámicas (A, B, C, ..., Z)
   }>>([])
   const [expandedViewOptions, setExpandedViewOptions] = useState<Set<string>>(new Set()) // Controlar qué preguntas tienen opciones expandidas en visualización
   const [selectedMatchingAnswers, setSelectedMatchingAnswers] = useState<{ [key: string]: string }>({}) // Rastrear respuestas seleccionadas: questionId -> optionId
@@ -796,7 +815,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             if (!mq.questionText || !mq.questionText.trim()) {
               errors[`matchingQuestionText_${mqIndex}`] = true
           }
-            // Validar que tenga al menos 2 opciones y máximo 6 (A-H)
+            // Validar que tenga al menos 2 opciones
             const validOptions = mq.options.filter(opt => opt.text && opt.text.trim())
             if (validOptions.length < 2) {
               errors[`matchingQuestionOptions_${mqIndex}`] = true
@@ -828,16 +847,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             if (!gapData) {
               errors[`clozeGap_${gapNum}`] = true
             } else {
-              // Validar que todas las 3 opciones tengan texto
-              if (gapData.options.length !== 3) {
+              // Validar que tenga al menos 2 opciones
+              if (gapData.options.length < 2) {
                 errors[`clozeGapOptions_${gapNum}`] = true
               }
               const emptyOptions = gapData.options.filter(opt => !opt.trim())
               if (emptyOptions.length > 0) {
                 errors[`clozeGapOptions_${gapNum}`] = true
               }
-              // Validar que haya una respuesta correcta (A, B o C)
-              if (!gapData.correctAnswer || !['A', 'B', 'C'].includes(gapData.correctAnswer)) {
+              // Validar que haya una respuesta correcta (debe ser una letra válida)
+              const validLetters = gapData.options.map((_, idx) => getOptionLetter(idx))
+              if (!gapData.correctAnswer || !validLetters.includes(gapData.correctAnswer)) {
                 errors[`clozeGapAnswer_${gapNum}`] = true
               }
             }
@@ -1478,13 +1498,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             }
           }
           
-          // Procesar opciones de esta pregunta
-          const rqOptions: QuestionOption[] = rq.options.map(opt => ({
-            id: opt.id,
-            text: opt.text || '',
-            imageUrl: null, // Las opciones de lectura no tienen imágenes por ahora
-            isCorrect: opt.isCorrect
-          }))
+          // Procesar opciones de esta pregunta (solo A, B, C para comprensión de lectura corta)
+          const rqOptions: QuestionOption[] = rq.options
+            .filter(opt => opt.id === 'A' || opt.id === 'B' || opt.id === 'C')
+            .map(opt => ({
+              id: opt.id,
+              text: opt.text || '',
+              imageUrl: null, // Las opciones de lectura no tienen imágenes por ahora
+              isCorrect: opt.isCorrect
+            }))
 
           const questionData: any = {
             ...formData,
@@ -1814,6 +1836,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const questionImages = q.questionImages || []
         const questionImageUrl = questionImages.length > 0 ? questionImages[0] : null
         
+        // Filtrar opciones para mostrar solo A, B, C (eliminar D si existe)
+        const filteredOptions = (q.options || []).filter(opt => opt.id === 'A' || opt.id === 'B' || opt.id === 'C')
+        
         return {
           id: q.id || '',
           questionId: `edit-reading-q-${index}-${Date.now()}`,
@@ -1821,7 +1846,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           questionImage: null,
           questionImagePreview: questionImageUrl,
           existingQuestionImageUrl: questionImageUrl,
-          options: q.options || []
+          options: filteredOptions
         }
       })
       
@@ -2236,16 +2261,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             if (!gapData) {
               errors[`clozeGap_${gapNum}`] = true
             } else {
-              // Validar que todas las 3 opciones tengan texto
-              if (gapData.options.length !== 3) {
+              // Validar que tenga al menos 2 opciones
+              if (gapData.options.length < 2) {
                 errors[`clozeGapOptions_${gapNum}`] = true
               }
               const emptyOptions = gapData.options.filter(opt => !opt.trim())
               if (emptyOptions.length > 0) {
                 errors[`clozeGapOptions_${gapNum}`] = true
               }
-              // Validar que haya una respuesta correcta (A, B o C)
-              if (!gapData.correctAnswer || !['A', 'B', 'C'].includes(gapData.correctAnswer)) {
+              // Validar que haya una respuesta correcta (debe ser una letra válida)
+              const validLetters = gapData.options.map((_, idx) => getOptionLetter(idx))
+              if (!gapData.correctAnswer || !validLetters.includes(gapData.correctAnswer)) {
                 errors[`clozeGapAnswer_${gapNum}`] = true
               }
             }
@@ -2355,7 +2381,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             errorMessages.push(`Pregunta ${gapNum} (no se detectaron opciones)`)
           }
           if (errors[`clozeGapOptions_${gapNum}`]) {
-            errorMessages.push(`Opciones de la Pregunta ${gapNum} (deben completarse las 3 opciones)`)
+            errorMessages.push(`Opciones de la Pregunta ${gapNum} (deben completarse todas las opciones, mínimo 2)`)
           }
           if (errors[`clozeGapAnswer_${gapNum}`]) {
             errorMessages.push(`Respuesta Correcta de la Pregunta ${gapNum}`)
@@ -2630,8 +2656,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           if (!gapData) {
             clozeErrors[`clozeGap_${gapNum}`] = true
           } else {
-            // Validar que tenga exactamente 3 opciones
-            if (!gapData.options || !Array.isArray(gapData.options) || gapData.options.length !== 3) {
+            // Validar que tenga al menos 2 opciones
+            if (!gapData.options || !Array.isArray(gapData.options) || gapData.options.length < 2) {
               clozeErrors[`clozeGapOptions_${gapNum}`] = true
             } else {
               // Validar que todas las opciones tengan texto (verificar que no sean null, undefined o string vacío)
@@ -2644,8 +2670,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 clozeErrors[`clozeGapOptions_${gapNum}`] = true
               }
             }
-            // Validar que haya una respuesta correcta (A, B o C)
-            if (!gapData.correctAnswer || typeof gapData.correctAnswer !== 'string' || !['A', 'B', 'C'].includes(gapData.correctAnswer)) {
+            // Validar que haya una respuesta correcta (debe ser una letra válida)
+            const validLetters = gapData.options.map((_, idx) => getOptionLetter(idx))
+            if (!gapData.correctAnswer || typeof gapData.correctAnswer !== 'string' || !validLetters.includes(gapData.correctAnswer)) {
               clozeErrors[`clozeGapAnswer_${gapNum}`] = true
             }
           }
@@ -2672,7 +2699,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               errorMessages.push(`Pregunta ${gapNum} (no se detectaron opciones)`)
             } else {
               if (clozeErrors[`clozeGapOptions_${gapNum}`]) {
-                errorMessages.push(`Pregunta ${gapNum} - Complete las 3 opciones (A, B, C)`)
+                errorMessages.push(`Pregunta ${gapNum} - Complete todas las opciones (mínimo 2)`)
               }
               if (clozeErrors[`clozeGapAnswer_${gapNum}`]) {
                 errorMessages.push(`Pregunta ${gapNum} - Seleccione la respuesta correcta`)
@@ -2978,13 +3005,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             }
           }
           
-          // Preparar opciones
-          const rqOptions: QuestionOption[] = rq.options.map(opt => ({
-            id: opt.id,
-            text: opt.text || '',
-            imageUrl: null,
-            isCorrect: opt.isCorrect
-          }))
+          // Preparar opciones (solo A, B, C para comprensión de lectura corta)
+          const rqOptions: QuestionOption[] = rq.options
+            .filter(opt => opt.id === 'A' || opt.id === 'B' || opt.id === 'C')
+            .map(opt => ({
+              id: opt.id,
+              text: opt.text || '',
+              imageUrl: null,
+              isCorrect: opt.isCorrect
+            }))
           
           // Preparar datos de actualización o creación
           const questionData: any = {
@@ -4987,10 +5016,36 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     </div>
                   </div>
                   <div className="space-y-2">
-                          <Label className={cn(hasOptionsError || hasAnswerError ? 'text-red-600' : '', theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-gray-300' : '')}>
-                            Opciones de Respuesta (A-H, máximo 6 opciones) *
-                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
-                    </Label>
+                          <div className="flex items-center justify-between">
+                            <Label className={cn(hasOptionsError || hasAnswerError ? 'text-red-600' : '', theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-gray-300' : '')}>
+                              Opciones de Respuesta *
+                              {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                            </Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...matchingQuestions]
+                                const currentOptions = updated[mqIndex].options
+                                const nextLetter = getNextAvailableOptionLetter(currentOptions)
+                                updated[mqIndex].options = [
+                                  ...currentOptions,
+                                  {
+                                    id: nextLetter as any,
+                                    text: '',
+                                    imageUrl: null,
+                                    isCorrect: false
+                                  }
+                                ]
+                                setMatchingQuestions(updated)
+                              }}
+                              className="h-7 text-xs"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Agregar Opción
+                            </Button>
+                          </div>
                           {mq.options.map((opt) => (
                             <div key={opt.id} className="flex items-center gap-2">
                               <input
@@ -5036,6 +5091,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 placeholder={`Opción ${opt.id}`}
                                 className={cn(`flex-1`, hasOptionsError && !opt.text?.trim() ? 'border-red-500' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                     />
+                              {mq.options.length > 2 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const updated = [...matchingQuestions]
+                                    updated[mqIndex].options = updated[mqIndex].options.filter(o => o.id !== opt.id)
+                                    setMatchingQuestions(updated)
+                                  }}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                   </div>
                           ))}
                 </div>
@@ -5051,8 +5121,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     className="w-full mt-4"
                     onClick={() => {
                       const newId = `mq${matchingQuestions.length + 1}`
-                      // Crear opciones A-H (máximo 6 opciones)
-                      const optionLetters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].slice(0, 6) as ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[]
+                      // Crear opciones A-H (8 opciones iniciales)
+                      const initialOptions: QuestionOption[] = Array.from({ length: 8 }, (_, i) => ({
+                        id: getOptionLetter(i) as any,
+                        text: '',
+                        imageUrl: null,
+                        isCorrect: false
+                      }))
                       setMatchingQuestions([
                         ...matchingQuestions,
                         {
@@ -5060,12 +5135,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           questionText: '',
                           questionImage: null,
                           questionImagePreview: null,
-                          options: optionLetters.map((letter): QuestionOption => ({
-                            id: letter as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
-                            text: '',
-                            imageUrl: null,
-                            isCorrect: false
-                          }))
+                          options: initialOptions
                         }
                       ])
                       // Limpiar error cuando se agrega una pregunta
@@ -5123,7 +5193,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           }
                         })
                         
-                        // Inicializar huecos que no existen (3 opciones por defecto)
+                        // Inicializar huecos que no existen (3 opciones por defecto: A, B, C)
                         const newGaps = { ...clozeGaps }
                         gaps.forEach(gapNum => {
                           if (!newGaps[gapNum]) {
@@ -5162,7 +5232,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       theme={theme}
                     />
                   </div>
-                  <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
+                  <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá opciones de respuesta dinámicas (mínimo 2).</p>
                   {Object.keys(clozeGaps).length > 0 && (
                     <p className="text-xs text-green-600 font-medium mt-1">
                       ✓ Se detectaron {Object.keys(clozeGaps).length} hueco(s). Abajo podrás agregar las opciones de respuesta.
@@ -5173,7 +5243,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 {Object.keys(clozeGaps).length > 0 ? (
                   <div id="cloze-options-section" className="space-y-4 mt-4">
                     <div className="flex items-center justify-between">
-                      <Label className={cn("text-base font-semibold", theme === 'dark' ? 'text-gray-300' : '')}>Opciones por Hueco * (3 opciones por hueco)</Label>
+                      <Label className={cn("text-base font-semibold", theme === 'dark' ? 'text-gray-300' : '')}>Opciones por Hueco *</Label>
                       <Badge variant="outline" className="text-xs">
                         {Object.keys(clozeGaps).length} hueco(s) detectado(s)
                       </Badge>
@@ -5185,17 +5255,39 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       const hasAnyError = hasGapError || hasOptionsError || hasAnswerError
                       return (
                       <div key={gapNum} className={cn(`border rounded-lg p-4 space-y-3`, hasAnyError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-gray-50')}>
-                        <Label className={cn(`font-semibold text-lg`, hasAnyError ? 'text-red-600' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
-                          Pregunta {gapNum} *
-                          {hasOptionsError && <span className="ml-2 text-red-600 text-sm">⚠️ Complete las 3 opciones</span>}
-                          {hasAnswerError && <span className="ml-2 text-red-600 text-sm">⚠️ Seleccione la respuesta correcta</span>}
-                        </Label>
+                        <div className="flex items-center justify-between">
+                          <Label className={cn(`font-semibold text-lg`, hasAnyError ? 'text-red-600' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
+                            Pregunta {gapNum} *
+                            {hasOptionsError && <span className="ml-2 text-red-600 text-sm">⚠️ Complete todas las opciones</span>}
+                            {hasAnswerError && <span className="ml-2 text-red-600 text-sm">⚠️ Seleccione la respuesta correcta</span>}
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const currentOptions = gapData.options
+                              setClozeGaps({
+                                ...clozeGaps,
+                                [gapNum]: {
+                                  ...gapData,
+                                  options: [...currentOptions, '']
+                                }
+                              })
+                            }}
+                            className="h-7 text-xs"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Agregar Opción
+                          </Button>
+                        </div>
                         <div className="space-y-3">
-                          {['A', 'B', 'C'].map((letter, optIndex) => {
-                            const isEmpty = !gapData.options[optIndex] || !gapData.options[optIndex].trim()
+                          {gapData.options.map((optionText, optIndex) => {
+                            const letter = getOptionLetter(optIndex)
+                            const isEmpty = !optionText || !optionText.trim()
                             const hasOptionError = hasOptionsError && isEmpty
                             return (
-                            <div key={letter} className="flex items-center gap-3">
+                            <div key={optIndex} className="flex items-center gap-3">
                               <input
                                 type="radio"
                                 name={`cloze-gap-${gapNum}`}
@@ -5217,7 +5309,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               />
                               <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{letter}:</Label>
                               <Input
-                                value={gapData.options[optIndex] || ''}
+                                value={optionText || ''}
                                 onChange={(e) => {
                                   const newOptions = [...gapData.options]
                                   newOptions[optIndex] = e.target.value
@@ -5237,6 +5329,28 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 placeholder={`Opción ${letter}`}
                                 className={cn(`flex-1`, hasOptionError ? 'border-red-500 border-2' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                               />
+                              {gapData.options.length > 2 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newOptions = gapData.options.filter((_, idx) => idx !== optIndex)
+                                    const newCorrectAnswer = gapData.correctAnswer === letter ? '' : gapData.correctAnswer
+                                    setClozeGaps({
+                                      ...clozeGaps,
+                                      [gapNum]: {
+                                        ...gapData,
+                                        options: newOptions,
+                                        correctAnswer: newCorrectAnswer
+                                      }
+                                    })
+                                  }}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                             )
                           })}
@@ -5420,10 +5534,36 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           )}
                         </div>
                         <div className="space-y-2">
-                          <Label className={cn(hasOptionsError || hasAnswerError ? 'text-red-600' : '', theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-gray-300' : '')}>
-                            Opciones *
-                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
-                          </Label>
+                          <div className="flex items-center justify-between">
+                            <Label className={cn(hasOptionsError || hasAnswerError ? 'text-red-600' : '', theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-gray-300' : '')}>
+                              Opciones *
+                              {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                            </Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...readingQuestions]
+                                const currentOptions = updated[rqIndex].options
+                                const nextLetter = getNextAvailableOptionLetter(currentOptions)
+                                updated[rqIndex].options = [
+                                  ...currentOptions,
+                                  {
+                                    id: nextLetter as any,
+                                    text: '',
+                                    imageUrl: null,
+                                    isCorrect: false
+                                  }
+                                ]
+                                setReadingQuestions(updated)
+                              }}
+                              className="h-7 text-xs"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Agregar Opción
+                            </Button>
+                          </div>
                           {rq.options.map((opt) => (
                             <div key={opt.id} className="flex items-center gap-2">
                               <input
@@ -5469,6 +5609,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 placeholder={`Opción ${opt.id}`}
                                 className={cn(`flex-1`, hasOptionsError && !opt.text?.trim() ? 'border-red-500' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                               />
+                              {rq.options.length > 2 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const updated = [...readingQuestions]
+                                    updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
+                                    setReadingQuestions(updated)
+                                  }}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -5484,6 +5639,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     className="w-full mt-4"
                     onClick={() => {
                       const newId = `q${readingQuestions.length + 1}`
+                      // Crear opciones iniciales A, B, C (3 opciones por defecto)
+                      const initialOptions: QuestionOption[] = Array.from({ length: 3 }, (_, i) => ({
+                        id: getOptionLetter(i) as any,
+                        text: '',
+                        imageUrl: null,
+                        isCorrect: false
+                      }))
                       setReadingQuestions([
                         ...readingQuestions,
                         {
@@ -5491,12 +5653,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           questionText: '',
                           questionImage: null,
                           questionImagePreview: null,
-                          options: [
-                            { id: 'A', text: '', imageUrl: null, isCorrect: false },
-                            { id: 'B', text: '', imageUrl: null, isCorrect: false },
-                            { id: 'C', text: '', imageUrl: null, isCorrect: false },
-                            { id: 'D', text: '', imageUrl: null, isCorrect: false },
-                          ]
+                          options: initialOptions
                         }
                       ])
                       // Limpiar error cuando se agrega una pregunta
@@ -5595,14 +5752,41 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
                 {/* Opciones de respuesta */}
                 <div className="space-y-2">
-                  <Label className={cn(fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['options'] && !fieldErrors['correctAnswer'] ? 'text-gray-300' : '')}>
-                    Opciones de Respuesta *
-                    {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
-                    {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
-                  </Label>
-                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    Cada opción debe tener texto o imagen. Marque la opción correcta.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className={cn(fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['options'] && !fieldErrors['correctAnswer'] ? 'text-gray-300' : '')}>
+                        Opciones de Respuesta *
+                        {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
+                        {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
+                      </Label>
+                      <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Cada opción debe tener texto o imagen. Marque la opción correcta.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const nextLetter = getNextAvailableOptionLetter(options)
+                        setOptions([
+                          ...options,
+                          {
+                            id: nextLetter as any,
+                            text: '',
+                            imageUrl: null,
+                            isCorrect: false
+                          }
+                        ])
+                        setOptionFiles(prev => ({ ...prev, [nextLetter]: null }))
+                        setOptionImagePreviews(prev => ({ ...prev, [nextLetter]: null }))
+                      }}
+                      className="h-7 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Agregar Opción
+                    </Button>
+                  </div>
                   <div className={cn(`space-y-3`, fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : '')}>
                     {options.map((option) => {
                       const hasError = fieldErrors['options'] && (!option.text && !optionFiles[option.id] && !optionImagePreviews[option.id])
@@ -5643,6 +5827,29 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             >
                               <ImageIcon className="h-4 w-4" />
                             </Button>
+                            {options.length > 2 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setOptions(options.filter(opt => opt.id !== option.id))
+                                  setOptionFiles(prev => {
+                                    const newFiles = { ...prev }
+                                    delete newFiles[option.id]
+                                    return newFiles
+                                  })
+                                  setOptionImagePreviews(prev => {
+                                    const newPreviews = { ...prev }
+                                    delete newPreviews[option.id]
+                                    return newPreviews
+                                  })
+                                }}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         {optionImagePreviews[option.id] && (
@@ -5916,7 +6123,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       theme={theme}
                     />
                   </div>
-                  <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá 3 opciones de respuesta.</p>
+                  <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Usa [1], [2], [3], etc. para marcar los huecos. Cada hueco tendrá opciones de respuesta dinámicas (mínimo 2).</p>
                   {Object.keys(editClozeGaps).length > 0 && (
                     <p className="text-xs text-green-600 font-medium mt-1">
                       ✓ Se detectaron {Object.keys(editClozeGaps).length} pregunta(s). Abajo podrás editar las opciones de respuesta.
@@ -5928,7 +6135,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 {Object.keys(editClozeGaps).length > 0 ? (
                   <div id="edit-cloze-options-section" className="space-y-4 mt-4">
                     <div className="flex items-center justify-between">
-                      <Label className={cn("text-base font-semibold", theme === 'dark' ? 'text-gray-300' : '')}>Opciones por Pregunta * (3 opciones por pregunta)</Label>
+                      <Label className={cn("text-base font-semibold", theme === 'dark' ? 'text-gray-300' : '')}>Opciones por Pregunta *</Label>
                       <Badge variant="outline" className="text-xs">
                         {Object.keys(editClozeGaps).length} pregunta(s) detectada(s)
                       </Badge>
@@ -5940,24 +6147,46 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       const hasAnyError = hasGapError || hasOptionsError || hasAnswerError
                       return (
                       <div key={gapNum} className={cn(`border-2 rounded-lg p-4 space-y-3`, hasAnyError ? 'border-red-500 bg-red-50 shadow-md' : theme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-gray-50 border-gray-200')}>
-                        <Label className={cn(`font-semibold text-lg`, hasAnyError ? 'text-red-700' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
-                          Pregunta {gapNum} *
-                          {hasGapError && (
-                            <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Esta pregunta requiere opciones</span>
-                          )}
-                          {hasOptionsError && (
-                            <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Complete las 3 opciones (A, B, C)</span>
-                          )}
-                          {hasAnswerError && (
-                            <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Seleccione la respuesta correcta</span>
-                          )}
-                        </Label>
+                        <div className="flex items-center justify-between">
+                          <Label className={cn(`font-semibold text-lg`, hasAnyError ? 'text-red-700' : '', theme === 'dark' && !hasAnyError ? 'text-gray-300' : '')}>
+                            Pregunta {gapNum} *
+                            {hasGapError && (
+                              <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Esta pregunta requiere opciones</span>
+                            )}
+                            {hasOptionsError && (
+                              <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Complete todas las opciones (mínimo 2)</span>
+                            )}
+                            {hasAnswerError && (
+                              <span className="ml-2 text-red-600 text-sm font-semibold">⚠️ Seleccione la respuesta correcta</span>
+                            )}
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const currentOptions = gapData.options
+                              setEditClozeGaps({
+                                ...editClozeGaps,
+                                [gapNum]: {
+                                  ...gapData,
+                                  options: [...currentOptions, '']
+                                }
+                              })
+                            }}
+                            className="h-7 text-xs"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Agregar Opción
+                          </Button>
+                        </div>
                         <div className="space-y-3">
-                          {['A', 'B', 'C'].map((letter, optIndex) => {
-                            const isEmpty = !gapData.options[optIndex] || !gapData.options[optIndex].trim()
+                          {gapData.options.map((optionText, optIndex) => {
+                            const letter = getOptionLetter(optIndex)
+                            const isEmpty = !optionText || !optionText.trim()
                             const hasOptionError = hasOptionsError && isEmpty
                             return (
-                            <div key={letter} className="flex items-center gap-3">
+                            <div key={optIndex} className="flex items-center gap-3">
                               <input
                                 type="radio"
                                 name={`edit-cloze-gap-${gapNum}`}
@@ -5979,7 +6208,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               />
                               <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{letter}:</Label>
                               <Input
-                                value={gapData.options[optIndex] || ''}
+                                value={optionText || ''}
                                 onChange={(e) => {
                                   const newOptions = [...gapData.options]
                                   newOptions[optIndex] = e.target.value
@@ -5999,6 +6228,28 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 placeholder={`Opción ${letter}`}
                                 className={cn(`flex-1`, hasOptionError ? 'border-red-500 border-2 bg-red-50' : hasAnyError ? 'border-red-300' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
                               />
+                              {gapData.options.length > 2 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newOptions = gapData.options.filter((_, idx) => idx !== optIndex)
+                                    const newCorrectAnswer = gapData.correctAnswer === letter ? '' : gapData.correctAnswer
+                                    setEditClozeGaps({
+                                      ...editClozeGaps,
+                                      [gapNum]: {
+                                        ...gapData,
+                                        options: newOptions,
+                                        correctAnswer: newCorrectAnswer
+                                      }
+                                    })
+                                  }}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                             )
                           })}
@@ -6223,10 +6474,36 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           )}
                         </div>
                         <div className="space-y-2">
-                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
-                            Opciones *
-                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
-                          </Label>
+                          <div className="flex items-center justify-between">
+                            <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                              Opciones *
+                              {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                            </Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...editReadingQuestions]
+                                const currentOptions = updated[rqIndex].options
+                                const nextLetter = getNextAvailableOptionLetter(currentOptions)
+                                updated[rqIndex].options = [
+                                  ...currentOptions,
+                                  {
+                                    id: nextLetter as any,
+                                    text: '',
+                                    imageUrl: null,
+                                    isCorrect: false
+                                  }
+                                ]
+                                setEditReadingQuestions(updated)
+                              }}
+                              className="h-7 text-xs"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Agregar Opción
+                            </Button>
+                          </div>
                           {rq.options.map((opt) => (
                             <div key={opt.id} className="flex items-center gap-2">
                               <input
@@ -6275,6 +6552,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 placeholder={`Opción ${opt.id}`}
                                 className="flex-1"
                               />
+                              {rq.options.length > 2 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const updated = [...editReadingQuestions]
+                                    updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
+                                    setEditReadingQuestions(updated)
+                                  }}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -6299,7 +6591,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             { id: 'A', text: '', imageUrl: null, isCorrect: false },
                             { id: 'B', text: '', imageUrl: null, isCorrect: false },
                             { id: 'C', text: '', imageUrl: null, isCorrect: false },
-                            { id: 'D', text: '', imageUrl: null, isCorrect: false },
                           ]
                         }
                       ])
@@ -6439,10 +6730,36 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
-                            Opciones de Respuesta (A-H, máximo 6 opciones) *
-                            {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
-                          </Label>
+                          <div className="flex items-center justify-between">
+                            <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                              Opciones de Respuesta *
+                              {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                            </Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...matchingQuestions]
+                                const currentOptions = updated[mqIndex].options
+                                const nextLetter = getNextAvailableOptionLetter(currentOptions)
+                                updated[mqIndex].options = [
+                                  ...currentOptions,
+                                  {
+                                    id: nextLetter as any,
+                                    text: '',
+                                    imageUrl: null,
+                                    isCorrect: false
+                                  }
+                                ]
+                                setMatchingQuestions(updated)
+                              }}
+                              className="h-7 text-xs"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Agregar Opción
+                            </Button>
+                          </div>
                           {mq.options.map((opt) => (
                             <div key={opt.id} className="flex items-center gap-2">
                               <input
@@ -6488,6 +6805,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 placeholder={`Opción ${opt.id}`}
                                 className={`flex-1 ${hasOptionsError && !opt.text?.trim() ? 'border-red-500' : ''}`}
                               />
+                              {mq.options.length > 2 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const updated = [...matchingQuestions]
+                                    updated[mqIndex].options = updated[mqIndex].options.filter(o => o.id !== opt.id)
+                                    setMatchingQuestions(updated)
+                                  }}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -6503,8 +6835,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     className="w-full mt-4"
                     onClick={() => {
                       const newId = `mq-edit-${matchingQuestions.length + 1}-${Date.now()}`
-                      // Crear opciones A-H (máximo 6 opciones)
-                      const optionLetters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].slice(0, 6) as ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[]
+                      // Crear opciones A-H (8 opciones iniciales)
+                      const initialOptions: QuestionOption[] = Array.from({ length: 8 }, (_, i) => ({
+                        id: getOptionLetter(i) as any,
+                        text: '',
+                        imageUrl: null,
+                        isCorrect: false
+                      }))
                       setMatchingQuestions([
                         ...matchingQuestions,
                         {
@@ -6512,12 +6849,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           questionText: '',
                           questionImage: null,
                           questionImagePreview: null,
-                          options: optionLetters.map((letter): QuestionOption => ({
-                            id: letter as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
-                            text: '',
-                            imageUrl: null,
-                            isCorrect: false
-                          }))
+                          options: initialOptions
                         }
                       ])
                       // Limpiar error cuando se agrega una pregunta
@@ -6846,14 +7178,41 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Opciones de respuesta - Solo mostrar si NO es cloze test, NO es comprensión de lectura, y NO es matching/columnas */}
             {!isEditingClozeTest && !isEditingReadingComprehension && !(formData.subjectCode === 'IN' && inglesModality === 'matching_columns') && (
               <div className="space-y-2">
-                <Label className={cn(fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['options'] && !fieldErrors['correctAnswer'] ? 'text-gray-300' : '')}>
-                  Opciones de Respuesta *
-                  {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
-                  {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
-                </Label>
-                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  Cada opción debe tener texto o imagen. Marque la opción correcta.
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className={cn(fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['options'] && !fieldErrors['correctAnswer'] ? 'text-gray-300' : '')}>
+                      Opciones de Respuesta *
+                      {fieldErrors['options'] && <span className="ml-2 text-red-600">⚠️ Todas las opciones deben tener contenido</span>}
+                      {fieldErrors['correctAnswer'] && <span className="ml-2 text-red-600">⚠️ Debe marcar exactamente una opción como correcta</span>}
+                    </Label>
+                    <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      Cada opción debe tener texto o imagen. Marque la opción correcta.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const nextLetter = getNextAvailableOptionLetter(options)
+                      setOptions([
+                        ...options,
+                        {
+                          id: nextLetter as any,
+                          text: '',
+                          imageUrl: null,
+                          isCorrect: false
+                        }
+                      ])
+                      setOptionFiles(prev => ({ ...prev, [nextLetter]: null }))
+                      setOptionImagePreviews(prev => ({ ...prev, [nextLetter]: null }))
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Agregar Opción
+                  </Button>
+                </div>
                 <div className={cn(`space-y-3`, fieldErrors['options'] || fieldErrors['correctAnswer'] ? 'border-2 border-red-500 rounded-md p-2' : '')}>
                   {options.map((option) => {
                     const hasError = fieldErrors['options'] && (!option.text && !optionFiles[option.id] && !optionImagePreviews[option.id] && !option.imageUrl)
@@ -6894,6 +7253,29 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           >
                             <ImageIcon className="h-4 w-4" />
                           </Button>
+                          {options.length > 2 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setOptions(options.filter(opt => opt.id !== option.id))
+                                setOptionFiles(prev => {
+                                  const newFiles = { ...prev }
+                                  delete newFiles[option.id]
+                                  return newFiles
+                                })
+                                setOptionImagePreviews(prev => {
+                                  const newPreviews = { ...prev }
+                                  delete newPreviews[option.id]
+                                  return newPreviews
+                                })
+                              }}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       {optionImagePreviews[option.id] && (

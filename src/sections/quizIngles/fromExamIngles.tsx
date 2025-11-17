@@ -6,44 +6,23 @@ import { useState, useEffect } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
+import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 
 const db = getFirestore(firebaseApp);
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
-  questionId: number;
+  questionId: string;
   timeSpent: number; // en segundos
   startTime: number; // timestamp
   endTime?: number; // timestamp
 }
 
-// Nueva interfaz para preguntas con soporte de imágenes
-interface Question {
-  id: number;
-  topic: string;
-  text?: string; // Opcional para preguntas con imagen
-  imageUrl?: string; // URL de la imagen de la pregunta
-  options: {
-    id: string;
-    text: string;
-  }[];
-  correctAnswer: string;
-}
-
-// Función para aleatorizar array (algoritmo Fisher-Yates)
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
 
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string) => {
@@ -72,72 +51,70 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   return { success: true, id: `${userId}_${examId}` };
 };
 
-// Datos de ejemplo para el examen - ACTUALIZADO con soporte de imágenes
-const examDataBase = {
-  id: "exam_english_003", // ID único del examen
+// Función para limpiar HTML y mostrar solo texto
+const stripHtmlTags = (html: string): string => {
+  if (!html) return ''
+  
+  // Crear un elemento temporal para extraer el texto limpio
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+  
+  // Extraer solo el texto sin etiquetas HTML
+  let text = tempDiv.textContent || tempDiv.innerText || ''
+  
+  // Eliminar cualquier etiqueta HTML que pueda haber quedado (por si acaso)
+  text = text.replace(/<[^>]*>/g, '')
+  
+  // Limpiar espacios en blanco múltiples
+  text = text.replace(/\s+/g, ' ').trim()
+  
+  // Reemplazar saltos de línea con espacios
+  text = text.replace(/\n/g, ' ')
+  
+  // Limpiar espacios múltiples nuevamente
+  text = text.replace(/\s+/g, ' ').trim()
+  
+  return text
+}
+
+// Función para mapear el grado del usuario al código que usa el banco de preguntas
+const mapGradeToCode = (gradeName: string): string => {
+  const gradeMap: { [key: string]: string } = {
+    '6°1': '6', '6°2': '6', '6°3': '6',
+    '7°1': '7', '7°2': '7', '7°3': '7',
+    '8°1': '8', '8°2': '8', '8°3': '8',
+    '9°1': '9', '9°2': '9', '9°3': '9',
+    '10°1': '0', '10°2': '0', '10°3': '0',
+    '11°1': '1', '11°2': '1', '11°3': '1'
+  };
+  return gradeMap[gradeName] || '1'; // Default a undécimo si no se encuentra
+};
+
+// Configuración del examen de Inglés
+const examConfig = {
+  subject: "Inglés",
+  phase: "first" as const,
+  examId: "exam_english_001", // ID único del examen
   title: "Examen de Inglés",
-  description: "Evaluación de habilidades de pensamiento crítico y comprensión lectora",
-  timeLimit: 30, // minutos
+  description: "Evaluación de habilidades en inglés",
   module: "Módulo de Inglés",
-  totalQuestions: 25,
-  instructions: [
-    "Observa cuidadosamente cada imagen/pregunta antes de responder",
-    "Solo hay una respuesta correcta por pregunta",
-    "Puedes navegar entre preguntas usando los botones o el panel lateral",
-    "El tiempo es limitado, administra bien tu tiempo",
-    "Una vez enviado el examen, no podrás modificar tus respuestas",
-    "Las preguntas aparecen en orden aleatorio para cada usuario"
-  ],
-  questions: [
-    {
-      id: 1,
-      topic: "write",
-      // Ejemplo con imagen - reemplaza con URLs reales de tus imágenes
-      imageUrl: "/images/ingles/past-tense-go.png", // URL de la imagen
-      text: "What is the past tense of 'go'?", // Texto de respaldo opcional
-      options: [
-        { id: "a", text: "goed" },
-        { id: "b", text: "went" },
-        { id: "c", text: "gone" },
-        { id: "d", text: "going" },
-      ],
-      correctAnswer: "b",
-    },
-    {
-      id: 2,
-      topic: "read",
-      imageUrl: "/images/ingles/grammar-example.jpg",
-      text: "Choose the correct sentence:",
-      options: [
-        { id: "a", text: "She don't like coffee" },
-        { id: "b", text: "She doesn't likes coffee" },
-        { id: "c", text: "She doesn't like coffee" },
-        { id: "d", text: "She not like coffee" },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: 3,
-      topic: "vocabulary",
-      imageUrl: "/images/ingles/vocabulary-test.png",
-      text: "What does this image represent?",
-      options: [
-        { id: "a", text: "A house" },
-        { id: "b", text: "A school" },
-        { id: "c", text: "A library" },
-        { id: "d", text: "A hospital" },
-      ],
-      correctAnswer: "c",
-    }
-  ] as Question[],
 };
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams();
+  const { user } = useAuthContext();
+  const userId = user?.uid;
+
+  // Obtener parámetros de la URL para determinar la fase
+  const phaseParam = searchParams.get('phase') as 'first' | 'second' | 'third' | null;
+  const currentPhase = phaseParam || examConfig.phase;
+
+  // Estados principales
+  const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
-  const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
-  const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
-  const [timeLeft, setTimeLeft] = useState(examData.timeLimit * 60)
+  const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions
+  const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
@@ -147,26 +124,102 @@ const ExamWithFirebase = () => {
   const [examLocked, setExamLocked] = useState(false)
   const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { user } = useAuthContext();
-  const userId = user?.uid;
   const [existingExamData, setExistingExamData] = useState<any | null>(null);
 
   // Estados para el seguimiento de tiempo por pregunta
-  const [questionTimeData, setQuestionTimeData] = useState<{ [key: number]: QuestionTimeData }>({});
+  const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
 
-  // Aleatorizar preguntas al cargar el componente
+  // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
-    const shuffledQuestions = shuffleArray(examDataBase.questions);
-    setExamData({
-      ...examDataBase,
-      questions: shuffledQuestions
-    });
-  }, []);
+    let timeoutId: NodeJS.Timeout;
+    let isMounted = true;
+
+    const loadQuiz = async () => {
+      console.log('=== INICIANDO CARGA DEL CUESTIONARIO DE INGLÉS ===');
+      console.log('UserId:', userId);
+      console.log('Phase:', currentPhase);
+
+      if (!userId) {
+        console.log('No hay userId, esperando...');
+        return;
+      }
+
+      try {
+        console.log('Iniciando carga del cuestionario para:', examConfig.subject, currentPhase);
+        if (isMounted) {
+          setExamState('loading');
+        }
+        
+        // Obtener el grado del usuario desde el contexto
+        const userGradeName = (user as any)?.gradeName || (user as any)?.grade;
+        console.log('Grado del usuario (nombre):', userGradeName);
+        
+        // Mapear el grado al código que usa el banco de preguntas
+        const userGrade = mapGradeToCode(userGradeName);
+        console.log('Grado del usuario (código):', userGrade);
+        
+        // Generar el cuestionario dinámicamente desde el banco de preguntas
+        const quizResult = await quizGeneratorService.generateQuiz(
+          examConfig.subject, 
+          currentPhase,
+          userGrade
+        );
+        
+        console.log('Resultado del generador de cuestionario:', quizResult);
+        
+        if (!quizResult.success) {
+          console.error('Error generando cuestionario:', quizResult.error);
+          if (isMounted) {
+            setExamState('no_questions');
+          }
+          return;
+        }
+
+        const quiz = quizResult.data;
+        console.log('Cuestionario generado exitosamente:', quiz);
+        
+        if (isMounted) {
+          setQuizData(quiz);
+          // Calcular tiempo límite: 2 minutos por pregunta
+          const timeLimitMinutes = quiz.questions.length * 2;
+          setTimeLeft(timeLimitMinutes * 60);
+        }
+
+        // Verificar si ya se presentó este examen
+        const examId = quiz.id;
+        const existingExam = await checkExamStatus(userId, examId);
+        if (existingExam) {
+          console.log('Examen ya presentado:', existingExam);
+          if (isMounted) {
+            setExistingExamData(existingExam);
+            setExamState('already_taken');
+          }
+        } else {
+          console.log('Examen disponible, mostrando pantalla de bienvenida');
+          if (isMounted) {
+            setExamState('welcome');
+          }
+        }
+      } catch (error) {
+        console.error('Error cargando cuestionario:', error);
+        if (isMounted) {
+          setExamState('no_questions');
+        }
+      }
+    };
+
+    loadQuiz();
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [userId, currentPhase, user]);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
-  const initializeQuestionTime = (questionId: number) => {
+  const initializeQuestionTime = (questionId: string) => {
     const now = Date.now();
     setQuestionTimeData(prev => ({
       ...prev,
@@ -180,7 +233,7 @@ const ExamWithFirebase = () => {
   };
 
   // Función para finalizar el seguimiento de tiempo de una pregunta
-  const finalizeQuestionTime = (questionId: number) => {
+  const finalizeQuestionTime = (questionId: string) => {
     if (currentQuestionStartTime > 0) {
       const now = Date.now();
       const timeSpentInThisVisit = Math.floor((now - currentQuestionStartTime) / 1000);
@@ -198,15 +251,17 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   const changeQuestion = (newQuestionIndex: number) => {
+    if (!quizData) return;
+    
     // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = examData.questions[currentQuestion].id;
+    const currentQuestionId = quizData.questions[currentQuestion].id;
     finalizeQuestionTime(currentQuestionId);
 
     // Cambiar a la nueva pregunta
     setCurrentQuestion(newQuestionIndex);
 
     // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = examData.questions[newQuestionIndex].id;
+    const newQuestionId = quizData.questions[newQuestionIndex].id;
     initializeQuestionTime(newQuestionId);
   };
 
@@ -217,44 +272,32 @@ const ExamWithFirebase = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Verificar al cargar si el examen ya fue presentado
-  useEffect(() => {
-    if (!userId) return;
-
-    const fetchExamStatus = async () => {
-      try {
-        const existingExam = await checkExamStatus(userId, examData.id);
-        if (existingExam) {
-          setExistingExamData(existingExam)
-          setExamState('already_taken')
-        } else {
-          setExamState('welcome')
-        }
-      } catch (error) {
-        console.error('Error verificando estado del examen:', error)
-        setExamState('welcome')
-      }
-    }
-
-    fetchExamStatus()
-  }, [userId])
-
   // Inicializar seguimiento de tiempo cuando el examen comienza
   useEffect(() => {
-    if (examState === 'active' && examStartTime === 0) {
+    if (examState === 'active' && examStartTime === 0 && quizData && quizData.questions.length > 0) {
       const now = Date.now();
       setExamStartTime(now);
       // Inicializar la primera pregunta
-      initializeQuestionTime(examData.questions[0].id);
+      initializeQuestionTime(quizData.questions[0].id);
     }
-  }, [examState]);
+  }, [examState, quizData]);
 
   // Función para calcular la puntuación
   const calculateScore = () => {
+    if (!quizData) {
+      return {
+        correctAnswers: 0,
+        totalAnswered: 0,
+        totalQuestions: 0,
+        percentage: 0,
+        overallPercentage: 0
+      };
+    }
+
     let correctAnswers = 0
     let totalAnswered = 0
 
-    examData.questions.forEach(question => {
+    quizData.questions.forEach(question => {
       if (answers[question.id]) {
         totalAnswered++
         if (answers[question.id] === question.correctAnswer) {
@@ -266,18 +309,20 @@ const ExamWithFirebase = () => {
     return {
       correctAnswers,
       totalAnswered,
-      totalQuestions: examData.questions.length,
+      totalQuestions: quizData.questions.length,
       percentage: totalAnswered > 0 ? Math.round((correctAnswers / totalAnswered) * 100) : 0,
-      overallPercentage: Math.round((correctAnswers / examData.questions.length) * 100)
+      overallPercentage: Math.round((correctAnswers / quizData.questions.length) * 100)
     }
   }
 
   // Función para guardar resultados en Firebase
   const saveToFirebase = async (timeExpired = false, lockedByTabChange = false) => {
+    if (!quizData) return;
+    
     setIsSubmitting(true)
 
     // Finalizar el tiempo de la pregunta actual antes de enviar
-    const currentQuestionId = examData.questions[currentQuestion].id;
+    const currentQuestionId = quizData.questions[currentQuestion].id;
     finalizeQuestionTime(currentQuestionId);
 
     try {
@@ -287,11 +332,11 @@ const ExamWithFirebase = () => {
 
       const examResult = {
         userId,
-        examId: examData.id,
-        examTitle: examData.title,
+        examId: quizData.id,
+        examTitle: quizData.title,
         answers,
         score,
-        topic: examData.questions[currentQuestion].topic,
+        topic: quizData.questions[currentQuestion]?.topic || '',
         timeExpired,
         lockedByTabChange,
         tabChangeCount,
@@ -299,13 +344,14 @@ const ExamWithFirebase = () => {
         endTime: new Date(examEndTime).toISOString(),
         timeSpent: totalExamTime,
         completed: true,
+        phase: quizData.phase,
         // Datos de tiempo por pregunta
         questionTimeTracking: questionTimeData,
         totalExamTimeSeconds: totalExamTime,
         // Detalles por pregunta con tiempo incluido
-        questionDetails: examData.questions.map(question => ({
+        questionDetails: quizData.questions.map(question => ({
           questionId: question.id,
-          questionText: question.text,
+          questionText: stripHtmlTags(question.text || ''),
           userAnswer: answers[question.id] || null,
           correctAnswer: question.correctAnswer,
           topic: question.topic,
@@ -315,10 +361,10 @@ const ExamWithFirebase = () => {
         }))
       }
 
-      if (!userId || !examData.id) {
-        throw new Error("Falta userId o examData.id");
+      if (!userId || !quizData.id) {
+        throw new Error("Falta userId o quizData.id");
       }
-      const result = await saveExamResults(userId, examData.id, examResult);
+      const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
       return result
     } catch (error) {
@@ -371,52 +417,24 @@ const ExamWithFirebase = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (examState === 'active' && document.hidden) {
-        // Verificar si también se salió de pantalla completa
-        const fullscreenElement =
-          document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.msFullscreenElement;
-        
-        const isCurrentlyFullscreen = !!fullscreenElement;
-        
-        if (!isCurrentlyFullscreen) {
-          // Se salió de pantalla completa Y cambió de pestaña
-          setFullscreenExitWithTabChange(true);
-          setTabChangeCount(prev => prev + 1);
-          
-          // Si es la segunda vez, finalizar examen
-          if (tabChangeCount >= 1) {
-            setExamLocked(true);
-            handleSubmit(false, true);
-          } else {
-            setShowFullscreenExit(true);
-          }
-        } else {
-          // Solo cambió de pestaña (sin salir de pantalla completa)
-          setTabChangeCount(prev => prev + 1);
-          setShowTabChangeWarning(true);
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
 
-          if (tabChangeCount >= 2) {
-            setExamLocked(true);
-            handleSubmit(true, true);
-          }
+        if (tabChangeCount >= 2) {
+          setExamLocked(true);
+          handleSubmit(true, true);
         }
       }
     };
 
     const handleWindowBlur = () => {
-      if (examState === 'active' && !document.hidden) {
-        // Solo pérdida de foco sin cambio de pestaña
-        const fullscreenElement =
-          document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.msFullscreenElement;
-        
-        const isCurrentlyFullscreen = !!fullscreenElement;
-        
-        if (!isCurrentlyFullscreen) {
-          // Se salió de pantalla completa pero no cambió de pestaña aún
-          setFullscreenExitWithTabChange(false);
+      if (examState === 'active') {
+        setTabChangeCount(prev => prev + 1);
+        setShowTabChangeWarning(true);
+
+        if (tabChangeCount >= 2) {
+          setExamLocked(true);
+          handleSubmit(true, true);
         }
       }
     };
@@ -482,6 +500,7 @@ const ExamWithFirebase = () => {
     };
   }, [examState, tabChangeCount]);
 
+  // Detectar tecla Escape como respaldo
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && examState === 'active') {
@@ -512,6 +531,10 @@ const ExamWithFirebase = () => {
               setFullscreenExitWithTabChange(false);
               setShowFullscreenExit(true);
             }
+          } else {
+            // Si aún está en pantalla completa pero se presionó Escape, mostrar advertencia
+            setFullscreenExitWithTabChange(false);
+            setShowFullscreenExit(true);
           }
         }, 50);
       }
@@ -689,6 +712,8 @@ const ExamWithFirebase = () => {
 
   // Componente de Bienvenida
   const WelcomeScreen = () => {
+    if (!quizData) return null;
+    
     const theme = getQuizTheme('inglés')
     return (
     <div className="max-w-4xl mx-auto relative z-10">
@@ -705,24 +730,24 @@ const ExamWithFirebase = () => {
             </div>
           </div>
           <CardTitle className={`text-3xl font-bold ${theme.primaryColor} mb-2`}>
-            ¡Bienvenido al {examData.title}!
+            ¡Bienvenido al {quizData.title}!
           </CardTitle>
           <CardDescription className="text-lg text-gray-600 max-w-2xl mx-auto">
-            {examData.description}
+            {quizData.description}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
           {/* Información del examen */}
           <div className="grid md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
-              <Timer className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-              <div className="font-semibold text-gray-900">{examData.timeLimit} minutos</div>
-              <div className="text-sm text-gray-500">Tiempo límite</div>
-            </div>
+              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                <Timer className="h-8 w-8 text-orange-500 mx-auto mb-2" />
+                <div className="font-semibold text-gray-900">{quizData.questions.length * 2} minutos</div>
+                <div className="text-sm text-gray-500">Tiempo límite</div>
+              </div>
             <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
               <HelpCircle className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-              <div className="font-semibold text-gray-900">{examData.questions.length} preguntas</div>
+              <div className="font-semibold text-gray-900">{quizData.totalQuestions} preguntas</div>
               <div className="text-sm text-gray-500">Total de preguntas</div>
             </div>
             <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
@@ -739,7 +764,7 @@ const ExamWithFirebase = () => {
               Instrucciones importantes
             </h3>
             <ul className="space-y-3">
-              {examData.instructions.map((instruction, index) => (
+              {quizData.instructions.map((instruction, index) => (
                 <li key={index} className="flex items-start gap-3">
                   <div className="h-6 w-6 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-white text-xs font-bold">{index + 1}</span>
@@ -755,7 +780,7 @@ const ExamWithFirebase = () => {
             <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertTitle className="text-red-800">Control de Pestañas</AlertTitle>
             <AlertDescription className="text-red-700">
-              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 3 intentos, el examen se finalizará automáticamente.
+              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 2 intentos, el examen se finalizará automáticamente.
             </AlertDescription>
           </Alert>
           <Alert className="border-purple-200 bg-purple-50">
@@ -827,7 +852,7 @@ const ExamWithFirebase = () => {
         <CardContent className="text-center">
           <div className="bg-orange-50 rounded-lg p-4 mb-4">
             <div className="text-sm text-orange-600 mb-1">Intentos restantes</div>
-            <div className="text-2xl font-bold text-orange-800">{3 - tabChangeCount}</div>
+            <div className="text-2xl font-bold text-orange-800">{2 - tabChangeCount}</div>
           </div>
           <p className="text-gray-700 mb-2">
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
@@ -835,7 +860,7 @@ const ExamWithFirebase = () => {
           <p className="text-sm text-red-600 font-medium">
             {tabChangeCount >= 2
               ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
-              : `Después de ${3 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
+              : `Después de ${2 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
             }
           </p>
         </CardContent>
@@ -1004,7 +1029,8 @@ const ExamWithFirebase = () => {
 
   // Función para ir a la siguiente pregunta
   const nextQuestion = () => {
-    if (currentQuestion < examData.questions.length - 1) {
+    if (!quizData) return;
+    if (currentQuestion < quizData.questions.length - 1) {
       changeQuestion(currentQuestion + 1)
     }
   }
@@ -1033,8 +1059,46 @@ const ExamWithFirebase = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  // Pantalla cuando no hay preguntas disponibles
+  const NoQuestionsScreen = () => (
+    <div className="max-w-2xl mx-auto">
+      <Card className="shadow-lg border-red-200">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-red-600" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl text-red-800">No hay preguntas disponibles</CardTitle>
+          <CardDescription className="text-lg">
+            No se encontraron preguntas para este cuestionario en este momento
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle className="text-red-800">Información</AlertTitle>
+            <AlertDescription className="text-red-700">
+              Por favor, contacta al administrador o intenta más tarde.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button
+            onClick={() => navigate('/dashboard')}
+            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+          >
+            Volver al Dashboard
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+
   // Pantalla de examen completado
   const CompletedScreen = () => {
+    if (!quizData) return null;
+    
     const score = calculateScore()
 
     return (
@@ -1088,74 +1152,6 @@ const ExamWithFirebase = () => {
                 Progreso: {score.overallPercentage}% del total
               </div>
             </div>
-
-            {/* Tiempo por pregunta */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-500" />
-                Tiempo por Pregunta
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {examData.questions.map((question, index) => {
-                  const timeData = questionTimeData[question.id]
-                  const isCorrect = answers[question.id] === question.correctAnswer
-                  const isAnswered = !!answers[question.id]
-
-                  return (
-                    <div key={question.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isCorrect ? 'bg-green-100 text-green-600' :
-                          isAnswered ? 'bg-red-100 text-red-600' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">
-                            Pregunta {index + 1}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {isCorrect ? '✓ Correcta' : isAnswered ? '✗ Incorrecta' : '— Sin responder'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {formatTime(timeData?.timeSpent || 0)}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Estadísticas adicionales */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Estadísticas del Examen
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Tiempo total usado</div>
-                  <div className="text-lg font-medium text-gray-900">
-                    {formatTime(Math.floor((Date.now() - examStartTime) / 1000))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Tiempo promedio por pregunta</div>
-                  <div className="text-lg font-medium text-gray-900">
-                    {formatTime(Math.floor(Object.values(questionTimeData).reduce((acc, q) => acc + (q.timeSpent || 0), 0) / examData.questions.length))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Estado del examen</div>
-                  <div className="text-lg font-medium text-green-600">
-                    Completado
-                  </div>
-                </div>
-              </div>
-            </div>
           </CardContent>
 
           <CardFooter className="flex justify-center pt-6">
@@ -1175,7 +1171,9 @@ const ExamWithFirebase = () => {
 
   // Pantalla principal del examen
   const ExamScreen = () => {
-    const currentQ = examData.questions[currentQuestion]
+    if (!quizData) return null;
+    
+    const currentQ = quizData.questions[currentQuestion]
     const answeredQuestions = Object.keys(answers).length
     const theme = getQuizTheme('inglés')
 
@@ -1194,7 +1192,7 @@ const ExamWithFirebase = () => {
                 </div>
                 <div>
                   <h3 className="text-xs text-gray-500 font-medium">Estás realizando:</h3>
-                  <h2 className="text-base font-bold">{examData.module || examData.title}</h2>
+                  <h2 className="text-base font-bold">{quizData.title}</h2>
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1229,7 +1227,7 @@ const ExamWithFirebase = () => {
                   <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
                     <AlertCircle className="h-4 w-4 text-orange-500" />
                     <span className="text-sm font-medium text-orange-700">
-                      {3 - tabChangeCount} intentos restantes
+                      {2 - tabChangeCount} intentos restantes
                     </span>
                   </div>
                 )}
@@ -1259,7 +1257,7 @@ const ExamWithFirebase = () => {
                   </div>
                 )}
                 {currentQ.text && (
-                  <p className="text-gray-900 leading-relaxed">{currentQ.text}</p>
+                  <p className="text-gray-900 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQ.text }} />
                 )}
               </div>
               <RadioGroup
@@ -1292,7 +1290,7 @@ const ExamWithFirebase = () => {
             <CardFooter className="flex justify-end">
               <Button
                 onClick={nextQuestion}
-                disabled={currentQuestion === examData.questions.length - 1}
+                disabled={currentQuestion === quizData.questions.length - 1}
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
@@ -1308,7 +1306,7 @@ const ExamWithFirebase = () => {
               Navegación
             </h3>
             <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
-              {examData.questions.map((q, index) => {
+              {quizData.questions.map((q, index) => {
                 const isAnswered = answers[q.id];
                 const isCurrent = currentQuestion === index;
                 return (
@@ -1339,13 +1337,13 @@ const ExamWithFirebase = () => {
               <div className="text-sm text-gray-500 mb-2">Progreso del examen</div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">
-                  {answeredQuestions}/{examData.questions.length}
+                  {answeredQuestions}/{quizData.questions.length}
                 </span>
                 <span className="text-sm text-gray-500">
-                  {Math.round((answeredQuestions / examData.questions.length) * 100)}%
+                  {Math.round((answeredQuestions / quizData.questions.length) * 100)}%
                 </span>
               </div>
-              <Progress value={(answeredQuestions / examData.questions.length) * 100} className="h-2" />
+              <Progress value={(answeredQuestions / quizData.questions.length) * 100} className="h-2" />
 
               <Button
                 onClick={showSubmitWarning}
@@ -1362,9 +1360,9 @@ const ExamWithFirebase = () => {
                 )}
               </Button>
 
-              {answeredQuestions < examData.questions.length && (
+              {answeredQuestions < quizData.questions.length && (
                 <p className="text-xs text-center mt-2 text-orange-500">
-                  Tienes {examData.questions.length - answeredQuestions} preguntas sin responder
+                  Tienes {quizData.questions.length - answeredQuestions} preguntas sin responder
                 </p>
               )}
             </div>
@@ -1376,8 +1374,10 @@ const ExamWithFirebase = () => {
 
   // Modal de confirmación de envío
   const SubmitWarningModal = () => {
+    if (!quizData) return null;
+    
     const score = calculateScore()
-    const unanswered = examData.questions.length - score.totalAnswered
+    const unanswered = quizData.questions.length - score.totalAnswered
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1465,6 +1465,7 @@ const ExamWithFirebase = () => {
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}
       {examState === 'already_taken' && <AlreadyTakenScreen />}
+      {examState === 'no_questions' && <NoQuestionsScreen />}
 
       {/* Modales */}
       {showWarning && <SubmitWarningModal />}
