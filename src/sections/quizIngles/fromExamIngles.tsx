@@ -12,6 +12,8 @@ import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
+import { useThemeContext } from "@/context/ThemeContext";
+import { cn } from "@/lib/utils";
 
 const db = getFirestore(firebaseApp);
 
@@ -104,6 +106,7 @@ const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams();
   const { user } = useAuthContext();
+  const { theme: appTheme } = useThemeContext();
   const userId = user?.uid;
 
   // Obtener parámetros de la URL para determinar la fase
@@ -1469,8 +1472,8 @@ const ExamWithFirebase = () => {
   const theme = getQuizTheme('inglés')
   return (
     <div 
-      className="min-h-screen quiz-gradient-bg relative"
-      style={getQuizBackgroundStyle(theme)}
+      className={cn("min-h-screen quiz-gradient-bg relative", appTheme === 'dark' ? 'bg-zinc-900' : '')}
+      style={appTheme === 'dark' ? {} : getQuizBackgroundStyle(theme)}
     >
       {examState === 'loading' && <LoadingScreen />}
       {examState === 'welcome' && <WelcomeScreen />}

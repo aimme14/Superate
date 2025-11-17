@@ -14,6 +14,8 @@ import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerat
 import DOMPurify from 'dompurify'
 import katex from 'katex'
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
+import { useThemeContext } from "@/context/ThemeContext";
+import { cn } from "@/lib/utils";
 import 'katex/dist/katex.min.css'
 
 const db = getFirestore(firebaseApp);
@@ -169,6 +171,7 @@ const examConfig = {
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const { user } = useAuthContext();
+  const { theme: appTheme } = useThemeContext();
   const userId = user?.uid;
 
   // Estados principales
@@ -1598,8 +1601,9 @@ const ExamWithFirebase = () => {
   }
 
   // Renderizado principal
+  const theme = getQuizTheme('física')
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={cn("min-h-screen", appTheme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
       {examState === 'loading' && <LoadingScreen />}
       {examState === 'error' && <ErrorScreen />}
       {examState === 'no_questions' && <NoQuestionsScreen />}
