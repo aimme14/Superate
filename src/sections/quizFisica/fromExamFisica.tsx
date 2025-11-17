@@ -1601,7 +1601,6 @@ const ExamWithFirebase = () => {
   }
 
   // Renderizado principal
-  const theme = getQuizTheme('física')
   return (
     <div className={cn("min-h-screen", appTheme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
       {examState === 'loading' && <LoadingScreen />}
