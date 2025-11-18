@@ -3,7 +3,6 @@ import { getUsers, getUserById, updateUser, deleteUser } from "@/controllers/use
 import { useNotification } from "@/hooks/ui/useNotification"
 import { Props } from "@/interfaces/props.interface"
 import { useLoading } from "@/hooks/ui/useLoading"
-import { User as UserFB } from "firebase/auth"
 import { txt } from "@/utils/format"
 import { AuthContext, User } from "@/interfaces/context.interface"
 
@@ -209,21 +208,6 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
   const setLoadingStatus = (status?: string) => {
     setLoading(Boolean(status))
   }
-  /**
-   * Mapea un usuario de Firebase al tipo de usuario definido en la aplicación.
-   * @param {User} user - El usuario de Firebase.
-   * @returns {User | null} - El usuario mapeado o null si no hay usuario.
-   */
-  const mapAuth = (user: UserFB | null): User | undefined => {
-    if (!user) return undefined
-    return {
-      uid: user.uid,
-      email: user.email || '',
-      displayName: user.displayName || '',
-      emailVerified: user.emailVerified,
-    }
-  }
-
   /**
    * Obtiene los datos completos del usuario desde la base de datos
    * @param {string} uid - El UID del usuario

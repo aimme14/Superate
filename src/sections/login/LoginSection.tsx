@@ -65,7 +65,7 @@ const LoginSection = ({ theme }: ThemeContextProps) => {
                 description="Ingresa tus credenciales para acceder"
               />
               <FormSection theme={theme} />
-              <FooterSection theme={theme} />
+              <FooterSection />
             </div>
           </Card>
         </motion.div>

@@ -94,17 +94,6 @@ class AuthService {
         
         console.log('🔐 Preservando sesión del usuario actual:', currentUserEmail)
         
-        // Obtener el token del admin ANTES de crear el nuevo usuario
-        let adminToken: string | null = null
-        let adminRefreshToken: string | null = null
-        try {
-          adminToken = await currentUser.getIdToken()
-          adminRefreshToken = currentUser.refreshToken
-          console.log('✅ Token del admin obtenido para preservar sesión')
-        } catch (tokenError) {
-          console.warn('⚠️ No se pudo obtener el token del admin:', tokenError)
-        }
-        
         // Crear el nuevo usuario (esto cerrará la sesión actual automáticamente)
         console.log('📝 Creando nuevo usuario en Firebase Auth...')
         const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)

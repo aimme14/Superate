@@ -1,7 +1,6 @@
-import { ThemeContextProps } from '@/interfaces/context.interface'
 import { CardFooter } from '#/ui/card'
 
-const FooterSection = ({ theme }: ThemeContextProps) => {
+const FooterSection = () => {
   // Código temporalmente oculto
   // const [showForgotDialog, setShowForgotDialog] = useState(false)
   // const { methods, onSubmit } = useForgotPasswordForm()
