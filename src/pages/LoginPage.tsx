@@ -13,7 +13,12 @@ const LoginPage = () => {
   useEffect(() => { if (isAuth) navigate('/dashboard') }, [isAuth])
 
   return (
-    <div className={cn("flex justify-center items-center")}>
+    <div className={cn(
+      "flex justify-center items-start",
+      "px-4 py-4",
+      "w-full flex-1",
+      "relative"
+    )}>
       <LoginSection theme={theme} />
     </div>
   )

@@ -3,15 +3,14 @@ import CarouselInfo from '#/pages/home/CarouselInfo'
 
 const HomeSection = ({ theme }: ThemeContextProps) => {
   return (
-    <>
+    <div className="flex flex-col w-full">
       <CarouselInfo
         informations={heroItems}
         isLoading={false}
         theme={theme}
         error={null}
       />
-
-    </>
+    </div>
   )
 }
 

@@ -35,7 +35,11 @@ export class Forbidden extends ErrorAPI {
 /** Error específico para recursos no encontrados */
 export class NotFound extends ErrorAPI {
   constructor({ message }: ErrorProps) {
-    super({ message: `${message} no encontrado`, statusCode: 404, code: 'NOT_FOUND' })
+    // Evitar duplicar "no encontrado" si el mensaje ya lo incluye
+    const finalMessage = message.toLowerCase().includes('no encontrado') 
+      ? message 
+      : `${message} no encontrado`
+    super({ message: finalMessage, statusCode: 404, code: 'NOT_FOUND' })
   }
 }
 

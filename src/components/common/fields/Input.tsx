@@ -71,7 +71,7 @@ const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(({
                 )}
               />
             ) : (
-              <div className='relative'>
+              <div className='relative group'>
                 <Input
                   {...field}
                   ref={ref}
@@ -79,10 +79,13 @@ const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(({
                   placeholder={placeholder}
                   type={showPassword ? 'text' : type}
                   autoComplete={autoComplete ? 'on' : 'off'}
-                  className={cn((type === 'email' || type === 'password') && 'pl-10',
+                  className={cn(
+                    (type === 'email' || type === 'password') && 'pl-10',
+                    'transition-all duration-300',
+                    'focus:ring-2 focus:ring-offset-2',
                     theme === 'dark'
-                      ? 'bg-zinc-700 border-zinc-600 text-zinc-100 hover:bg-zinc-600'
-                      : 'bg-white border-gray-300 text-gray-900'
+                      ? 'bg-zinc-800/50 border-zinc-700 text-zinc-100 hover:bg-zinc-800/70 hover:border-zinc-600 focus:border-purple-500 focus:ring-purple-500/50'
+                      : 'bg-white/90 border-gray-300 text-gray-900 hover:bg-white hover:border-gray-400 focus:border-purple-500 focus:ring-purple-500/30'
                   )}
                 />
 
@@ -119,7 +122,7 @@ export default InputField
 
 /*--------------------------------------------------tools--------------------------------------------------*/
 const LeadingIcon = ({ Icon }: { Icon: LucideIcon }) => (
-  <Icon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+  <Icon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 transition-colors duration-300 group-focus-within:text-purple-500" />
 )
 
 interface PasswordToggleProps extends ThemeContextProps { showPassword: boolean, onToggle: () => void }
@@ -127,15 +130,25 @@ const PasswordToggle = ({ theme, showPassword, onToggle }: PasswordToggleProps) 
   <button
     type="button"
     onClick={onToggle}
-    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+    className={cn(
+      "absolute inset-y-0 right-0 pr-3 flex items-center",
+      "transition-colors duration-200 hover:opacity-70",
+      "focus:outline-none focus:ring-2 focus:ring-purple-500/50 rounded"
+    )}
   >
     {showPassword ? (
-      <EyeOff className={cn('h-5 w-5',
-        theme === 'dark' ? 'text-zinc-400' : 'text-gray-400'
+      <EyeOff className={cn(
+        'h-5 w-5 transition-colors duration-200',
+        theme === 'dark' 
+          ? 'text-zinc-400 hover:text-purple-400' 
+          : 'text-gray-400 hover:text-purple-500'
       )} />
     ) : (
-      <Eye className={cn('h-5 w-5',
-        theme === 'dark' ? 'text-zinc-400' : 'text-gray-400'
+      <Eye className={cn(
+        'h-5 w-5 transition-colors duration-200',
+        theme === 'dark' 
+          ? 'text-zinc-400 hover:text-purple-400' 
+          : 'text-gray-400 hover:text-purple-500'
       )} />
     )}
   </button>

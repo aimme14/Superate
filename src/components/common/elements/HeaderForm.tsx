@@ -63,17 +63,24 @@ interface HeaderTextProps extends ThemeContextProps {
 }
 const HeaderText = ({ title, description, theme }: HeaderTextProps) => {
   return (
-    <CardHeader className="space-y-1">
-      <CardTitle className={cn('text-3xl font-extralight text-center',
-        theme === 'dark' ? 'text-zinc-100' : 'text-gray-900'
+    <CardHeader className="space-y-1 pb-2 pt-3 px-6">
+      <CardTitle className={cn(
+        'text-3xl font-bold text-center',
+        'bg-gradient-to-r bg-clip-text text-transparent',
+        'tracking-tight',
+        theme === 'dark' 
+          ? 'from-purple-800 via-purple-100 to-indigo-200' 
+          : 'from-purple-700 via-purple-600 to-indigo-700'
       )}>
         {title}
       </CardTitle>
 
-      <CardDescription className={cn('text-center',
+      <CardDescription className={cn(
+        'text-center text-sm',
+        'leading-tight',
         theme === 'dark'
-          ? 'text-zinc-400'
-          : 'text-gray-500'
+          ? 'text-zinc-300'
+          : 'text-gray-600'
       )}>
         {description}
       </CardDescription>

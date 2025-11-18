@@ -158,8 +158,8 @@ export const useTeacherMutations = () => {
   })
 
   const deleteTeacherFromGradeMutation = useMutation({
-    mutationFn: ({ institutionId, campusId, gradeId, teacherId }: { institutionId: string; campusId: string; gradeId: string; teacherId: string }) => 
-      deleteTeacherFromGrade(institutionId, campusId, gradeId, teacherId),
+    mutationFn: ({ institutionId, campusId, gradeId, teacherId, adminEmail, adminPassword }: { institutionId: string; campusId: string; gradeId: string; teacherId: string; adminEmail?: string; adminPassword?: string }) => 
+      deleteTeacherFromGrade(institutionId, campusId, gradeId, teacherId, adminEmail, adminPassword),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: teacherKeys.lists() })
       queryClient.invalidateQueries({ queryKey: teacherKeys.stats() })
@@ -169,8 +169,8 @@ export const useTeacherMutations = () => {
   })
 
   const updateTeacherInGradeMutation = useMutation({
-    mutationFn: ({ institutionId, campusId, gradeId, teacherId, data }: { institutionId: string; campusId: string; gradeId: string; teacherId: string; data: UpdateTeacherData }) => 
-      updateTeacherInGrade(institutionId, campusId, gradeId, teacherId, data),
+    mutationFn: ({ institutionId, campusId, gradeId, teacherId, data, oldInstitutionId, oldCampusId, oldGradeId }: { institutionId: string; campusId: string; gradeId: string; teacherId: string; data: UpdateTeacherData; oldInstitutionId?: string; oldCampusId?: string; oldGradeId?: string }) => 
+      updateTeacherInGrade(institutionId, campusId, gradeId, teacherId, data, oldInstitutionId, oldCampusId, oldGradeId),
     onSuccess: (_, { teacherId }) => {
       queryClient.invalidateQueries({ queryKey: teacherKeys.lists() })
       queryClient.invalidateQueries({ queryKey: teacherKeys.detail(teacherId) })

@@ -22,10 +22,15 @@ const Carousel = ({
 
   return (
     <ShadcnCarousel
-      className={cn(className_Carousel)}
-      plugins={autoplay ? [Autoplay({ delay: 5000 })] : []}
+      className={cn(className_Carousel, "relative")}
+      plugins={autoplay ? [Autoplay({ delay: 4000 })] : []}
+      opts={{
+        align: "start",
+        loop: true,
+        duration: 95,
+      }}
     >
-      <CarouselContent>
+      <CarouselContent className="[&>div]:transition-transform [&>div]:duration-900 [&>div]:ease-in-out">
         {items.map((item, index) => (
           <CarouselItem key={index} className={cn(className_Item)}>
             {render(item)}
@@ -34,8 +39,8 @@ const Carousel = ({
       </CarouselContent>
       {withButtons && (
         <>
-          <CarouselPrevious className="absolute size-10 -left-5" />
-          <CarouselNext className="absolute size-10 -right-5" />
+          <CarouselPrevious className="absolute left-4 top-1/2 -translate-y-1/2 z-10 size-10 bg-white/80 hover:bg-white/90 border-0 shadow-lg" />
+          <CarouselNext className="absolute right-4 top-1/2 -translate-y-1/2 z-10 size-10 bg-white/80 hover:bg-white/90 border-0 shadow-lg" />
         </>
       )}
     </ShadcnCarousel>

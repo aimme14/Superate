@@ -46,8 +46,8 @@ export const usePrincipalMutations = () => {
   })
 
   const updatePrincipalMutation = useMutation({
-    mutationFn: ({ institutionId, campusId, principalId, data }: { institutionId: string; campusId: string; principalId: string; data: UpdatePrincipalData }) => 
-      updatePrincipal(institutionId, campusId, principalId, data),
+    mutationFn: ({ institutionId, campusId, principalId, data, oldInstitutionId, oldCampusId }: { institutionId: string; campusId: string; principalId: string; data: UpdatePrincipalData; oldInstitutionId?: string; oldCampusId?: string }) => 
+      updatePrincipal(institutionId, campusId, principalId, data, oldInstitutionId, oldCampusId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: principalKeys.lists() })
       // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
@@ -56,8 +56,8 @@ export const usePrincipalMutations = () => {
   })
 
   const deletePrincipalMutation = useMutation({
-    mutationFn: ({ institutionId, campusId, principalId }: { institutionId: string; campusId: string; principalId: string }) => 
-      deletePrincipal(institutionId, campusId, principalId),
+    mutationFn: ({ institutionId, campusId, principalId, adminEmail, adminPassword }: { institutionId: string; campusId: string; principalId: string; adminEmail?: string; adminPassword?: string }) => 
+      deletePrincipal(institutionId, campusId, principalId, adminEmail, adminPassword),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: principalKeys.lists() })
       // También invalidar las consultas de instituciones para actualizar la estructura jerárquica

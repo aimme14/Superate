@@ -40,14 +40,31 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
   /** Observa el estado de autenticación del negocio en sesión */
   useEffect(() => {
     return authFB.observeAuth(async (auth) => {
-      setIsAuth(Boolean(auth))
-      
       if (auth) {
         // Cargar datos completos del usuario incluyendo el rol
         const userData = await fetchUserData(auth.uid)
-        setUser(userData || mapAuth(auth))
+        
+        // Si no se pueden obtener los datos del usuario (no existe o está inactivo), cerrar sesión
+        if (!userData) {
+          console.log('⚠️ Usuario no encontrado o inactivo en Firestore, cerrando sesión...')
+          setUser(undefined)
+          setIsAuth(false)
+          // Cerrar sesión en Firebase Auth
+          try {
+            await authFB.logout()
+          } catch (error) {
+            console.error('Error al cerrar sesión:', error)
+          }
+          setLoading(false)
+          return
+        }
+        
+        // Usuario válido y activo
+        setUser(userData)
+        setIsAuth(true)
       } else {
         setUser(undefined)
+        setIsAuth(false)
       }
       
       setLoading(false)
@@ -216,6 +233,14 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
     try {
       const userData = await getById(uid, true)
       if (userData) {
+        // Verificar si el usuario está activo
+        const isActive = userData.isActive !== false // Por defecto true si no está definido
+        
+        if (!isActive) {
+          console.log('⚠️ Usuario desactivado o eliminado, no se puede cargar')
+          return undefined
+        }
+        
         return {
           uid: uid,
           email: userData.email || '',

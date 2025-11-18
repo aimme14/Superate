@@ -122,7 +122,8 @@ export const useStudentMutations = () => {
   })
 
   const deleteStudentMutation = useMutation({
-    mutationFn: (studentId: string) => deleteStudent(studentId),
+    mutationFn: ({ studentId, adminEmail, adminPassword }: { studentId: string, adminEmail?: string, adminPassword?: string }) => 
+      deleteStudent(studentId, adminEmail, adminPassword),
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['students'] })

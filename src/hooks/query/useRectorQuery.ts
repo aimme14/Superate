@@ -66,8 +66,8 @@ export const useRectorMutations = () => {
   })
 
   const updateRectorMutation = useMutation({
-    mutationFn: ({ institutionId, rectorId, data }: { institutionId: string; rectorId: string; data: UpdateRectorData }) => 
-      updateRector(institutionId, rectorId, data),
+    mutationFn: ({ institutionId, rectorId, data, oldInstitutionId }: { institutionId: string; rectorId: string; data: UpdateRectorData; oldInstitutionId?: string }) => 
+      updateRector(institutionId, rectorId, data, oldInstitutionId),
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
@@ -94,8 +94,8 @@ export const useRectorMutations = () => {
   })
 
   const deleteRectorMutation = useMutation({
-    mutationFn: ({ institutionId, rectorId }: { institutionId: string; rectorId: string }) => 
-      deleteRector(institutionId, rectorId),
+    mutationFn: ({ institutionId, rectorId, adminEmail, adminPassword }: { institutionId: string; rectorId: string; adminEmail?: string; adminPassword?: string }) => 
+      deleteRector(institutionId, rectorId, adminEmail, adminPassword),
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })

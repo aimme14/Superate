@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const FooterSection = ({ theme }: ThemeContextProps) => {
   return (
-    <CardFooter className="flex flex-col space-y-4">
+    <CardFooter className="flex flex-col space-y-2 pb-3 pt-0">
       <div className="text-sm text-center">
         <p
           className={cn(

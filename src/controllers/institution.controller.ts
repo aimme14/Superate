@@ -19,6 +19,7 @@ export interface CreateInstitutionData {
 
 export interface UpdateInstitutionData extends Partial<CreateInstitutionData> {
   isActive?: boolean
+  campuses?: Campus[] // Para actualizar sedes y grados
 }
 
 export interface CreateCampusData {
@@ -102,11 +103,37 @@ export const createInstitution = async (data: CreateInstitutionData): Promise<Re
 
 export const updateInstitution = async (id: string, data: UpdateInstitutionData): Promise<Result<Institution>> => {
   try {
-    const result = await dbService.updateInstitution(id, data)
-    if (result.success) {
-      return success(result.data as Institution)
+    // Si se están actualizando sedes y grados, necesitamos obtener la institución actual
+    // y fusionar los datos para preservar toda la estructura
+    if (data.campuses) {
+      const currentInstitutionResult = await dbService.getInstitutionById(id)
+      if (!currentInstitutionResult.success) {
+        return failure(currentInstitutionResult.error)
+      }
+
+      const currentInstitution = currentInstitutionResult.data
+      
+      // Fusionar los datos actualizados con la estructura existente
+      const mergedData = {
+        ...currentInstitution,
+        ...data,
+        campuses: data.campuses, // Usar las sedes actualizadas
+        updatedAt: new Date().toISOString().split('T')[0]
+      }
+
+      const result = await dbService.updateInstitution(id, mergedData)
+      if (result.success) {
+        return success(result.data as Institution)
+      }
+      return failure(result.error)
+    } else {
+      // Si no se están actualizando sedes, actualizar normalmente
+      const result = await dbService.updateInstitution(id, data)
+      if (result.success) {
+        return success(result.data as Institution)
+      }
+      return failure(result.error)
     }
-    return failure(result.error)
   } catch (error) {
     return failure(new ErrorAPI({ message: 'Error al actualizar la institución', statusCode: 500 }))
   }

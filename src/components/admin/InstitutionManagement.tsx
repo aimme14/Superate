@@ -85,7 +85,8 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
     website: '',
     rector: '',
     logo: '',
-    isActive: true
+    isActive: true,
+    campuses: [] as Campus[]
   })
 
   const [editCampus, setEditCampus] = useState({
@@ -209,7 +210,8 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       website: institution.website || '',
       rector: institution.rector || '',
       logo: institution.logo || '',
-      isActive: institution.isActive
+      isActive: institution.isActive,
+      campuses: institution.campuses ? JSON.parse(JSON.stringify(institution.campuses)) : [] // Deep copy
     })
     setIsEditInstitutionDialogOpen(true)
   }
@@ -220,10 +222,65 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       return
     }
 
+    // Validar que todas las sedes tengan nombre y dirección
+    for (const campus of editInstitution.campuses) {
+      if (!campus.name || !campus.address) {
+        notifyError({ title: 'Error', message: `La sede "${campus.name || 'sin nombre'}" debe tener nombre y dirección` })
+        return
+      }
+      // Validar que todos los grados tengan nombre
+      if (campus.grades) {
+        for (const grade of campus.grades) {
+          if (!grade.name) {
+            notifyError({ title: 'Error', message: `Todos los grados deben tener un nombre` })
+            return
+          }
+        }
+      }
+    }
+
     try {
+      // Preparar los datos de actualización incluyendo sedes y grados
+      // Preservar campos importantes como IDs, createdAt, teachers, students, etc.
+      const updateData = {
+        name: editInstitution.name,
+        type: editInstitution.type,
+        nit: editInstitution.nit || undefined,
+        address: editInstitution.address,
+        phone: editInstitution.phone || undefined,
+        email: editInstitution.email || undefined,
+        website: editInstitution.website || undefined,
+        rector: editInstitution.rector || undefined,
+        logo: editInstitution.logo || undefined,
+        isActive: editInstitution.isActive,
+        campuses: editInstitution.campuses.map(campus => ({
+          ...campus,
+          // Preservar campos importantes
+          id: campus.id,
+          createdAt: campus.createdAt || new Date().toISOString().split('T')[0],
+          updatedAt: new Date().toISOString().split('T')[0],
+          // Preservar grades con sus campos importantes
+          grades: (campus.grades || []).map(grade => ({
+            ...grade,
+            id: grade.id,
+            createdAt: grade.createdAt || new Date().toISOString().split('T')[0],
+            updatedAt: new Date().toISOString().split('T')[0],
+            // Preservar teachers y students si existen
+            teachers: grade.teachers || [],
+            students: grade.students || []
+          }))
+        }))
+      }
+
+      console.log('📤 Actualizando institución con sedes y grados:', {
+        institutionId: selectedInstitution.id,
+        campusesCount: editInstitution.campuses.length,
+        totalGrades: editInstitution.campuses.reduce((acc, campus) => acc + (campus.grades?.length || 0), 0)
+      })
+
       await updateInstitution.mutateAsync({
         id: selectedInstitution.id,
-        data: editInstitution
+        data: updateData
       })
       setIsEditInstitutionDialogOpen(false)
       notifySuccess({ title: 'Éxito', message: 'Institución actualizada correctamente' })
@@ -295,6 +352,104 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el grado' })
     }
+  }
+
+  // Funciones para añadir/eliminar sedes y grados en el diálogo de edición
+  const handleAddCampus = () => {
+    if (!selectedInstitution) return
+    
+    const newCampus: Campus = {
+      id: `${selectedInstitution.id}-${Date.now()}`, // Generar ID temporal
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
+      isActive: true,
+      grades: [],
+      createdAt: new Date().toISOString().split('T')[0],
+      updatedAt: new Date().toISOString().split('T')[0]
+    }
+    
+    setEditInstitution(prev => ({
+      ...prev,
+      campuses: [...prev.campuses, newCampus]
+    }))
+  }
+
+  const handleRemoveCampus = (campusIndex: number) => {
+    const campus = editInstitution.campuses[campusIndex]
+    if (campus.grades && campus.grades.length > 0) {
+      const hasTeachersOrStudents = campus.grades.some(grade => 
+        (grade.teachers && grade.teachers.length > 0) || 
+        (grade.students && grade.students.length > 0)
+      )
+      if (hasTeachersOrStudents) {
+        notifyError({ 
+          title: 'Error', 
+          message: 'No se puede eliminar una sede que contiene grados con docentes o estudiantes asignados' 
+        })
+        return
+      }
+    }
+    
+    setEditInstitution(prev => ({
+      ...prev,
+      campuses: prev.campuses.filter((_, index) => index !== campusIndex)
+    }))
+  }
+
+  const handleAddGrade = (campusIndex: number) => {
+    const campus = editInstitution.campuses[campusIndex]
+    if (!campus.id) {
+      notifyError({ title: 'Error', message: 'La sede debe tener un ID válido' })
+      return
+    }
+    
+    const newGrade = {
+      id: `${campus.id}-${Date.now()}`, // Generar ID temporal
+      name: '',
+      level: 6,
+      isActive: true,
+      teachers: [],
+      students: [],
+      createdAt: new Date().toISOString().split('T')[0],
+      updatedAt: new Date().toISOString().split('T')[0]
+    }
+    
+    const updatedCampuses = [...editInstitution.campuses]
+    updatedCampuses[campusIndex] = {
+      ...updatedCampuses[campusIndex],
+      grades: [...(updatedCampuses[campusIndex].grades || []), newGrade]
+    }
+    
+    setEditInstitution(prev => ({
+      ...prev,
+      campuses: updatedCampuses
+    }))
+  }
+
+  const handleRemoveGrade = (campusIndex: number, gradeIndex: number) => {
+    const grade = editInstitution.campuses[campusIndex].grades?.[gradeIndex]
+    if (grade && ((grade.teachers && grade.teachers.length > 0) || (grade.students && grade.students.length > 0))) {
+      notifyError({ 
+        title: 'Error', 
+        message: 'No se puede eliminar un grado que tiene docentes o estudiantes asignados' 
+      })
+      return
+    }
+    
+    const updatedCampuses = [...editInstitution.campuses]
+    const updatedGrades = [...(updatedCampuses[campusIndex].grades || [])]
+    updatedGrades.splice(gradeIndex, 1)
+    updatedCampuses[campusIndex] = {
+      ...updatedCampuses[campusIndex],
+      grades: updatedGrades
+    }
+    
+    setEditInstitution(prev => ({
+      ...prev,
+      campuses: updatedCampuses
+    }))
   }
 
   // Funciones para eliminar
@@ -1132,6 +1287,226 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 className="rounded"
               />
               <Label htmlFor="editInstitutionActive" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución activa</Label>
+            </div>
+
+            {/* Sección de Sedes y Grados */}
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={cn("text-lg font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  Sedes y Grados
+                </h3>
+                <Button
+                  type="button"
+                  onClick={handleAddCampus}
+                  variant="outline"
+                  size="sm"
+                  className={cn("flex items-center gap-2", theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar Sede
+                </Button>
+              </div>
+              
+              {editInstitution.campuses.length > 0 ? (
+                <div className="space-y-4">
+                  {editInstitution.campuses.map((campus, campusIndex) => (
+                    <div key={campus.id || campusIndex} className={cn("border rounded-lg p-4", theme === 'dark' ? 'border-zinc-600 bg-zinc-700' : 'border-gray-200 bg-gray-50')}>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                          Sede: {campus.name || 'Nueva Sede'}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={campus.isActive ? 'default' : 'secondary'}>
+                            {campus.isActive ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                          <Button
+                            type="button"
+                            onClick={() => handleRemoveCampus(campusIndex)}
+                            variant="ghost"
+                            size="sm"
+                            className={cn("text-red-600 hover:text-red-700 hover:bg-red-50", theme === 'dark' ? 'hover:bg-red-900/20' : '')}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Campos editables de la sede */}
+                      <div className="grid gap-3 mb-4">
+                        <div className="grid gap-2">
+                          <Label className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Nombre de la sede *</Label>
+                          <Input
+                            value={campus.name}
+                            onChange={(e) => {
+                              const updatedCampuses = [...editInstitution.campuses]
+                              updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], name: e.target.value }
+                              setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                            }}
+                            className={cn(theme === 'dark' ? 'bg-zinc-600 border-zinc-500 text-white' : '')}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Dirección *</Label>
+                          <Textarea
+                            value={campus.address}
+                            onChange={(e) => {
+                              const updatedCampuses = [...editInstitution.campuses]
+                              updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], address: e.target.value }
+                              setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                            }}
+                            rows={2}
+                            className={cn(theme === 'dark' ? 'bg-zinc-600 border-zinc-500 text-white' : '')}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="grid gap-2">
+                            <Label className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Teléfono</Label>
+                            <Input
+                              value={campus.phone || ''}
+                              onChange={(e) => {
+                                const updatedCampuses = [...editInstitution.campuses]
+                                updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], phone: e.target.value }
+                                setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                              }}
+                              className={cn(theme === 'dark' ? 'bg-zinc-600 border-zinc-500 text-white' : '')}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Email</Label>
+                            <Input
+                              type="email"
+                              value={campus.email || ''}
+                              onChange={(e) => {
+                                const updatedCampuses = [...editInstitution.campuses]
+                                updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], email: e.target.value }
+                                setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                              }}
+                              className={cn(theme === 'dark' ? 'bg-zinc-600 border-zinc-500 text-white' : '')}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={campus.isActive}
+                            onChange={(e) => {
+                              const updatedCampuses = [...editInstitution.campuses]
+                              updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], isActive: e.target.checked }
+                              setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                            }}
+                            className="rounded"
+                          />
+                          <Label className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Sede activa</Label>
+                        </div>
+                      </div>
+
+                      {/* Grados de la sede */}
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : '')}>
+                            Grados ({campus.grades?.length || 0})
+                          </Label>
+                          <Button
+                            type="button"
+                            onClick={() => handleAddGrade(campusIndex)}
+                            variant="outline"
+                            size="sm"
+                            className={cn("flex items-center gap-1 text-xs", theme === 'dark' ? 'bg-zinc-600 text-white border-zinc-500 hover:bg-zinc-500' : '')}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Agregar Grado
+                          </Button>
+                        </div>
+                        {campus.grades && campus.grades.length > 0 ? (
+                          <div className="space-y-2">
+                            {campus.grades.map((grade, gradeIndex) => (
+                              <div key={grade.id || gradeIndex} className={cn("border rounded p-3", theme === 'dark' ? 'border-zinc-500 bg-zinc-600' : 'border-gray-200 bg-white')}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <Label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : '')}>
+                                    Grado #{gradeIndex + 1}
+                                  </Label>
+                                  <Button
+                                    type="button"
+                                    onClick={() => handleRemoveGrade(campusIndex, gradeIndex)}
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn("h-6 px-2 text-red-600 hover:text-red-700 hover:bg-red-50", theme === 'dark' ? 'hover:bg-red-900/20' : '')}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="grid gap-2">
+                                    <Label className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : '')}>Nombre del grado *</Label>
+                                    <Input
+                                      value={grade.name}
+                                      onChange={(e) => {
+                                        const updatedCampuses = [...editInstitution.campuses]
+                                        const updatedGrades = [...(updatedCampuses[campusIndex].grades || [])]
+                                        updatedGrades[gradeIndex] = { ...updatedGrades[gradeIndex], name: e.target.value }
+                                        updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], grades: updatedGrades }
+                                        setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                                      }}
+                                      className={cn("h-8 text-sm", theme === 'dark' ? 'bg-zinc-500 border-zinc-400 text-white' : '')}
+                                    />
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : '')}>Nivel</Label>
+                                    <Select 
+                                      value={grade.level.toString()} 
+                                      onValueChange={(value) => {
+                                        const updatedCampuses = [...editInstitution.campuses]
+                                        const updatedGrades = [...(updatedCampuses[campusIndex].grades || [])]
+                                        updatedGrades[gradeIndex] = { ...updatedGrades[gradeIndex], level: parseInt(value) }
+                                        updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], grades: updatedGrades }
+                                        setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                                      }}
+                                    >
+                                      <SelectTrigger className={cn("h-8 text-sm", theme === 'dark' ? 'bg-zinc-500 border-zinc-400 text-white' : '')}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {gradeLevels.map(level => (
+                                          <SelectItem key={level} value={level.toString()}>
+                                            {level}°
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2 mt-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={grade.isActive}
+                                    onChange={(e) => {
+                                      const updatedCampuses = [...editInstitution.campuses]
+                                      const updatedGrades = [...(updatedCampuses[campusIndex].grades || [])]
+                                      updatedGrades[gradeIndex] = { ...updatedGrades[gradeIndex], isActive: e.target.checked }
+                                      updatedCampuses[campusIndex] = { ...updatedCampuses[campusIndex], grades: updatedGrades }
+                                      setEditInstitution(prev => ({ ...prev, campuses: updatedCampuses }))
+                                    }}
+                                    className="rounded"
+                                  />
+                                  <Label className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : '')}>Grado activo</Label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={cn("text-sm text-center py-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                            No hay grados en esta sede
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className={cn("text-sm text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  No hay sedes registradas. Puedes agregar sedes desde el botón "Nueva Sede".
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>

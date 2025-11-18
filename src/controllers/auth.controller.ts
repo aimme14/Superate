@@ -31,7 +31,16 @@ export const login = async ({ email, password }: { email: string, password: stri
     
     if (userData.success && userData.data) {
       const userRole = userData.data.role
+      const isActive = userData.data.isActive !== false // Por defecto true si no está definido
+      
       console.log('👤 Rol del usuario:', userRole)
+      console.log('👤 Usuario activo:', isActive)
+      
+      // Verificar si el usuario está activo
+      if (!isActive) {
+        console.log('⚠️ Usuario desactivado o eliminado')
+        return failure(new Unauthorized({ message: 'Usuario no encontrado' }))
+      }
       
       // Solo estudiantes requieren verificación de email
       // Docentes, coordinadores y administradores no requieren verificación
@@ -44,7 +53,8 @@ export const login = async ({ email, password }: { email: string, password: stri
       return success(result.data)
     } else {
       console.log('❌ No se pudieron obtener los datos del usuario:', userData.success ? 'Sin datos' : userData.error)
-      return failure(new ErrorAPI({ message: 'Datos del usuario no encontrados', statusCode: 404 }))
+      // Si el usuario no existe en Firestore pero sí en Firebase Auth, significa que fue eliminado
+      return failure(new ErrorAPI({ message: 'Usuario no encontrado', statusCode: 404 }))
     }
     
   } catch (e) { 

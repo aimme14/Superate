@@ -20,12 +20,16 @@ const CarouselInfo = ({ informations, isLoading, error, theme }: CarouselInfoPro
   if (!informations?.length || informations.length === 0) return <div>No hay información</div>
 
   return (
-    <Carousel
-      autoplay
-      items={informations}
-      className_Item="flex-shrink-0 w-full"
-      render={(item) => ItemInfo({ theme, ...item })}
-    />
+    <div className="flex justify-center w-full px-2 py-4">
+      <div className="w-full max-w-6xl">
+        <Carousel
+          autoplay
+          items={informations}
+          className_Item="flex-shrink-0 w-full"
+          render={(item) => ItemInfo({ theme, ...item })}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -41,7 +45,7 @@ interface ItemInfoProps extends ThemeContextProps {
 
 const ItemInfo = ({ image, title, description, theme }: ItemInfoProps) => {
   return (
-    <div className="relative w-full h-[500px]">
+    <div className="relative w-full h-[350px] md:h-[450px] lg:h-[500px]">
       <img src={image} alt={title} className="w-full h-full object-cover" />
       <div
         className={cn(

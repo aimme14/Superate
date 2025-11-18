@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { 
   UserPlus, 
   Search, 
@@ -30,6 +31,7 @@ import { useRectorMutations, useFilteredRectors } from '@/hooks/query/useRectorQ
 import { useFilteredStudents, useStudentMutations } from '@/hooks/query/useStudentQuery'
 import { useAdminMutations } from '@/hooks/query/useAdminMutations'
 import { debugFormData } from '@/utils/debugFormData'
+import { useAuthContext } from '@/context/AuthContext'
 
 // Componente para mostrar la información del coordinador con sus docentes
 interface CoordinatorCardProps {
@@ -200,7 +202,38 @@ interface UserManagementProps {
 
 export default function UserManagement({ theme }: UserManagementProps) {
   const { notifySuccess, notifyError } = useNotification()
+  const { user: currentUser } = useAuthContext()
   const [activeTab, setActiveTab] = useState('students')
+  const [adminPassword, setAdminPassword] = useState('')
+
+  // Helper function para obtener la contraseña del admin (del estado o sessionStorage)
+  // IMPORTANTE: sessionStorage se limpia automáticamente al cerrar la pestaña/ventana
+  // No persiste entre dispositivos ni después de cerrar el navegador
+  const getAdminPassword = (): string | undefined => {
+    // Prioridad 1: Contraseña en el estado actual (si el usuario la acaba de ingresar)
+    if (adminPassword) return adminPassword
+    
+    // Prioridad 2: Contraseña en sessionStorage (solo durante la sesión actual del navegador)
+    // sessionStorage SE LIMPIA al cerrar la pestaña/ventana del navegador
+    // NO se sincroniza entre dispositivos
+    // NO persiste después de cerrar el navegador
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem('admin_password_temp')
+        if (stored) {
+          const decoded = atob(stored)
+          // Actualizar el estado para que el campo no aparezca
+          if (decoded) {
+            setAdminPassword(decoded)
+          }
+          return decoded
+        }
+      } catch {
+        return undefined
+      }
+    }
+    return undefined
+  }
   
   // Hook para mutaciones administrativas
   const { recalculateCounts, isRecalculating } = useAdminMutations()
@@ -215,25 +248,34 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const [selectedRector, setSelectedRector] = useState<any>(null)
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [editTeacherData, setEditTeacherData] = useState({
+    currentPassword: '', // Contraseña actual del docente (solo para cambiar contraseña)
     name: '',
     email: '',
     phone: '',
     isActive: true,
-    password: ''
+    password: '',
+    institution: '',
+    campus: '',
+    grade: ''
   })
   const [editPrincipalData, setEditPrincipalData] = useState({
+    currentPassword: '', // Contraseña actual del coordinador (solo para cambiar contraseña)
     name: '',
     email: '',
     phone: '',
     isActive: true,
-    password: ''
+    password: '',
+    institution: '',
+    campus: ''
   })
   const [editRectorData, setEditRectorData] = useState({
+    currentPassword: '', // Contraseña actual del rector (solo para cambiar contraseña)
     name: '',
     email: '',
     phone: '',
     isActive: true,
-    password: ''
+    password: '',
+    institution: ''
   })
   const [editStudentData, setEditStudentData] = useState({
     name: '',
@@ -241,7 +283,10 @@ export default function UserManagement({ theme }: UserManagementProps) {
     phone: '',
     isActive: true,
     userdoc: '',
-    password: ''
+    password: '',
+    institution: '',
+    campus: '',
+    grade: ''
   })
   
   // Hooks para docentes
@@ -308,6 +353,27 @@ export default function UserManagement({ theme }: UserManagementProps) {
     newUser.campus || ''
   )
 
+  // Obtener opciones de sedes para el formulario de edición de estudiantes
+  const { options: editCampusOptions, isLoading: editCampusLoading } = useCampusOptions(editStudentData.institution || '')
+  
+  // Obtener opciones de grados para el formulario de edición de estudiantes
+  const { options: editGradeOptions, isLoading: editGradeLoading } = useGradeOptions(
+    editStudentData.institution || '', 
+    editStudentData.campus || ''
+  )
+
+  // Obtener opciones de sedes para el formulario de edición de docentes
+  const { options: editTeacherCampusOptions, isLoading: editTeacherCampusLoading } = useCampusOptions(editTeacherData.institution || '')
+  
+  // Obtener opciones de grados para el formulario de edición de docentes
+  const { options: editTeacherGradeOptions, isLoading: editTeacherGradeLoading } = useGradeOptions(
+    editTeacherData.institution || '', 
+    editTeacherData.campus || ''
+  )
+
+  // Obtener opciones de sedes para el formulario de edición de coordinadores
+  const { options: editPrincipalCampusOptions, isLoading: editPrincipalCampusLoading } = useCampusOptions(editPrincipalData.institution || '')
+
   // Obtener todas las opciones de grados para los filtros
   const { options: allGradeOptions } = useAllGradeOptions()
 
@@ -337,13 +403,22 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
 
   const handleEditTeacher = (teacher: any) => {
+    // Limpiar otros estados de selección
+    setSelectedStudent(null)
+    setSelectedPrincipal(null)
+    setSelectedRector(null)
+    // Establecer el docente seleccionado
     setSelectedTeacher(teacher)
     setEditTeacherData({
       name: teacher.name,
       email: teacher.email,
       phone: teacher.phone || '',
       isActive: teacher.isActive,
-      password: ''
+      password: '',
+      currentPassword: '', // Limpiar contraseña actual al abrir el diálogo
+      institution: teacher.institutionId || '',
+      campus: teacher.campusId || '',
+      grade: teacher.gradeId || ''
     })
     setIsEditDialogOpen(true)
   }
@@ -354,13 +429,85 @@ export default function UserManagement({ theme }: UserManagementProps) {
       return
     }
 
+    // Validar que se hayan seleccionado institución, sede y grado
+    if (!editTeacherData.institution || !editTeacherData.campus || !editTeacherData.grade) {
+      notifyError({ title: 'Error', message: 'Institución, sede y grado son obligatorios' })
+      return
+    }
+
+    // Si se están actualizando credenciales (email, nombre o contraseña), requerir contraseña del admin
+    const isUpdatingEmail = editTeacherData.email && editTeacherData.email !== selectedTeacher.email
+    const isUpdatingName = editTeacherData.name && editTeacherData.name !== selectedTeacher.name
+    const isUpdatingPassword = editTeacherData.password && editTeacherData.password.trim() !== ''
+    const isUpdatingCredentials = isUpdatingEmail || isUpdatingName || isUpdatingPassword
+
+    // Verificar si se están cambiando institución, sede o grado
+    const isChangingInstitution = editTeacherData.institution !== selectedTeacher.institutionId
+    const isChangingCampus = editTeacherData.campus !== selectedTeacher.campusId
+    const isChangingGrade = editTeacherData.grade !== selectedTeacher.gradeId
+    const isChangingLocation = isChangingInstitution || isChangingCampus || isChangingGrade
+
+    // Si se está cambiando la contraseña, requerir la contraseña actual del docente
+    if (isUpdatingPassword && !editTeacherData.currentPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar la contraseña actual del docente para cambiar la contraseña' })
+      return
+    }
+
+    if (isUpdatingCredentials && !adminPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para actualizar credenciales' })
+      return
+    }
+
+    if (isUpdatingCredentials && !currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
+      return
+    }
+
     try {
+      const updateData = {
+        name: editTeacherData.name,
+        email: editTeacherData.email,
+        phone: editTeacherData.phone || undefined,
+        isActive: editTeacherData.isActive,
+        password: editTeacherData.password || undefined,
+        currentPassword: isUpdatingPassword ? editTeacherData.currentPassword : undefined, // Solo enviar si se está cambiando la contraseña
+        adminEmail: isUpdatingCredentials && currentUser?.email ? currentUser.email : undefined,
+        adminPassword: isUpdatingCredentials ? adminPassword : undefined,
+        // Incluir los nuevos valores de institución, sede y grado si están cambiando
+        ...(isChangingLocation && {
+          institutionId: editTeacherData.institution,
+          campusId: editTeacherData.campus,
+          gradeId: editTeacherData.grade
+        })
+      }
+      
+      console.log('📤 Enviando datos de actualización:', {
+        hasPassword: !!updateData.password,
+        passwordLength: updateData.password?.length || 0,
+        hasAdminEmail: !!updateData.adminEmail,
+        hasAdminPassword: !!updateData.adminPassword,
+        isUpdatingCredentials,
+        isChangingLocation,
+        oldInstitution: selectedTeacher.institutionId,
+        newInstitution: editTeacherData.institution,
+        oldCampus: selectedTeacher.campusId,
+        newCampus: editTeacherData.campus,
+        oldGrade: selectedTeacher.gradeId,
+        newGrade: editTeacherData.grade
+      })
+      
       await updateTeacherInGrade.mutateAsync({
-        institutionId: selectedTeacher.institutionId,
-        campusId: selectedTeacher.campusId,
-        gradeId: selectedTeacher.gradeId,
+        institutionId: isChangingLocation ? editTeacherData.institution : selectedTeacher.institutionId,
+        campusId: isChangingLocation ? editTeacherData.campus : selectedTeacher.campusId,
+        gradeId: isChangingLocation ? editTeacherData.grade : selectedTeacher.gradeId,
         teacherId: selectedTeacher.id,
-        data: editTeacherData
+        data: updateData,
+        // Pasar los IDs originales si se está moviendo el docente
+        ...(isChangingLocation && {
+          oldInstitutionId: selectedTeacher.institutionId,
+          oldCampusId: selectedTeacher.campusId,
+          oldGradeId: selectedTeacher.gradeId
+        })
       })
       
       notifySuccess({ title: 'Éxito', message: 'Docente actualizado correctamente' })
@@ -371,10 +518,16 @@ export default function UserManagement({ theme }: UserManagementProps) {
         email: '',
         phone: '',
         isActive: true,
-        password: ''
+        password: '',
+        currentPassword: '',
+        institution: '',
+        campus: '',
+        grade: ''
       })
+      setAdminPassword('')
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el docente' })
+      setAdminPassword('')
     }
   }
 
@@ -386,31 +539,53 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeleteTeacher = async () => {
     if (!selectedTeacher) return
 
+    if (!adminPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
+      return
+    }
+
+    if (!currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
+      return
+    }
+
     try {
       await deleteTeacherFromGrade.mutateAsync({
         institutionId: selectedTeacher.institutionId,
         campusId: selectedTeacher.campusId,
         gradeId: selectedTeacher.gradeId,
-        teacherId: selectedTeacher.id
+        teacherId: selectedTeacher.id,
+        adminEmail: currentUser.email,
+        adminPassword: adminPassword
       })
       
       notifySuccess({ title: 'Éxito', message: 'Docente eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedTeacher(null)
+      setAdminPassword('')
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al eliminar el docente' })
+      setAdminPassword('')
     }
   }
 
   // Funciones para coordinadores
   const handleEditPrincipal = (principal: any) => {
+    // Limpiar otros estados de selección
+    setSelectedStudent(null)
+    setSelectedTeacher(null)
+    setSelectedRector(null)
+    // Establecer el coordinador seleccionado
     setSelectedPrincipal(principal)
     setEditPrincipalData({
       name: principal.name,
       email: principal.email,
       phone: principal.phone || '',
       isActive: principal.isActive,
-      password: ''
+      password: '',
+      currentPassword: '', // Limpiar contraseña actual al abrir el diálogo
+      institution: principal.institutionId || '',
+      campus: principal.campusId || ''
     })
     setIsEditDialogOpen(true)
   }
@@ -421,15 +596,79 @@ export default function UserManagement({ theme }: UserManagementProps) {
       return
     }
 
+    // Validar que se hayan seleccionado institución y sede
+    if (!editPrincipalData.institution || !editPrincipalData.campus) {
+      notifyError({ title: 'Error', message: 'Institución y sede son obligatorios' })
+      return
+    }
+
+    // Si se están actualizando credenciales (email, nombre o contraseña), requerir contraseña del admin
+    const isUpdatingEmail = editPrincipalData.email && editPrincipalData.email !== selectedPrincipal.email
+    const isUpdatingName = editPrincipalData.name && editPrincipalData.name !== selectedPrincipal.name
+    const isUpdatingPassword = editPrincipalData.password && editPrincipalData.password.trim() !== ''
+    const isUpdatingCredentials = isUpdatingEmail || isUpdatingName || isUpdatingPassword
+
+    // Verificar si se están cambiando institución o sede
+    const isChangingInstitution = editPrincipalData.institution !== selectedPrincipal.institutionId
+    const isChangingCampus = editPrincipalData.campus !== selectedPrincipal.campusId
+    const isChangingLocation = isChangingInstitution || isChangingCampus
+
+    // Si se está cambiando la contraseña, requerir la contraseña actual del coordinador
+    if (isUpdatingPassword && !editPrincipalData.currentPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar la contraseña actual del coordinador para cambiar la contraseña' })
+      return
+    }
+
+    if (isUpdatingCredentials && !adminPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para actualizar credenciales' })
+      return
+    }
+
+    if (isUpdatingCredentials && !currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
+      return
+    }
+
     try {
+      const updateData = {
+        name: editPrincipalData.name,
+        email: editPrincipalData.email,
+        phone: editPrincipalData.phone || undefined,
+        isActive: editPrincipalData.isActive,
+        password: editPrincipalData.password || undefined,
+        currentPassword: isUpdatingPassword ? editPrincipalData.currentPassword : undefined, // Solo enviar si se está cambiando la contraseña
+        adminEmail: isUpdatingCredentials && currentUser?.email ? currentUser.email : undefined,
+        adminPassword: isUpdatingCredentials ? adminPassword : undefined,
+        // Incluir los nuevos valores de institución y sede si están cambiando
+        ...(isChangingLocation && {
+          institutionId: editPrincipalData.institution,
+          campusId: editPrincipalData.campus
+        })
+      }
+      
+      console.log('📤 Enviando datos de actualización del coordinador:', {
+        hasPassword: !!updateData.password,
+        passwordLength: updateData.password?.length || 0,
+        hasAdminEmail: !!updateData.adminEmail,
+        hasAdminPassword: !!updateData.adminPassword,
+        isUpdatingCredentials,
+        isChangingLocation,
+        oldInstitution: selectedPrincipal.institutionId,
+        newInstitution: editPrincipalData.institution,
+        oldCampus: selectedPrincipal.campusId,
+        newCampus: editPrincipalData.campus
+      })
+      
       await updatePrincipal.mutateAsync({
-        institutionId: selectedPrincipal.institutionId,
-        campusId: selectedPrincipal.campusId,
+        institutionId: isChangingLocation ? editPrincipalData.institution : selectedPrincipal.institutionId,
+        campusId: isChangingLocation ? editPrincipalData.campus : selectedPrincipal.campusId,
         principalId: selectedPrincipal.id,
-        data: {
-          ...editPrincipalData,
-          password: editPrincipalData.password || undefined
-        }
+        data: updateData,
+        // Pasar los IDs originales si se está moviendo el coordinador
+        ...(isChangingLocation && {
+          oldInstitutionId: selectedPrincipal.institutionId,
+          oldCampusId: selectedPrincipal.campusId
+        })
       })
       
       notifySuccess({ title: 'Éxito', message: 'Coordinador actualizado correctamente' })
@@ -440,10 +679,15 @@ export default function UserManagement({ theme }: UserManagementProps) {
         email: '',
         phone: '',
         isActive: true,
-        password: ''
+        password: '',
+        currentPassword: '',
+        institution: '',
+        campus: ''
       })
+      setAdminPassword('')
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el coordinador' })
+      setAdminPassword('')
     }
   }
 
@@ -455,30 +699,51 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeletePrincipal = async () => {
     if (!selectedPrincipal) return
 
+    if (!adminPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
+      return
+    }
+
+    if (!currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
+      return
+    }
+
     try {
       await deletePrincipal.mutateAsync({
         institutionId: selectedPrincipal.institutionId,
         campusId: selectedPrincipal.campusId,
-        principalId: selectedPrincipal.id
+        principalId: selectedPrincipal.id,
+        adminEmail: currentUser.email,
+        adminPassword: adminPassword
       })
       
       notifySuccess({ title: 'Éxito', message: 'Coordinador eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedPrincipal(null)
+      setAdminPassword('')
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al eliminar el coordinador' })
+      setAdminPassword('')
     }
   }
 
   // Funciones para rectores
   const handleEditRector = (rector: any) => {
+    // Limpiar otros estados de selección
+    setSelectedStudent(null)
+    setSelectedTeacher(null)
+    setSelectedPrincipal(null)
+    // Establecer el rector seleccionado
     setSelectedRector(rector)
     setEditRectorData({
       name: rector.name,
       email: rector.email,
       phone: rector.phone || '',
       isActive: rector.isActive,
-      password: ''
+      password: '',
+      currentPassword: '', // Limpiar contraseña actual al abrir el diálogo
+      institution: rector.institutionId || ''
     })
     setIsEditDialogOpen(true)
   }
@@ -489,11 +754,72 @@ export default function UserManagement({ theme }: UserManagementProps) {
       return
     }
 
+    // Validar que se haya seleccionado institución
+    if (!editRectorData.institution) {
+      notifyError({ title: 'Error', message: 'Institución es obligatoria' })
+      return
+    }
+
+    // Si se están actualizando credenciales (email, nombre o contraseña), requerir contraseña del admin
+    const isUpdatingEmail = editRectorData.email && editRectorData.email !== selectedRector.email
+    const isUpdatingName = editRectorData.name && editRectorData.name !== selectedRector.name
+    const isUpdatingPassword = editRectorData.password && editRectorData.password.trim() !== ''
+    const isUpdatingCredentials = isUpdatingEmail || isUpdatingName || isUpdatingPassword
+
+    // Verificar si se está cambiando institución
+    const isChangingInstitution = editRectorData.institution !== selectedRector.institutionId
+
+    // Si se está cambiando la contraseña, requerir la contraseña actual del rector
+    if (isUpdatingPassword && !editRectorData.currentPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar la contraseña actual del rector para cambiar la contraseña' })
+      return
+    }
+
+    if (isUpdatingCredentials && !adminPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para actualizar credenciales' })
+      return
+    }
+
+    if (isUpdatingCredentials && !currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
+      return
+    }
+
     try {
+      const updateData = {
+        name: editRectorData.name,
+        email: editRectorData.email,
+        phone: editRectorData.phone || undefined,
+        isActive: editRectorData.isActive,
+        password: editRectorData.password || undefined,
+        currentPassword: isUpdatingPassword ? editRectorData.currentPassword : undefined, // Solo enviar si se está cambiando la contraseña
+        adminEmail: isUpdatingCredentials && currentUser?.email ? currentUser.email : undefined,
+        adminPassword: isUpdatingCredentials ? adminPassword : undefined,
+        // Incluir el nuevo valor de institución si está cambiando
+        ...(isChangingInstitution && {
+          institutionId: editRectorData.institution
+        })
+      }
+      
+      console.log('📤 Enviando datos de actualización del rector:', {
+        hasPassword: !!updateData.password,
+        passwordLength: updateData.password?.length || 0,
+        hasAdminEmail: !!updateData.adminEmail,
+        hasAdminPassword: !!updateData.adminPassword,
+        isUpdatingCredentials,
+        isChangingInstitution,
+        oldInstitution: selectedRector.institutionId,
+        newInstitution: editRectorData.institution
+      })
+      
       await updateRector.mutateAsync({
-        institutionId: selectedRector.institutionId,
+        institutionId: isChangingInstitution ? editRectorData.institution : selectedRector.institutionId,
         rectorId: selectedRector.id,
-        data: editRectorData
+        data: updateData,
+        // Pasar el ID original si se está moviendo el rector
+        ...(isChangingInstitution && {
+          oldInstitutionId: selectedRector.institutionId
+        })
       })
       
       notifySuccess({ title: 'Éxito', message: 'Rector actualizado correctamente' })
@@ -504,10 +830,14 @@ export default function UserManagement({ theme }: UserManagementProps) {
         email: '',
         phone: '',
         isActive: true,
-        password: ''
+        password: '',
+        currentPassword: '',
+        institution: ''
       })
+      setAdminPassword('')
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el rector' })
+      setAdminPassword('')
     }
   }
 
@@ -519,22 +849,41 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeleteRector = async () => {
     if (!selectedRector) return
 
+    if (!adminPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
+      return
+    }
+
+    if (!currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
+      return
+    }
+
     try {
       await deleteRector.mutateAsync({
         institutionId: selectedRector.institutionId,
-        rectorId: selectedRector.id
+        rectorId: selectedRector.id,
+        adminEmail: currentUser.email,
+        adminPassword: adminPassword
       })
       
       notifySuccess({ title: 'Éxito', message: 'Rector eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedRector(null)
+      setAdminPassword('')
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al eliminar el rector' })
+      setAdminPassword('')
     }
   }
 
   // Funciones para estudiantes
   const handleEditStudent = (student: any) => {
+    // Limpiar otros estados de selección
+    setSelectedTeacher(null)
+    setSelectedPrincipal(null)
+    setSelectedRector(null)
+    // Establecer el estudiante seleccionado
     setSelectedStudent(student)
     setEditStudentData({
       name: student.name,
@@ -542,7 +891,10 @@ export default function UserManagement({ theme }: UserManagementProps) {
       phone: student.phone || '',
       isActive: student.isActive,
       userdoc: student.userdoc || '',
-      password: ''
+      password: '',
+      institution: student.inst || student.institutionId || '',
+      campus: student.campus || student.campusId || '',
+      grade: student.grade || student.gradeId || ''
     })
     setIsEditDialogOpen(true)
   }
@@ -553,12 +905,25 @@ export default function UserManagement({ theme }: UserManagementProps) {
       return
     }
 
+    // Validar que se hayan seleccionado institución, sede y grado
+    if (!editStudentData.institution || !editStudentData.campus || !editStudentData.grade) {
+      notifyError({ title: 'Error', message: 'Institución, sede y grado son obligatorios' })
+      return
+    }
+
     try {
       await updateStudent.mutateAsync({
         studentId: selectedStudent.id,
         studentData: {
-          ...editStudentData,
-          password: editStudentData.password || undefined
+          name: editStudentData.name,
+          email: editStudentData.email,
+          phone: editStudentData.phone || undefined,
+          isActive: editStudentData.isActive,
+          userdoc: editStudentData.userdoc || undefined,
+          // No se envía password para estudiantes
+          institutionId: editStudentData.institution,
+          campusId: editStudentData.campus,
+          gradeId: editStudentData.grade
         }
       })
       
@@ -571,7 +936,10 @@ export default function UserManagement({ theme }: UserManagementProps) {
         phone: '',
         isActive: true,
         userdoc: '',
-        password: ''
+        password: '',
+        institution: '',
+        campus: '',
+        grade: ''
       })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el estudiante' })
@@ -586,14 +954,30 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeleteStudent = async () => {
     if (!selectedStudent) return
 
+    if (!adminPassword) {
+      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
+      return
+    }
+
+    if (!currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
+      return
+    }
+
     try {
-      await deleteStudent.mutateAsync(selectedStudent.id)
+      await deleteStudent.mutateAsync({
+        studentId: selectedStudent.id,
+        adminEmail: currentUser.email,
+        adminPassword: adminPassword
+      })
       
       notifySuccess({ title: 'Éxito', message: 'Estudiante eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedStudent(null)
+      setAdminPassword('')
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al eliminar el estudiante' })
+      setAdminPassword('')
     }
   }
 
@@ -640,7 +1024,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
           campusId: newUser.campus,
           gradeId: newUser.grade,
           userdoc: newUser.password, // Usar la contraseña como documento temporal
-          password: newUser.password
+          password: newUser.password,
+          adminEmail: currentUser?.email,
+          adminPassword: getAdminPassword()
         }
         
         console.log('🔍 Datos del estudiante desde el formulario:', studentData)
@@ -669,7 +1055,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
           campusId: newUser.campus,
           gradeId: newUser.grade,
           phone: undefined,
-          password: newUser.password // Pasar la contraseña al controlador
+          password: newUser.password, // Pasar la contraseña al controlador
+          adminEmail: currentUser?.email,
+          adminPassword: getAdminPassword()
         }
         
         console.log('🔍 Datos del docente desde el formulario:', teacherData)
@@ -722,7 +1110,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
           institutionId: newUser.institution,
           campusId: newUser.campus,
           phone: undefined,
-          password: newUser.password // Pasar la contraseña al controlador
+          password: newUser.password, // Pasar la contraseña al controlador
+          adminEmail: currentUser?.email,
+          adminPassword: getAdminPassword()
         }
         
         console.log('🔍 Datos del coordinador desde el formulario:', principalData)
@@ -743,7 +1133,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
           email: newUser.email,
           institutionId: newUser.institution,
           phone: undefined,
-          password: newUser.password // Pasar la contraseña al controlador
+          password: newUser.password, // Pasar la contraseña al controlador
+          adminEmail: currentUser?.email,
+          adminPassword: getAdminPassword()
         }
         
         console.log('🔍 Datos del rector desde el formulario:', rectorData)
@@ -797,13 +1189,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
       })
       notifySuccess({ 
         title: 'Éxito', 
-        message: `${newUser.role === 'student' ? 'Estudiante' : newUser.role === 'teacher' ? 'Docente' : newUser.role === 'principal' ? 'Coordinador' : 'Rector'} creado correctamente. Tu sesión se cerrará automáticamente, deberás volver a iniciar sesión.` 
+        message: `${newUser.role === 'student' ? 'Estudiante' : newUser.role === 'teacher' ? 'Docente' : newUser.role === 'principal' ? 'Coordinador' : 'Rector'} creado correctamente.` 
       })
-      
-      // Esperar un momento para que el usuario vea el mensaje y luego cerrar sesión
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 3000)
     } catch (error) {
       console.error('Error creating user:', error)
       notifyError({ 
@@ -846,181 +1233,166 @@ export default function UserManagement({ theme }: UserManagementProps) {
                 Nuevo Usuario
               </Button>
             </DialogTrigger>
-            <DialogContent className={cn("sm:max-w-[425px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-              <DialogHeader>
-                <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nuevo Usuario</DialogTitle>
-                <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <DialogContent className={cn("max-w-[750px] max-h-[95vh] flex flex-col p-0 overflow-hidden", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+              <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b border-gray-200 dark:border-zinc-700">
+                <DialogTitle className={cn("text-lg", theme === 'dark' ? 'text-white' : '')}>Crear Nuevo Usuario</DialogTitle>
+                <DialogDescription className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : '')}>
                   Crea una nueva cuenta de estudiante, docente o coordinador en el sistema.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre completo</Label>
-                  <Input
-                    id="name"
-                    value={newUser.name}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Nombre completo del usuario"
-                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Correo electrónico</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="correo@institucion.edu"
-                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="role" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Rol</Label>
-                  <Select value={newUser.role} onValueChange={(value: 'student' | 'teacher' | 'principal' | 'rector') => setNewUser(prev => ({ ...prev, role: value, grade: (value === 'principal' || value === 'rector') ? '' : prev.grade, campus: value === 'rector' ? '' : prev.campus }))}>
-                    <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                      <SelectValue placeholder="Seleccionar rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="student">Estudiante</SelectItem>
-                      <SelectItem value="teacher">Docente</SelectItem>
-                      <SelectItem value="principal">Coordinador</SelectItem>
-                      <SelectItem value="rector">Rector</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="institution" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
-                  <Select 
-                    value={newUser.institution} 
-                    onValueChange={(value) => setNewUser(prev => ({ ...prev, institution: value, campus: '', grade: '' }))}
-                  >
-                    <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                      <SelectValue placeholder={institutionsLoading ? 'Cargando instituciones...' : 'Seleccionar institución'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {institutionOptions.map(institution => (
-                        <SelectItem key={institution.value} value={institution.value}>
-                          {institution.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {newUser.institution && newUser.role !== 'rector' && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="campus" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sede</Label>
-                    <Select 
-                      value={newUser.campus} 
-                      onValueChange={(value) => setNewUser(prev => ({ ...prev, campus: value, grade: '' }))}
-                    >
-                      <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                        <SelectValue placeholder={campusLoading ? 'Cargando sedes...' : 'Seleccionar sede'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {campusOptions.map(campus => (
-                          <SelectItem key={campus.value} value={campus.value}>
-                            {campus.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {newUser.campus && (newUser.role === 'student' || newUser.role === 'teacher') && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="grade" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Grado</Label>
-                    <Select value={newUser.grade} onValueChange={(value) => setNewUser(prev => ({ ...prev, grade: value }))}>
-                      <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                        <SelectValue placeholder={gradeLoading ? 'Cargando grados...' : 'Seleccionar grado'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {gradeOptions.map(grade => (
-                          <SelectItem key={grade.value} value={grade.value}>
-                            {grade.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {newUser.role === 'teacher' && newUser.grade && (
-                  <div className="grid gap-2">
-                    <div className={cn("p-3 border rounded-md", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
-                      <div className={cn("text-sm", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
-                        <strong>Información del Docente:</strong>
-                        <br />
-                        • Se asignará como docente del grado seleccionado
-                        <br />
-                        • Los estudiantes del grado se le asignarán automáticamente
-                        <br />
-                        • No se requiere selección de materias específicas
-                      </div>
+              <div className="flex-1 px-6 py-4 overflow-y-auto min-h-0" style={{ maxHeight: 'calc(95vh - 160px)' }}>
+                <div className="grid gap-2.5 pb-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="name" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Nombre completo</Label>
+                      <Input
+                        id="name"
+                        value={newUser.name}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Nombre completo del usuario"
+                        className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="email" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Correo electrónico</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="correo@institucion.edu"
+                        className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                      />
                     </div>
                   </div>
-                )}
-
-                {newUser.role === 'principal' && newUser.campus && (
-                  <div className="grid gap-2">
-                    <div className={cn("p-3 border rounded-md", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
-                      <div className={cn("text-sm", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
-                        <strong>Información del Coordinador:</strong>
-                        <br />
-                        • Se asignará como coordinador general de toda la sede
-                        <br />
-                        • Tendrá acceso a todos los grados de la sede seleccionada
-                        <br />
-                        • No se requiere selección de grado específico
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="role" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Rol</Label>
+                      <Select value={newUser.role} onValueChange={(value: 'student' | 'teacher' | 'principal' | 'rector') => setNewUser(prev => ({ ...prev, role: value, grade: (value === 'principal' || value === 'rector') ? '' : prev.grade, campus: value === 'rector' ? '' : prev.campus }))}>
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder="Seleccionar rol" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="student">Estudiante</SelectItem>
+                          <SelectItem value="teacher">Docente</SelectItem>
+                          <SelectItem value="principal">Coordinador</SelectItem>
+                          <SelectItem value="rector">Rector</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="institution" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
+                      <Select 
+                        value={newUser.institution} 
+                        onValueChange={(value) => setNewUser(prev => ({ ...prev, institution: value, campus: '', grade: '' }))}
+                      >
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder={institutionsLoading ? 'Cargando instituciones...' : 'Seleccionar institución'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {institutionOptions.map(institution => (
+                            <SelectItem key={institution.value} value={institution.value}>
+                              {institution.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                )}
 
-                {newUser.role === 'rector' && newUser.institution && (
-                  <div className="grid gap-2">
-                    <div className={cn("p-3 border rounded-md", theme === 'dark' ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200')}>
-                      <div className={cn("text-sm", theme === 'dark' ? 'text-purple-300' : 'text-purple-800')}>
-                        <strong>Información del Rector:</strong>
-                        <br />
-                        • Se asignará como rector de toda la institución
-                        <br />
-                        • Tendrá acceso a todas las sedes de la institución
-                        <br />
-                        • Podrá ver todos los coordinadores, docentes y estudiantes
-                        <br />
-                        • No se requiere selección de sede o grado específico
+                  {newUser.institution && newUser.role !== 'rector' && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="campus" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Sede</Label>
+                      <Select 
+                        value={newUser.campus} 
+                        onValueChange={(value) => setNewUser(prev => ({ ...prev, campus: value, grade: '' }))}
+                      >
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder={campusLoading ? 'Cargando sedes...' : 'Seleccionar sede'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {campusOptions.map(campus => (
+                            <SelectItem key={campus.value} value={campus.value}>
+                              {campus.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {newUser.campus && (newUser.role === 'student' || newUser.role === 'teacher') && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="grade" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Grado</Label>
+                      <Select value={newUser.grade} onValueChange={(value) => setNewUser(prev => ({ ...prev, grade: value }))}>
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder={gradeLoading ? 'Cargando grados...' : 'Seleccionar grado'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {gradeOptions.map(grade => (
+                            <SelectItem key={grade.value} value={grade.value}>
+                              {grade.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {newUser.role === 'teacher' && newUser.grade && (
+                    <div className={cn("p-2 border rounded-md text-xs", theme === 'dark' ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50/50 border-blue-200')}>
+                      <div className={cn(theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                        <strong className="text-xs">ℹ️ Docente:</strong> Se asignará al grado seleccionado. Los estudiantes se asignarán automáticamente.
                       </div>
                     </div>
+                  )}
+
+                  {newUser.role === 'principal' && newUser.campus && (
+                    <div className={cn("p-2 border rounded-md text-xs", theme === 'dark' ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50/50 border-blue-200')}>
+                      <div className={cn(theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                        <strong className="text-xs">ℹ️ Coordinador:</strong> Se asignará a toda la sede. Acceso a todos los grados de la sede.
+                      </div>
+                    </div>
+                  )}
+
+                  {newUser.role === 'rector' && newUser.institution && (
+                    <div className={cn("p-2 border rounded-md text-xs", theme === 'dark' ? 'bg-purple-900/20 border-purple-700/50' : 'bg-purple-50/50 border-purple-200')}>
+                      <div className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-800')}>
+                        <strong className="text-xs">ℹ️ Rector:</strong> Se asignará a toda la institución. Acceso completo a todas las sedes.
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="password" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Contraseña temporal</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder="Contraseña temporal"
+                        className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="confirmPassword" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Confirmar contraseña</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={newUser.confirmPassword}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        placeholder="Confirmar contraseña"
+                        className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                      />
+                    </div>
                   </div>
-                )}
-                <div className="grid gap-2">
-                  <Label htmlFor="password" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Contraseña temporal</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="Contraseña temporal"
-                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="confirmPassword" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Confirmar contraseña</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    value={newUser.confirmPassword}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                    placeholder="Confirmar contraseña"
-                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                  />
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <DialogFooter className="px-6 pb-4 pt-3 border-t border-gray-200 dark:border-zinc-700 shrink-0 bg-inherit">
+                <Button variant="outline" onClick={() => {
+                  setIsCreateDialogOpen(false)
+                  setAdminPassword('')
+                }}>
                   Cancelar
                 </Button>
                 <Button onClick={handleCreateUser} className="bg-black text-white hover:bg-gray-800">
@@ -1412,17 +1784,22 @@ export default function UserManagement({ theme }: UserManagementProps) {
       </Tabs>
 
       {/* Dialog para editar docente/coordinador */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className={cn("sm:max-w-[425px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-          <DialogHeader>
-            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open)
+        if (!open) {
+          setAdminPassword('') // Limpiar la contraseña al cerrar el diálogo
+        }
+      }}>
+        <DialogContent className={cn("max-w-[750px] max-h-[95vh] flex flex-col p-0 overflow-hidden", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b border-gray-200 dark:border-zinc-700">
+            <DialogTitle className={cn("text-lg", theme === 'dark' ? 'text-white' : '')}>
               {selectedTeacher ? 'Actualizar Docente' : 
                selectedPrincipal ? 'Actualizar Coordinador' : 
                selectedRector ? 'Actualizar Rector' : 
                selectedStudent ? 'Actualizar Estudiante' : 
                'Actualizar Usuario'}
             </DialogTitle>
-            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <DialogDescription className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : '')}>
               Modifica los datos del {selectedTeacher ? 'docente' : 
                                    selectedPrincipal ? 'coordinador' : 
                                    selectedRector ? 'rector' : 
@@ -1430,130 +1807,383 @@ export default function UserManagement({ theme }: UserManagementProps) {
                                    'usuario'} seleccionado.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-name" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre completo</Label>
-              <Input
-                id="edit-name"
-                value={selectedTeacher ? editTeacherData.name : selectedPrincipal ? editPrincipalData.name : selectedRector ? editRectorData.name : editStudentData.name}
-                onChange={(e) => {
-                  if (selectedTeacher) {
-                    setEditTeacherData(prev => ({ ...prev, name: e.target.value }))
-                  } else if (selectedPrincipal) {
-                    setEditPrincipalData(prev => ({ ...prev, name: e.target.value }))
-                  } else if (selectedRector) {
-                    setEditRectorData(prev => ({ ...prev, name: e.target.value }))
-                  } else {
-                    setEditStudentData(prev => ({ ...prev, name: e.target.value }))
-                  }
-                }}
-                placeholder={`Nombre completo del ${selectedTeacher ? 'docente' : selectedPrincipal ? 'coordinador' : selectedRector ? 'rector' : selectedStudent ? 'estudiante' : 'usuario'}`}
-                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-email" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Correo electrónico</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={selectedTeacher ? editTeacherData.email : selectedPrincipal ? editPrincipalData.email : selectedRector ? editRectorData.email : editStudentData.email}
-                onChange={(e) => {
-                  if (selectedTeacher) {
-                    setEditTeacherData(prev => ({ ...prev, email: e.target.value }))
-                  } else if (selectedPrincipal) {
-                    setEditPrincipalData(prev => ({ ...prev, email: e.target.value }))
-                  } else if (selectedRector) {
-                    setEditRectorData(prev => ({ ...prev, email: e.target.value }))
-                  } else {
-                    setEditStudentData(prev => ({ ...prev, email: e.target.value }))
-                  }
-                }}
-                placeholder="correo@institucion.edu"
-                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-phone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono (opcional)</Label>
-              <Input
-                id="edit-phone"
-                value={selectedTeacher ? editTeacherData.phone : selectedPrincipal ? editPrincipalData.phone : selectedRector ? editRectorData.phone : editStudentData.phone}
-                onChange={(e) => {
-                  if (selectedTeacher) {
-                    setEditTeacherData(prev => ({ ...prev, phone: e.target.value }))
-                  } else if (selectedPrincipal) {
-                    setEditPrincipalData(prev => ({ ...prev, phone: e.target.value }))
-                  } else if (selectedRector) {
-                    setEditRectorData(prev => ({ ...prev, phone: e.target.value }))
-                  } else {
-                    setEditStudentData(prev => ({ ...prev, phone: e.target.value }))
-                  }
-                }}
-                placeholder="Número de teléfono"
-                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-              />
-            </div>
-            {selectedStudent && (
-              <div className="grid gap-2">
-                <Label htmlFor="edit-userdoc" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Documento de identidad</Label>
-                <Input
-                  id="edit-userdoc"
-                  value={editStudentData.userdoc}
-                  onChange={(e) => {
-                    setEditStudentData(prev => ({ ...prev, userdoc: e.target.value }))
-                  }}
-                  placeholder="Número de documento"
-                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                />
+          <div className="flex-1 px-6 py-4 overflow-y-auto min-h-0" style={{ maxHeight: 'calc(95vh - 160px)' }}>
+            <div className="grid gap-2.5 pb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-name" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Nombre completo</Label>
+                  <Input
+                    id="edit-name"
+                    value={selectedTeacher ? editTeacherData.name : selectedPrincipal ? editPrincipalData.name : selectedRector ? editRectorData.name : editStudentData.name}
+                    onChange={(e) => {
+                      if (selectedTeacher) {
+                        setEditTeacherData(prev => ({ ...prev, name: e.target.value }))
+                      } else if (selectedPrincipal) {
+                        setEditPrincipalData(prev => ({ ...prev, name: e.target.value }))
+                      } else if (selectedRector) {
+                        setEditRectorData(prev => ({ ...prev, name: e.target.value }))
+                      } else {
+                        setEditStudentData(prev => ({ ...prev, name: e.target.value }))
+                      }
+                    }}
+                    placeholder={`Nombre completo del ${selectedTeacher ? 'docente' : selectedPrincipal ? 'coordinador' : selectedRector ? 'rector' : selectedStudent ? 'estudiante' : 'usuario'}`}
+                    className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-email" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Correo electrónico</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={selectedTeacher ? editTeacherData.email : selectedPrincipal ? editPrincipalData.email : selectedRector ? editRectorData.email : editStudentData.email}
+                    onChange={(e) => {
+                      if (selectedTeacher) {
+                        setEditTeacherData(prev => ({ ...prev, email: e.target.value }))
+                      } else if (selectedPrincipal) {
+                        setEditPrincipalData(prev => ({ ...prev, email: e.target.value }))
+                      } else if (selectedRector) {
+                        setEditRectorData(prev => ({ ...prev, email: e.target.value }))
+                      } else {
+                        setEditStudentData(prev => ({ ...prev, email: e.target.value }))
+                      }
+                    }}
+                    placeholder="correo@institucion.edu"
+                    className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                </div>
               </div>
-            )}
-            <div className="grid gap-2">
-              <Label htmlFor="edit-password" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nueva contraseña (opcional)</Label>
-              <Input
-                id="edit-password"
-                type="password"
-                value={selectedTeacher ? editTeacherData.password : selectedPrincipal ? editPrincipalData.password : selectedRector ? editRectorData.password : editStudentData.password}
-                onChange={(e) => {
-                  if (selectedTeacher) {
-                    setEditTeacherData(prev => ({ ...prev, password: e.target.value }))
-                  } else if (selectedPrincipal) {
-                    setEditPrincipalData(prev => ({ ...prev, password: e.target.value }))
-                  } else if (selectedRector) {
-                    setEditRectorData(prev => ({ ...prev, password: e.target.value }))
-                  } else {
-                    setEditStudentData(prev => ({ ...prev, password: e.target.value }))
-                  }
-                }}
-                placeholder="Dejar vacío para mantener la contraseña actual"
-                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-              />
-              <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                Si cambias el email, el usuario deberá hacer login con las nuevas credenciales
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="edit-active"
-                checked={selectedTeacher ? editTeacherData.isActive : selectedPrincipal ? editPrincipalData.isActive : selectedRector ? editRectorData.isActive : editStudentData.isActive}
-                onChange={(e) => {
-                  if (selectedTeacher) {
-                    setEditTeacherData(prev => ({ ...prev, isActive: e.target.checked }))
-                  } else if (selectedPrincipal) {
-                    setEditPrincipalData(prev => ({ ...prev, isActive: e.target.checked }))
-                  } else if (selectedRector) {
-                    setEditRectorData(prev => ({ ...prev, isActive: e.target.checked }))
-                  } else {
-                    setEditStudentData(prev => ({ ...prev, isActive: e.target.checked }))
-                  }
-                }}
-                className="rounded"
-              />
-              <Label htmlFor="edit-active" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                {selectedTeacher ? 'Docente' : selectedPrincipal ? 'Coordinador' : selectedRector ? 'Rector' : selectedStudent ? 'Estudiante' : 'Usuario'} activo
-              </Label>
+              {/* Campos específicos para estudiantes */}
+              {selectedStudent ? (
+                <>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-phone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono</Label>
+                    <Input
+                      id="edit-phone"
+                      value={editStudentData.phone}
+                      onChange={(e) => {
+                        setEditStudentData(prev => ({ ...prev, phone: e.target.value }))
+                      }}
+                      placeholder="Número de teléfono"
+                      className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-userdoc" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Documento de identidad</Label>
+                    <Input
+                      id="edit-userdoc"
+                      value={editStudentData.userdoc}
+                      onChange={(e) => {
+                        setEditStudentData(prev => ({ ...prev, userdoc: e.target.value }))
+                      }}
+                      placeholder="Número de documento"
+                      className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-institution" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
+                    <Select 
+                      value={editStudentData.institution} 
+                      onValueChange={(value) => setEditStudentData(prev => ({ ...prev, institution: value, campus: '', grade: '' }))}
+                    >
+                      <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                        <SelectValue placeholder={institutionsLoading ? 'Cargando instituciones...' : 'Seleccionar institución'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {institutionOptions.map(institution => (
+                          <SelectItem key={institution.value} value={institution.value}>
+                            {institution.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {editStudentData.institution && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="edit-campus" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Sede</Label>
+                      <Select 
+                        value={editStudentData.campus} 
+                        onValueChange={(value) => setEditStudentData(prev => ({ ...prev, campus: value, grade: '' }))}
+                      >
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder={editCampusLoading ? 'Cargando sedes...' : 'Seleccionar sede'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editCampusOptions.map(campus => (
+                            <SelectItem key={campus.value} value={campus.value}>
+                              {campus.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {editStudentData.campus && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="edit-grade" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Grado</Label>
+                      <Select 
+                        value={editStudentData.grade} 
+                        onValueChange={(value) => setEditStudentData(prev => ({ ...prev, grade: value }))}
+                      >
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder={editGradeLoading ? 'Cargando grados...' : 'Seleccionar grado'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editGradeOptions.map(grade => (
+                            <SelectItem key={grade.value} value={grade.value}>
+                              {grade.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Campos para docentes, coordinadores y rectores */
+                <>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-phone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Teléfono (opcional)</Label>
+                    <Input
+                      id="edit-phone"
+                      value={selectedTeacher ? editTeacherData.phone : selectedPrincipal ? editPrincipalData.phone : editRectorData.phone}
+                      onChange={(e) => {
+                        if (selectedTeacher) {
+                          setEditTeacherData(prev => ({ ...prev, phone: e.target.value }))
+                        } else if (selectedPrincipal) {
+                          setEditPrincipalData(prev => ({ ...prev, phone: e.target.value }))
+                        } else if (selectedRector) {
+                          setEditRectorData(prev => ({ ...prev, phone: e.target.value }))
+                        }
+                      }}
+                      placeholder="Número de teléfono"
+                      className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                  {/* Campos específicos para docentes: Institución, Sede y Grado */}
+                  {selectedTeacher && (
+                    <>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="edit-teacher-institution" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
+                        <Select 
+                          value={editTeacherData.institution} 
+                          onValueChange={(value) => setEditTeacherData(prev => ({ ...prev, institution: value, campus: '', grade: '' }))}
+                        >
+                          <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                            <SelectValue placeholder={institutionsLoading ? 'Cargando instituciones...' : 'Seleccionar institución'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {institutionOptions.map(institution => (
+                              <SelectItem key={institution.value} value={institution.value}>
+                                {institution.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {editTeacherData.institution && (
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="edit-teacher-campus" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Sede</Label>
+                          <Select 
+                            value={editTeacherData.campus} 
+                            onValueChange={(value) => setEditTeacherData(prev => ({ ...prev, campus: value, grade: '' }))}
+                          >
+                            <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                              <SelectValue placeholder={editTeacherCampusLoading ? 'Cargando sedes...' : 'Seleccionar sede'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {editTeacherCampusOptions.map(campus => (
+                                <SelectItem key={campus.value} value={campus.value}>
+                                  {campus.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {editTeacherData.campus && (
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="edit-teacher-grade" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Grado</Label>
+                          <Select 
+                            value={editTeacherData.grade} 
+                            onValueChange={(value) => setEditTeacherData(prev => ({ ...prev, grade: value }))}
+                          >
+                            <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                              <SelectValue placeholder={editTeacherGradeLoading ? 'Cargando grados...' : 'Seleccionar grado'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {editTeacherGradeOptions.map(grade => (
+                                <SelectItem key={grade.value} value={grade.value}>
+                                  {grade.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {/* Campos específicos para coordinadores: Institución y Sede */}
+                  {selectedPrincipal && (
+                    <>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="edit-principal-institution" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
+                        <Select 
+                          value={editPrincipalData.institution} 
+                          onValueChange={(value) => setEditPrincipalData(prev => ({ ...prev, institution: value, campus: '' }))}
+                        >
+                          <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                            <SelectValue placeholder={institutionsLoading ? 'Cargando instituciones...' : 'Seleccionar institución'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {institutionOptions.map(institution => (
+                              <SelectItem key={institution.value} value={institution.value}>
+                                {institution.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {editPrincipalData.institution && (
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="edit-principal-campus" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Sede</Label>
+                          <Select 
+                            value={editPrincipalData.campus} 
+                            onValueChange={(value) => setEditPrincipalData(prev => ({ ...prev, campus: value }))}
+                          >
+                            <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                              <SelectValue placeholder={editPrincipalCampusLoading ? 'Cargando sedes...' : 'Seleccionar sede'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {editPrincipalCampusOptions.map(campus => (
+                                <SelectItem key={campus.value} value={campus.value}>
+                                  {campus.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {/* Campo específico para rectores: Institución */}
+                  {selectedRector && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="edit-rector-institution" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
+                      <Select 
+                        value={editRectorData.institution} 
+                        onValueChange={(value) => setEditRectorData(prev => ({ ...prev, institution: value }))}
+                      >
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder={institutionsLoading ? 'Cargando instituciones...' : 'Seleccionar institución'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {institutionOptions.map(institution => (
+                            <SelectItem key={institution.value} value={institution.value}>
+                              {institution.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
+              )}
+              {/* Campo de contraseña actual (para docentes, coordinadores y rectores) */}
+              {(selectedTeacher || selectedPrincipal || selectedRector) && (
+                <div className="grid gap-1.5 pt-1">
+                  <Label htmlFor="edit-current-password" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>
+                    Contraseña actual del {selectedTeacher ? 'docente' : selectedPrincipal ? 'coordinador' : 'rector'}
+                  </Label>
+                  <Input
+                    id="edit-current-password"
+                    type="password"
+                    value={selectedTeacher ? editTeacherData.currentPassword : selectedPrincipal ? editPrincipalData.currentPassword : editRectorData.currentPassword}
+                    onChange={(e) => {
+                      if (selectedTeacher) {
+                        setEditTeacherData(prev => ({ ...prev, currentPassword: e.target.value }))
+                      } else if (selectedPrincipal) {
+                        setEditPrincipalData(prev => ({ ...prev, currentPassword: e.target.value }))
+                      } else if (selectedRector) {
+                        setEditRectorData(prev => ({ ...prev, currentPassword: e.target.value }))
+                      }
+                    }}
+                    placeholder="Solo necesaria si vas a cambiar la contraseña"
+                    className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                  <p className={cn("text-xs mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                    Requerida para cambiar la contraseña del {selectedTeacher ? 'docente' : selectedPrincipal ? 'coordinador' : 'rector'}
+                  </p>
+                </div>
+              )}
+              {/* Campo de contraseña solo para docentes, coordinadores y rectores (no para estudiantes) */}
+              {(selectedTeacher || selectedPrincipal || selectedRector) && (
+                <div className="grid gap-1.5 pt-1">
+                  <Label htmlFor="edit-password" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Nueva contraseña (opcional)</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    value={selectedTeacher ? editTeacherData.password : selectedPrincipal ? editPrincipalData.password : editRectorData.password}
+                    onChange={(e) => {
+                      if (selectedTeacher) {
+                        setEditTeacherData(prev => ({ ...prev, password: e.target.value }))
+                      } else if (selectedPrincipal) {
+                        setEditPrincipalData(prev => ({ ...prev, password: e.target.value }))
+                      } else if (selectedRector) {
+                        setEditRectorData(prev => ({ ...prev, password: e.target.value }))
+                      }
+                    }}
+                    placeholder="Dejar vacío para mantener la contraseña actual"
+                    className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                  <p className={cn("text-xs mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                    Si cambias el email, nombre o contraseña, el usuario deberá hacer login con las nuevas credenciales
+                  </p>
+                </div>
+              )}
+              {/* Campo de contraseña del admin solo para docentes, coordinadores y rectores cuando se actualizan credenciales */}
+              {(selectedTeacher || selectedPrincipal || selectedRector) && (
+                <div className="grid gap-1.5 pt-2 border-t border-gray-200 dark:border-zinc-700">
+                  <Label htmlFor="edit-admin-password" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>
+                    Tu contraseña de administrador
+                  </Label>
+                  <Input
+                    id="edit-admin-password"
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Requerida para actualizar credenciales en Firebase Auth"
+                    className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                  <p className={cn("text-xs mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                    Solo necesaria si cambias el email, nombre o contraseña del usuario
+                  </p>
+                </div>
+              )}
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="edit-active"
+                  checked={selectedTeacher ? editTeacherData.isActive : selectedPrincipal ? editPrincipalData.isActive : selectedRector ? editRectorData.isActive : editStudentData.isActive}
+                  onChange={(e) => {
+                    if (selectedTeacher) {
+                      setEditTeacherData(prev => ({ ...prev, isActive: e.target.checked }))
+                    } else if (selectedPrincipal) {
+                      setEditPrincipalData(prev => ({ ...prev, isActive: e.target.checked }))
+                    } else if (selectedRector) {
+                      setEditRectorData(prev => ({ ...prev, isActive: e.target.checked }))
+                    } else {
+                      setEditStudentData(prev => ({ ...prev, isActive: e.target.checked }))
+                    }
+                  }}
+                  className="rounded"
+                />
+                <Label htmlFor="edit-active" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>
+                  {selectedTeacher ? 'Docente' : selectedPrincipal ? 'Coordinador' : selectedRector ? 'Rector' : selectedStudent ? 'Estudiante' : 'Usuario'} activo
+                </Label>
+              </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="px-6 pb-4 pt-3 border-t border-gray-200 dark:border-zinc-700 shrink-0 bg-inherit">
             <Button variant="outline" onClick={() => {
               setIsEditDialogOpen(false)
               setSelectedTeacher(null)
@@ -1581,7 +2211,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
       </Dialog>
 
       {/* Dialog de confirmación para eliminar */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => {
+        setIsDeleteDialogOpen(open)
+        if (!open) {
+          setAdminPassword('')
+        }
+      }}>
         <AlertDialogContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <AlertDialogHeader>
             <AlertDialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>¿Estás seguro?</AlertDialogTitle>
@@ -1593,10 +2228,40 @@ export default function UserManagement({ theme }: UserManagementProps) {
                selectedStudent ? 'estudiante' : 
                'usuario'}{' '}
               <strong className={cn(theme === 'dark' ? 'text-white' : '')}>{selectedTeacher?.name || selectedPrincipal?.name || selectedRector?.name || selectedStudent?.name}</strong> del sistema.
+              <br /><br />
+              <strong className={cn(theme === 'dark' ? 'text-white' : '')}>Para confirmar, ingresa tu contraseña de administrador:</strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="px-6 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="admin-password" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
+                Contraseña de administrador
+              </Label>
+              <Input
+                id="admin-password"
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="Ingresa tu contraseña"
+                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (selectedTeacher) confirmDeleteTeacher()
+                    else if (selectedPrincipal) confirmDeletePrincipal()
+                    else if (selectedRector) confirmDeleteRector()
+                    else if (selectedStudent) confirmDeleteStudent()
+                  }
+                }}
+              />
+            </div>
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel 
+              onClick={() => setAdminPassword('')}
+              className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+            >
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction 
               onClick={selectedTeacher ? confirmDeleteTeacher : selectedPrincipal ? confirmDeletePrincipal : selectedRector ? confirmDeleteRector : confirmDeleteStudent}
               className="bg-red-600 hover:bg-red-700"

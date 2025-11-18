@@ -31,10 +31,12 @@ const RootLayout = () => {
             <SidebarInset>
               <AnimatedBG>
                 <Navbar />
-                <main className="z-10">
-                  <Outlet />
+                <main className="z-10 flex flex-col" style={{ minHeight: 'calc(100vh - 64px)' }}>
+                  <div className="flex-1 flex flex-col">
+                    <Outlet />
+                  </div>
+                  <Footer />
                 </main>
-                <Footer />
               </AnimatedBG>
             </SidebarInset>
 

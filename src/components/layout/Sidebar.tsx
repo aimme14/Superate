@@ -4,6 +4,9 @@ import { Link, useLocation } from 'react-router-dom'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { ChevronDown } from 'lucide-react'
 import { links } from '@/utils/constants'
+import { motion } from 'framer-motion'
+import { cn } from '@/lib/utils'
+import { useThemeContext } from '@/context/ThemeContext'
 import React from 'react'
 import {
   Sidebar as SidebarShadcn,
@@ -28,7 +31,7 @@ export const Sidebar = () => {
     <SidebarShadcn>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className='py-5 text-lg font-bold font-roboto-slab'>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel className='py-5 text-lg font-bold font-roboto-slab'>Menú Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -47,22 +50,68 @@ export const Sidebar = () => {
 interface SidebarItemProps { item: NavItemProps, isMobile: boolean, toggle: () => void }
 const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
   const isActive = useLocation().pathname === item.href
+  const { theme } = useThemeContext()
   const [isOpen, setIsOpen] = React.useState(false)
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
       <CollapsibleTrigger asChild>
-        <SidebarMenuButton asChild isActive={isActive}>
-          <Link
-            to={item.href as string}
-            onClick={() => item.action?.()}
-            className='flex w-full items-center gap-2'
+        <motion.div
+          whileHover={{ scale: 1.02, x: 4 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ duration: 0.2 }}
+        >
+          <SidebarMenuButton 
+            asChild 
+            isActive={isActive}
+            className={cn(
+              "relative overflow-hidden group transition-all duration-300",
+              "rounded-lg mx-2 my-1",
+              isActive
+                ? theme === 'dark'
+                  ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/50'
+                  : 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
+                : theme === 'dark'
+                  ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
+                  : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
+            )}
           >
-            <item.icon className='w-4 h-4 md:w-5 md:h-5' />
-            <span className='text-sm pointer-events-none'>{item.label}</span>
-            {item.subItems && (<IconChevron isOpen={isOpen} />)}
-          </Link>
-        </SidebarMenuButton>
+            <Link
+              to={item.href as string}
+              onClick={() => item.action?.()}
+              className='flex w-full items-center gap-3 px-4 py-3 relative z-10'
+            >
+              <motion.div
+                animate={isActive ? { rotate: [0, -10, 10, -10, 0] } : {}}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <item.icon className={cn(
+                  'w-5 h-5 transition-transform duration-300 group-hover:scale-110',
+                  isActive ? 'text-white' : ''
+                )} />
+              </motion.div>
+              <span className={cn(
+                'text-sm font-medium pointer-events-none',
+                isActive ? 'text-white' : ''
+              )}>{item.label}</span>
+              {item.subItems && (<IconChevron isOpen={isOpen} />)}
+              {/* Efecto de brillo en botones activos */}
+              {isActive && (
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: '100%' }}
+                  transition={{ 
+                    duration: 1.5, 
+                    repeat: Infinity, 
+                    repeatDelay: 2,
+                    ease: "easeInOut"
+                  }}
+                />
+              )}
+            </Link>
+          </SidebarMenuButton>
+        </motion.div>
       </CollapsibleTrigger>
 
       {item.subItems && (
@@ -81,23 +130,69 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
 interface SidebarSubItemProps { item: NavItemProps, isMobile: boolean, toggle: () => void }
 const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
   const isActive = useLocation().pathname === item.href
+  const { theme } = useThemeContext()
   const [isOpen, setIsOpen] = React.useState(false)
 
   return (
     <SidebarMenuSubItem>
       <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
         <CollapsibleTrigger asChild>
-          <SidebarMenuSubButton asChild isActive={isActive}>
-            <Link
-              to={item.href as string}
-              onClick={() => item.action?.()}
-              className='flex w-full items-center gap-2'
+          <motion.div
+            whileHover={{ scale: 1.02, x: 4 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+          >
+            <SidebarMenuSubButton 
+              asChild 
+              isActive={isActive}
+              className={cn(
+                "relative overflow-hidden group transition-all duration-300",
+                "rounded-lg mx-2 my-1",
+                isActive
+                  ? theme === 'dark'
+                    ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/50'
+                    : 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
+                  : theme === 'dark'
+                    ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
+                    : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
+              )}
             >
-              <item.icon className='w-4 h-4 md:w-5 md:h-5' />
-              <span className='text-sm pointer-events-none'>{item.label}</span>
-              {item.subItems && (<IconChevron isOpen={isOpen} />)}
-            </Link>
-          </SidebarMenuSubButton>
+              <Link
+                to={item.href as string}
+                onClick={() => item.action?.()}
+                className='flex w-full items-center gap-3 px-4 py-2 relative z-10'
+              >
+                <motion.div
+                  animate={isActive ? { rotate: [0, -10, 10, -10, 0] } : {}}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                >
+                  <item.icon className={cn(
+                    'w-4 h-4 transition-transform duration-300 group-hover:scale-110',
+                    isActive ? 'text-white' : ''
+                  )} />
+                </motion.div>
+                <span className={cn(
+                  'text-sm font-medium pointer-events-none',
+                  isActive ? 'text-white' : ''
+                )}>{item.label}</span>
+                {item.subItems && (<IconChevron isOpen={isOpen} />)}
+                {/* Efecto de brillo en botones activos */}
+                {isActive && (
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                    initial={{ x: '-100%' }}
+                    animate={{ x: '100%' }}
+                    transition={{ 
+                      duration: 1.5, 
+                      repeat: Infinity, 
+                      repeatDelay: 2,
+                      ease: "easeInOut"
+                    }}
+                  />
+                )}
+              </Link>
+            </SidebarMenuSubButton>
+          </motion.div>
         </CollapsibleTrigger>
 
         {item.subItems && (

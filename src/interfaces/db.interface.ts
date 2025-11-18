@@ -14,6 +14,7 @@ export interface Grade {
   name: string
   level: number
   teachers?: Teacher[] // Docentes asignados a este grado específico
+  students?: string[] // IDs de estudiantes asignados a este grado
   isActive: boolean
   createdAt: string
   updatedAt: string
