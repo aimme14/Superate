@@ -684,15 +684,15 @@ const ExamWithFirebase = () => {
   // Pantalla de carga
   const LoadingScreen = () => (
     <div className="max-w-2xl mx-auto">
-      <Card className="shadow-lg">
+      <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
-              <Database className="h-8 w-8 text-blue-600" />
+            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center animate-pulse", appTheme === 'dark' ? 'bg-blue-900/50' : 'bg-blue-100')}>
+              <Database className={cn("h-8 w-8", appTheme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
             </div>
           </div>
-          <CardTitle className="text-xl">Generando cuestionario...</CardTitle>
-          <CardDescription>
+          <CardTitle className={cn("text-xl", appTheme === 'dark' ? 'text-white' : '')}>Generando cuestionario...</CardTitle>
+          <CardDescription className={cn(appTheme === 'dark' ? 'text-gray-400' : '')}>
             Estamos preparando tu evaluación personalizada de {examConfig.subject}
           </CardDescription>
         </CardHeader>
@@ -703,23 +703,23 @@ const ExamWithFirebase = () => {
   // Pantalla de error
   const ErrorScreen = () => (
     <div className="max-w-2xl mx-auto">
-      <Card className="shadow-lg border-red-200">
+      <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-red-800' : 'border-red-200')}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="h-8 w-8 text-red-600" />
+            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-red-900/50' : 'bg-red-100')}>
+              <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-red-400' : 'text-red-600')} />
             </div>
           </div>
-          <CardTitle className="text-2xl text-red-800">Error al cargar el cuestionario</CardTitle>
-          <CardDescription className="text-lg">
+          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-red-400' : 'text-red-800')}>Error al cargar el cuestionario</CardTitle>
+          <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
             No se pudo generar el cuestionario de {examConfig.subject}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className="border-red-200 bg-red-50">
+          <Alert className={cn(appTheme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
             <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-800">Posibles Causas</AlertTitle>
-            <AlertDescription className="text-red-700 space-y-2">
+            <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Posibles Causas</AlertTitle>
+            <AlertDescription className={cn("space-y-2", appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
               <div>• No hay suficientes preguntas de {examConfig.subject} en el banco de datos</div>
               <div>• Problemas de conexión con Firebase</div>
               <div>• Filtros muy específicos (grado, fase: {examConfig.phase})</div>
@@ -727,10 +727,10 @@ const ExamWithFirebase = () => {
             </AlertDescription>
           </Alert>
           
-          <Alert className="border-blue-200 bg-blue-50">
+          <Alert className={cn(appTheme === 'dark' ? 'border-blue-800 bg-blue-900/30' : 'border-blue-200 bg-blue-50')}>
             <Database className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-800">Información de Debug</AlertTitle>
-            <AlertDescription className="text-blue-700">
+            <AlertTitle className={cn(appTheme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>Información de Debug</AlertTitle>
+            <AlertDescription className={cn(appTheme === 'dark' ? 'text-blue-200' : 'text-blue-700')}>
               <div className="text-sm space-y-1">
                 <div><strong>Materia:</strong> {examConfig.subject}</div>
                 <div><strong>Fase:</strong> {examConfig.phase}</div>
@@ -750,7 +750,7 @@ const ExamWithFirebase = () => {
           <Button
             onClick={() => navigate('/dashboard')}
             variant="outline"
-            className="w-full"
+            className={cn("w-full", appTheme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
           >
             Volver al Dashboard
           </Button>
@@ -762,23 +762,23 @@ const ExamWithFirebase = () => {
   // Pantalla cuando no hay preguntas
   const NoQuestionsScreen = () => (
     <div className="max-w-2xl mx-auto">
-      <Card className="shadow-lg border-amber-200">
+      <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-amber-800' : 'border-amber-200')}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 bg-amber-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="h-8 w-8 text-amber-600" />
+            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-amber-900/50' : 'bg-amber-100')}>
+              <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
             </div>
           </div>
-          <CardTitle className="text-2xl text-amber-800">No hay preguntas disponibles</CardTitle>
-          <CardDescription className="text-lg">
+          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-800')}>No hay preguntas disponibles</CardTitle>
+          <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
             No se encontraron preguntas suficientes para este examen
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className="border-amber-200 bg-amber-50">
+          <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
             <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-800">Información</AlertTitle>
-            <AlertDescription className="text-amber-700">
+            <AlertTitle className={cn(appTheme === 'dark' ? 'text-amber-300' : 'text-amber-800')}>Información</AlertTitle>
+            <AlertDescription className={cn(appTheme === 'dark' ? 'text-amber-200' : 'text-amber-700')}>
               El banco de preguntas no tiene suficientes preguntas de {examConfig.subject} para tu grado y nivel actual.
             </AlertDescription>
           </Alert>
@@ -798,34 +798,34 @@ const ExamWithFirebase = () => {
   // Pantalla cuando ya se presentó el examen
   const AlreadyTakenScreen = () => (
     <div className="max-w-2xl mx-auto">
-      <Card className="shadow-lg border-amber-200">
+      <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-amber-800' : 'border-amber-200')}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 bg-amber-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="h-8 w-8 text-amber-600" />
+            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-amber-900/50' : 'bg-amber-100')}>
+              <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
             </div>
           </div>
-          <CardTitle className="text-2xl text-amber-800">Examen Ya Presentado</CardTitle>
-          <CardDescription className="text-lg">
+          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-800')}>Examen Ya Presentado</CardTitle>
+          <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
             Ya has completado este examen anteriormente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className="border-amber-200 bg-amber-50">
+          <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
             <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-800">Información del Examen</AlertTitle>
-            <AlertDescription className="text-amber-700">
+            <AlertTitle className={cn(appTheme === 'dark' ? 'text-amber-300' : 'text-amber-800')}>Información del Examen</AlertTitle>
+            <AlertDescription className={cn(appTheme === 'dark' ? 'text-amber-200' : 'text-amber-700')}>
               Solo se permite una presentación por examen. Tu intento anterior ya fue registrado.
             </AlertDescription>
           </Alert>
 
           {existingExamData && (
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-              <h4 className="font-medium text-gray-900">Detalles de tu presentación:</h4>
+            <div className={cn("rounded-lg p-4 space-y-3", appTheme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-50')}>
+              <h4 className={cn("font-medium", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>Detalles de tu presentación:</h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600">Fecha:</span>
-                  <div className="font-medium">
+                  <span className={cn(appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Fecha:</span>
+                  <div className={cn("font-medium", appTheme === 'dark' ? 'text-white' : '')}>
                     {new Date(existingExamData.endTime).toLocaleDateString('es-ES', {
                       year: 'numeric',
                       month: 'long',
@@ -836,22 +836,22 @@ const ExamWithFirebase = () => {
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-600">Puntuación:</span>
-                  <div className="font-medium text-lg">
+                  <span className={cn(appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Puntuación:</span>
+                  <div className={cn("font-medium text-lg", appTheme === 'dark' ? 'text-white' : '')}>
                     {existingExamData.score.correctAnswers}/{existingExamData.score.totalQuestions}
-                    <span className="text-sm text-gray-500 ml-1">
+                    <span className={cn("text-sm ml-1", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                       ({existingExamData.score.overallPercentage}%)
                     </span>
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-600">Tiempo usado:</span>
-                  <div className="font-medium">
+                  <span className={cn(appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Tiempo usado:</span>
+                  <div className={cn("font-medium", appTheme === 'dark' ? 'text-white' : '')}>
                     {formatTime(existingExamData.timeSpent || existingExamData.totalExamTimeSeconds || 0)}
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-600">Estado:</span>
+                  <span className={cn(appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Estado:</span>
                   <div className="font-medium text-green-600">Completado</div>
                 </div>
               </div>
@@ -876,7 +876,7 @@ const ExamWithFirebase = () => {
 
     return (
       <div className="max-w-4xl mx-auto">
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-purple-50 to-blue-50">
+        <Card className={cn("shadow-lg border-0", appTheme === 'dark' ? 'bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-zinc-700' : 'bg-gradient-to-br from-purple-50 to-blue-50')}>
           <CardHeader className="text-center pb-6">
             <div className="flex justify-center mb-4">
               <div className="relative">
@@ -888,10 +888,10 @@ const ExamWithFirebase = () => {
                 </div>
               </div>
             </div>
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent mb-2">
+            <CardTitle className={cn("text-3xl font-bold mb-2", appTheme === 'dark' ? 'text-white' : 'bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent')}>
               ¡Bienvenido al {quizData.title}!
             </CardTitle>
-            <CardDescription className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <CardDescription className={cn("text-lg max-w-2xl mx-auto", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               {quizData.description}
             </CardDescription>
           </CardHeader>
@@ -899,26 +899,26 @@ const ExamWithFirebase = () => {
           <CardContent className="space-y-6">
             {/* Información del examen */}
             <div className="grid md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+              <div className={cn("rounded-lg p-4 text-center border shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
                 <Timer className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-                <div className="font-semibold text-gray-900">{quizData.questions.length * 2} minutos</div>
-                <div className="text-sm text-gray-500">Tiempo límite</div>
+                <div className={cn("font-semibold", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>{quizData.questions.length * 2} minutos</div>
+                <div className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Tiempo límite</div>
               </div>
-              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+              <div className={cn("rounded-lg p-4 text-center border shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
                 <HelpCircle className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-                <div className="font-semibold text-gray-900">{quizData.totalQuestions} preguntas</div>
-                <div className="text-sm text-gray-500">Total de preguntas</div>
+                <div className={cn("font-semibold", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>{quizData.totalQuestions} preguntas</div>
+                <div className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Total de preguntas</div>
               </div>
-              <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+              <div className={cn("rounded-lg p-4 text-center border shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
                 <Users className="h-8 w-8 text-green-500 mx-auto mb-2" />
-                <div className="font-semibold text-gray-900">Opción múltiple</div>
-                <div className="text-sm text-gray-500">Tipo de pregunta</div>
+                <div className={cn("font-semibold", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>Opción múltiple</div>
+                <div className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Tipo de pregunta</div>
               </div>
             </div>
 
             {/* Instrucciones */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className={cn("rounded-lg p-6 border shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
+              <h3 className={cn("text-lg font-semibold mb-4 flex items-center gap-2", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 <AlertCircle className="h-5 w-5 text-amber-500" />
                 Instrucciones importantes
               </h3>
@@ -928,41 +928,41 @@ const ExamWithFirebase = () => {
                     <div className="h-6 w-6 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <span className="text-white text-xs font-bold">{index + 1}</span>
                     </div>
-                    <span className="text-gray-700">{instruction}</span>
+                    <span className={cn(appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{instruction}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
             {/* Advertencias */}
-            <Alert className="border-red-200 bg-red-50">
+            <Alert className={cn(appTheme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
               <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertTitle className="text-red-800">Control de Pestañas</AlertTitle>
-              <AlertDescription className="text-red-700">
+              <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Control de Pestañas</AlertTitle>
+              <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
                 El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 2 intentos, el examen se finalizará automáticamente.
               </AlertDescription>
             </Alert>
             
-            <Alert className="border-purple-200 bg-purple-50">
+            <Alert className={cn(appTheme === 'dark' ? 'border-purple-800 bg-purple-900/30' : 'border-purple-200 bg-purple-50')}>
               <Maximize className="h-4 w-4 text-purple-600" />
-              <AlertTitle className="text-purple-800">Modo Pantalla Completa</AlertTitle>
-              <AlertDescription className="text-purple-700">
+              <AlertTitle className={cn(appTheme === 'dark' ? 'text-purple-300' : 'text-purple-800')}>Modo Pantalla Completa</AlertTitle>
+              <AlertDescription className={cn(appTheme === 'dark' ? 'text-purple-200' : 'text-purple-700')}>
                 El examen se realizará en pantalla completa. Si sales de este modo durante la prueba, se mostrará una alerta y podrás elegir entre volver al examen o finalizarlo automáticamente.
               </AlertDescription>
             </Alert>
 
-            <Alert className="border-green-200 bg-green-50">
+            <Alert className={cn(appTheme === 'dark' ? 'border-green-800 bg-green-900/30' : 'border-green-200 bg-green-50')}>
               <Database className="h-4 w-4 text-green-600" />
-              <AlertTitle className="text-green-800">Una Sola Oportunidad</AlertTitle>
-              <AlertDescription className="text-green-700">
+              <AlertTitle className={cn(appTheme === 'dark' ? 'text-green-300' : 'text-green-800')}>Una Sola Oportunidad</AlertTitle>
+              <AlertDescription className={cn(appTheme === 'dark' ? 'text-green-200' : 'text-green-700')}>
                 Solo puedes presentar este examen una vez. Tus respuestas se guardarán automáticamente y no podrás volver a intentarlo.
               </AlertDescription>
             </Alert>
 
-            <Alert className="border-blue-200 bg-blue-50">
+            <Alert className={cn(appTheme === 'dark' ? 'border-blue-800 bg-blue-900/30' : 'border-blue-200 bg-blue-50')}>
               <Clock className="h-4 w-4 text-blue-600" />
-              <AlertTitle className="text-blue-800">Seguimiento de Tiempo</AlertTitle>
-              <AlertDescription className="text-blue-700">
+              <AlertTitle className={cn(appTheme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>Seguimiento de Tiempo</AlertTitle>
+              <AlertDescription className={cn(appTheme === 'dark' ? 'text-blue-200' : 'text-blue-700')}>
                 El sistema registrará el tiempo que dedicas a cada pregunta individualmente. Esta información se incluirá en tus resultados finales.
               </AlertDescription>
             </Alert>
@@ -1068,25 +1068,25 @@ const ExamWithFirebase = () => {
 
     return (
       <div className="max-w-4xl mx-auto">
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-green-50 to-blue-50">
+        <Card className={cn("shadow-lg border-0", appTheme === 'dark' ? 'bg-gradient-to-br from-green-900/30 to-blue-900/30 border-zinc-700' : 'bg-gradient-to-br from-green-50 to-blue-50')}>
           <CardHeader className="text-center pb-6">
             <div className="flex justify-center mb-4">
               <div className="h-20 w-20 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
                 <CheckCircle2 className="h-10 w-10 text-white" />
               </div>
             </div>
-            <CardTitle className="text-3xl font-bold text-green-800 mb-2">
+            <CardTitle className={cn("text-3xl font-bold mb-2", appTheme === 'dark' ? 'text-green-400' : 'text-green-800')}>
               ¡Examen Completado!
             </CardTitle>
-            <CardDescription className="text-lg text-gray-600">
+            <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Tus respuestas han sido guardadas exitosamente
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
             {/* Resultados principales */}
-            <div className="bg-white rounded-lg p-6 border shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 text-center">
+            <div className={cn("rounded-lg p-6 border shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
+              <h3 className={cn("text-xl font-semibold mb-4 text-center", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 Resultados del Examen
               </h3>
               <div className="grid md:grid-cols-3 gap-4 mb-4">
@@ -1094,26 +1094,26 @@ const ExamWithFirebase = () => {
                   <div className="text-3xl font-bold text-green-600">
                     {score.correctAnswers}
                   </div>
-                  <div className="text-sm text-gray-500">Respuestas correctas</div>
+                  <div className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Respuestas correctas</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-blue-600">
                     {score.totalAnswered}
                   </div>
-                  <div className="text-sm text-gray-500">Preguntas respondidas</div>
+                  <div className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Preguntas respondidas</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-purple-600">
                     {score.overallPercentage}%
                   </div>
-                  <div className="text-sm text-gray-500">Puntuación final</div>
+                  <div className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Puntuación final</div>
                 </div>
               </div>
               <Progress
                 value={score.overallPercentage}
                 className="h-3 mb-2"
               />
-              <div className="text-center text-sm text-gray-600">
+              <div className={cn("text-center text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 Progreso: {score.overallPercentage}% del total
               </div>
             </div>
@@ -1171,20 +1171,20 @@ const ExamWithFirebase = () => {
 
     return (
       <div 
-        className="flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-8 pb-4 quiz-gradient-bg relative"
-        style={getQuizBackgroundStyle(theme)}
+        className={cn("flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-8 pb-4 quiz-gradient-bg relative", appTheme === 'dark' ? 'bg-zinc-900' : '')}
+        style={appTheme === 'dark' ? {} : getQuizBackgroundStyle(theme)}
       >
         {/* Contenido principal del examen */}
         <div className="flex-1 relative z-10">
-          <div className={`${theme.cardBackground} border rounded-lg p-3 mb-2 shadow-lg backdrop-blur-sm`}>
+          <div className={cn(`${theme.cardBackground} border rounded-lg p-3 mb-2 shadow-lg backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
                   <Atom className="w-12 h-12 text-blue-500" />
                 </div>
                 <div>
-                  <h3 className="text-xs text-gray-500 font-medium">Estás realizando:</h3>
-                  <h2 className="text-base font-bold">{quizData.title}</h2>
+                  <h3 className={cn("text-xs font-medium", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estás realizando:</h3>
+                  <h2 className={cn("text-base font-bold", appTheme === 'dark' ? 'text-white' : '')}>{quizData.title}</h2>
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1227,15 +1227,15 @@ const ExamWithFirebase = () => {
             </div>
           </div>
 
-          <Card className={`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`}>
+          <Card className={cn(`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className={`text-xl ${theme.primaryColor}`}>Pregunta {currentQuestion + 1}</CardTitle>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                <CardTitle className={cn(`text-xl`, appTheme === 'dark' ? 'text-white' : theme.primaryColor)}>Pregunta {currentQuestion + 1}</CardTitle>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={cn("px-2 py-1 rounded-full", appTheme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
                     {currentQ.topic}
                   </span>
-                  <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                  <span className={cn("px-2 py-1 rounded-full", appTheme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>
                     {currentQ.level}
                   </span>
                 </div>
@@ -1245,8 +1245,8 @@ const ExamWithFirebase = () => {
               <div className="prose prose-lg max-w-none">
                 {/* Texto informativo */}
                 {currentQ.informativeText && (
-                  <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-gray-700 leading-relaxed">{stripHtmlTags(currentQ.informativeText)}</p>
+                  <div className={cn("mb-4 p-4 rounded-lg border", appTheme === 'dark' ? 'bg-blue-900/30 border-blue-800' : 'bg-blue-50 border-blue-200')}>
+                    <p className={cn("leading-relaxed", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{stripHtmlTags(currentQ.informativeText)}</p>
                   </div>
                 )}
 
@@ -1290,7 +1290,7 @@ const ExamWithFirebase = () => {
 
                 {/* Texto de la pregunta - Limpio, sin etiquetas HTML */}
                 {currentQ.questionText && (
-                  <p className="text-gray-900 leading-relaxed text-lg font-medium">{stripHtmlTags(currentQ.questionText)}</p>
+                  <p className={cn("leading-relaxed text-lg font-medium", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>{stripHtmlTags(currentQ.questionText)}</p>
                 )}
               </div>
               
@@ -1302,8 +1302,16 @@ const ExamWithFirebase = () => {
                 {currentQ.options.map((option) => (
                   <div
                     key={option.id}
-                    className={`flex items-start space-x-3 ${theme.answerBorder} rounded-lg p-4 transition-all duration-200 ${theme.answerBackground} relative overflow-hidden ${theme.answerHover}`}
-                    style={theme.pattern ? { backgroundImage: theme.pattern } : {}}
+                    className={cn(
+                      `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden`,
+                      appTheme === 'dark' 
+                        ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
+                        : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
+                    )}
+                    style={appTheme === 'dark' ? {} : (theme.pattern ? { 
+                      backgroundImage: theme.pattern,
+                      backgroundSize: '100% 100%'
+                    } : {})}
                   >
                     <RadioGroupItem
                       value={option.id}
@@ -1315,11 +1323,11 @@ const ExamWithFirebase = () => {
                       className="flex-1 cursor-pointer relative z-10"
                     >
                       <div className="flex items-start gap-3">
-                        <span className={`font-bold ${theme.primaryColor} mr-2 text-base flex-shrink-0`}>{option.id}.</span>
+                        <span className={cn(`font-bold mr-2 text-base flex-shrink-0`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
                         <div className="flex-1">
                           {option.text && (
                             <div 
-                              className={`${theme.answerText} text-base leading-relaxed`}
+                              className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}
                               dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
                             />
                           )}
@@ -1357,8 +1365,8 @@ const ExamWithFirebase = () => {
 
         {/* Panel lateral derecho con navegación de preguntas */}
         <div className="w-full lg:w-56 flex-shrink-0">
-          <div className="bg-white border rounded-lg p-3 sticky top-4 shadow-sm">
-            <h3 className="text-xs font-semibold mb-2.5 text-gray-700 uppercase tracking-wide">
+          <div className={cn("border rounded-lg p-3 sticky top-4 shadow-sm", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
+            <h3 className={cn("text-xs font-semibold mb-2.5 uppercase tracking-wide", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
               Navegación
             </h3>
             <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
@@ -1370,33 +1378,34 @@ const ExamWithFirebase = () => {
                   <button
                     key={qId}
                     onClick={() => changeQuestion(index)}
-                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110 ${
+                    className={cn(
+                      "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110",
                       isCurrent
                         ? isAnswered
                           ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
                           : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
                         : isAnswered
                         ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
-                        : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300"
-                    }`}
+                        : (appTheme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300")
+                    )}
                     title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
                   >
                     {index + 1}
                     {isAnswered && !isCurrent && (
-                      <CheckCircle2 className="absolute -top-1 -right-1 h-3 w-3 text-green-500 bg-white rounded-full" />
+                      <CheckCircle2 className={cn("absolute -top-1 -right-1 h-3 w-3 text-green-500 rounded-full", appTheme === 'dark' ? 'bg-zinc-800' : 'bg-white')} />
                     )}
                   </button>
                 )
               })}
             </div>
 
-            <div className="mt-4 pt-4 border-t">
-              <div className="text-sm text-gray-500 mb-2">Progreso del examen</div>
+            <div className={cn("mt-4 pt-4 border-t", appTheme === 'dark' ? 'border-zinc-700' : '')}>
+              <div className={cn("text-sm mb-2", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Progreso del examen</div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">
+                <span className={cn("text-sm font-medium", appTheme === 'dark' ? 'text-white' : '')}>
                   {answeredQuestions}/{quizData.questions.length}
                 </span>
-                <span className="text-sm text-gray-500">
+                <span className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                   {Math.round((answeredQuestions / quizData.questions.length) * 100)}%
                 </span>
               </div>
@@ -1418,7 +1427,7 @@ const ExamWithFirebase = () => {
               </Button>
 
               {answeredQuestions < quizData.questions.length && (
-                <p className="text-xs text-center mt-2 text-orange-500">
+                <p className={cn("text-xs text-center mt-2", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-500')}>
                   Tienes {quizData.questions.length - answeredQuestions} preguntas sin responder
                 </p>
               )}
@@ -1436,21 +1445,36 @@ const ExamWithFirebase = () => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <Card className="w-full max-w-md mx-4">
+        <Card className={cn("w-full max-w-md mx-4", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-              <div className={`h-16 w-16 ${hasTabChange && isLastWarning ? 'bg-red-100' : 'bg-orange-100'} rounded-full flex items-center justify-center`}>
-                <Maximize className={`h-8 w-8 ${hasTabChange && isLastWarning ? 'text-red-600' : 'text-orange-600'}`} />
+              <div className={cn(
+                "h-16 w-16 rounded-full flex items-center justify-center",
+                hasTabChange && isLastWarning ? (appTheme === 'dark' ? 'bg-red-900/50' : 'bg-red-100') :
+                hasTabChange ? (appTheme === 'dark' ? 'bg-orange-900/50' : 'bg-orange-100') :
+                (appTheme === 'dark' ? 'bg-amber-900/50' : 'bg-amber-100')
+              )}>
+                <Maximize className={cn(
+                  "h-8 w-8",
+                  hasTabChange && isLastWarning ? (appTheme === 'dark' ? 'text-red-400' : 'text-red-600') :
+                  hasTabChange ? (appTheme === 'dark' ? 'text-orange-400' : 'text-orange-600') :
+                  (appTheme === 'dark' ? 'text-amber-400' : 'text-amber-600')
+                )} />
               </div>
             </div>
-            <CardTitle className={`text-xl ${hasTabChange && isLastWarning ? 'text-red-800' : 'text-orange-800'}`}>
+            <CardTitle className={cn(
+              "text-xl",
+              hasTabChange && isLastWarning ? (appTheme === 'dark' ? 'text-red-400' : 'text-red-800') :
+              hasTabChange ? (appTheme === 'dark' ? 'text-orange-400' : 'text-orange-800') :
+              (appTheme === 'dark' ? 'text-amber-400' : 'text-amber-800')
+            )}>
               {hasTabChange && isLastWarning 
                 ? '¡Advertencia Final!' 
                 : hasTabChange 
                 ? 'Salida de Pantalla Completa y Cambio de Pestaña'
                 : 'Salida de Pantalla Completa'}
             </CardTitle>
-            <CardDescription className="text-base">
+            <CardDescription className={cn("text-base", appTheme === 'dark' ? 'text-gray-400' : '')}>
               {hasTabChange && isLastWarning
                 ? 'Has salido de pantalla completa y cambiado de pestaña'
                 : hasTabChange
@@ -1461,38 +1485,38 @@ const ExamWithFirebase = () => {
           <CardContent className="text-center space-y-4">
             {hasTabChange && isLastWarning ? (
               <>
-                <Alert className="border-red-200 bg-red-50">
+                <Alert className={cn(appTheme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
                   <AlertCircle className="h-4 w-4 text-red-600" />
-                  <AlertTitle className="text-red-800 font-bold">¡Último Aviso!</AlertTitle>
-                  <AlertDescription className="text-red-700">
+                  <AlertTitle className={cn("font-bold", appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>¡Último Aviso!</AlertTitle>
+                  <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
                     Si vuelves a salir de pantalla completa y cambiar de pestaña, el examen se finalizará automáticamente.
                   </AlertDescription>
                 </Alert>
-                <p className="text-gray-700 font-medium">
+                <p className={cn("font-medium", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                   Por favor, vuelve a poner pantalla completa y mantén esta pestaña activa.
                 </p>
               </>
             ) : hasTabChange ? (
               <>
-                <Alert className="border-orange-200 bg-orange-50">
+                <Alert className={cn(appTheme === 'dark' ? 'border-orange-800 bg-orange-900/30' : 'border-orange-200 bg-orange-50')}>
                   <AlertCircle className="h-4 w-4 text-orange-600" />
-                  <AlertTitle className="text-orange-800">Advertencia</AlertTitle>
-                  <AlertDescription className="text-orange-700">
+                  <AlertTitle className={cn(appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>Advertencia</AlertTitle>
+                  <AlertDescription className={cn(appTheme === 'dark' ? 'text-orange-200' : 'text-orange-700')}>
                     Has salido de pantalla completa y cambiado de pestaña. Si lo vuelves a hacer, el examen se tomará por finalizado.
                   </AlertDescription>
                 </Alert>
-                <p className="text-gray-700">
+                <p className={cn(appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                   Por favor, vuelve a poner pantalla completa y mantén esta pestaña activa.
                 </p>
               </>
             ) : (
               <>
-                <p className="text-gray-700 mb-4">
+                <p className={cn("mb-4", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                   El examen debe realizarse en pantalla completa. Por favor, vuelve a poner pantalla completa.
                 </p>
-                <Alert className="border-amber-200 bg-amber-50">
+                <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
                   <AlertCircle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-700">
+                  <AlertDescription className={cn(appTheme === 'dark' ? 'text-amber-200' : 'text-amber-700')}>
                     Si eliges finalizar el examen, se guardarán todas tus respuestas actuales.
                   </AlertDescription>
                 </Alert>
@@ -1510,7 +1534,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={handleExitFullscreen}
               variant="outline"
-              className="w-full border-red-300 text-red-600 hover:bg-red-50"
+              className={cn("w-full border-red-300 text-red-600 hover:bg-red-50", appTheme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
             >
               <X className="h-4 w-4 mr-2" />
               Finalizar Examen
@@ -1528,51 +1552,51 @@ const ExamWithFirebase = () => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <Card className="w-full max-w-md mx-4">
+        <Card className={cn("w-full max-w-md mx-4", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-              <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center">
-                <Send className="h-8 w-8 text-blue-600" />
+              <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-blue-900/50' : 'bg-blue-100')}>
+                <Send className={cn("h-8 w-8", appTheme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
               </div>
             </div>
-            <CardTitle className="text-xl text-blue-800">
+            <CardTitle className={cn("text-xl", appTheme === 'dark' ? 'text-blue-400' : 'text-blue-800')}>
               ¿Enviar Examen?
             </CardTitle>
-            <CardDescription className="text-base">
+            <CardDescription className={cn("text-base", appTheme === 'dark' ? 'text-gray-400' : '')}>
               Confirma que deseas enviar tus respuestas
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-blue-50 rounded-lg p-4">
+            <div className={cn("rounded-lg p-4", appTheme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50')}>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
                     {score.totalAnswered}
                   </div>
-                  <div className="text-blue-600">Respondidas</div>
+                  <div className={cn(appTheme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>Respondidas</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-600">
+                  <div className={cn("text-2xl font-bold", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                     {unanswered}
                   </div>
-                  <div className="text-gray-600">Sin responder</div>
+                  <div className={cn(appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Sin responder</div>
                 </div>
               </div>
             </div>
 
             {unanswered > 0 && (
-              <Alert className="border-amber-200 bg-amber-50">
+              <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
                 <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-700">
+                <AlertDescription className={cn(appTheme === 'dark' ? 'text-amber-200' : 'text-amber-700')}>
                   Tienes {unanswered} pregunta{unanswered > 1 ? 's' : ''} sin responder.
                   Estas se contarán como incorrectas.
                 </AlertDescription>
               </Alert>
             )}
 
-            <Alert className="border-red-200 bg-red-50">
+            <Alert className={cn(appTheme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
               <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-700">
+              <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
                 Una vez enviado, no podrás modificar tus respuestas.
               </AlertDescription>
             </Alert>
@@ -1589,7 +1613,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={cancelSubmit}
               variant="outline"
-              className="w-full"
+              className={cn("w-full", appTheme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
               disabled={isSubmitting}
             >
               Cancelar
