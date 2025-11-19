@@ -126,6 +126,10 @@ export const SUBJECTS_CONFIG: Subject[] = [
       { name: 'Prueba 1', code: 'P1' },
       { name: 'Prueba 2', code: 'P2' },
       { name: 'Prueba 3', code: 'P3' },
+      { name: 'Prueba 4', code: 'P4' },
+      { name: 'Prueba 5', code: 'P5' },
+      { name: 'Prueba 6', code: 'P6' },
+      { name: 'Prueba 7', code: 'P7' },
     ],
   },
 ];
