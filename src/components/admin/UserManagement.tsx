@@ -18,7 +18,9 @@ import {
   Users,
   Edit,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Building2,
+  Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -27,7 +29,7 @@ import { useInstitutionOptions, useCampusOptions, useGradeOptions, useAllGradeOp
 import { useTeacherMutations, useFilteredTeachers, useTeachersByCampus } from '@/hooks/query/useTeacherQuery'
 import { usePrincipalMutations, useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
 import { useRectorMutations, useFilteredRectors } from '@/hooks/query/useRectorQuery'
-import { useFilteredStudents, useStudentMutations } from '@/hooks/query/useStudentQuery'
+import { useFilteredStudents, useStudentMutations, useStudentsByTeacher } from '@/hooks/query/useStudentQuery'
 import { useAdminMutations } from '@/hooks/query/useAdminMutations'
 import { debugFormData } from '@/utils/debugFormData'
 import { useAuthContext } from '@/context/AuthContext'
@@ -148,38 +150,11 @@ function CoordinatorCard({ principal, theme, onEdit, onDelete }: CoordinatorCard
             <div className="space-y-2">
               {teachers && teachers.length > 0 ? (
                 teachers.map((teacher: any) => (
-                  <div key={teacher.id} className={cn(
-                    'flex items-center justify-between p-3 rounded-md border',
-                    theme === 'dark' ? 'border-zinc-600 bg-zinc-700' : 'border-gray-200 bg-white'
-                  )}>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
-                        {teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                      </div>
-                      <div>
-                        <p className={cn('font-medium text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                          {teacher.name}
-                        </p>
-                        <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                          {teacher.email}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <span className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                            Grado: {teacher.gradeName || 'N/A'}
-                          </span>
-                          <span className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                            • {teacher.studentCount || 0} estudiantes
-                          </span>
-                          <Badge 
-                            className="text-xs px-1 py-0"
-                            variant={teacher.isActive ? "default" : "secondary"}
-                          >
-                            {teacher.isActive ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <CoordinatorTeacherCard
+                    key={teacher.id}
+                    theme={theme}
+                    teacher={teacher}
+                  />
                 ))
               ) : (
                 <div className={cn('text-center py-6', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
@@ -191,6 +166,770 @@ function CoordinatorCard({ principal, theme, onEdit, onDelete }: CoordinatorCard
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// Componente para tarjeta de docente dentro del coordinador
+interface CoordinatorTeacherCardProps {
+  theme: 'light' | 'dark'
+  teacher: any
+}
+
+function CoordinatorTeacherCard({ theme, teacher }: CoordinatorTeacherCardProps) {
+  const [showStudents, setShowStudents] = useState(false)
+  const teacherId = teacher.id || teacher.uid
+  
+  // Obtener estudiantes del docente
+  const { students: filteredStudentsByTeacher } = useFilteredStudents({
+    institutionId: teacher.institutionId || teacher.inst,
+    campusId: teacher.campusId || teacher.campus,
+    gradeId: teacher.gradeId || teacher.grade,
+    isActive: true
+  })
+  
+  const { data: teacherStudents, isLoading: studentsLoading, error: studentsError } = useStudentsByTeacher(teacherId || '', showStudents)
+  const displayStudents = showStudents ? (teacherStudents && teacherStudents.length > 0 ? teacherStudents : filteredStudentsByTeacher) : []
+
+  return (
+    <div className={cn(
+      'p-3 rounded-md border',
+      theme === 'dark' ? 'border-zinc-600 bg-zinc-700' : 'border-gray-200 bg-white'
+    )}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+            {teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+          </div>
+          <div>
+            <p className={cn('font-medium text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {teacher.name}
+            </p>
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {teacher.email}
+            </p>
+            <div className="flex items-center space-x-2 mt-1">
+              <span className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                Grado: {teacher.gradeName || 'N/A'}
+              </span>
+              <span className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                • {teacher.studentCount || 0} estudiantes
+              </span>
+              <Badge 
+                className="text-xs px-1 py-0"
+                variant={teacher.isActive ? "default" : "secondary"}
+              >
+                {teacher.isActive ? 'Activo' : 'Inactivo'}
+              </Badge>
+            </div>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowStudents(!showStudents)}
+          className={cn(
+            "border-blue-500",
+            theme === 'dark' 
+              ? 'text-blue-400 hover:bg-blue-900/20' 
+              : 'text-blue-600 hover:bg-blue-50'
+          )}
+        >
+          <Users className="h-4 w-4 mr-2" />
+          {showStudents ? 'Ocultar' : 'Ver'} Estudiantes
+        </Button>
+      </div>
+
+      {showStudents && (
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-zinc-600 space-y-2">
+          {studentsLoading ? (
+            <div className="flex items-center justify-center py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              <span className={cn('ml-2 text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                Cargando...
+              </span>
+            </div>
+          ) : studentsError ? (
+            <div className={cn('text-center py-2 text-xs text-red-500', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+              Error al cargar estudiantes
+            </div>
+          ) : displayStudents && displayStudents.length > 0 ? (
+            displayStudents.map((student: any) => (
+              <CoordinatorStudentCard
+                key={student.id || student.uid}
+                theme={theme}
+                student={student}
+              />
+            ))
+          ) : (
+            <div className={cn('text-center py-2 text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              No hay estudiantes asignados
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Componente para tarjeta de estudiante dentro del coordinador
+interface CoordinatorStudentCardProps {
+  theme: 'light' | 'dark'
+  student: any
+}
+
+function CoordinatorStudentCard({ theme, student }: CoordinatorStudentCardProps) {
+  return (
+    <div className={cn('p-2 rounded border ml-4', theme === 'dark' ? 'border-zinc-600 bg-zinc-800' : 'border-gray-200 bg-gray-50')}>
+      <div className="flex items-center space-x-2">
+        <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-medium">
+          {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+        </div>
+        <div>
+          <p className={cn('font-medium text-xs', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            {student.name}
+          </p>
+          <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            {student.email}
+          </p>
+          {student.gradeName && (
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              Grado: {student.gradeName}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Componente para tarjeta de docente en la pestaña de Docentes
+interface TeacherCardProps {
+  teacher: any
+  theme: 'light' | 'dark'
+  onEdit: (teacher: any) => void
+  onDelete: (teacher: any) => void
+}
+
+function TeacherCard({ teacher, theme, onEdit, onDelete }: TeacherCardProps) {
+  const [showStudents, setShowStudents] = useState(false)
+  const teacherId = teacher.id || teacher.uid
+  
+  // Obtener estudiantes del docente
+  const { students: filteredStudentsByTeacher } = useFilteredStudents({
+    institutionId: teacher.institutionId || teacher.inst,
+    campusId: teacher.campusId || teacher.campus,
+    gradeId: teacher.gradeId || teacher.grade,
+    isActive: true
+  })
+  
+  const { data: teacherStudents, isLoading: studentsLoading, error: studentsError } = useStudentsByTeacher(teacherId || '', showStudents)
+  const displayStudents = showStudents ? (teacherStudents && teacherStudents.length > 0 ? teacherStudents : filteredStudentsByTeacher) : []
+
+  return (
+    <div className={cn('p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-gray-50')}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white font-medium">
+            {teacher.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+          </div>
+          <div>
+            <h3 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {teacher.name}
+            </h3>
+            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {teacher.email}
+            </p>
+            <div className="flex items-center space-x-4 mt-2">
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Institución:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.institutionName || 'N/A'}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sede:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.campusName || 'N/A'}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Grado:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.gradeName || teacher.gradeId || 'N/A'}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estudiantes:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.studentCount || 0} estudiantes</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estado:</span>
+                <Badge className="ml-1 bg-black text-white">{teacher.isActive ? 'Activo' : 'Inactivo'}</Badge>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Creado:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString() : 'N/A'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowStudents(!showStudents)}
+            className={cn(
+              "border-blue-500",
+              theme === 'dark' 
+                ? 'text-blue-400 hover:bg-blue-900/20' 
+                : 'text-blue-600 hover:bg-blue-50'
+            )}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            {showStudents ? 'Ocultar' : 'Ver'} Estudiantes
+          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(teacher)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Actualizar datos
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => onDelete(teacher)}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {showStudents && (
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-zinc-600 space-y-2">
+          {studentsLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+              <span className={cn('ml-2 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                Cargando estudiantes...
+              </span>
+            </div>
+          ) : studentsError ? (
+            <div className={cn('text-center py-4 text-sm text-red-500', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+              Error al cargar estudiantes: {studentsError instanceof Error ? studentsError.message : 'Error desconocido'}
+            </div>
+          ) : displayStudents && displayStudents.length > 0 ? (
+            displayStudents.map((student: any) => (
+              <TeacherStudentCard
+                key={student.id || student.uid}
+                theme={theme}
+                student={student}
+              />
+            ))
+          ) : (
+            <div className={cn('text-center py-4 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              No hay estudiantes asignados a este docente
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Componente para tarjeta de estudiante dentro del docente
+interface TeacherStudentCardProps {
+  theme: 'light' | 'dark'
+  student: any
+}
+
+function TeacherStudentCard({ theme, student }: TeacherStudentCardProps) {
+  return (
+    <div className={cn('p-3 rounded-md border', theme === 'dark' ? 'border-zinc-600 bg-zinc-700' : 'border-gray-200 bg-white')}>
+      <div className="flex items-center space-x-3">
+        <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-medium">
+          {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+        </div>
+        <div>
+          <p className={cn('font-medium text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            {student.name}
+          </p>
+          <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            {student.email}
+          </p>
+          {student.gradeName && (
+            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              Grado: {student.gradeName}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Componente para mostrar la información del rector con estructura en cadena
+interface RectorCardProps {
+  rector: any
+  theme: 'light' | 'dark'
+  onEdit: (rector: any) => void
+  onDelete: (rector: any) => void
+}
+
+function RectorCard({ rector, theme, onEdit, onDelete }: RectorCardProps) {
+  const [showCampuses, setShowCampuses] = useState(false)
+  
+  // Obtener coordinadores, docentes y estudiantes de la institución del rector
+  const { principals: coordinators } = useFilteredPrincipals({
+    institutionId: rector.institutionId,
+    isActive: true
+  })
+  
+  const { teachers } = useFilteredTeachers({
+    institutionId: rector.institutionId,
+    isActive: true
+  })
+  
+  const { students } = useFilteredStudents({
+    institutionId: rector.institutionId,
+    isActive: true
+  })
+
+  return (
+    <div className={cn('p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-gray-50')}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium">
+            {rector.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+          </div>
+          <div>
+            <h3 className={cn('font-medium text-lg', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {rector.name}
+            </h3>
+            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {rector.email}
+            </p>
+            <div className="flex items-center space-x-4 mt-2">
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Institución:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.institutionName || 'N/A'}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sedes:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.campusCount || 0} sedes</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Coordinadores:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.principalCount || 0}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Docentes:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.teacherCount || 0}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estudiantes:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.studentCount || 0}</span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estado:</span>
+                <Badge className="ml-1 bg-purple-600 text-white">{rector.isActive ? 'Activo' : 'Inactivo'}</Badge>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Creado:</span>
+                <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {rector.createdAt ? new Date(rector.createdAt).toLocaleDateString() : 'N/A'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowCampuses(!showCampuses)}
+            className="border-purple-500 text-purple-600 hover:bg-purple-50"
+          >
+            <Building2 className="h-4 w-4 mr-2" />
+            {showCampuses ? 'Ocultar' : 'Ver'} Sedes
+          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(rector)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Actualizar datos
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => onDelete(rector)}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Sección expandible para mostrar sedes */}
+      {showCampuses && (
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-zinc-600">
+          <RectorCampusList
+            theme={theme}
+            institutionId={rector.institutionId}
+            coordinators={coordinators || []}
+            teachers={teachers || []}
+            students={students || []}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Componente para lista de sedes del rector
+interface RectorCampusListProps {
+  theme: 'light' | 'dark'
+  institutionId: string
+  coordinators: any[]
+  teachers: any[]
+  students: any[]
+}
+
+function RectorCampusList({ theme, institutionId, coordinators, teachers, students }: RectorCampusListProps) {
+  const { options: campusOptions, isLoading } = useCampusOptions(institutionId)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
+        <span className={cn('ml-2 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+          Cargando sedes...
+        </span>
+      </div>
+    )
+  }
+
+  if (!campusOptions || campusOptions.length === 0) {
+    return (
+      <div className={cn('text-center py-4 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+        No hay sedes registradas
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {campusOptions.map((campus) => {
+        const campusCoordinators = coordinators.filter((c: any) => c.campusId === campus.value)
+        return (
+          <RectorCampusCard
+            key={campus.value}
+            theme={theme}
+            campus={campus}
+            coordinators={campusCoordinators}
+            teachers={teachers}
+            students={students}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+// Componente para tarjeta de sede del rector
+interface RectorCampusCardProps {
+  theme: 'light' | 'dark'
+  campus: any
+  coordinators: any[]
+  teachers: any[]
+  students: any[]
+}
+
+function RectorCampusCard({ theme, campus, coordinators, teachers, students }: RectorCampusCardProps) {
+  const [showCoordinators, setShowCoordinators] = useState(false)
+
+  return (
+    <div className={cn('p-3 rounded-md border', theme === 'dark' ? 'border-zinc-600 bg-zinc-700' : 'border-gray-200 bg-white')}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Building2 className="h-4 w-4 text-purple-500" />
+          <div>
+            <h4 className={cn('font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {campus.label}
+            </h4>
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {coordinators.length} coordinador(es)
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCoordinators(!showCoordinators)}
+          className={cn(
+            "border-purple-500",
+            theme === 'dark' 
+              ? 'text-purple-400 hover:bg-purple-900/20' 
+              : 'text-purple-600 hover:bg-purple-50'
+          )}
+        >
+          <Crown className="h-4 w-4 mr-2" />
+          {showCoordinators ? 'Ocultar' : 'Ver'} Coordinadores
+        </Button>
+      </div>
+
+      {showCoordinators && (
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-zinc-600 space-y-2">
+          {coordinators.length > 0 ? (
+            coordinators.map((coordinator: any) => (
+              <RectorCoordinatorCard
+                key={coordinator.id}
+                theme={theme}
+                coordinator={coordinator}
+                teachers={teachers}
+                students={students}
+              />
+            ))
+          ) : (
+            <div className={cn('text-center py-2 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              No hay coordinadores asignados a esta sede
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Componente para tarjeta de coordinador del rector
+interface RectorCoordinatorCardProps {
+  theme: 'light' | 'dark'
+  coordinator: any
+  teachers: any[]
+  students: any[]
+}
+
+function RectorCoordinatorCard({ theme, coordinator, teachers, students }: RectorCoordinatorCardProps) {
+  const [showTeachers, setShowTeachers] = useState(false)
+  const campusTeachers = teachers.filter((t: any) => t.campusId === coordinator.campusId)
+
+  return (
+    <div className={cn('p-3 rounded-md border ml-4', theme === 'dark' ? 'border-zinc-600 bg-zinc-800' : 'border-gray-200 bg-gray-50')}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-medium">
+            {coordinator.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+          </div>
+          <div>
+            <p className={cn('font-medium text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {coordinator.name}
+            </p>
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {coordinator.email}
+            </p>
+            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {campusTeachers.length} docente(s)
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowTeachers(!showTeachers)}
+          className={cn(
+            "border-purple-500",
+            theme === 'dark' 
+              ? 'text-purple-400 hover:bg-purple-900/20' 
+              : 'text-purple-600 hover:bg-purple-50'
+          )}
+        >
+          <GraduationCap className="h-4 w-4 mr-2" />
+          {showTeachers ? 'Ocultar' : 'Ver'} Docentes
+        </Button>
+      </div>
+
+      {showTeachers && (
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-zinc-600 space-y-2">
+          {campusTeachers.length > 0 ? (
+            campusTeachers.map((teacher: any) => (
+              <RectorTeacherCard
+                key={teacher.id}
+                theme={theme}
+                teacher={teacher}
+                students={students}
+              />
+            ))
+          ) : (
+            <div className={cn('text-center py-2 text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              No hay docentes asignados
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Componente para tarjeta de docente del rector
+interface RectorTeacherCardProps {
+  theme: 'light' | 'dark'
+  teacher: any
+  students: any[]
+}
+
+function RectorTeacherCard({ theme, teacher, students }: RectorTeacherCardProps) {
+  const [showStudents, setShowStudents] = useState(false)
+  // Usar teacher.id o teacher.uid como fallback
+  const teacherId = teacher.id || teacher.uid
+  
+  // También intentar obtener estudiantes directamente usando los filtros del docente
+  const { students: filteredStudentsByTeacher } = useFilteredStudents({
+    institutionId: teacher.institutionId || teacher.inst,
+    campusId: teacher.campusId || teacher.campus,
+    gradeId: teacher.gradeId || teacher.grade,
+    isActive: true
+  })
+  
+  const { data: teacherStudents, isLoading: studentsLoading, error: studentsError } = useStudentsByTeacher(teacherId || '', showStudents)
+
+  // Usar los estudiantes del hook o los filtrados directamente
+  const displayStudents = showStudents ? (teacherStudents && teacherStudents.length > 0 ? teacherStudents : filteredStudentsByTeacher) : []
+
+  // Debug: Log para verificar los datos
+  if (showStudents) {
+    console.log('🔍 RectorTeacherCard - Teacher ID:', teacherId)
+    console.log('🔍 RectorTeacherCard - Teacher object:', teacher)
+    console.log('🔍 RectorTeacherCard - Teacher IDs:', {
+      institutionId: teacher.institutionId || teacher.inst,
+      campusId: teacher.campusId || teacher.campus,
+      gradeId: teacher.gradeId || teacher.grade
+    })
+    console.log('🔍 RectorTeacherCard - Students from hook:', teacherStudents)
+    console.log('🔍 RectorTeacherCard - Students from filter:', filteredStudentsByTeacher)
+    console.log('🔍 RectorTeacherCard - Display students:', displayStudents)
+    console.log('🔍 RectorTeacherCard - Students loading:', studentsLoading)
+    console.log('🔍 RectorTeacherCard - Students error:', studentsError)
+  }
+
+  return (
+    <div className={cn('p-3 rounded-md border ml-4', theme === 'dark' ? 'border-zinc-600 bg-zinc-900' : 'border-gray-200 bg-white')}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium">
+            {teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+          </div>
+          <div>
+            <p className={cn('font-medium text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {teacher.name}
+            </p>
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              {teacher.email}
+            </p>
+            {teacher.gradeName && (
+              <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                Grado: {teacher.gradeName}
+              </p>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowStudents(!showStudents)}
+          className={cn(
+            "border-blue-500",
+            theme === 'dark' 
+              ? 'text-blue-400 hover:bg-blue-900/20' 
+              : 'text-blue-600 hover:bg-blue-50'
+          )}
+        >
+          <Users className="h-4 w-4 mr-2" />
+          {showStudents ? 'Ocultar' : 'Ver'} Estudiantes
+        </Button>
+      </div>
+
+      {showStudents && (
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-zinc-600 space-y-2">
+          {!teacherId ? (
+            <div className={cn('text-center py-2 text-xs text-red-500', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+              Error: No se pudo obtener el ID del docente
+            </div>
+          ) : studentsLoading ? (
+            <div className="flex items-center justify-center py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              <span className={cn('ml-2 text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                Cargando...
+              </span>
+            </div>
+          ) : studentsError ? (
+            <div className={cn('text-center py-2 text-xs text-red-500', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+              Error al cargar estudiantes: {studentsError instanceof Error ? studentsError.message : 'Error desconocido'}
+            </div>
+          ) : displayStudents && displayStudents.length > 0 ? (
+            displayStudents.map((student: any) => (
+              <RectorStudentCard
+                key={student.id || student.uid}
+                theme={theme}
+                student={student}
+              />
+            ))
+          ) : (
+            <div className={cn('text-center py-2 text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              No hay estudiantes asignados a este docente
+              <br />
+              <span className="text-xs opacity-75">
+                (Institución: {teacher.institutionId || teacher.inst || 'N/A'}, 
+                Sede: {teacher.campusId || teacher.campus || 'N/A'}, 
+                Grado: {teacher.gradeId || teacher.grade || 'N/A'})
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Componente para tarjeta de estudiante del rector
+interface RectorStudentCardProps {
+  theme: 'light' | 'dark'
+  student: any
+}
+
+function RectorStudentCard({ theme, student }: RectorStudentCardProps) {
+  return (
+    <div className={cn('p-2 rounded border ml-4', theme === 'dark' ? 'border-zinc-600 bg-zinc-900' : 'border-gray-200 bg-gray-50')}>
+      <div className="flex items-center space-x-2">
+        <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-medium">
+          {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+        </div>
+        <div>
+          <p className={cn('font-medium text-xs', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            {student.name}
+          </p>
+          <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            {student.email}
+          </p>
+          {student.gradeName && (
+            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              Grado: {student.gradeName}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1586,69 +2325,13 @@ export default function UserManagement({ theme }: UserManagementProps) {
               ) : (
                 <div className="space-y-4">
                   {filteredTeachers.map((teacher) => (
-                    <div key={teacher.id} className={cn('flex items-center justify-between p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white font-medium">
-                          {teacher.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                            {teacher.name}
-                          </h3>
-                          <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                            {teacher.email}
-                          </p>
-                          <div className="flex items-center space-x-4 mt-2">
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Institución:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.institutionName || 'N/A'}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sede:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.campusName || 'N/A'}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Grado:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.gradeName || teacher.gradeId || 'N/A'}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estudiantes:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.studentCount || 0} estudiantes</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estado:</span>
-                              <Badge className="ml-1 bg-black text-white">{teacher.isActive ? 'Activo' : 'Inactivo'}</Badge>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Creado:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString() : 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditTeacher(teacher)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Actualizar datos
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteTeacher(teacher)}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    <TeacherCard
+                      key={teacher.id}
+                      teacher={teacher}
+                      theme={theme}
+                      onEdit={handleEditTeacher}
+                      onDelete={handleDeleteTeacher}
+                    />
                   ))}
                 </div>
               )}
@@ -1700,73 +2383,13 @@ export default function UserManagement({ theme }: UserManagementProps) {
               ) : (
                 <div className="space-y-4">
                   {filteredRectors.map((rector) => (
-                    <div key={rector.id} className={cn('flex items-center justify-between p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium">
-                          {rector.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                            {rector.name}
-                          </h3>
-                          <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                            {rector.email}
-                          </p>
-                          <div className="flex items-center space-x-4 mt-2">
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Institución:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.institutionName || 'N/A'}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sedes:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.campusCount || 0} sedes</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Coordinadores:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.principalCount || 0}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Docentes:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.teacherCount || 0}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estudiantes:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.studentCount || 0}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estado:</span>
-                              <Badge className="ml-1 bg-purple-600 text-white">{rector.isActive ? 'Activo' : 'Inactivo'}</Badge>
-                            </div>
-                            <div className="text-sm">
-                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Creado:</span>
-                              <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                {rector.createdAt ? new Date(rector.createdAt).toLocaleDateString() : 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditRector(rector)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Actualizar datos
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteRector(rector)}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    <RectorCard
+                      key={rector.id}
+                      rector={rector}
+                      theme={theme}
+                      onEdit={handleEditRector}
+                      onDelete={handleDeleteRector}
+                    />
                   ))}
                   {filteredRectors.length === 0 && (
                     <div className="text-center py-8">

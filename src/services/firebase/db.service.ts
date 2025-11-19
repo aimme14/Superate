@@ -1430,24 +1430,55 @@ class DatabaseService {
    */
   async getStudentsByTeacher(teacherId: string): Promise<Result<any[]>> {
     try {
+      console.log('👨‍🏫 getStudentsByTeacher - Buscando estudiantes para teacherId:', teacherId)
+      
       // Obtener información del docente para saber su institución, sede y grado
       const teacherResult = await this.getTeacherById(teacherId)
       if (!teacherResult.success) {
+        console.error('❌ getStudentsByTeacher - Error al obtener docente:', teacherResult.error)
         return failure(teacherResult.error)
       }
 
       const teacher = teacherResult.data
-      
-      // Buscar estudiantes que coincidan con la institución, sede y grado del docente
-      const studentsResult = await this.getFilteredStudents({
+      console.log('👨‍🏫 getStudentsByTeacher - Datos del docente:', {
+        name: teacher.name,
         institutionId: teacher.institutionId,
         campusId: teacher.campusId,
         gradeId: teacher.gradeId,
+        // También verificar campos alternativos
+        inst: teacher.inst,
+        campus: teacher.campus,
+        grade: teacher.grade
+      })
+      
+      // Usar los campos correctos (pueden ser inst/campus/grade o institutionId/campusId/gradeId)
+      const institutionId = teacher.institutionId || teacher.inst
+      const campusId = teacher.campusId || teacher.campus
+      const gradeId = teacher.gradeId || teacher.grade
+      
+      console.log('🔍 getStudentsByTeacher - Filtros a aplicar:', {
+        institutionId,
+        campusId,
+        gradeId,
         isActive: true
+      })
+      
+      // Buscar estudiantes que coincidan con la institución, sede y grado del docente
+      const studentsResult = await this.getFilteredStudents({
+        institutionId: institutionId,
+        campusId: campusId,
+        gradeId: gradeId,
+        isActive: true
+      })
+
+      console.log('✅ getStudentsByTeacher - Resultado:', {
+        success: studentsResult.success,
+        count: studentsResult.success ? studentsResult.data.length : 0
       })
 
       return studentsResult
     } catch (e) { 
+      console.error('❌ getStudentsByTeacher - Excepción:', e)
       return failure(new ErrorAPI(normalizeError(e, 'obtener estudiantes por docente'))) 
     }
   }

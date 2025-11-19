@@ -44,10 +44,25 @@ export const useFilteredStudents = (filters: StudentFilters) => {
 export const useStudentsByTeacher = (teacherId: string, enabled: boolean = true) => {
   return useQuery({
     queryKey: ['students', 'by-teacher', teacherId],
-    queryFn: () => getStudentsByTeacher(teacherId),
+    queryFn: async () => {
+      console.log('🔄 useStudentsByTeacher - Ejecutando queryFn con teacherId:', teacherId)
+      const result = await getStudentsByTeacher(teacherId)
+      console.log('🔄 useStudentsByTeacher - Resultado:', result.success ? 'ÉXITO' : 'ERROR')
+      if (result.success) {
+        console.log('🔄 useStudentsByTeacher - Estudiantes encontrados:', result.data.length)
+        console.log('🔄 useStudentsByTeacher - Primer estudiante:', result.data[0])
+      } else {
+        console.error('🔄 useStudentsByTeacher - Error:', result.error)
+      }
+      return result
+    },
     enabled: enabled && !!teacherId,
     staleTime: 5 * 60 * 1000,
-    select: (data) => data.success ? data.data : []
+    select: (data) => {
+      const students = data.success ? data.data : []
+      console.log('🔄 useStudentsByTeacher - Select - Estudiantes procesados:', students.length)
+      return students
+    }
   })
 }
 

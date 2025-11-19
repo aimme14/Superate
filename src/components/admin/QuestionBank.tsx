@@ -5040,7 +5040,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 ]
                                 setMatchingQuestions(updated)
                               }}
-                              className="h-7 text-xs"
+                              className={cn(
+                                "h-7 text-xs",
+                                theme === 'dark' 
+                                  ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                                  : ''
+                              )}
                             >
                               <Plus className="h-3 w-3 mr-1" />
                               Agregar Opción
@@ -5118,7 +5123,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full mt-4"
+                    className={cn(
+                      "w-full mt-4 font-medium",
+                      theme === 'dark' 
+                        ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500 shadow-sm' 
+                        : 'border-gray-300 hover:bg-gray-50'
+                    )}
                     onClick={() => {
                       const newId = `mq${matchingQuestions.length + 1}`
                       // Crear opciones A-H (8 opciones iniciales)
@@ -5275,7 +5285,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 }
                               })
                             }}
-                            className="h-7 text-xs"
+                            className={cn(
+                              "h-7 text-xs",
+                              theme === 'dark' 
+                                ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                                : ''
+                            )}
                           >
                             <Plus className="h-3 w-3 mr-1" />
                             Agregar Opción
@@ -5558,7 +5573,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 ]
                                 setReadingQuestions(updated)
                               }}
-                              className="h-7 text-xs"
+                              className={cn(
+                                "h-7 text-xs",
+                                theme === 'dark' 
+                                  ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                                  : ''
+                              )}
                             >
                               <Plus className="h-3 w-3 mr-1" />
                               Agregar Opción
@@ -5619,7 +5639,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
                                     setReadingQuestions(updated)
                                   }}
-                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  className={cn(
+                                    "h-8 w-8 p-0",
+                                    theme === 'dark'
+                                      ? 'text-red-400 hover:text-red-300 hover:bg-red-950/50'
+                                      : 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                                  )}
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
@@ -5636,7 +5661,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full mt-4"
+                    className={cn(
+                      "w-full mt-4 font-medium",
+                      theme === 'dark' 
+                        ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500 shadow-sm' 
+                        : 'border-gray-300 hover:bg-gray-50'
+                    )}
                     onClick={() => {
                       const newId = `q${readingQuestions.length + 1}`
                       // Crear opciones iniciales A, B, C (3 opciones por defecto)
@@ -5781,7 +5811,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         setOptionFiles(prev => ({ ...prev, [nextLetter]: null }))
                         setOptionImagePreviews(prev => ({ ...prev, [nextLetter]: null }))
                       }}
-                      className="h-7 text-xs"
+                      className={cn(
+                        "h-7 text-xs",
+                        theme === 'dark' 
+                          ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                          : ''
+                      )}
                     >
                       <Plus className="h-3 w-3 mr-1" />
                       Agregar Opción
@@ -5886,6 +5921,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 setIsCreateDialogOpen(false)
                 resetForm()
               }}
+              className={cn(
+                theme === 'dark' 
+                  ? 'border-zinc-600 text-gray-300 hover:bg-zinc-700 hover:text-white' 
+                  : ''
+              )}
             >
               Cancelar
             </Button>
@@ -5893,7 +5933,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <Button 
                 onClick={handleCreateQuestion} 
                 disabled={isLoading}
-                className="bg-black text-white hover:bg-gray-800"
+                className={cn(
+                  theme === 'dark'
+                    ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:bg-purple-600/50'
+                    : 'bg-black text-white hover:bg-gray-800'
+                )}
               >
                 {isLoading ? (
                   <>
@@ -5911,6 +5955,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 onClick={handleCreateTestQuestion} 
                 disabled={isLoading}
                 variant="outline"
+                className={cn(
+                  theme === 'dark' 
+                    ? 'border-zinc-600 text-gray-300 hover:bg-zinc-700 hover:text-white' 
+                    : ''
+                )}
               >
                 Prueba Rápida
               </Button>
@@ -5921,6 +5970,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 }} 
                 disabled={isLoading}
                 variant="secondary"
+                className={cn(
+                  theme === 'dark' 
+                    ? 'bg-zinc-700 text-gray-300 hover:bg-zinc-600 hover:text-white' 
+                    : ''
+                )}
               >
                 Solo Texto
               </Button>
@@ -6174,7 +6228,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 }
                               })
                             }}
-                            className="h-7 text-xs"
+                            className={cn(
+                              "h-7 text-xs",
+                              theme === 'dark' 
+                                ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                                : ''
+                            )}
                           >
                             <Plus className="h-3 w-3 mr-1" />
                             Agregar Opción
@@ -6498,7 +6557,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 ]
                                 setEditReadingQuestions(updated)
                               }}
-                              className="h-7 text-xs"
+                              className={cn(
+                                "h-7 text-xs",
+                                theme === 'dark' 
+                                  ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                                  : ''
+                              )}
                             >
                               <Plus className="h-3 w-3 mr-1" />
                               Agregar Opción
@@ -6754,7 +6818,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 ]
                                 setMatchingQuestions(updated)
                               }}
-                              className="h-7 text-xs"
+                              className={cn(
+                                "h-7 text-xs",
+                                theme === 'dark' 
+                                  ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                                  : ''
+                              )}
                             >
                               <Plus className="h-3 w-3 mr-1" />
                               Agregar Opción
@@ -7207,7 +7276,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       setOptionFiles(prev => ({ ...prev, [nextLetter]: null }))
                       setOptionImagePreviews(prev => ({ ...prev, [nextLetter]: null }))
                     }}
-                    className="h-7 text-xs"
+                    className={cn(
+                      "h-7 text-xs",
+                      theme === 'dark' 
+                        ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                        : ''
+                    )}
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Agregar Opción
@@ -7271,7 +7345,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   return newPreviews
                                 })
                               }}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              className={cn(
+                                "h-8 w-8 p-0",
+                                theme === 'dark'
+                                  ? 'text-red-400 hover:text-red-300 hover:bg-red-950/50'
+                                  : 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                              )}
                             >
                               <X className="h-4 w-4" />
                             </Button>
@@ -7316,14 +7395,22 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 setEditClozeGaps({})
                 setEditClozeRelatedQuestions([])
               }}
-              className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+              className={cn(
+                theme === 'dark' 
+                  ? 'border-zinc-600 text-gray-300 hover:bg-zinc-700 hover:text-white' 
+                  : ''
+              )}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleUpdateQuestion} 
               disabled={isLoading}
-              className="bg-black text-white hover:bg-gray-800"
+              className={cn(
+                theme === 'dark'
+                  ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:bg-purple-600/50'
+                  : 'bg-black text-white hover:bg-gray-800'
+              )}
             >
               {isLoading ? (
                 <>
@@ -7593,7 +7680,27 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         <Card key={question.id || question.code} className={cn("mb-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                           <CardHeader>
                             <div className="flex items-center justify-between">
-                              <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : '')}>
+                              <CardTitle className={cn(
+                                // Reducir tamaño del título para matching/columnas y comprensión de lectura
+                                (() => {
+                                  const isMatchingColumns = question.subjectCode === 'IN' && 
+                                    question.informativeText &&
+                                    typeof question.informativeText === 'string' &&
+                                    (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                     question.informativeText.includes('MATCHING_COLUMNS_'))
+                                  
+                                  const isReadingComprehension = !isMatchingColumns &&
+                                    question.subjectCode === 'IN' &&
+                                    question.informativeText &&
+                                    typeof question.informativeText === 'string' &&
+                                    question.informativeText.trim().length > 0 &&
+                                    !question.informativeText.includes('MATCHING_COLUMNS_') &&
+                                    !question.questionText?.includes('completar el hueco')
+                                  
+                                  return (isMatchingColumns || isReadingComprehension) ? "text-sm font-medium" : "text-xl"
+                                })(),
+                                theme === 'dark' ? 'text-white' : ''
+                              )}>
                                 {relatedQuestions.length > 1 
                                   ? `Pregunta ${index + 1} de ${relatedQuestions.length}` 
                                   : 'Pregunta 1'}
@@ -7642,10 +7749,39 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 </div>
                               )}
 
-                              {/* Texto de la pregunta */}
-                              {question.questionText && (
+                              {/* Texto de la pregunta - Omitir si es Matching/Columnas (se muestra en la columna correspondiente) */}
+                              {question.questionText && !(
+                                question.subjectCode === 'IN' && 
+                                question.informativeText &&
+                                typeof question.informativeText === 'string' &&
+                                (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                 question.informativeText.includes('MATCHING_COLUMNS_'))
+                              ) && (
                                 <div
-                                  className={cn("leading-relaxed text-lg font-medium prose max-w-none", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                                  className={cn(
+                                    "leading-relaxed font-medium prose max-w-none",
+                                    // Aumentar tamaño para comprensión de lectura
+                                    (() => {
+                                      const isMatchingColumns = question.subjectCode === 'IN' && 
+                                        question.informativeText &&
+                                        typeof question.informativeText === 'string' &&
+                                        (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                         question.informativeText.includes('MATCHING_COLUMNS_'))
+                                      
+                                      const isReadingComprehension = !isMatchingColumns &&
+                                        question.subjectCode === 'IN' &&
+                                        question.informativeText &&
+                                        typeof question.informativeText === 'string' &&
+                                        question.informativeText.trim().length > 0 &&
+                                        !question.informativeText.includes('MATCHING_COLUMNS_') &&
+                                        !question.questionText?.includes('completar el hueco')
+                                      
+                                      return isReadingComprehension 
+                                        ? "text-xl prose-xl" 
+                                        : "text-lg prose-lg"
+                                    })(),
+                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                  )}
                                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(question.questionText)) }}
                                 />
                               )}
@@ -7665,11 +7801,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 <div className={cn("border rounded-lg overflow-visible relative", theme === 'dark' ? 'border-zinc-700' : '')}>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                                     {/* Columna de Pregunta */}
-                                    <div className={cn("p-3 border-r", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
-                                      <div className={cn("leading-relaxed text-sm", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                    <div className={cn("p-4 border-r", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                                      <div className={cn("leading-relaxed text-base font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                                         {question.questionText && (
                                           <div
-                                            className="prose prose-sm max-w-none"
+                                            className="prose prose-base max-w-none"
                                             dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(question.questionText)) }}
                                           />
                                         )}
@@ -7677,7 +7813,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     </div>
                                     {/* Columna de Respuestas con botón expandible */}
                                     <div 
-                                      className={cn("p-3 relative", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
+                                      className={cn("p-4 relative", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
                                       ref={(el) => {
                                         const questionKey = question.id || question.code
                                         if (el) {
@@ -7708,17 +7844,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                             className={cn("w-full justify-between p-2 h-auto rounded-full z-10 relative", theme === 'dark' ? 'hover:bg-zinc-700 text-white' : 'hover:bg-gray-50')}
                                           >
                                             <div className="flex items-center gap-2 flex-wrap">
-                                              <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Ver Opciones de Respuesta</span>
+                                              <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Ver Opciones de Respuesta</span>
                                               {selectedMatchingAnswers[question.id || question.code] && (() => {
                                                 const selectedOptionId = selectedMatchingAnswers[question.id || question.code]
                                                 const selectedOption = question.options.find(opt => opt.id === selectedOptionId)
                                                 const selectedText = selectedOption?.text ? stripHtmlTags(selectedOption.text) : ''
                                                 return selectedText ? (
-                                                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded max-w-[300px] truncate", theme === 'dark' ? 'text-purple-300 bg-purple-900/50' : 'text-purple-600 bg-purple-100')} title={selectedText}>
+                                                  <span className={cn("text-sm font-semibold px-2 py-0.5 rounded max-w-[300px] truncate", theme === 'dark' ? 'text-purple-300 bg-purple-900/50' : 'text-purple-600 bg-purple-100')} title={selectedText}>
                                                     {selectedOptionId}: {selectedText}
                                                   </span>
                                                 ) : (
-                                                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded", theme === 'dark' ? 'text-purple-300 bg-purple-900/50' : 'text-purple-600 bg-purple-100')}>
+                                                  <span className={cn("text-sm font-semibold px-2 py-0.5 rounded", theme === 'dark' ? 'text-purple-300 bg-purple-900/50' : 'text-purple-600 bg-purple-100')}>
                                                     Seleccionada: {selectedOptionId}
                                                   </span>
                                                 )
@@ -7765,11 +7901,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                                   className="flex-1 cursor-pointer"
                                                 >
                                                   <div className="flex items-start gap-2">
-                                                    <span className={cn("font-semibold text-xs flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
+                                                    <span className={cn("font-semibold text-sm flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
                                                     <div className="flex-1 min-w-0">
                                                       {option.text && (
                                                         <div
-                                                          className={cn("prose prose-sm max-w-none text-xs break-words", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
+                                                          className={cn("prose prose-base max-w-none text-sm break-words", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
                                                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
                                                         />
                                                       )}
@@ -7801,10 +7937,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             ) : (
                               /* Formato estándar para otras preguntas */
                             <RadioGroup className="space-y-4 mt-6" defaultValue="">
-                              {question.options.map((option) => (
+                              {question.options.map((option) => {
+                                // Detectar si es comprensión de lectura para aumentar tamaño
+                                const isReadingComprehension = question.subjectCode === 'IN' &&
+                                  question.informativeText &&
+                                  typeof question.informativeText === 'string' &&
+                                  question.informativeText.trim().length > 0 &&
+                                  !question.informativeText.includes('MATCHING_COLUMNS_') &&
+                                  !question.questionText?.includes('completar el hueco')
+                                
+                                return (
                                 <div
                                   key={option.id}
-                                  className={cn("flex items-start space-x-3 border rounded-lg p-3 transition-colors", theme === 'dark' ? 'border-zinc-700 hover:bg-zinc-700' : 'hover:bg-gray-50')}
+                                  className={cn(
+                                    "flex items-start space-x-3 border rounded-lg transition-colors",
+                                    isReadingComprehension ? "p-4" : "p-3",
+                                    theme === 'dark' ? 'border-zinc-700 hover:bg-zinc-700' : 'hover:bg-gray-50'
+                                  )}
                                 >
                                   <RadioGroupItem
                                     value={option.id}
@@ -7816,11 +7965,19 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     className="flex-1 cursor-pointer"
                                   >
                                     <div className="flex items-start gap-3">
-                                      <span className={cn("font-semibold mr-2", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
+                                      <span className={cn(
+                                        "font-semibold mr-2",
+                                        isReadingComprehension ? "text-base" : "",
+                                        theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                                      )}>{option.id}.</span>
                                       <div className="flex-1">
                                         {option.text && (
                                           <div
-                                            className={cn("prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
+                                            className={cn(
+                                              "prose max-w-none",
+                                              isReadingComprehension ? "prose-lg text-base" : "",
+                                              theme === 'dark' ? 'text-gray-300' : 'text-gray-900'
+                                            )}
                                             dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
                                           />
                                         )}
@@ -7841,7 +7998,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     </div>
                                   </Label>
                                 </div>
-                              ))}
+                                )
+                              })}
                             </RadioGroup>
                             )}
                           </CardContent>

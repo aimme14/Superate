@@ -35,15 +35,11 @@ const FormSection = ({ theme }: FormSectionProps) => {
   return (
     <CardContent className="space-y-3 px-6 pb-3">
       <div className="[&>div]:space-y-1">
-        <SelectField
-          name='role'
+        <InputField
+          name="username"
+          label="Nombre completo"
+          placeholder="Nombre completo"
           theme={theme}
-          label='Rol de Usuario'
-          placeholder='Seleccionar rol'
-          options={[
-            { label: 'Estudiante', value: 'student' },
-          ]}
-          disabled={true}
         />
       </div>
       <div className="[&>div]:space-y-1">
@@ -51,14 +47,6 @@ const FormSection = ({ theme }: FormSectionProps) => {
           name="userdoc"
           label="Número de documento"
           placeholder="Número de documento"
-          theme={theme}
-        />
-      </div>
-      <div className="[&>div]:space-y-1">
-        <InputField
-          name="username"
-          label="Nombre completo"
-          placeholder="Nombre completo"
           theme={theme}
         />
       </div>
