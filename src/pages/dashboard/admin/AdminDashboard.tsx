@@ -15,14 +15,12 @@ import {
   Server,
   Lock,
   UserPlus,
-  FileText,
   BarChart3,
   Home,
   BookOpen
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
-import FormManagement from '@/components/admin/FormManagement'
 import InstitutionManagement from '@/components/admin/InstitutionManagement'
 import QuestionBank from '@/components/admin/QuestionBank'
 
@@ -90,7 +88,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={cn("grid w-full grid-cols-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+        <TabsList className={cn("grid w-full grid-cols-5", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <TabsTrigger value="overview" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <Home className="h-4 w-4" />
             <span>Resumen</span>
@@ -106,10 +104,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           <TabsTrigger value="questions" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <BookOpen className="h-4 w-4" />
             <span>Preguntas</span>
-          </TabsTrigger>
-          <TabsTrigger value="forms" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
-            <FileText className="h-4 w-4" />
-            <span>Formularios</span>
           </TabsTrigger>
           <TabsTrigger value="analytics" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
             <BarChart3 className="h-4 w-4" />
@@ -419,10 +413,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
         <TabsContent value="questions">
           <QuestionBank theme={theme} />
-        </TabsContent>
-
-        <TabsContent value="forms">
-          <FormManagement theme={theme} />
         </TabsContent>
 
         <TabsContent value="analytics">
