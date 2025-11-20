@@ -260,6 +260,10 @@ class QuizGeneratorService {
         console.warn(`⚠️ Sólo se obtuvieron ${questions.length} preguntas de ${expectedCount} solicitadas para ${subject}`);
       }
 
+      // Ordenar preguntas agrupadas por orden de creación (más antigua primero)
+      // Las preguntas agrupadas tienen el mismo informativeText (especialmente para inglés)
+      const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject);
+
       // Generar ID único para el cuestionario
       const quizId = this.generateQuizId(subject, phase, grade);
 
@@ -271,7 +275,7 @@ class QuizGeneratorService {
         subject: subject,
         subjectCode: this.getSubjectCode(subject),
         phase: phase,
-        questions: questions,
+        questions: sortedQuestions,
         timeLimit: config.timeLimit || 40,
         totalQuestions: questions.length,
         instructions: PHASE_INSTRUCTIONS[phase],
@@ -644,6 +648,80 @@ class QuizGeneratorService {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
+  }
+
+  /**
+   * Ordena las preguntas agrupadas por orden de creación (más antigua primero)
+   * Mantiene el orden dentro de cada grupo basado en fecha de creación
+   */
+  private sortGroupedQuestionsByCreationOrder(questions: Question[], subject: string): Question[] {
+    // Solo aplicar para inglés que tiene preguntas agrupadas
+    if (subject !== 'Inglés') {
+      return questions;
+    }
+
+    // Agrupar preguntas por informativeText (para preguntas agrupadas)
+    const groupedMap: { [key: string]: Question[] } = {};
+    const ungrouped: Question[] = [];
+
+    questions.forEach(question => {
+      if (question.informativeText && question.subjectCode === 'IN') {
+        const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
+        if (!groupedMap[groupKey]) {
+          groupedMap[groupKey] = [];
+        }
+        groupedMap[groupKey].push(question);
+      } else {
+        ungrouped.push(question);
+      }
+    });
+
+    // Ordenar preguntas dentro de cada grupo por fecha de creación
+    Object.keys(groupedMap).forEach(groupKey => {
+      groupedMap[groupKey].sort((a, b) => {
+        // Primero, intentar ordenar por número de hueco si ambas son cloze test
+        const aMatch = a.questionText?.match(/hueco \[(\d+)\]/);
+        const bMatch = b.questionText?.match(/hueco \[(\d+)\]/);
+        if (aMatch && bMatch) {
+          return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+        }
+
+        // Si no tienen número de hueco, ordenar por fecha de creación ascendente
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        if (dateA !== dateB) {
+          return dateA - dateB; // Más antigua primero (orden de inserción)
+        }
+
+        // Si tienen la misma fecha, ordenar por código
+        return a.code.localeCompare(b.code);
+      });
+    });
+
+    // Reconstruir el array con grupos ordenados y preguntas no agrupadas
+    // Mantener el orden original mezclado pero con grupos ordenados internamente
+    const result: Question[] = [];
+    const processedIds = new Set<string>();
+
+    questions.forEach(question => {
+      if (processedIds.has(question.id || question.code)) {
+        return;
+      }
+
+      if (question.informativeText && question.subjectCode === 'IN') {
+        const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
+        const group = groupedMap[groupKey];
+        if (group) {
+          result.push(...group);
+          group.forEach(q => processedIds.add(q.id || q.code));
+        }
+      } else {
+        result.push(question);
+        processedIds.add(question.id || question.code);
+      }
+    });
+
+    return result;
   }
 
   /**

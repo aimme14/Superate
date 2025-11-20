@@ -20,8 +20,6 @@ import {
 import { cn } from '@/lib/utils'
 import { useRectorStats } from '@/hooks/query/useRectorStats'
 import { useCampusOptions } from '@/hooks/query/useInstitutionQuery'
-import { useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
-import { useTeachersByCampus } from '@/hooks/query/useTeacherQuery'
 import { useStudentsByTeacher } from '@/hooks/query/useStudentQuery'
 
 interface RectorDashboardProps extends ThemeContextProps {}
@@ -624,7 +622,6 @@ function CoordinatorCard({ theme, coordinator, teachers, students }: Coordinator
                 key={teacher.id}
                 theme={theme}
                 teacher={teacher}
-                students={students}
               />
             ))
           ) : (
@@ -642,10 +639,9 @@ function CoordinatorCard({ theme, coordinator, teachers, students }: Coordinator
 interface TeacherCardProps {
   theme: 'light' | 'dark'
   teacher: any
-  students: any[]
 }
 
-function TeacherCard({ theme, teacher, students }: TeacherCardProps) {
+function TeacherCard({ theme, teacher }: TeacherCardProps) {
   const [showStudents, setShowStudents] = useState(false)
   const { data: teacherStudents, isLoading: studentsLoading } = useStudentsByTeacher(teacher.id, showStudents)
 

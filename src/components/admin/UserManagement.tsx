@@ -331,7 +331,7 @@ function TeacherCard({ teacher, theme, onEdit, onDelete }: TeacherCardProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white font-medium">
-            {teacher.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+            {teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
           </div>
           <div>
             <h3 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -769,7 +769,6 @@ function RectorCoordinatorCard({ theme, coordinator, teachers, students }: Recto
                 key={teacher.id}
                 theme={theme}
                 teacher={teacher}
-                students={students}
               />
             ))
           ) : (
@@ -787,10 +786,9 @@ function RectorCoordinatorCard({ theme, coordinator, teachers, students }: Recto
 interface RectorTeacherCardProps {
   theme: 'light' | 'dark'
   teacher: any
-  students: any[]
 }
 
-function RectorTeacherCard({ theme, teacher, students }: RectorTeacherCardProps) {
+function RectorTeacherCard({ theme, teacher }: RectorTeacherCardProps) {
   const [showStudents, setShowStudents] = useState(false)
   // Usar teacher.id o teacher.uid como fallback
   const teacherId = teacher.id || teacher.uid
