@@ -641,7 +641,6 @@ function RectorCampusList({ theme, institutionId, coordinators, teachers, studen
             campus={campus}
             coordinators={campusCoordinators}
             teachers={teachers}
-            students={students}
           />
         )
       })}
@@ -655,10 +654,9 @@ interface RectorCampusCardProps {
   campus: any
   coordinators: any[]
   teachers: any[]
-  students: any[]
 }
 
-function RectorCampusCard({ theme, campus, coordinators, teachers, students }: RectorCampusCardProps) {
+function RectorCampusCard({ theme, campus, coordinators, teachers }: RectorCampusCardProps) {
   const [showCoordinators, setShowCoordinators] = useState(false)
 
   return (

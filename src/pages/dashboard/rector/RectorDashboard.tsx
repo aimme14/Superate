@@ -494,7 +494,6 @@ function CampusList({ theme, institutionId, coordinators, teachers, students }: 
             campus={campus}
             coordinators={campusCoordinators}
             teachers={teachers}
-            students={students}
           />
         )
       })}
@@ -508,10 +507,9 @@ interface CampusCardProps {
   campus: any
   coordinators: any[]
   teachers: any[]
-  students: any[]
 }
 
-function CampusCard({ theme, campus, coordinators, teachers, students }: CampusCardProps) {
+function CampusCard({ theme, campus, coordinators, teachers }: CampusCardProps) {
   const [showCoordinators, setShowCoordinators] = useState(false)
 
   return (
