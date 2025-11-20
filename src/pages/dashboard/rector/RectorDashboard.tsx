@@ -360,7 +360,6 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               institutionId={currentRector?.institutionId || ''} 
               coordinators={coordinators || []}
               teachers={teachers || []}
-              students={students || []}
             />
           </CardContent>
         )}
@@ -458,10 +457,9 @@ interface CampusListProps {
   institutionId: string
   coordinators: any[]
   teachers: any[]
-  students: any[]
 }
 
-function CampusList({ theme, institutionId, coordinators, teachers, students }: CampusListProps) {
+function CampusList({ theme, institutionId, coordinators, teachers }: CampusListProps) {
   const { options: campusOptions, isLoading } = useCampusOptions(institutionId)
 
   if (isLoading) {

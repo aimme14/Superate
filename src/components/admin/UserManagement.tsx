@@ -494,11 +494,6 @@ function RectorCard({ rector, theme, onEdit, onDelete }: RectorCardProps) {
     institutionId: rector.institutionId,
     isActive: true
   })
-  
-  const { students } = useFilteredStudents({
-    institutionId: rector.institutionId,
-    isActive: true
-  })
 
   return (
     <div className={cn('p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-gray-50')}>
@@ -591,7 +586,6 @@ function RectorCard({ rector, theme, onEdit, onDelete }: RectorCardProps) {
             institutionId={rector.institutionId}
             coordinators={coordinators || []}
             teachers={teachers || []}
-            students={students || []}
           />
         </div>
       )}
@@ -605,10 +599,9 @@ interface RectorCampusListProps {
   institutionId: string
   coordinators: any[]
   teachers: any[]
-  students: any[]
 }
 
-function RectorCampusList({ theme, institutionId, coordinators, teachers, students }: RectorCampusListProps) {
+function RectorCampusList({ theme, institutionId, coordinators, teachers }: RectorCampusListProps) {
   const { options: campusOptions, isLoading } = useCampusOptions(institutionId)
 
   if (isLoading) {
