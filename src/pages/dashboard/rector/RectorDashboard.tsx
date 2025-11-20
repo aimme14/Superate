@@ -25,7 +25,7 @@ import { useStudentsByTeacher } from '@/hooks/query/useStudentQuery'
 interface RectorDashboardProps extends ThemeContextProps {}
 
 export default function RectorDashboard({ theme }: RectorDashboardProps) {
-  const { stats, isLoading, currentRector, coordinators, teachers, students } = useRectorStats()
+  const { stats, isLoading, currentRector, coordinators, teachers } = useRectorStats()
   const [showCampuses, setShowCampuses] = useState(false)
 
   // Datos estáticos que se mantienen (actividades recientes, logros, alertas)
