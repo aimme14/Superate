@@ -700,7 +700,6 @@ function RectorCampusCard({ theme, campus, coordinators, teachers, students }: R
                 theme={theme}
                 coordinator={coordinator}
                 teachers={teachers}
-                students={students}
               />
             ))
           ) : (
@@ -719,10 +718,9 @@ interface RectorCoordinatorCardProps {
   theme: 'light' | 'dark'
   coordinator: any
   teachers: any[]
-  students: any[]
 }
 
-function RectorCoordinatorCard({ theme, coordinator, teachers, students }: RectorCoordinatorCardProps) {
+function RectorCoordinatorCard({ theme, coordinator, teachers }: RectorCoordinatorCardProps) {
   const [showTeachers, setShowTeachers] = useState(false)
   const campusTeachers = teachers.filter((t: any) => t.campusId === coordinator.campusId)
 

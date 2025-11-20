@@ -553,7 +553,6 @@ function CampusCard({ theme, campus, coordinators, teachers, students }: CampusC
                 theme={theme}
                 coordinator={coordinator}
                 teachers={teachers}
-                students={students}
               />
             ))
           ) : (
@@ -572,10 +571,9 @@ interface CoordinatorCardProps {
   theme: 'light' | 'dark'
   coordinator: any
   teachers: any[]
-  students: any[]
 }
 
-function CoordinatorCard({ theme, coordinator, teachers, students }: CoordinatorCardProps) {
+function CoordinatorCard({ theme, coordinator, teachers }: CoordinatorCardProps) {
   const [showTeachers, setShowTeachers] = useState(false)
   const campusTeachers = teachers.filter((t: any) => t.campusId === coordinator.campusId)
 
