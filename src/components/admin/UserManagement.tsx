@@ -2132,19 +2132,19 @@ export default function UserManagement({ theme }: UserManagementProps) {
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="students" className="flex items-center space-x-2">
+          <TabsTrigger value="students" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Users className="h-4 w-4" />
             <span>Estudiantes</span>
           </TabsTrigger>
-          <TabsTrigger value="teachers" className="flex items-center space-x-2">
+          <TabsTrigger value="teachers" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <GraduationCap className="h-4 w-4" />
             <span>Docentes</span>
           </TabsTrigger>
-          <TabsTrigger value="principals" className="flex items-center space-x-2">
+          <TabsTrigger value="principals" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Crown className="h-4 w-4" />
             <span>Coordinador</span>
           </TabsTrigger>
-          <TabsTrigger value="rectors" className="flex items-center space-x-2">
+          <TabsTrigger value="rectors" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Crown className="h-4 w-4" />
             <span>Rectores</span>
           </TabsTrigger>

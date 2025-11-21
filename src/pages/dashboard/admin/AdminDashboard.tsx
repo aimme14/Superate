@@ -89,23 +89,23 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className={cn("grid w-full grid-cols-5", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-          <TabsTrigger value="overview" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
+          <TabsTrigger value="overview" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Home className="h-4 w-4" />
             <span>Resumen</span>
           </TabsTrigger>
-          <TabsTrigger value="users" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
+          <TabsTrigger value="users" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc- data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Users className="h-4 w-4" />
             <span>Usuarios</span>
           </TabsTrigger>
-          <TabsTrigger value="institutions" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
+          <TabsTrigger value="institutions" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Building className="h-4 w-4" />
             <span>Instituciones</span>
           </TabsTrigger>
-          <TabsTrigger value="questions" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
+          <TabsTrigger value="questions" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <BookOpen className="h-4 w-4" />
             <span>Preguntas</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className={cn("flex items-center space-x-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : '')}>
+          <TabsTrigger value="analytics" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <BarChart3 className="h-4 w-4" />
             <span>Analíticas</span>
           </TabsTrigger>

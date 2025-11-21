@@ -120,7 +120,7 @@ function InstitutionDetailView({ institution, theme, onClose }: InstitutionDetai
                 </div>
               )}
               <div>
-                <CardTitle className={cn('text-2xl mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                <CardTitle className={cn('text-2xl mb-2 font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
                   {institution.name}
                 </CardTitle>
                 <div className="flex items-center space-x-2 mb-2">
@@ -135,7 +135,7 @@ function InstitutionDetailView({ institution, theme, onClose }: InstitutionDetai
                   {institution.address && (
                     <div className="flex items-center space-x-1">
                       <MapPin className="h-4 w-4 text-gray-400" />
-                      <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      <span className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                         {institution.address}
                       </span>
                     </div>
@@ -143,7 +143,7 @@ function InstitutionDetailView({ institution, theme, onClose }: InstitutionDetai
                   {institution.phone && (
                     <div className="flex items-center space-x-1">
                       <Phone className="h-4 w-4 text-gray-400" />
-                      <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      <span className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                         {institution.phone}
                       </span>
                     </div>
@@ -151,7 +151,7 @@ function InstitutionDetailView({ institution, theme, onClose }: InstitutionDetai
                   {institution.email && (
                     <div className="flex items-center space-x-1">
                       <Mail className="h-4 w-4 text-gray-400" />
-                      <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      <span className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                         {institution.email}
                       </span>
                     </div>
@@ -169,37 +169,37 @@ function InstitutionDetailView({ institution, theme, onClose }: InstitutionDetai
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className={cn("p-4 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-700 bg-zinc-900' : 'border-gray-200 bg-white')}>
               <Building2 className={cn("h-6 w-6 mx-auto mb-2", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-black')}>
                 {campusOptions?.length || 0}
               </div>
-              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              <p className={cn("text-sm font-semibold", theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 Sedes
               </p>
             </div>
             <div className={cn("p-4 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-700 bg-zinc-900' : 'border-gray-200 bg-white')}>
               <Crown className={cn("h-6 w-6 mx-auto mb-2", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-black')}>
                 {coordinators?.length || 0}
               </div>
-              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              <p className={cn("text-sm font-semibold", theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 Coordinadores
               </p>
             </div>
             <div className={cn("p-4 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-700 bg-zinc-900' : 'border-gray-200 bg-white')}>
               <GraduationCap className={cn("h-6 w-6 mx-auto mb-2", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-black')}>
                 {teachers?.length || 0}
               </div>
-              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              <p className={cn("text-sm font-semibold", theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 Docentes
               </p>
             </div>
             <div className={cn("p-4 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-700 bg-zinc-900' : 'border-gray-200 bg-white')}>
               <Users className={cn("h-6 w-6 mx-auto mb-2", theme === 'dark' ? 'text-green-400' : 'text-green-600')} />
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-black')}>
                 {students?.length || 0}
               </div>
-              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              <p className={cn("text-sm font-semibold", theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 Estudiantes
               </p>
             </div>
@@ -255,7 +255,7 @@ function InstitutionCampusList({ theme, institutionId, coordinators, teachers, s
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
-        <span className={cn('ml-2', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+        <span className={cn('ml-2 font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
           Cargando sedes...
         </span>
       </div>
@@ -264,7 +264,7 @@ function InstitutionCampusList({ theme, institutionId, coordinators, teachers, s
 
   if (!campusOptions || campusOptions.length === 0) {
     return (
-      <div className={cn('text-center py-8', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+      <div className={cn('text-center py-8 font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
         No hay sedes registradas
       </div>
     )
@@ -308,10 +308,10 @@ function InstitutionCampusCard({ theme, campus, coordinators, teachers, students
           <div className="flex items-center space-x-3">
             <Building2 className="h-5 w-5 text-purple-500" />
             <div>
-              <CardTitle className={cn('text-lg', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <CardTitle className={cn('text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
                 {campus.label}
               </CardTitle>
-              <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 {coordinators.length} coordinador(es)
               </p>
             </div>
@@ -346,7 +346,7 @@ function InstitutionCampusCard({ theme, campus, coordinators, teachers, students
                 />
               ))
             ) : (
-              <div className={cn('text-center py-4', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              <div className={cn('text-center py-4 font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 No hay coordinadores asignados a esta sede
               </div>
             )}
@@ -377,13 +377,13 @@ function InstitutionCoordinatorCard({ theme, coordinator, teachers, students }: 
             {coordinator.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
           </div>
           <div>
-            <p className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <p className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
               {coordinator.name}
             </p>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            <p className={cn('text-xs font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               {coordinator.email}
             </p>
-            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            <p className={cn('text-xs mt-1 font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               {campusTeachers.length} docente(s)
             </p>
           </div>
@@ -416,7 +416,7 @@ function InstitutionCoordinatorCard({ theme, coordinator, teachers, students }: 
               />
             ))
           ) : (
-            <div className={cn('text-center py-2 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            <div className={cn('text-center py-2 text-sm font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               No hay docentes asignados
             </div>
           )}
@@ -455,14 +455,14 @@ function InstitutionTeacherCard({ theme, teacher }: InstitutionTeacherCardProps)
             {teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
           </div>
           <div>
-            <p className={cn('font-medium text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <p className={cn('font-bold text-sm', theme === 'dark' ? 'text-white' : 'text-black')}>
               {teacher.name}
             </p>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            <p className={cn('text-xs font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               {teacher.email}
             </p>
             {teacher.gradeName && (
-              <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              <p className={cn('text-xs font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 Grado: {teacher.gradeName}
               </p>
             )}
@@ -489,7 +489,7 @@ function InstitutionTeacherCard({ theme, teacher }: InstitutionTeacherCardProps)
           {studentsLoading ? (
             <div className="flex items-center justify-center py-2">
               <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-              <span className={cn('ml-2 text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              <span className={cn('ml-2 text-xs font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                 Cargando...
               </span>
             </div>
@@ -506,7 +506,7 @@ function InstitutionTeacherCard({ theme, teacher }: InstitutionTeacherCardProps)
               />
             ))
           ) : (
-            <div className={cn('text-center py-2 text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            <div className={cn('text-center py-2 text-xs font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               No hay estudiantes asignados
             </div>
           )}
@@ -530,14 +530,14 @@ function InstitutionStudentCard({ theme, student }: InstitutionStudentCardProps)
           {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
         </div>
         <div>
-          <p className={cn('font-medium text-xs', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+          <p className={cn('font-bold text-xs', theme === 'dark' ? 'text-white' : 'text-black')}>
             {student.name}
           </p>
-          <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+          <p className={cn('text-xs font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
             {student.email}
           </p>
           {student.gradeName && (
-            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            <p className={cn('text-xs font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Grado: {student.gradeName}
             </p>
           )}
@@ -895,10 +895,10 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+          <h2 className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
             Gestión de Instituciones
           </h2>
-          <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+          <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
             Administra la estructura institucional jerárquica
           </p>
         </div>
@@ -907,11 +907,12 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             onClick={() => setIsWizardOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Proceso Completo
+            <Plus className="h-4 w-4 mr-4" />
+            Crear Institución
           </Button>
           
-          <Dialog open={isCreateCampusDialogOpen} onOpenChange={setIsCreateCampusDialogOpen}>
+          {/* Botones ocultos temporalmente */}
+          {/* <Dialog open={isCreateCampusDialogOpen} onOpenChange={setIsCreateCampusDialogOpen}>
             <DialogTrigger asChild>
               <Button 
                 variant="outline"
@@ -961,7 +962,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 Nuevo Grado
               </Button>
             </DialogTrigger>
-          </Dialog>
+          </Dialog> */}
         </div>
       </div>
 
@@ -1010,7 +1011,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       {/* Lista de instituciones */}
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
-          <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+          <CardTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
             Instituciones ({filteredInstitutions.length})
           </CardTitle>
         </CardHeader>
@@ -1031,13 +1032,13 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                       ) : (
                         getInstitutionTypeIcon(institution.type)
                       )}
-                      <h3 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <h3 className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
                         {institution.name}
                       </h3>
                     </div>
                     <div className="flex items-center space-x-1 mb-2">
                       <MapPin className="h-3 w-3 text-gray-400" />
-                      <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
                         {institution.address}
                       </p>
                     </div>
@@ -1107,14 +1108,14 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       }}>
         <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nueva Sede</DialogTitle>
-            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <DialogTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>Crear Nueva Sede</DialogTitle>
+            <DialogDescription className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Agrega una nueva sede a una institución.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="campusInstitution" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución *</Label>
+              <Label htmlFor="campusInstitution" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Institución *</Label>
               <Select 
                 value={selectedInstitution?.id || ''} 
                 onValueChange={(value) => {
@@ -1135,7 +1136,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="campusName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre de la sede *</Label>
+              <Label htmlFor="campusName" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre de la sede *</Label>
               <Input
                 id="campusName"
                 value={newCampus.name}
@@ -1145,7 +1146,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="campusAddress" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Dirección *</Label>
+              <Label htmlFor="campusAddress" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Dirección *</Label>
               <Textarea
                 id="campusAddress"
                 value={newCampus.address}
@@ -1157,7 +1158,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="campusPhone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono</Label>
+                <Label htmlFor="campusPhone" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Teléfono</Label>
                 <Input
                   id="campusPhone"
                   value={newCampus.phone}
@@ -1167,7 +1168,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="campusEmail" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Email</Label>
+                <Label htmlFor="campusEmail" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Email</Label>
                 <Input
                   id="campusEmail"
                   type="email"
@@ -1202,14 +1203,14 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       }}>
         <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nuevo Grado</DialogTitle>
-            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <DialogTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>Crear Nuevo Grado</DialogTitle>
+            <DialogDescription className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Agrega un nuevo grado a una sede.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="gradeInstitution" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución *</Label>
+              <Label htmlFor="gradeInstitution" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Institución *</Label>
               <Select 
                 value={selectedInstitution?.id || ''} 
                 onValueChange={(value) => {
@@ -1233,7 +1234,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             
             {selectedInstitution && (
               <div className="grid gap-2">
-                <Label htmlFor="gradeCampus" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sede *</Label>
+                <Label htmlFor="gradeCampus" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Sede *</Label>
                 {selectedInstitution.campuses.length > 0 ? (
                   <Select 
                     value={selectedCampus?.id || ''} 
@@ -1254,16 +1255,16 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className={cn("p-3 border border-dashed rounded-md text-center", theme === 'dark' ? 'border-zinc-600 text-gray-400' : 'border-gray-300 text-gray-500')}>
-                    <p className="text-sm">Esta institución no tiene sedes.</p>
-                    <p className="text-xs">Crea una sede primero para poder agregar grados.</p>
+                  <div className={cn("p-3 border border-dashed rounded-md text-center", theme === 'dark' ? 'border-zinc-600 text-gray-400' : 'border-gray-300 text-black')}>
+                    <p className="text-sm font-semibold">Esta institución no tiene sedes.</p>
+                    <p className="text-xs font-semibold">Crea una sede primero para poder agregar grados.</p>
                   </div>
                 )}
               </div>
             )}
             
             <div className="grid gap-2">
-              <Label htmlFor="gradeName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre del grado *</Label>
+              <Label htmlFor="gradeName" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre del grado *</Label>
               <Input
                 id="gradeName"
                 value={newGrade.name}
@@ -1273,7 +1274,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="gradeLevel" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nivel del grado</Label>
+              <Label htmlFor="gradeLevel" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nivel del grado</Label>
               <Select value={newGrade.level.toString()} onValueChange={(value) => setNewGrade(prev => ({ ...prev, level: parseInt(value) }))}>
                 <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                   <SelectValue placeholder="Seleccionar nivel" />
@@ -1303,10 +1304,10 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       <Dialog open={isViewInstitutionDialogOpen} onOpenChange={setIsViewInstitutionDialogOpen}>
         <DialogContent className={cn("sm:max-w-[900px] max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white')}>
           <DialogHeader>
-            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <DialogTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
               Detalles de la Institución
             </DialogTitle>
-            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            <DialogDescription className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Información completa e interactiva de {selectedInstitution?.name}
             </DialogDescription>
           </DialogHeader>
@@ -1324,14 +1325,14 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       <Dialog open={isEditInstitutionDialogOpen} onOpenChange={setIsEditInstitutionDialogOpen}>
         <DialogContent className={cn("sm:max-w-[600px] max-h-[80vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Institución</DialogTitle>
-            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <DialogTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>Editar Institución</DialogTitle>
+            <DialogDescription className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Modifica la información de {selectedInstitution?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="editInstitutionName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre de la institución *</Label>
+              <Label htmlFor="editInstitutionName" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre de la institución *</Label>
               <Input
                 id="editInstitutionName"
                 value={editInstitution.name}
@@ -1342,7 +1343,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionType" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Tipo de institución *</Label>
+                <Label htmlFor="editInstitutionType" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Tipo de institución *</Label>
                 <Select value={editInstitution.type} onValueChange={(value: 'public' | 'private') => setEditInstitution(prev => ({ ...prev, type: value }))}>
                   <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                     <SelectValue placeholder="Seleccionar tipo" />
@@ -1357,7 +1358,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionNIT" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>NIT (opcional)</Label>
+                <Label htmlFor="editInstitutionNIT" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>NIT (opcional)</Label>
                 <Input
                   id="editInstitutionNIT"
                   value={editInstitution.nit}
@@ -1368,7 +1369,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editInstitutionAddress" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Dirección *</Label>
+              <Label htmlFor="editInstitutionAddress" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Dirección *</Label>
               <Textarea
                 id="editInstitutionAddress"
                 value={editInstitution.address}
@@ -1380,7 +1381,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionPhone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono</Label>
+                <Label htmlFor="editInstitutionPhone" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Teléfono</Label>
                 <Input
                   id="editInstitutionPhone"
                   value={editInstitution.phone}
@@ -1390,7 +1391,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionEmail" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Email</Label>
+                <Label htmlFor="editInstitutionEmail" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Email</Label>
                 <Input
                   id="editInstitutionEmail"
                   type="email"
@@ -1403,7 +1404,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionWebsite" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sitio web</Label>
+                <Label htmlFor="editInstitutionWebsite" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Sitio web</Label>
                 <Input
                   id="editInstitutionWebsite"
                   value={editInstitution.website}
@@ -1413,7 +1414,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editInstitutionRector" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Rector</Label>
+                <Label htmlFor="editInstitutionRector" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Rector</Label>
                 <Input
                   id="editInstitutionRector"
                   value={editInstitution.rector}
@@ -1443,7 +1444,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 onChange={(e) => setEditInstitution(prev => ({ ...prev, isActive: e.target.checked }))}
                 className="rounded"
               />
-              <Label htmlFor="editInstitutionActive" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución activa</Label>
+              <Label htmlFor="editInstitutionActive" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Institución activa</Label>
             </div>
           </div>
           <DialogFooter>
@@ -1461,14 +1462,14 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       <Dialog open={isEditCampusDialogOpen} onOpenChange={setIsEditCampusDialogOpen}>
         <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Sede</DialogTitle>
-            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <DialogTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>Editar Sede</DialogTitle>
+            <DialogDescription className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Modifica la información de {selectedCampus?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="editCampusName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre de la sede *</Label>
+              <Label htmlFor="editCampusName" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre de la sede *</Label>
               <Input
                 id="editCampusName"
                 value={editCampus.name}
@@ -1478,7 +1479,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editCampusAddress" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Dirección *</Label>
+              <Label htmlFor="editCampusAddress" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Dirección *</Label>
               <Textarea
                 id="editCampusAddress"
                 value={editCampus.address}
@@ -1490,7 +1491,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="editCampusPhone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Teléfono</Label>
+                <Label htmlFor="editCampusPhone" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Teléfono</Label>
                 <Input
                   id="editCampusPhone"
                   value={editCampus.phone}
@@ -1500,7 +1501,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editCampusEmail" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Email</Label>
+                <Label htmlFor="editCampusEmail" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Email</Label>
                 <Input
                   id="editCampusEmail"
                   type="email"
@@ -1512,7 +1513,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editCampusPrincipal" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Director</Label>
+              <Label htmlFor="editCampusPrincipal" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Director</Label>
               <Input
                 id="editCampusPrincipal"
                 value={editCampus.principal}
@@ -1529,7 +1530,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 onChange={(e) => setEditCampus(prev => ({ ...prev, isActive: e.target.checked }))}
                 className="rounded"
               />
-              <Label htmlFor="editCampusActive" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Sede activa</Label>
+              <Label htmlFor="editCampusActive" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Sede activa</Label>
             </div>
           </div>
           <DialogFooter>
@@ -1547,14 +1548,14 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       <Dialog open={isEditGradeDialogOpen} onOpenChange={setIsEditGradeDialogOpen}>
         <DialogContent className={cn("sm:max-w-[500px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
-            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Editar Grado</DialogTitle>
-            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <DialogTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>Editar Grado</DialogTitle>
+            <DialogDescription className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Modifica la información del grado {selectedGrade?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="editGradeName" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nombre del grado *</Label>
+              <Label htmlFor="editGradeName" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre del grado *</Label>
               <Input
                 id="editGradeName"
                 value={editGrade.name}
@@ -1564,7 +1565,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editGradeLevel" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Nivel del grado</Label>
+              <Label htmlFor="editGradeLevel" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nivel del grado</Label>
               <Select value={editGrade.level.toString()} onValueChange={(value) => setEditGrade(prev => ({ ...prev, level: parseInt(value) }))}>
                 <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
                   <SelectValue placeholder="Seleccionar nivel" />
@@ -1586,7 +1587,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 onChange={(e) => setEditGrade(prev => ({ ...prev, isActive: e.target.checked }))}
                 className="rounded"
               />
-              <Label htmlFor="editGradeActive" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Grado activo</Label>
+              <Label htmlFor="editGradeActive" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Grado activo</Label>
             </div>
           </div>
           <DialogFooter>
