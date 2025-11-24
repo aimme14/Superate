@@ -2,7 +2,8 @@ import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookCheck,
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect } from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/ui/select"
+import { useState, useEffect, useRef } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -14,6 +15,7 @@ import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
+import { Question } from "@/services/firebase/question.service";
 
 const db = getFirestore(firebaseApp);
 
@@ -119,6 +121,11 @@ const ExamWithFirebase = () => {
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [questionGroups, setQuestionGroups] = useState<Question[][]>([]); // Grupos de preguntas agrupadas
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(0); // Índice del grupo actual
+  
+  // Ref para mantener referencia a handleSubmit
+  const handleSubmitRef = useRef<((timeExpired?: boolean, lockedByTabChange?: boolean) => Promise<void>) | null>(null);
   const [showWarning, setShowWarning] = useState(false)
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -133,6 +140,11 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+  
+  // Estado para controlar qué Select está abierto (por ID de pregunta)
+  const [openSelects, setOpenSelects] = useState<{ [key: string]: boolean }>({});
+  // Ref para rastrear si un cierre es intencional
+  const intentionalCloseRef = useRef<{ [key: string]: boolean }>({});
 
   // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
@@ -185,8 +197,59 @@ const ExamWithFirebase = () => {
         
         if (isMounted) {
           setQuizData(quiz);
-          // Calcular tiempo límite: 2 minutos por pregunta
-          const timeLimitMinutes = quiz.questions.length * 2;
+          
+          // Agrupar preguntas por informativeText para inglés
+          if (quiz.subject === 'Inglés') {
+            const groups: Question[][] = [];
+            let currentGroup: Question[] = [];
+            let currentInformativeText = '';
+            
+            quiz.questions.forEach((question, index) => {
+              const informativeText = question.informativeText || '';
+              const informativeImages = JSON.stringify(question.informativeImages || []);
+              const groupKey = `${informativeText}_${informativeImages}`;
+              
+              // Si tiene informativeText, agrupar
+              if (informativeText && informativeText.trim() !== '' && question.subjectCode === 'IN') {
+                if (groupKey !== currentInformativeText) {
+                  // Nuevo grupo
+                  if (currentGroup.length > 0) {
+                    groups.push([...currentGroup]);
+                  }
+                  currentGroup = [question];
+                  currentInformativeText = groupKey;
+                } else {
+                  // Mismo grupo
+                  currentGroup.push(question);
+                }
+              } else {
+                // Pregunta individual sin grupo
+                if (currentGroup.length > 0) {
+                  groups.push([...currentGroup]);
+                  currentGroup = [];
+                  currentInformativeText = '';
+                }
+                groups.push([question]);
+              }
+              
+              // Si es la última pregunta, agregar el grupo actual
+              if (index === quiz.questions.length - 1 && currentGroup.length > 0) {
+                groups.push([...currentGroup]);
+              }
+            });
+            
+            setQuestionGroups(groups);
+            setCurrentGroupIndex(0);
+            console.log(`✅ Preguntas agrupadas en ${groups.length} grupos para inglés`);
+          } else {
+            // Para otras materias, cada pregunta es un grupo individual
+            const individualGroups = quiz.questions.map(q => [q]);
+            setQuestionGroups(individualGroups);
+            setCurrentGroupIndex(0);
+          }
+          
+          // Calcular tiempo límite: usar el del quiz o 2 minutos por pregunta como fallback
+          const timeLimitMinutes = quiz.timeLimit || (quiz.questions.length * 2);
           setTimeLeft(timeLimitMinutes * 60);
         }
 
@@ -256,16 +319,68 @@ const ExamWithFirebase = () => {
   const changeQuestion = (newQuestionIndex: number) => {
     if (!quizData) return;
     
-    // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = quizData.questions[currentQuestion].id || '';
-    finalizeQuestionTime(currentQuestionId);
+    // Finalizar tiempo de las preguntas del grupo actual
+    if (quizData.subject === 'Inglés' && questionGroups.length > 0 && questionGroups[currentGroupIndex]) {
+      questionGroups[currentGroupIndex].forEach(q => {
+        const questionId = q.id || '';
+        if (questionId) finalizeQuestionTime(questionId);
+      });
+    } else {
+      const currentQuestionId = quizData.questions[currentQuestion].id || '';
+      finalizeQuestionTime(currentQuestionId);
+    }
 
     // Cambiar a la nueva pregunta
     setCurrentQuestion(newQuestionIndex);
-
-    // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = quizData.questions[newQuestionIndex].id || '';
-    initializeQuestionTime(newQuestionId);
+    
+    // Para inglés, actualizar el índice del grupo
+    if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
+            // Encontrar a qué grupo pertenece esta pregunta
+            let foundGroupIndex = 0;
+            let accumulated = 0;
+            for (let i = 0; i < questionGroups.length; i++) {
+              if (newQuestionIndex < accumulated + questionGroups[i].length) {
+                foundGroupIndex = i;
+                break;
+              }
+              accumulated += questionGroups[i].length;
+            }
+            setCurrentGroupIndex(foundGroupIndex);
+            
+            // Inicializar tiempo de la primera pregunta del nuevo grupo
+            if (questionGroups.length > 0 && questionGroups[foundGroupIndex]) {
+              const firstQuestionId = questionGroups[foundGroupIndex][0].id || '';
+              if (firstQuestionId) initializeQuestionTime(firstQuestionId);
+            }
+    } else {
+      const newQuestionId = quizData.questions[newQuestionIndex].id || '';
+      initializeQuestionTime(newQuestionId);
+    }
+  };
+  
+  // Función para cambiar de grupo (para inglés)
+  const changeGroup = (newGroupIndex: number) => {
+    if (!quizData || questionGroups.length === 0) return;
+    
+    // Finalizar tiempo del grupo actual
+    questionGroups[currentGroupIndex].forEach(q => {
+      const questionId = q.id || '';
+      if (questionId) finalizeQuestionTime(questionId);
+    });
+    
+    // Cambiar al nuevo grupo
+    setCurrentGroupIndex(newGroupIndex);
+    
+    // Calcular el índice de la primera pregunta del grupo
+    let questionIndex = 0;
+    for (let i = 0; i < newGroupIndex; i++) {
+      questionIndex += questionGroups[i].length;
+    }
+    setCurrentQuestion(questionIndex);
+    
+    // Inicializar tiempo de la primera pregunta del nuevo grupo
+    const firstQuestionId = questionGroups[newGroupIndex][0].id || '';
+    if (firstQuestionId) initializeQuestionTime(firstQuestionId);
   };
 
   // Función para formatear tiempo en minutos y segundos
@@ -429,34 +544,69 @@ const ExamWithFirebase = () => {
 
   // Detectar cambios de pestaña y pérdida de foco
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (examState === 'active' && document.hidden) {
-        setTabChangeCount(prev => prev + 1);
-        setShowTabChangeWarning(true);
+    if (examState !== 'active' || examLocked) return;
 
-        if (tabChangeCount >= 2) {
-          setExamLocked(true);
-          handleSubmit(true, true);
-        }
+    // Flag para evitar que ambos eventos incrementen el contador duplicadamente
+    let isProcessingTabChange = false;
+
+    const handleTabChange = () => {
+      // Evitar procesamiento duplicado
+      if (isProcessingTabChange) return;
+      isProcessingTabChange = true;
+
+        setTabChangeCount(prev => {
+          const newCount = prev + 1;
+          
+        // Si es el segundo cambio o más, finalizar inmediatamente sin mostrar modal
+          if (newCount >= 2) {
+          // Cerrar cualquier modal abierto
+          setShowTabChangeWarning(false);
+          setShowFullscreenExit(false);
+          
+          // Finalizar el examen inmediatamente
+          // Llamar a handleSubmit antes de establecer examLocked
+            setTimeout(() => {
+            if (handleSubmitRef.current) {
+              handleSubmitRef.current(false, true);
+            }
+          }, 50);
+        } else {
+          // Si es el primer cambio, mostrar advertencia
+          setShowTabChangeWarning(true);
+          }
+          
+          return newCount;
+        });
+
+      // Resetear el flag después de un breve delay
+      setTimeout(() => {
+        isProcessingTabChange = false;
+      }, 500);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && !examLocked) {
+        handleTabChange();
       }
     };
 
     const handleWindowBlur = () => {
-      if (examState === 'active') {
-        setTabChangeCount(prev => prev + 1);
-        setShowTabChangeWarning(true);
-
-        if (tabChangeCount >= 2) {
-          setExamLocked(true);
-          handleSubmit(true, true);
+      // Solo procesar si la ventana perdió el foco y no está en pantalla completa
+      // y no está bloqueado
+      if (!examLocked && !document.hidden) {
+        // El blur puede ocurrir sin cambio de pestaña (ej: click en otra ventana)
+        // Por eso verificamos también visibilitychange
+        // Solo procesar si realmente cambió de pestaña
+          setTimeout(() => {
+          if (document.hidden && !examLocked) {
+            handleTabChange();
+          }
+          }, 100);
         }
-      }
     };
 
     const handleWindowFocus = () => {
-      if (examState === 'active' && showTabChangeWarning && !examLocked) {
-        // El aviso se mantiene visible
-      }
+      // El aviso se mantiene visible si hay una advertencia activa y el examen no está bloqueado
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -468,10 +618,12 @@ const ExamWithFirebase = () => {
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [examState, tabChangeCount, showTabChangeWarning, examLocked]);
+  }, [examState, examLocked]);
 
   // Detectar cambios de pantalla completa
   useEffect(() => {
+    if (examState !== 'active' || examLocked) return;
+
     const handleFullscreenChange = () => {
       const fullscreenElement =
         document.fullscreenElement ||
@@ -481,24 +633,20 @@ const ExamWithFirebase = () => {
       const isCurrentlyFullscreen = !!fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
 
-      if (examState === 'active' && !isCurrentlyFullscreen) {
+      if (examState === 'active' && !isCurrentlyFullscreen && !examLocked) {
         // Verificar si también se cambió de pestaña
-        if (document.hidden) {
-          // Se salió de pantalla completa Y cambió de pestaña
-          setFullscreenExitWithTabChange(true);
-          setTabChangeCount(prev => prev + 1);
-          
-          // Si es la segunda vez que sale de pantalla completa Y cambia de pestaña, finalizar
-          if (tabChangeCount >= 1) {
-            setExamLocked(true);
-            handleSubmit(false, true);
-          } else {
-            setShowFullscreenExit(true);
-          }
-        } else {
-          // Solo salió de pantalla completa (sin cambiar de pestaña aún)
+        // Si cambió de pestaña, el listener de visibilitychange ya lo manejará
+        // Solo manejar la salida de pantalla completa sin cambio de pestaña
+        if (!document.hidden) {
+          // Solo salió de pantalla completa (sin cambiar de pestaña)
           setFullscreenExitWithTabChange(false);
           setShowFullscreenExit(true);
+        } else {
+          // Se salió de pantalla completa Y cambió de pestaña
+          // El listener de visibilitychange manejará el cambio de pestaña
+          // Solo marcamos que fue con cambio de pestaña para el modal
+          setFullscreenExitWithTabChange(true);
+          // No incrementamos tabChangeCount aquí porque ya lo hace visibilitychange
         }
       }
     };
@@ -512,12 +660,23 @@ const ExamWithFirebase = () => {
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('msfullscreenchange', handleFullscreenChange);
     };
-  }, [examState, tabChangeCount]);
+  }, [examState, examLocked]);
 
   // Detectar tecla Escape como respaldo
   useEffect(() => {
+    if (examState !== 'active' || examLocked) return;
+
     const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && examState === 'active') {
+      if (event.key === 'Escape' && examState === 'active' && !examLocked) {
+        // Verificar si hay un Select abierto - si es así, no interferir
+        const selectContent = document.querySelector('[data-radix-select-content]');
+        const selectTrigger = document.querySelector('[data-radix-select-trigger][data-state="open"]');
+        
+        if (selectContent || selectTrigger) {
+          // Hay un Select abierto, no hacer nada para permitir que se cierre normalmente
+          return;
+        }
+        
         // Prevenir la salida automática de pantalla completa
         event.preventDefault();
         
@@ -527,25 +686,19 @@ const ExamWithFirebase = () => {
             document.webkitFullscreenElement ||
             document.msFullscreenElement;
 
-          if (!fullscreenElement) {
+          if (!fullscreenElement && !examLocked) {
             setIsFullscreen(false);
             
             // Verificar si también se cambió de pestaña
+            // Si cambió de pestaña, el listener de visibilitychange ya lo manejará
             if (document.hidden) {
               setFullscreenExitWithTabChange(true);
-              setTabChangeCount(prev => prev + 1);
-              
-              if (tabChangeCount >= 1) {
-                setExamLocked(true);
-                handleSubmit(false, true);
-              } else {
-                setShowFullscreenExit(true);
-              }
+              // No incrementamos tabChangeCount aquí porque ya lo hace visibilitychange
             } else {
               setFullscreenExitWithTabChange(false);
               setShowFullscreenExit(true);
             }
-          } else {
+          } else if (fullscreenElement && !examLocked) {
             // Si aún está en pantalla completa pero se presionó Escape, mostrar advertencia
             setFullscreenExitWithTabChange(false);
             setShowFullscreenExit(true);
@@ -556,7 +709,7 @@ const ExamWithFirebase = () => {
 
     document.addEventListener('keydown', handleEscapeKey);
     return () => document.removeEventListener('keydown', handleEscapeKey);
-  }, [examState, tabChangeCount]);
+  }, [examState, examLocked]);
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
@@ -849,7 +1002,15 @@ const ExamWithFirebase = () => {
   }
 
   // Modal de advertencia de cambio de pestaña
-  const TabChangeWarningModal = () => (
+  const TabChangeWarningModal = () => {
+    // No mostrar el modal si el examen está bloqueado o ya se alcanzó el límite
+    if (examLocked || tabChangeCount >= 2) {
+      return null;
+    }
+
+    const remainingAttempts = Math.max(0, 2 - tabChangeCount);
+
+    return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className={cn("w-full max-w-md mx-4", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
         <CardHeader className="text-center">
@@ -866,15 +1027,15 @@ const ExamWithFirebase = () => {
         <CardContent className="text-center">
           <div className={cn("rounded-lg p-4 mb-4", appTheme === 'dark' ? 'bg-orange-900/30' : 'bg-orange-50')}>
             <div className={cn("text-sm mb-1", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>Intentos restantes</div>
-            <div className={cn("text-2xl font-bold", appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>{2 - tabChangeCount}</div>
+              <div className={cn("text-2xl font-bold", appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>{remainingAttempts}</div>
           </div>
           <p className={cn("mb-2", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
           </p>
           <p className={cn("text-sm font-medium", appTheme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-            {tabChangeCount >= 2
+              {remainingAttempts === 1
               ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
-              : `Después de ${2 - tabChangeCount} intentos más, el examen se finalizará automáticamente.`
+                : `Después de ${remainingAttempts} intentos más, el examen se finalizará automáticamente.`
             }
           </p>
         </CardContent>
@@ -897,7 +1058,8 @@ const ExamWithFirebase = () => {
         </CardFooter>
       </Card>
     </div>
-  )
+    );
+  }
 
   // Modal de salida de pantalla completa
   const FullscreenExitModal = () => {
@@ -1047,20 +1209,55 @@ const ExamWithFirebase = () => {
       // Aquí podrías mostrar un mensaje de error al usuario
     }
   }
+  
+  // Actualizar la referencia a handleSubmit
+  handleSubmitRef.current = handleSubmit;
 
   // Función para manejar el cambio de respuesta
   const handleAnswerChange = (questionId: string, answer: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }))
+    setAnswers(prev => {
+      // Solo actualizar si el valor realmente cambió
+      if (prev[questionId] === answer) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [questionId]: answer
+      };
+    });
   }
 
-  // Función para ir a la siguiente pregunta
+  // Función para ir a la siguiente pregunta o grupo
   const nextQuestion = () => {
     if (!quizData) return;
-    if (currentQuestion < quizData.questions.length - 1) {
-      changeQuestion(currentQuestion + 1)
+    
+    // Para inglés, navegar entre grupos
+    if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
+      if (currentGroupIndex < questionGroups.length - 1) {
+        changeGroup(currentGroupIndex + 1);
+      }
+    } else {
+      // Para otras materias, navegar entre preguntas individuales
+      if (currentQuestion < quizData.questions.length - 1) {
+        changeQuestion(currentQuestion + 1);
+      }
+    }
+  }
+  
+  // Función para ir a la pregunta anterior o grupo anterior
+  const previousQuestion = () => {
+    if (!quizData) return;
+    
+    // Para inglés, navegar entre grupos
+    if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
+      if (currentGroupIndex > 0) {
+        changeGroup(currentGroupIndex - 1);
+      }
+    } else {
+      // Para otras materias, navegar entre preguntas individuales
+      if (currentQuestion > 0) {
+        changeQuestion(currentQuestion - 1);
+      }
     }
   }
 
@@ -1202,9 +1399,42 @@ const ExamWithFirebase = () => {
   const ExamScreen = () => {
     if (!quizData) return null;
     
-    const currentQ = quizData.questions[currentQuestion]
     const answeredQuestions = Object.keys(answers).length
     const theme = getQuizTheme('inglés')
+
+    // Para inglés con grupos, mostrar todas las preguntas del grupo actual juntas
+    const isEnglishWithGroups = quizData.subject === 'Inglés' && questionGroups.length > 0;
+    
+    // Obtener las preguntas del grupo actual o la pregunta actual
+    const currentGroupQuestions = isEnglishWithGroups && questionGroups[currentGroupIndex] 
+      ? questionGroups[currentGroupIndex] 
+      : [quizData.questions[currentQuestion]];
+    
+    // Obtener el contenido informativo del grupo (de la primera pregunta)
+    const firstGroupQuestion = currentGroupQuestions[0];
+    const hasInformativeContent = firstGroupQuestion?.informativeText && 
+                                   firstGroupQuestion.informativeText.trim() !== '';
+    
+    // Detectar si es Cloze Test (alguna pregunta tiene "completar el hueco" en el questionText)
+    const isClozeTest = currentGroupQuestions.some(q => 
+      q.questionText && q.questionText.includes('completar el hueco')
+    );
+    
+    // Detectar si es Matching Columns (el informativeText tiene MATCHING_COLUMNS_)
+    const isMatchingColumns = firstGroupQuestion?.informativeText && 
+                               typeof firstGroupQuestion.informativeText === 'string' &&
+                               (firstGroupQuestion.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                firstGroupQuestion.informativeText.includes('MATCHING_COLUMNS_'));
+    
+    // Función para extraer el texto real de matching columns
+    const extractMatchingText = (informativeText: string): string => {
+      if (!informativeText) return '';
+      if (informativeText.includes('|')) {
+        const parts = informativeText.split('|');
+        return parts.slice(1).join('|'); // Todo después del primer |
+      }
+      return ''; // Si solo tiene el identificador sin texto, retornar vacío
+    };
 
     return (
       <div 
@@ -1267,67 +1497,489 @@ const ExamWithFirebase = () => {
           <Card className={cn(`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className={cn(`text-xl`, appTheme === 'dark' ? 'text-white' : theme.primaryColor)}>Pregunta {currentQuestion + 1}</CardTitle>
+                {isEnglishWithGroups ? (
+                  <CardTitle className={cn(`text-xl`, appTheme === 'dark' ? 'text-white' : theme.primaryColor)}>
+                    Grupo {currentGroupIndex + 1} de {questionGroups.length} 
+                    {currentGroupQuestions.length > 1 && ` (${currentGroupQuestions.length} preguntas)`}
+                  </CardTitle>
+                ) : (
+                  <CardTitle className={cn(`text-xl`, appTheme === 'dark' ? 'text-white' : theme.primaryColor)}>
+                    Pregunta {currentQuestion + 1}
+                  </CardTitle>
+                )}
               </div>
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg max-w-none">
-                {currentQ.questionImages && currentQ.questionImages.length > 0 && (
-                  <div className="mb-4">
-                    <img 
-                      src={currentQ.questionImages[0]} 
-                      alt={currentQ.questionText || 'Pregunta con imagen'} 
-                      className="max-w-full h-auto rounded-lg border shadow-sm"
-                      onError={(e) => {
-                        console.error('Error cargando imagen:', currentQ.questionImages?.[0]);
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                {/* Mostrar contenido informativo (texto e imágenes) para preguntas agrupadas */}
+                {hasInformativeContent && firstGroupQuestion && (
+                  <div className={cn("mb-6 p-4 rounded-lg border-2", appTheme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-blue-50 border-blue-200')}>
+                    <h3 className={cn("text-lg font-semibold mb-3", appTheme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                      Lea la siguiente información antes de responder:
+                    </h3>
+                    
+                    {/* Imágenes informativas */}
+                    {firstGroupQuestion.informativeImages && firstGroupQuestion.informativeImages.length > 0 && (
+                      <div className="mb-4 space-y-2">
+                        {firstGroupQuestion.informativeImages.map((imageUrl: string, idx: number) => (
+                          <img 
+                            key={idx}
+                            src={imageUrl} 
+                            alt={`Información ${idx + 1}`} 
+                            className="max-w-full h-auto rounded-lg border shadow-sm"
+                            onError={(e) => {
+                              console.error('Error cargando imagen informativa:', imageUrl);
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Texto informativo - mostrar de forma especial si es Cloze Test o Matching Columns */}
+                    {isClozeTest ? (
+                      (() => {
+                        const clozeText = firstGroupQuestion.informativeText || '';
+                        // Extraer texto plano para detectar marcadores
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = clozeText;
+                        const text = tempDiv.textContent || tempDiv.innerText || '';
+                        const gapMatches = text.match(/\[(\d+)\]/g) || [];
+                        const gaps = new Set<number>();
+                        gapMatches.forEach(match => {
+                          const num = parseInt(match.replace(/[\[\]]/g, ''));
+                          gaps.add(num);
+                        });
+                        
+                        // Crear un mapeo de hueco número a pregunta y opciones
+                        const gapQuestionMap: { [key: number]: { question: Question; options: typeof firstGroupQuestion.options } } = {};
+                        currentGroupQuestions.forEach(q => {
+                          const match = q.questionText?.match(/hueco \[(\d+)\]/);
+                          if (match) {
+                            const gapNum = parseInt(match[1]);
+                            gapQuestionMap[gapNum] = {
+                              question: q,
+                              options: q.options || []
+                            };
+                          }
+                        });
+                        
+                        // Dividir el texto en partes usando los marcadores de hueco
+                        const sortedGaps = Array.from(gaps).sort((a, b) => a - b);
+                        const parts: Array<{ type: 'text' | 'gap'; content: string; gapNum?: number }> = [];
+                        let remainingText = clozeText;
+                        
+                        sortedGaps.forEach((gapNum) => {
+                          const gapMarker = `[${gapNum}]`;
+                          const splitIndex = remainingText.indexOf(gapMarker);
+                          if (splitIndex >= 0) {
+                            if (splitIndex > 0) {
+                              parts.push({ type: 'text', content: remainingText.substring(0, splitIndex) });
+                            }
+                            parts.push({ type: 'gap', content: gapMarker, gapNum });
+                            remainingText = remainingText.substring(splitIndex + gapMarker.length);
+                          }
+                        });
+                        if (remainingText) {
+                          parts.push({ type: 'text', content: remainingText });
+                        }
+                        
+                        return (
+                          <div 
+                            className={cn("text-base leading-relaxed", appTheme === 'dark' ? 'text-gray-200' : 'text-gray-800')}
+                          >
+                            {parts.map((part, idx) => {
+                              if (part.type === 'text') {
+                                // Renderizar texto manteniendo el flujo inline
+                                return (
+                                  <span 
+                                    key={`text-${idx}`} 
+                                    className="inline"
+                                    dangerouslySetInnerHTML={{ __html: part.content }} 
+                                  />
+                                );
+                              } else {
+                                const gapNum = part.gapNum!;
+                                const gapData = gapQuestionMap[gapNum];
+                                if (!gapData) return null;
+                                
+                                const question = gapData.question;
+                                const options = gapData.options;
+                                const questionId = question.id || '';
+                                const selectedAnswer = answers[questionId] || '';
+                                const isOpen = openSelects[questionId] || false;
+                                
+                                return (
+                                  <span 
+                                    key={`gap-${gapNum}`} 
+                                    className="inline-flex items-center gap-1 mx-0 my-0 align-middle"
+                                  >
+                                    <Select
+                                      value={selectedAnswer || undefined}
+                                      open={isOpen}
+                                      onOpenChange={(open) => {
+                                        if (open) {
+                                          // Abrir está siempre permitido
+                                          setOpenSelects(prev => ({ ...prev, [questionId]: true }));
+                                        } else {
+                                          // Para cerrar, verificar si es intencional
+                                          // Si no es intencional (por ejemplo, un re-render), mantener abierto
+                                          if (intentionalCloseRef.current[questionId]) {
+                                            setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                            intentionalCloseRef.current[questionId] = false;
+                                          }
+                                          // Si no es intencional, simplemente no hacer nada (mantener el estado actual)
+                                        }
+                                      }}
+                                      onValueChange={(value) => {
+                                        handleAnswerChange(questionId, value);
+                                        // Marcar como cierre intencional y cerrar el dropdown después de seleccionar
+                                        intentionalCloseRef.current[questionId] = true;
+                                        setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                      }}
+                                    >
+                                      <SelectTrigger 
+                                        className={cn(
+                                          "h-8 px-3 text-xs font-semibold border-2 min-w-[100px] max-w-[250px] inline-flex",
+                                          appTheme === 'dark' 
+                                            ? 'bg-zinc-700 hover:bg-zinc-600 border-blue-500 text-blue-300' 
+                                            : 'bg-white hover:bg-gray-100 border-blue-400 text-blue-700',
+                                          // Deshabilitar animaciones que pueden causar intermitencia
+                                          "!transition-none hover:!scale-100"
+                                        )}
+                                      >
+                                        <SelectValue placeholder={`[${gapNum}]`} />
+                                      </SelectTrigger>
+                                      <SelectContent 
+                                        className={cn(
+                                          "!max-h-none overflow-visible [&_[data-radix-select-viewport]]:!h-auto [&_[data-radix-select-viewport]]:!max-h-none",
+                                          "[&>button]:hidden", // Ocultar botones de scroll
+                                          appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200',
+                                          // Deshabilitar animaciones que pueden causar intermitencia
+                                          "!animate-none !transition-none"
+                                        )}
+                                        style={{ zIndex: 99999 }}
+                                        onPointerDownOutside={(e) => {
+                                          const target = e.target as HTMLElement;
+                                          
+                                          // Verificar si el click es dentro del SelectContent o su portal
+                                          // Radix UI renderiza el contenido en un portal, así que verificamos el atributo data-radix-select-content
+                                          const selectContent = target.closest('[data-radix-select-content]');
+                                          const selectViewport = target.closest('[data-radix-select-viewport]');
+                                          const selectItem = target.closest('[data-radix-select-item]');
+                                          
+                                          if (selectContent || selectViewport || selectItem) {
+                                            // Prevenir el cierre si está dentro del dropdown o sus elementos
+                                            e.preventDefault();
+                                            return;
+                                          }
+                                          
+                                          // Verificar si el click es en el contenedor del texto Cloze Test
+                                          const textContainer = target.closest('.text-base.leading-relaxed');
+                                          if (textContainer) {
+                                            // Prevenir el cierre si está dentro del área de texto
+                                            e.preventDefault();
+                                            return;
+                                          }
+                                          
+                                          // Si el click es fuera, marcar como cierre intencional y permitir el cierre
+                                          intentionalCloseRef.current[questionId] = true;
+                                          setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                        }}
+                                        onEscapeKeyDown={() => {
+                                          // Marcar como cierre intencional y cerrar el dropdown cuando se presiona Escape
+                                          intentionalCloseRef.current[questionId] = true;
+                                          setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                        }}
+                                        position="popper"
+                                        sideOffset={5}
+                                        avoidCollisions={true}
+                                      >
+                                        {options.length > 0 ? (
+                                          options.map((option) => (
+                                            <SelectItem 
+                                              key={option.id} 
+                                              value={option.id}
+                                              className="!transition-none hover:!scale-100 hover:!translate-y-0 hover:!shadow-none data-[highlighted]:!scale-100 data-[highlighted]:!translate-y-0 data-[highlighted]:!shadow-none [&>div]:!opacity-0 [&>div]:!animate-none"
+                                            >
+                                              <div className="flex items-center gap-2 w-full">
+                                                <span className="font-semibold min-w-[20px]">{option.id}:</span>
+                                                <span className="flex-1">{option.text || 'Sin texto'}</span>
+                                              </div>
+                                            </SelectItem>
+                                          ))
+                                        ) : (
+                                          <SelectItem value="none" disabled>
+                                            Sin opciones disponibles
+                                          </SelectItem>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </span>
+                                );
+                              }
+                            })}
+                          </div>
+                        );
+                      })()
+                    ) : isMatchingColumns ? (
+                      /* Mostrar solo el texto informativo para Matching Columns (las preguntas se mostrarán abajo) */
+                      (() => {
+                        const displayText = extractMatchingText(firstGroupQuestion.informativeText || '');
+                        if (!displayText || !displayText.trim()) return null;
+                        
+                        return (
+                          <div 
+                            className={cn("text-base leading-relaxed", appTheme === 'dark' ? 'text-gray-200' : 'text-gray-800')}
+                            dangerouslySetInnerHTML={{ __html: displayText }} 
+                          />
+                        );
+                      })()
+                    ) : (
+                      /* Texto informativo normal para comprensión de lectura */
+                      <div 
+                        className={cn("text-base leading-relaxed whitespace-pre-wrap", appTheme === 'dark' ? 'text-gray-200' : 'text-gray-800')}
+                        dangerouslySetInnerHTML={{ __html: firstGroupQuestion.informativeText || '' }} 
+                      />
+                    )}
                   </div>
                 )}
-                {currentQ.questionText && (
-                  <p className={cn("leading-relaxed", appTheme === 'dark' ? 'text-white' : 'text-gray-900')} dangerouslySetInnerHTML={{ __html: currentQ.questionText }} />
+
+                {/* Mostrar todas las preguntas del grupo - solo si NO es Cloze Test */}
+                {!isClozeTest && (
+                  <div className="space-y-4">
+                    {isMatchingColumns ? (
+                      /* Formato especial para Matching Columns: dos columnas */
+                      currentGroupQuestions.map((question, qIndex) => {
+                        const questionId = question.id || '';
+                        const selectedAnswer = answers[questionId] || '';
+                        const isOpen = openSelects[questionId] || false;
+                        
+                        return (
+                          <div 
+                            key={question.id || question.code || qIndex} 
+                            className={cn("border rounded-lg overflow-hidden", appTheme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                              {/* Columna izquierda: Descripción/Pregunta */}
+                              <div className={cn("p-4 border-r", appTheme === 'dark' ? 'bg-zinc-800/50 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                                <div className={cn("leading-relaxed text-base font-medium", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                  {question.questionText && (
+                                    <div
+                                      className="prose prose-base max-w-none"
+                                      dangerouslySetInnerHTML={{ __html: question.questionText }} 
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Columna derecha: Selector de respuesta */}
+                              <div 
+                                className={cn("p-4 flex items-center", appTheme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
+                              >
+                                <Select
+                                  value={selectedAnswer || undefined}
+                                  open={isOpen}
+                                  onOpenChange={(open) => {
+                                    // Solo permitir cerrar si es un cierre intencional
+                                    // o si el usuario está abriendo el dropdown
+                                    if (open) {
+                                      // Abrir está siempre permitido
+                                      setOpenSelects(prev => ({ ...prev, [questionId]: true }));
+                                    } else {
+                                      // Para cerrar, verificar si es intencional
+                                      // Si no es intencional (por ejemplo, un re-render), mantener abierto
+                                      if (intentionalCloseRef.current[questionId]) {
+                                        setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                        intentionalCloseRef.current[questionId] = false;
+                                      } else {
+                                        // Si no es intencional, mantener abierto
+                                        // Usar setTimeout para evitar conflictos con el estado
+                                        setTimeout(() => {
+                                          setOpenSelects(prev => {
+                                            if (prev[questionId] !== false) {
+                                              return { ...prev, [questionId]: true };
+                                            }
+                                            return prev;
+                                          });
+                                        }, 0);
+                                      }
+                                    }
+                                  }}
+                                  onValueChange={(value) => {
+                                    handleAnswerChange(questionId, value);
+                                    // Marcar como cierre intencional y cerrar el dropdown después de seleccionar
+                                    intentionalCloseRef.current[questionId] = true;
+                                    setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                  }}
+                                >
+                                  <SelectTrigger 
+                                    className={cn(
+                                      "w-full h-auto p-3 text-sm font-medium",
+                                      appTheme === 'dark' 
+                                        ? 'bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white' 
+                                        : 'bg-white hover:bg-gray-50 border-gray-300 text-gray-900',
+                                      // Deshabilitar animaciones que pueden causar intermitencia
+                                      "!transition-none hover:!scale-100"
+                                    )}
+                                  >
+                                    <SelectValue placeholder="Ver Opciones de Respuesta" />
+                                  </SelectTrigger>
+                                  <SelectContent 
+                                    className={cn(
+                                      "!max-h-none overflow-visible [&_[data-radix-select-viewport]]:!h-auto [&_[data-radix-select-viewport]]:!max-h-none",
+                                      "[&>button]:hidden", // Ocultar botones de scroll
+                                      appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200',
+                                      // Deshabilitar animaciones que pueden causar intermitencia
+                                      "!animate-none !transition-none"
+                                    )}
+                                    style={{ zIndex: 99999 }}
+                                    onPointerDownOutside={(e) => {
+                                      const target = e.target as HTMLElement;
+                                      
+                                      // Verificar si el click es dentro del SelectContent o su portal
+                                      // Radix UI renderiza el contenido en un portal, así que verificamos el atributo data-radix-select-content
+                                      const selectContent = target.closest('[data-radix-select-content]');
+                                      const selectViewport = target.closest('[data-radix-select-viewport]');
+                                      const selectItem = target.closest('[data-radix-select-item]');
+                                      
+                                      if (selectContent || selectViewport || selectItem) {
+                                        // Prevenir el cierre si está dentro del dropdown o sus elementos
+                                        e.preventDefault();
+                                        return;
+                                      }
+                                      
+                                      // Verificar si el click es en el contenedor de la pregunta Matching
+                                      const questionContainer = target.closest('.border.rounded-lg');
+                                      if (questionContainer) {
+                                        // Prevenir el cierre si está dentro del área de la pregunta
+                                        e.preventDefault();
+                                        return;
+                                      }
+                                      
+                                      // Si el click es fuera, marcar como cierre intencional y permitir el cierre
+                                      intentionalCloseRef.current[questionId] = true;
+                                      setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                    }}
+                                    onEscapeKeyDown={() => {
+                                      // Marcar como cierre intencional y cerrar el dropdown cuando se presiona Escape
+                                      intentionalCloseRef.current[questionId] = true;
+                                      setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                    }}
+                                    position="popper"
+                                    sideOffset={5}
+                                    avoidCollisions={true}
+                                  >
+                                    {question.options && question.options.length > 0 ? (
+                                      question.options.map((option) => (
+                                        <SelectItem 
+                                          key={option.id} 
+                                          value={option.id}
+                                          className="!transition-none hover:!scale-100 hover:!translate-y-0 hover:!shadow-none data-[highlighted]:!scale-100 data-[highlighted]:!translate-y-0 data-[highlighted]:!shadow-none [&>div]:!opacity-0 [&>div]:!animate-none"
+                                        >
+                                          <div className="flex items-center gap-2 w-full">
+                                            <span className="font-semibold min-w-[20px]">{option.id}:</span>
+                                            <span className="flex-1">{option.text || 'Sin texto'}</span>
+                                          </div>
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="none" disabled>
+                                        Sin opciones disponibles
+                                      </SelectItem>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      /* Formato normal para comprensión de lectura */
+                      currentGroupQuestions.map((question, qIndex) => (
+                        <div key={question.id || question.code || qIndex} className="border-b border-gray-200 dark:border-zinc-700 pb-6 last:border-b-0 last:pb-0">
+                          {/* Imágenes de la pregunta individual */}
+                          {question.questionImages && question.questionImages.length > 0 && (
+                            <div className="mb-4">
+                              <img 
+                                src={question.questionImages[0]} 
+                                alt={question.questionText || 'Pregunta con imagen'} 
+                                className="max-w-full h-auto rounded-lg border shadow-sm"
+                                onError={(e) => {
+                                  console.error('Error cargando imagen:', question.questionImages?.[0]);
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Número de pregunta dentro del grupo */}
+                          {currentGroupQuestions.length > 1 && (
+                            <div className={cn("text-sm font-semibold mb-2", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                              Pregunta {qIndex + 1} de {currentGroupQuestions.length}:
+                            </div>
+                          )}
+                          
+                          {/* Texto de la pregunta */}
+                          {question.questionText && (
+                            <p className={cn("leading-relaxed mb-4", appTheme === 'dark' ? 'text-white' : 'text-gray-900')} dangerouslySetInnerHTML={{ __html: question.questionText }} />
+                          )}
+                          
+                          {/* Opciones de respuesta */}
+                          <RadioGroup
+                            value={answers[question.id || ''] || ""}
+                            onValueChange={(value) => handleAnswerChange(question.id || '', value)}
+                            className="space-y-4"
+                          >
+                            {question.options.map((option) => (
+                              <div
+                                key={option.id}
+                                className={cn(
+                                  `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden`,
+                                  appTheme === 'dark' 
+                                    ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
+                                    : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
+                                )}
+                                style={appTheme === 'dark' ? {} : (theme.pattern ? { 
+                                  backgroundImage: theme.pattern,
+                                  backgroundSize: '100% 100%'
+                                } : {})}
+                              >
+                                <RadioGroupItem
+                                  value={option.id}
+                                  id={`${question.id}-${option.id}`}
+                                  className="mt-1 relative z-10"
+                                />
+                                <Label
+                                  htmlFor={`${question.id}-${option.id}`}
+                                  className="flex-1 cursor-pointer relative z-10"
+                                >
+                                  <span className={cn(`font-bold mr-2 text-base flex-shrink-0`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id.toUpperCase()}.</span>
+                                  <span className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}>{option.text || ''}</span>
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
-              <RadioGroup
-                value={answers[currentQ.id || ''] || ""}
-                onValueChange={(value) => handleAnswerChange(currentQ.id || '', value)}
-                className="space-y-4 mt-6"
-              >
-                {currentQ.options.map((option) => (
-                  <div
-                    key={option.id}
-                    className={cn(
-                      `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden`,
-                      appTheme === 'dark' 
-                        ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
-                        : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
-                    )}
-                    style={appTheme === 'dark' ? {} : (theme.pattern ? { 
-                      backgroundImage: theme.pattern,
-                      backgroundSize: '100% 100%'
-                    } : {})}
-                  >
-                    <RadioGroupItem
-                      value={option.id}
-                      id={`${currentQ.id}-${option.id}`}
-                      className="mt-1 relative z-10"
-                    />
-                    <Label
-                      htmlFor={`${currentQ.id}-${option.id}`}
-                      className="flex-1 cursor-pointer relative z-10"
-                    >
-                      <span className={cn(`font-bold mr-2 text-base flex-shrink-0`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id.toUpperCase()}.</span>
-                      <span className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}>{option.text}</span>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
             </CardContent>
-            <CardFooter className="flex justify-end">
+            <CardFooter className="flex justify-between">
+              <Button
+                onClick={previousQuestion}
+                disabled={isEnglishWithGroups ? currentGroupIndex === 0 : currentQuestion === 0}
+                variant="outline"
+                className={cn("flex items-center gap-2", appTheme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : '')}
+              >
+                <ChevronRight className="h-4 w-4 rotate-180" /> Anterior
+              </Button>
               <Button
                 onClick={nextQuestion}
-                disabled={currentQuestion === quizData.questions.length - 1}
+                disabled={isEnglishWithGroups ? currentGroupIndex === questionGroups.length - 1 : currentQuestion === quizData.questions.length - 1}
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
@@ -1340,37 +1992,97 @@ const ExamWithFirebase = () => {
         <div className="w-full lg:w-56 flex-shrink-0 relative z-10">
           <div className={cn(`${theme.cardBackground} border rounded-lg p-3 sticky top-4 shadow-lg backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <h3 className={cn("text-xs font-semibold mb-2.5 uppercase tracking-wide", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-              Navegación
+              {isEnglishWithGroups ? 'Navegación por Grupos' : 'Navegación'}
             </h3>
-            <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
-              {quizData.questions.map((q, index) => {
-                const questionId = q.id || ''
-                const isAnswered = answers[questionId];
-                const isCurrent = currentQuestion === index;
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => changeQuestion(index)}
-                    className={cn(
-                      "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110",
-                      isCurrent
-                        ? isAnswered
-                          ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
-                          : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
-                        : isAnswered
-                        ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
-                        : (appTheme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300")
-                    )}
-                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
-                  >
-                    {index + 1}
-                    {isAnswered && !isCurrent && (
-                      <CheckCircle2 className={cn("absolute -top-1 -right-1 h-3 w-3 text-green-500 rounded-full", appTheme === 'dark' ? 'bg-zinc-800' : 'bg-white')} />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+            {isEnglishWithGroups && questionGroups.length > 0 ? (
+              <div className="space-y-2 max-h-72 overflow-y-auto pb-2">
+                {questionGroups.map((group, groupIndex) => {
+                  // Calcular índice de la primera pregunta del grupo
+                  let firstQuestionIndex = 0;
+                  for (let i = 0; i < groupIndex; i++) {
+                    firstQuestionIndex += questionGroups[i].length;
+                  }
+                  
+                  // Verificar si todas las preguntas del grupo están respondidas
+                  const allAnswered = group.every(q => {
+                    const questionId = q.id || '';
+                    return answers[questionId];
+                  });
+                  
+                  // Verificar si alguna pregunta del grupo está respondida
+                  const someAnswered = group.some(q => {
+                    const questionId = q.id || '';
+                    return answers[questionId];
+                  });
+                  
+                  const isCurrent = currentGroupIndex === groupIndex;
+                  
+                  return (
+                    <button
+                      key={groupIndex}
+                      onClick={() => changeGroup(groupIndex)}
+                      className={cn(
+                        "w-full p-3 rounded-md flex flex-col items-start text-xs font-semibold transition-all duration-200 hover:scale-[1.02] border-2",
+                        isCurrent
+                          ? allAnswered
+                            ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1 border-purple-400"
+                            : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1 border-purple-300"
+                          : allAnswered
+                          ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md border-purple-500"
+                          : someAnswered
+                          ? appTheme === 'dark' 
+                            ? "bg-zinc-700 text-gray-300 border-zinc-600 hover:bg-zinc-600 border-amber-500/50" 
+                            : "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                          : appTheme === 'dark' 
+                          ? "bg-zinc-700 text-gray-300 border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" 
+                          : "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200 hover:border-purple-300"
+                      )}
+                      title={`Grupo ${groupIndex + 1} (${group.length} pregunta${group.length > 1 ? 's' : ''})${allAnswered ? " - Completado" : someAnswered ? " - Parcialmente respondido" : " - Sin responder"}`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="font-bold">Grupo {groupIndex + 1}</span>
+                        {allAnswered && !isCurrent && (
+                          <CheckCircle2 className="h-4 w-4 text-green-300" />
+                        )}
+                      </div>
+                      <span className={cn("text-xs", isCurrent ? 'text-white/90' : appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        {group.length} pregunta{group.length > 1 ? 's' : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
+                {quizData.questions.map((q, index) => {
+                  const questionId = q.id || ''
+                  const isAnswered = answers[questionId];
+                  const isCurrent = currentQuestion === index;
+                  return (
+                    <button
+                      key={q.id}
+                      onClick={() => changeQuestion(index)}
+                      className={cn(
+                        "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110",
+                        isCurrent
+                          ? isAnswered
+                            ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
+                            : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
+                          : isAnswered
+                          ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
+                          : (appTheme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300")
+                      )}
+                      title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
+                    >
+                      {index + 1}
+                      {isAnswered && !isCurrent && (
+                        <CheckCircle2 className={cn("absolute -top-1 -right-1 h-3 w-3 text-green-500 rounded-full", appTheme === 'dark' ? 'bg-zinc-800' : 'bg-white')} />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             <div className={cn("mt-4 pt-4 border-t", appTheme === 'dark' ? 'border-zinc-700' : '')}>
               <div className={cn("text-sm mb-2", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Progreso del examen</div>
@@ -1508,8 +2220,8 @@ const ExamWithFirebase = () => {
 
       {/* Modales */}
       {showWarning && <SubmitWarningModal />}
-      {showTabChangeWarning && <TabChangeWarningModal />}
-      {showFullscreenExit && <FullscreenExitModal />}
+      {showTabChangeWarning && !examLocked && tabChangeCount < 2 && <TabChangeWarningModal />}
+      {showFullscreenExit && !examLocked && <FullscreenExitModal />}
     </div>
   )
 }

@@ -48,9 +48,9 @@ const FormSection = ({ theme }: ThemeContextProps) => {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.4 }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        transition={{ duration: 0.05, delay: 0.1}}
+        whileHover={{ scale: 1 }}
+        whileTap={{ scale: 0.5 }}
       >
         <Button
           type="submit"
@@ -81,9 +81,9 @@ const FormSection = ({ theme }: ThemeContextProps) => {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.5 }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        transition={{ duration: 0.05, delay: 0.1}}
+        whileHover={{ scale: 1 }}
+        whileTap={{ scale: 0.5}}
       >
         <Button
           type="button"
@@ -95,7 +95,7 @@ const FormSection = ({ theme }: ThemeContextProps) => {
             'group border-2 h-10',
             theme === 'dark'
               ? 'text-white bg-transparent border-purple-600 hover:bg-purple-600/20 hover:border-purple-500'
-              : 'text-purple-600 bg-transparent border-purple-500 hover:bg-purple-500/10 hover:border-purple-600'
+              : 'text-white bg-transparent border-purple-500 hover:bg-purple-500/10 hover:border-purple-600'
           )}
         >
           <span className="relative z-10 flex items-center justify-center">
