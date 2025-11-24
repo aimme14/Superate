@@ -6,7 +6,6 @@ import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
 import { dbService } from '@/services/firebase/db.service';
 import { PhaseType } from '@/interfaces/phase.interface';
-import { useNotification } from '@/hooks/ui/useNotification';
 
 /**
  * Procesa los resultados de un examen completado según la fase
@@ -97,8 +96,6 @@ export async function processExamResults(
           break;
         }
 
-        const phase1Analysis = phase1Snap.data();
-        
         // Obtener resultado de Fase 1 desde results
         const resultsRef = doc(collection(db, 'results'), userId);
         const resultsSnap = await getDoc(resultsRef);
