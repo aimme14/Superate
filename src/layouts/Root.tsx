@@ -3,8 +3,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { useAuthContext } from '@/context/AuthContext'
 import ScrollToTop from '@/hooks/ui/useScrollTop'
-import { useMemo, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
 
 import { AnimatedBackground as AnimatedBG } from '#/layout/AnimatedBackground'
 import { SidebarInset, SidebarProvider } from '#/ui/sidebar'
@@ -16,16 +16,29 @@ import Navbar from '#/layout/Navbar'
 
 const RootLayout = () => {
   const { user, isAuth } = useAuthContext()
+  const location = useLocation()
   const [openSidebar, setOpenSidebar] = useState(true)
   const isExpanded = !isAuth || (user?.displayName === 'aimme')
-  useMemo(() => setOpenSidebar(isExpanded), [isExpanded, isAuth])
+  
+  // Detectar si estamos en la ruta de quiz
+  const isQuizRoute = location.pathname.startsWith('/quiz')
+  
+  // Ocultar sidebar cuando estamos en quiz
+  useEffect(() => {
+    if (isQuizRoute) {
+      setOpenSidebar(false)
+    } else {
+      setOpenSidebar(isExpanded)
+    }
+  }, [isQuizRoute, isExpanded])
+  
   return (
     <>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <ConfirmProvider>
           <SidebarProvider open={openSidebar} onOpenChange={setOpenSidebar}>
-            {/* Sidebar */}
-            <Sidebar />
+            {/* Sidebar - oculto cuando estamos en quiz */}
+            {!isQuizRoute && <Sidebar />}
 
             {/* Main content */}
             <SidebarInset>

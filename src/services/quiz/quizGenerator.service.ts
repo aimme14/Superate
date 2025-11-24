@@ -230,6 +230,37 @@ class QuizGeneratorService {
         return failure(new ErrorAPI({ message: `No se encontró configuración para ${subject} - ${phase}` }));
       }
 
+      // Lógica especial para Inglés: preguntas agrupadas por tema
+      if (subject === 'Inglés') {
+        console.log(`🇬🇧 Aplicando lógica especial para Inglés con preguntas agrupadas`);
+        const englishResult = await this.getEnglishGroupedQuestions(subject, config, grade, phase);
+        if (!englishResult.success) {
+          return failure(englishResult.error);
+        }
+        const sortedQuestions = englishResult.data;
+        
+        // Generar ID único para el cuestionario
+        const quizId = this.generateQuizId(subject, phase, grade);
+
+        // Crear el cuestionario
+        const quiz: GeneratedQuiz = {
+          id: quizId,
+          title: this.generateQuizTitle(subject, phase),
+          description: this.generateQuizDescription(subject, phase),
+          subject: subject,
+          subjectCode: this.getSubjectCode(subject),
+          phase: phase,
+          questions: sortedQuestions,
+          timeLimit: config.timeLimit || 40,
+          totalQuestions: sortedQuestions.length,
+          instructions: PHASE_INSTRUCTIONS[phase],
+          createdAt: new Date()
+        };
+
+        console.log(`✅ Cuestionario de Inglés generado: ${quiz.title} con ${sortedQuestions.length} preguntas agrupadas`);
+        return success(quiz);
+      }
+
       const subjectRule = SUBJECT_TOPIC_RULES[subject];
       const expectedCount = subjectRule?.totalQuestions || config.questionCount || 15;
 
@@ -414,6 +445,181 @@ class QuizGeneratorService {
     }
 
     return success(questions);
+  }
+
+  /**
+   * Lógica especial para Inglés: selecciona 1 pregunta agrupada por cada uno de los 7 temas
+   * Las preguntas agrupadas comparten el mismo informativeText
+   */
+  private async getEnglishGroupedQuestions(
+    subject: string,
+    config: Partial<QuizConfig>,
+    grade: string | undefined,
+    phase: 'first' | 'second' | 'third'
+  ): Promise<Result<Question[]>> {
+    console.log(`🇬🇧 Generando cuestionario de Inglés con preguntas agrupadas por tema`);
+    
+    const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
+    if (!subjectConfig || !subjectConfig.topics) {
+      return failure(new ErrorAPI({ message: `No se encontró configuración de temas para ${subject}` }));
+    }
+
+    // Para Inglés son 7 temas, necesitamos 1 grupo de preguntas por tema
+    const topics = subjectConfig.topics;
+    const gradeValues = this.getGradeSearchValues(grade);
+    const subjectCode = subjectConfig.code;
+    const levelCode = config.level === 'Fácil' ? 'F' : config.level === 'Medio' ? 'M' : 'D';
+    
+    // Mapa para almacenar grupos de preguntas por tema
+    const topicGroupsMap: Record<string, Question[][]> = {};
+
+    // Para cada tema, buscar todas las preguntas agrupadas disponibles
+    for (const topic of topics) {
+      console.log(`🔍 Buscando grupos de preguntas para tema: ${topic.name} (${topic.code})`);
+      
+      const attempts: QuestionFilters[] = [
+        ...gradeValues.flatMap(gradeValue => ([
+          {
+            subject,
+            subjectCode,
+            topicCode: topic.code,
+            grade: gradeValue,
+            levelCode: phase === 'first' ? 'F' : levelCode, // Primera ronda: nivel fácil
+            limit: 100 // Buscar muchas para tener opciones de grupos
+          },
+          {
+            subject,
+            subjectCode,
+            topic: topic.name,
+            grade: gradeValue,
+            levelCode: phase === 'first' ? 'F' : levelCode,
+            limit: 100
+          }
+        ])),
+        {
+          subject,
+          subjectCode,
+          topicCode: topic.code,
+          levelCode: phase === 'first' ? 'F' : levelCode,
+          limit: 100
+        },
+        {
+          subject,
+          subjectCode,
+          topic: topic.name,
+          levelCode: phase === 'first' ? 'F' : levelCode,
+          limit: 100
+        }
+      ];
+
+      // Obtener todas las preguntas del tema
+      const allQuestions = await this.fetchQuestionsWithFallback(attempts, 100);
+      
+      // Filtrar solo preguntas agrupadas (que tienen informativeText)
+      const groupedQuestions = allQuestions.filter(q => 
+        q.subjectCode === 'IN' && 
+        q.informativeText && 
+        q.informativeText.trim() !== ''
+      );
+
+      // Agrupar preguntas por su informativeText (grupos de preguntas relacionadas)
+      const groupsMap: { [key: string]: Question[] } = {};
+      groupedQuestions.forEach(question => {
+        // Clave única para el grupo: informativeText + tema + grado + nivel + imágenes
+        const groupKey = `${question.informativeText}_${topic.code}_${question.grade}_${question.levelCode}_${JSON.stringify(question.informativeImages || [])}`;
+        if (!groupsMap[groupKey]) {
+          groupsMap[groupKey] = [];
+        }
+        groupsMap[groupKey].push(question);
+      });
+
+      // Convertir el mapa en un array de grupos
+      const groups = Object.values(groupsMap).filter(group => group.length > 0);
+      
+      // Ordenar las preguntas dentro de cada grupo por fecha de creación
+      groups.forEach(group => {
+        group.sort((a, b) => {
+          // Ordenar por número de hueco si es cloze test
+          const aMatch = a.questionText?.match(/hueco \[(\d+)\]/);
+          const bMatch = b.questionText?.match(/hueco \[(\d+)\]/);
+          if (aMatch && bMatch) {
+            return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+          }
+          
+          // Ordenar por fecha de creación
+          const dateA = new Date(a.createdAt).getTime();
+          const dateB = new Date(b.createdAt).getTime();
+          if (dateA !== dateB) {
+            return dateA - dateB;
+          }
+          
+          return a.code.localeCompare(b.code);
+        });
+      });
+
+      topicGroupsMap[topic.code] = groups;
+      console.log(`✅ Encontrados ${groups.length} grupos de preguntas para ${topic.name}`);
+    }
+
+    // Seleccionar 1 grupo aleatorio de cada tema
+    const selectedGroups: Question[][] = [];
+    const usedGroupKeys = new Set<string>();
+
+    for (const topic of topics) {
+      const groups = topicGroupsMap[topic.code] || [];
+      if (groups.length === 0) {
+        console.warn(`⚠️ No se encontraron grupos de preguntas para el tema ${topic.name}`);
+        continue;
+      }
+
+      // Mezclar los grupos para selección aleatoria
+      const shuffledGroups = this.shuffleArray(groups);
+      
+      // Seleccionar el primer grupo disponible (ya está mezclado)
+      const selectedGroup = shuffledGroups[0];
+      
+      // Verificar que no sea un grupo duplicado (mismo informativeText)
+      const groupKey = `${selectedGroup[0]?.informativeText}_${selectedGroup[0]?.topicCode}_${selectedGroup[0]?.grade}_${selectedGroup[0]?.levelCode}`;
+      if (!usedGroupKeys.has(groupKey)) {
+        selectedGroups.push(selectedGroup);
+        usedGroupKeys.add(groupKey);
+        console.log(`✅ Seleccionado 1 grupo de ${selectedGroup.length} preguntas para ${topic.name}`);
+      } else {
+        // Si ya usamos este grupo, intentar con otro
+        const alternativeGroup = shuffledGroups.find(g => {
+          const key = `${g[0]?.informativeText}_${g[0]?.topicCode}_${g[0]?.grade}_${g[0]?.levelCode}`;
+          return !usedGroupKeys.has(key);
+        });
+        
+        if (alternativeGroup) {
+          selectedGroups.push(alternativeGroup);
+          const altKey = `${alternativeGroup[0]?.informativeText}_${alternativeGroup[0]?.topicCode}_${alternativeGroup[0]?.grade}_${alternativeGroup[0]?.levelCode}`;
+          usedGroupKeys.add(altKey);
+          console.log(`✅ Seleccionado grupo alternativo de ${alternativeGroup.length} preguntas para ${topic.name}`);
+        } else {
+          console.warn(`⚠️ No se encontró grupo alternativo para ${topic.name}, usando el disponible`);
+          selectedGroups.push(selectedGroup);
+        }
+      }
+    }
+
+    if (selectedGroups.length === 0) {
+      return failure(new ErrorAPI({ 
+        message: 'No se encontraron grupos de preguntas agrupadas para Inglés. Asegúrate de que existen preguntas con informativeText para todos los temas.' 
+      }));
+    }
+
+    // Mezclar aleatoriamente el orden de los grupos (para que cada estudiante tenga orden diferente)
+    const shuffledSelectedGroups = this.shuffleArray(selectedGroups);
+
+    // Aplanar los grupos en un solo array de preguntas
+    const finalQuestions: Question[] = [];
+    shuffledSelectedGroups.forEach(group => {
+      finalQuestions.push(...group);
+    });
+
+    console.log(`✅ Cuestionario de Inglés generado con ${selectedGroups.length} grupos de preguntas (${finalQuestions.length} preguntas en total)`);
+    return success(finalQuestions);
   }
 
   private balanceQuestionsByTopic(

@@ -133,14 +133,13 @@ export default function InnovativeHero() {
             >
               <p className={cn("text-lg leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                 Nuestra <span className={cn("font-semibold", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')}>inteligencia artificial avanzada</span> analiza
-                tu rendimiento en tiempo real, identifica patrones únicos de aprendizaje y crea un
-                <span className={cn("font-semibold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}> plan personalizado</span> que se adapta a ti.
+                cuales son tus fortalezas y debilidades con el objetico de crear un <span className={cn("font-semibold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>plan personalizado</span> potenciando tus conocimientos al maximo.
               </p>
 
               <div className="grid grid-cols-2 gap-4 pt-4">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                  <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Análisis en tiempo real</span>
+                  <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Análisis de tus conocimientos</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
@@ -148,11 +147,11 @@ export default function InnovativeHero() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Rutas de aprendizaje adaptativas</span>
+                  <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Rutas de aprendizaje basadas en tus necesidades</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
-                  <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Progreso medible</span>
+                  <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Progreso garantizado</span>
                 </div>
               </div>
             </motion.div>
@@ -191,7 +190,7 @@ export default function InnovativeHero() {
                   >
                     <Brain className={cn("w-16 h-16 mx-auto mb-4", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
                     <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
-                    <div className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Personalizada</div>
+                    <div className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Potenciada</div>
                   </motion.div>
                 </div>
               </motion.div>
@@ -257,33 +256,13 @@ export default function InnovativeHero() {
               className={cn("absolute -bottom-4 -left-4 rounded-2xl shadow-xl p-4 border", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-purple-100')}
             >
               <div className="text-center">
-                <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>+45%</div>
-                <div className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Mejora promedio</div>
+                <div className={cn("text-1xl font-bold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>SOLO TU PUEDES</div>
+                <div className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Cambiar tu futuro</div>
               </div>
             </motion.div>
           </motion.div>
         </div>
       </div>
-
-      {/* Indicador de scroll */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2 }}
-        className="absolute bottom-8 left-1/2 transform -translate-x-1/2"
-      >
-        <motion.div
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-          className="w-6 h-10 border-2 border-emerald-400 rounded-full flex justify-center"
-        >
-          <motion.div
-            animate={{ y: [0, 12, 0] }}
-            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-            className="w-1 h-3 bg-emerald-400 rounded-full mt-2"
-          />
-        </motion.div>
-      </motion.div>
     </section>
   )
 }
