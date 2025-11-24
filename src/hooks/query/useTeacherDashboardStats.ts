@@ -18,10 +18,10 @@ export const useTeacherDashboardStats = () => {
       t.email?.toLowerCase() === user.email?.toLowerCase()
     )
     
-    // Si no se encuentra por email, buscar por uid
+    // Si no se encuentra por email, buscar por id
     if (!teacher && user.uid) {
       teacher = teachers.find(t => 
-        t.uid === user.uid || t.id === user.uid
+        t.id === user.uid
       )
     }
     
@@ -29,9 +29,9 @@ export const useTeacherDashboardStats = () => {
   }, [teachers, user])
   
   // Obtener estudiantes de la sede y grado del docente (solo si tenemos campusId y gradeId)
-  const institutionId = currentTeacher?.institutionId || currentTeacher?.inst
-  const campusId = currentTeacher?.campusId || currentTeacher?.campus
-  const gradeId = currentTeacher?.gradeId || currentTeacher?.grade
+  const institutionId = currentTeacher?.institutionId
+  const campusId = currentTeacher?.campusId
+  const gradeId = currentTeacher?.gradeId
   
   const { students: teacherStudents, isLoading: studentsLoading, error: studentsError } = useFilteredStudents({
     campusId: campusId || undefined,

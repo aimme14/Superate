@@ -662,7 +662,7 @@ function StudentsTab({ theme, students, stats }: any) {
 }
 
 // Componente de Resultados
-function ResultsTab({ theme, stats, staticData, COLORS }: any) {
+function ResultsTab({ theme, stats, staticData }: any) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
