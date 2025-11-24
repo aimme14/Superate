@@ -74,11 +74,11 @@ export const useTeacherDashboardStats = () => {
       teacherName: currentTeacher.name || user?.displayName || 'Docente',
       institutionName: currentTeacher.institutionName || user?.institution || 'Institución',
       campusName: currentTeacher.campusName || user?.campus || 'Sede',
-      gradeName: currentTeacher.gradeName || currentTeacher.grade || user?.grade || 'Grado',
+      gradeName: currentTeacher.gradeName || user?.grade || 'Grado',
       teacherEmail: currentTeacher.email || user?.email || '',
-      campusId: currentTeacher.campusId || currentTeacher.campus || '',
-      institutionId: currentTeacher.institutionId || currentTeacher.inst || '',
-      gradeId: currentTeacher.gradeId || currentTeacher.grade || '',
+      campusId: currentTeacher.campusId || '',
+      institutionId: currentTeacher.institutionId || '',
+      gradeId: currentTeacher.gradeId || '',
       
       // Métricas de rendimiento (usando datos reales donde sea posible)
       performanceMetrics: {

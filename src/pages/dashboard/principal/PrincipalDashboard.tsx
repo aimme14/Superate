@@ -74,8 +74,6 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
     ]
   }), [stats])
 
-  const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899']
-
   // Mostrar loading si los datos están cargando
   if (isLoading) {
     return (

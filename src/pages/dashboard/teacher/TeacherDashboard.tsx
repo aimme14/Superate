@@ -14,7 +14,6 @@ import {
   Award,
   CheckCircle2,
   Activity,
-  Loader2,
   BarChart3,
   Sparkles,
   Target,
@@ -25,12 +24,12 @@ import {
 import { cn } from '@/lib/utils'
 import { useTeacherDashboardStats } from '@/hooks/query/useTeacherDashboardStats'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
 
 interface TeacherDashboardProps extends ThemeContextProps {}
 
 export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
-  const { stats, isLoading, currentTeacher, students } = useTeacherDashboardStats()
+  const { stats, isLoading, students } = useTeacherDashboardStats()
   const { institutionName, institutionLogo } = useUserInstitution()
   const [activeTab, setActiveTab] = useState('inicio')
 
