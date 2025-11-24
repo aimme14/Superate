@@ -255,21 +255,28 @@ function StudyPlan({ recommendations, theme = 'light', loadingAI = false }: { re
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className={cn("font-semibold text-lg", theme === 'dark' ? 'text-white' : '')}>{rec.subject} - {rec.topic}</h3>
-                  {'explanation' in rec && rec.explanation && (
-                    <Badge variant="outline" className={cn("text-xs", theme === 'dark' ? 'border-purple-500 text-purple-300' : 'border-purple-500 text-purple-600')}>
-                      <Zap className="h-3 w-3 mr-1" />
-                      IA
-                    </Badge>
-                  )}
+                  {(() => {
+                    const hasExplanation = 'explanation' in rec && rec.explanation && typeof rec.explanation === 'string';
+                    return hasExplanation ? (
+                      <Badge variant="outline" className={cn("text-xs", theme === 'dark' ? 'border-purple-500 text-purple-300' : 'border-purple-500 text-purple-600')}>
+                        <Zap className="h-3 w-3 mr-1" />
+                        IA
+                      </Badge>
+                    ) : null;
+                  })()}
                 </div>
                 <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Tiempo estimado: {rec.timeEstimate}</p>
-                {'explanation' in rec && rec.explanation && (
-                  <div className={cn("mt-3 p-3 rounded-lg bg-gradient-to-r", theme === 'dark' ? 'from-purple-900/30 to-blue-900/30 border border-purple-700/50' : 'from-purple-50 to-blue-50 border border-purple-200')}>
-                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                      <strong className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-600')}>Análisis IA:</strong> {rec.explanation}
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  const hasExplanation = 'explanation' in rec && rec.explanation && typeof rec.explanation === 'string';
+                  const explanation = hasExplanation ? String(rec.explanation) : null;
+                  return explanation ? (
+                    <div className={cn("mt-3 p-3 rounded-lg bg-gradient-to-r", theme === 'dark' ? 'from-purple-900/30 to-blue-900/30 border border-purple-700/50' : 'from-purple-50 to-blue-50 border border-purple-200')}>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                        <strong className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-600')}>Análisis IA:</strong> {explanation}
+                      </p>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="mt-3">
                   <h4 className={cn("text-sm font-medium mb-2", theme === 'dark' ? 'text-white' : '')}>Recursos recomendados:</h4>
                   <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
