@@ -11,6 +11,7 @@ import { firebaseApp } from "@/services/firebase/db.service"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
+import { geminiService } from "@/services/ai/gemini.service"
 import {
   Brain,
   Download,
@@ -225,7 +226,23 @@ function SubjectAnalysis({ subjects, theme = 'light' }: { subjects: SubjectAnaly
 }
 
 // Componente de plan de estudio
-function StudyPlan({ recommendations, theme = 'light' }: { recommendations: AnalysisData['recommendations'], theme?: 'light' | 'dark' }) {
+function StudyPlan({ recommendations, theme = 'light', loadingAI = false }: { recommendations: AnalysisData['recommendations'], theme?: 'light' | 'dark', loadingAI?: boolean }) {
+  if (loadingAI) {
+    return (
+      <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-center gap-3 py-8">
+            <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
+            <div>
+              <p className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Generando recomendaciones con IA...</p>
+              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Gemini 3.0 Pro está analizando tu rendimiento</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {recommendations.map((rec, index) => (
@@ -236,8 +253,23 @@ function StudyPlan({ recommendations, theme = 'light' }: { recommendations: Anal
                 {rec.priority}
               </Badge>
               <div className="flex-1">
-                <h3 className={cn("font-semibold text-lg", theme === 'dark' ? 'text-white' : '')}>{rec.subject} - {rec.topic}</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className={cn("font-semibold text-lg", theme === 'dark' ? 'text-white' : '')}>{rec.subject} - {rec.topic}</h3>
+                  {'explanation' in rec && rec.explanation && (
+                    <Badge variant="outline" className={cn("text-xs", theme === 'dark' ? 'border-purple-500 text-purple-300' : 'border-purple-500 text-purple-600')}>
+                      <Zap className="h-3 w-3 mr-1" />
+                      IA
+                    </Badge>
+                  )}
+                </div>
                 <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Tiempo estimado: {rec.timeEstimate}</p>
+                {'explanation' in rec && rec.explanation && (
+                  <div className={cn("mt-3 p-3 rounded-lg bg-gradient-to-r", theme === 'dark' ? 'from-purple-900/30 to-blue-900/30 border border-purple-700/50' : 'from-purple-50 to-blue-50 border border-purple-200')}>
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                      <strong className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-600')}>Análisis IA:</strong> {rec.explanation}
+                    </p>
+                  </div>
+                )}
                 <div className="mt-3">
                   <h4 className={cn("text-sm font-medium mb-2", theme === 'dark' ? 'text-white' : '')}>Recursos recomendados:</h4>
                   <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
@@ -299,6 +331,7 @@ export default function ICFESAnalysisInterface() {
   const [activeTab, setActiveTab] = useState("overview")
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingAI, setLoadingAI] = useState(false);
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
@@ -332,6 +365,11 @@ export default function ICFESAnalysisInterface() {
           // Procesar datos para el análisis
           const processedData = processEvaluationData(evaluationsArray, user);
           setAnalysisData(processedData);
+          
+          // Generar recomendaciones con IA si está disponible
+          if (geminiService.isAvailable() && processedData.subjects.length > 0) {
+            generateAIRecommendations(processedData);
+          }
         }
       } catch (error) {
         console.error("Error al obtener los datos:", error);
@@ -442,7 +480,7 @@ export default function ICFESAnalysisInterface() {
         completionRate: totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0,
         securityIssues
       },
-      recommendations: generateRecommendations(subjects)
+      recommendations: generateBasicRecommendations(subjects)
     };
   };
 
@@ -476,7 +514,8 @@ export default function ICFESAnalysisInterface() {
     };
   };
 
-  const generateRecommendations = (subjects: SubjectAnalysis[]) => {
+  // Función de respaldo para generar recomendaciones básicas
+  const generateBasicRecommendations = (subjects: SubjectAnalysis[]) => {
     return subjects
       .filter(subject => subject.percentage < 70)
       .sort((a, b) => a.percentage - b.percentage)
@@ -490,8 +529,69 @@ export default function ICFESAnalysisInterface() {
           `Ejercicios prácticos`,
           `Simulacros específicos`
         ],
-        timeEstimate: `${2 + index} semanas`
+        timeEstimate: `${2 + index} semanas`,
+        explanation: `Se recomienda enfocarse en mejorar el rendimiento en ${subject.name}`
       }));
+  };
+
+  // Generar recomendaciones con IA usando Gemini
+  const generateAIRecommendations = async (data: AnalysisData) => {
+    if (!geminiService.isAvailable()) {
+      return;
+    }
+
+    setLoadingAI(true);
+    try {
+      const result = await geminiService.generateRecommendations({
+        subjects: data.subjects.map(subject => ({
+          name: subject.name,
+          percentage: subject.percentage,
+          strengths: subject.strengths,
+          weaknesses: subject.weaknesses
+        })),
+        overall: {
+          averagePercentage: data.overall.averagePercentage,
+          score: data.overall.score
+        },
+        patterns: {
+          strongestArea: data.patterns.strongestArea,
+          weakestArea: data.patterns.weakestArea,
+          timeManagement: data.patterns.timeManagement
+        }
+      });
+
+      if (result.success && result.recommendations) {
+        setAnalysisData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            recommendations: result.recommendations || []
+          };
+        });
+      } else {
+        console.warn('No se pudieron generar recomendaciones con IA, usando recomendaciones básicas');
+        // Usar recomendaciones básicas como respaldo
+        setAnalysisData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            recommendations: generateBasicRecommendations(prev.subjects)
+          };
+        });
+      }
+    } catch (error) {
+      console.error('Error al generar recomendaciones con IA:', error);
+      // Usar recomendaciones básicas como respaldo
+      setAnalysisData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          recommendations: generateBasicRecommendations(prev.subjects)
+        };
+      });
+    } finally {
+      setLoadingAI(false);
+    }
   };
 
   const handleExportPDF = () => {
@@ -931,8 +1031,8 @@ export default function ICFESAnalysisInterface() {
 
           {/* Study Plan Tab */}
           <TabsContent value="study-plan" className="space-y-6">
-            {analysisData.recommendations.length > 0 ? (
-              <StudyPlan recommendations={analysisData.recommendations} theme={theme} />
+            {loadingAI || (analysisData.recommendations.length > 0) ? (
+              <StudyPlan recommendations={analysisData.recommendations} theme={theme} loadingAI={loadingAI} />
             ) : (
               <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                 <CardHeader>

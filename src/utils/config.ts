@@ -14,5 +14,11 @@ export default {
     storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  },
+
+  // Gemini AI config
+  gemini: {
+    apiKey: import.meta.env.VITE_GEMINI_API_KEY,
+    model: 'gemini-2.0-flash-exp', // Gemini 3.0 Pro (usando el modelo más reciente disponible)
   }
 }
