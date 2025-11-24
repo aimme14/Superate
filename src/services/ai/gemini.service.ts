@@ -375,6 +375,299 @@ Sé estratégico, específico y accionable. Responde SOLO con el JSON, sin texto
       };
     }
   }
+
+  /**
+   * Genera una ruta de mejoramiento personalizada basada en el análisis de Fase 1
+   */
+  async generateImprovementRoute(analysisData: {
+    studentId: string;
+    subject: string;
+    overallScore: number;
+    strengths: string[];
+    weaknesses: string[];
+    primaryWeakness: string;
+    topicPerformance: Array<{
+      topic: string;
+      percentage: number;
+      correct: number;
+      total: number;
+    }>;
+  }): Promise<{
+    success: boolean;
+    route?: {
+      primaryFocus: string;
+      resources: Array<{
+        type: 'video' | 'quiz' | 'exercise' | 'material' | 'reading';
+        title: string;
+        description: string;
+        url?: string;
+        topic: string;
+        priority: 'high' | 'medium' | 'low';
+      }>;
+      studyPlan: Array<{
+        week: number;
+        topics: string[];
+        activities: string[];
+        goals: string[];
+      }>;
+      estimatedTime: string;
+      description: string;
+    };
+    error?: string;
+  }> {
+    if (!this.isAvailable()) {
+      return {
+        success: false,
+        error: 'Servicio de IA no disponible'
+      };
+    }
+
+    try {
+      const prompt = `Eres un tutor educativo experto. Genera una ruta de mejoramiento personalizada y detallada para un estudiante.
+
+Datos del estudiante:
+- Materia: ${analysisData.subject}
+- Puntuación general: ${analysisData.overallScore.toFixed(1)}%
+- Fortalezas: ${analysisData.strengths.join(', ') || 'Ninguna identificada'}
+- Debilidades: ${analysisData.weaknesses.join(', ') || 'Ninguna identificada'}
+- Debilidad principal: ${analysisData.primaryWeakness}
+
+Rendimiento por tema:
+${analysisData.topicPerformance.map(tp => `
+- ${tp.topic}: ${tp.percentage.toFixed(1)}% (${tp.correct}/${tp.total} correctas)
+`).join('')}
+
+Genera una ruta de mejoramiento completa en formato JSON:
+{
+  "primaryFocus": "Tema principal a trabajar",
+  "resources": [
+    {
+      "type": "video|quiz|exercise|material|reading",
+      "title": "Título del recurso",
+      "description": "Descripción detallada",
+      "url": "URL opcional",
+      "topic": "Tema relacionado",
+      "priority": "high|medium|low"
+    }
+  ],
+  "studyPlan": [
+    {
+      "week": 1,
+      "topics": ["Tema 1", "Tema 2"],
+      "activities": ["Actividad 1", "Actividad 2"],
+      "goals": ["Meta 1", "Meta 2"]
+    }
+  ],
+  "estimatedTime": "X semanas",
+  "description": "Descripción general de la ruta de mejoramiento (párrafo completo)"
+}
+
+Enfócate en:
+1. La debilidad principal (${analysisData.primaryWeakness})
+2. Recursos específicos y accionables
+3. Un plan de estudio semanal realista
+4. Metas claras y alcanzables
+
+Responde SOLO con el JSON, sin texto adicional.`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No se pudo extraer JSON de la respuesta');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      return {
+        success: true,
+        route: parsed
+      };
+    } catch (error: any) {
+      console.error('Error al generar ruta de mejoramiento con Gemini:', error);
+      return {
+        success: false,
+        error: error.message || 'Error desconocido al generar ruta de mejoramiento'
+      };
+    }
+  }
+
+  /**
+   * Analiza el avance entre Fase 1 y Fase 2
+   */
+  async analyzePhaseProgress(progressData: {
+    subject: string;
+    phase1Score: number;
+    phase2Score: number;
+    improvement: number;
+    weaknessImprovement: Array<{
+      topic: string;
+      phase1Percentage: number;
+      phase2Percentage: number;
+      improvement: number;
+    }>;
+  }): Promise<{
+    success: boolean;
+    analysis?: {
+      summary: string;
+      hasImproved: boolean;
+      improvementAreas: string[];
+      persistentWeaknesses: string[];
+      recommendations: string[];
+      motivation: string;
+    };
+    error?: string;
+  }> {
+    if (!this.isAvailable()) {
+      return {
+        success: false,
+        error: 'Servicio de IA no disponible'
+      };
+    }
+
+    try {
+      const prompt = `Eres un analista educativo. Analiza el progreso de un estudiante entre dos fases evaluativas.
+
+Materia: ${progressData.subject}
+Puntuación Fase 1: ${progressData.phase1Score.toFixed(1)}%
+Puntuación Fase 2: ${progressData.phase2Score.toFixed(1)}%
+Mejora general: ${progressData.improvement > 0 ? '+' : ''}${progressData.improvement.toFixed(1)}%
+
+Mejoras por tema:
+${progressData.weaknessImprovement.map(wi => `
+- ${wi.topic}: 
+  Fase 1: ${wi.phase1Percentage.toFixed(1)}%
+  Fase 2: ${wi.phase2Percentage.toFixed(1)}%
+  Mejora: ${wi.improvement > 0 ? '+' : ''}${wi.improvement.toFixed(1)}%
+`).join('')}
+
+Genera un análisis completo en formato JSON:
+{
+  "summary": "Resumen ejecutivo del progreso (2-3 oraciones)",
+  "hasImproved": true|false,
+  "improvementAreas": ["Área 1", "Área 2"],
+  "persistentWeaknesses": ["Debilidad 1", "Debilidad 2"],
+  "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"],
+  "motivation": "Mensaje motivador personalizado (1-2 oraciones)"
+}
+
+Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto adicional.`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No se pudo extraer JSON de la respuesta');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      return {
+        success: true,
+        analysis: parsed
+      };
+    } catch (error: any) {
+      console.error('Error al analizar progreso con Gemini:', error);
+      return {
+        success: false,
+        error: error.message || 'Error desconocido al analizar progreso'
+      };
+    }
+  }
+
+  /**
+   * Genera diagnóstico final ICFES con recomendaciones
+   */
+  async generateICFESDiagnosis(diagnosisData: {
+    subject: string;
+    icfesScore: number;
+    percentage: number;
+    topicScores: Array<{
+      topic: string;
+      score: number;
+      percentage: number;
+    }>;
+    phase1Score?: number;
+    phase2Score?: number;
+  }): Promise<{
+    success: boolean;
+    diagnosis?: {
+      overallDiagnosis: string;
+      scoreInterpretation: string;
+      strengths: string[];
+      weaknesses: string[];
+      recommendations: string[];
+      nextSteps: string[];
+    };
+    error?: string;
+  }> {
+    if (!this.isAvailable()) {
+      return {
+        success: false,
+        error: 'Servicio de IA no disponible'
+      };
+    }
+
+    try {
+      const progressContext = diagnosisData.phase1Score && diagnosisData.phase2Score
+        ? `
+Progreso a través de las fases:
+- Fase 1: ${diagnosisData.phase1Score.toFixed(1)}%
+- Fase 2: ${diagnosisData.phase2Score.toFixed(1)}%
+- Fase 3 (ICFES): ${diagnosisData.percentage.toFixed(1)}%
+`
+        : '';
+
+      const prompt = `Eres un evaluador experto en pruebas ICFES. Genera un diagnóstico final completo y recomendaciones.
+
+Materia: ${diagnosisData.subject}
+Puntaje ICFES: ${diagnosisData.icfesScore}/500
+Porcentaje: ${diagnosisData.percentage.toFixed(1)}%
+${progressContext}
+Puntajes por tema:
+${diagnosisData.topicScores.map(ts => `
+- ${ts.topic}: ${ts.score}/500 (${ts.percentage.toFixed(1)}%)
+`).join('')}
+
+Genera un diagnóstico completo en formato JSON:
+{
+  "overallDiagnosis": "Diagnóstico general detallado (2-3 párrafos)",
+  "scoreInterpretation": "Interpretación del puntaje ICFES (1 párrafo)",
+  "strengths": ["Fortaleza 1", "Fortaleza 2"],
+  "weaknesses": ["Debilidad 1", "Debilidad 2"],
+  "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"],
+  "nextSteps": ["Paso siguiente 1", "Paso siguiente 2"]
+}
+
+Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto adicional.`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No se pudo extraer JSON de la respuesta');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      return {
+        success: true,
+        diagnosis: parsed
+      };
+    } catch (error: any) {
+      console.error('Error al generar diagnóstico ICFES con Gemini:', error);
+      return {
+        success: false,
+        error: error.message || 'Error desconocido al generar diagnóstico ICFES'
+      };
+    }
+  }
 }
 
 export const geminiService = GeminiService.getInstance();

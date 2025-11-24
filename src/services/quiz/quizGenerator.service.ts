@@ -3,6 +3,7 @@ import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME, GRADE_MAPPING } from '@/utils/subj
 import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
+import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 
 /**
  * Configuración de cuestionarios por materia y fase
@@ -219,15 +220,22 @@ class QuizGeneratorService {
   async generateQuiz(
     subject: string,
     phase: 'first' | 'second' | 'third',
-    grade?: string
+    grade?: string,
+    studentId?: string
   ): Promise<Result<GeneratedQuiz>> {
     try {
-      console.log(`🎯 Generando cuestionario: ${subject} - ${phase}${grade ? ` - Grado ${grade}` : ''}`);
+      console.log(`🎯 Generando cuestionario: ${subject} - ${phase}${grade ? ` - Grado ${grade}` : ''}${studentId ? ` - Estudiante ${studentId}` : ''}`);
 
       // Obtener configuración para la materia y fase
       const config = this.getQuizConfig(subject, phase);
       if (!config) {
         return failure(new ErrorAPI({ message: `No se encontró configuración para ${subject} - ${phase}` }));
+      }
+
+      // Para Fase 2, usar distribución personalizada si hay studentId
+      if (phase === 'second' && studentId && subject !== 'Inglés') {
+        console.log(`📊 Generando cuestionario personalizado Fase 2 para ${studentId}`);
+        return await this.generatePersonalizedPhase2Quiz(subject, config, grade, studentId);
       }
 
       // Lógica especial para Inglés: preguntas agrupadas por tema
@@ -996,6 +1004,191 @@ class QuizGeneratorService {
     };
 
     return descriptions[phase as keyof typeof descriptions];
+  }
+
+  /**
+   * Genera un cuestionario personalizado para Fase 2 basado en debilidades
+   */
+  private async generatePersonalizedPhase2Quiz(
+    subject: string,
+    config: Partial<QuizConfig>,
+    grade: string | undefined,
+    studentId: string
+  ): Promise<Result<GeneratedQuiz>> {
+    try {
+      // Obtener distribución personalizada
+      const totalQuestions = config.questionCount || 18;
+      const distributionResult = await phaseAnalysisService.generatePhase2Distribution(
+        studentId,
+        subject,
+        totalQuestions
+      );
+
+      if (!distributionResult.success) {
+        console.warn('⚠️ No se pudo obtener distribución personalizada, usando distribución estándar');
+        // Fallback a distribución estándar
+        return this.generateStandardPhase2Quiz(subject, config, grade);
+      }
+
+      const distribution = distributionResult.data;
+      const questions: Question[] = [];
+
+      // Obtener preguntas de la debilidad principal (50%)
+      const primaryWeaknessQuestions = await this.getQuestionsForTopic(
+        subject,
+        distribution.primaryWeakness,
+        distribution.primaryWeaknessCount,
+        grade,
+        config.level || 'Medio'
+      );
+      questions.push(...primaryWeaknessQuestions);
+
+      // Obtener preguntas de otros temas (50% distribuido)
+      const questionsPerOtherTopic = distribution.otherTopics.length > 0
+        ? Math.floor(distribution.otherTopicsCount / distribution.otherTopics.length)
+        : 0;
+
+      for (const topic of distribution.otherTopics) {
+        const topicQuestions = await this.getQuestionsForTopic(
+          subject,
+          topic,
+          questionsPerOtherTopic,
+          grade,
+          config.level || 'Medio'
+        );
+        questions.push(...topicQuestions);
+      }
+
+      // Mezclar preguntas
+      const shuffledQuestions = this.shuffleArray(questions);
+
+      // Generar ID único para el cuestionario
+      const quizId = this.generateQuizId(subject, 'second', grade);
+
+      // Crear el cuestionario
+      const quiz: GeneratedQuiz = {
+        id: quizId,
+        title: this.generateQuizTitle(subject, 'second'),
+        description: `Refuerzo personalizado de ${subject} enfocado en ${distribution.primaryWeakness}`,
+        subject: subject,
+        subjectCode: this.getSubjectCode(subject),
+        phase: 'second',
+        questions: shuffledQuestions,
+        timeLimit: config.timeLimit || 50,
+        totalQuestions: shuffledQuestions.length,
+        instructions: PHASE_INSTRUCTIONS.second,
+        createdAt: new Date()
+      };
+
+      console.log(`✅ Cuestionario personalizado Fase 2 generado: ${quiz.title} con ${shuffledQuestions.length} preguntas`);
+      console.log(`   - ${distribution.primaryWeaknessCount} preguntas de ${distribution.primaryWeakness}`);
+      console.log(`   - ${distribution.otherTopicsCount} preguntas distribuidas en otros temas`);
+      return success(quiz);
+    } catch (e) {
+      console.error('❌ Error generando cuestionario personalizado Fase 2:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'generar cuestionario personalizado Fase 2')));
+    }
+  }
+
+  /**
+   * Genera cuestionario estándar para Fase 2 (fallback)
+   */
+  private async generateStandardPhase2Quiz(
+    subject: string,
+    config: Partial<QuizConfig>,
+    grade: string | undefined
+  ): Promise<Result<GeneratedQuiz>> {
+    const subjectRule = SUBJECT_TOPIC_RULES[subject];
+    const expectedCount = subjectRule?.totalQuestions || config.questionCount || 15;
+
+    let questions: Question[] = [];
+
+    if (subjectRule) {
+      const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule);
+      if (topicResult.success) {
+        questions = topicResult.data;
+      } else {
+        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+        if (generalResult.success) {
+          questions = generalResult.data;
+        }
+      }
+    } else {
+      const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+      if (generalResult.success) {
+        questions = generalResult.data;
+      }
+    }
+
+    const quizId = this.generateQuizId(subject, 'second', grade);
+    const quiz: GeneratedQuiz = {
+      id: quizId,
+      title: this.generateQuizTitle(subject, 'second'),
+      description: this.generateQuizDescription(subject, 'second'),
+      subject: subject,
+      subjectCode: this.getSubjectCode(subject),
+      phase: 'second',
+      questions: questions,
+      timeLimit: config.timeLimit || 50,
+      totalQuestions: questions.length,
+      instructions: PHASE_INSTRUCTIONS.second,
+      createdAt: new Date()
+    };
+
+    return success(quiz);
+  }
+
+  /**
+   * Obtiene preguntas para un tema específico
+   */
+  private async getQuestionsForTopic(
+    subject: string,
+    topic: string,
+    count: number,
+    grade: string | undefined,
+    level: string
+  ): Promise<Question[]> {
+    const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
+    if (!subjectConfig) {
+      return [];
+    }
+
+    const topicConfig = subjectConfig.topics?.find(t => t.name === topic);
+    const topicCode = topicConfig?.code || '';
+    const levelCode = level === 'Fácil' ? 'F' : level === 'Medio' ? 'M' : 'D';
+    const gradeValues = this.getGradeSearchValues(grade);
+    const subjectCode = subjectConfig.code;
+
+    const attempts: QuestionFilters[] = [
+      ...gradeValues.flatMap(gradeValue => ([
+        {
+          subject,
+          subjectCode,
+          topicCode,
+          topic,
+          grade: gradeValue,
+          levelCode,
+          limit: count * 3
+        }
+      ])),
+      {
+        subject,
+        subjectCode,
+        topicCode,
+        topic,
+        levelCode,
+        limit: count * 2
+      },
+      {
+        subject,
+        topic,
+        levelCode,
+        limit: count * 2
+      }
+    ];
+
+    const questions = await this.fetchQuestionsWithFallback(attempts, count);
+    return questions;
   }
 
   /**

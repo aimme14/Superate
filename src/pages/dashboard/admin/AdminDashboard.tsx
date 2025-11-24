@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
 import InstitutionManagement from '@/components/admin/InstitutionManagement'
 import QuestionBank from '@/components/admin/QuestionBank'
+import PhaseAuthorizationManagement from '@/components/admin/PhaseAuthorizationManagement'
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
@@ -88,7 +89,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={cn("grid w-full grid-cols-5", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+        <TabsList className={cn("grid w-full grid-cols-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <TabsTrigger value="overview" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Home className="h-4 w-4" />
             <span>Resumen</span>
@@ -104,6 +105,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           <TabsTrigger value="questions" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <BookOpen className="h-4 w-4" />
             <span>Preguntas</span>
+          </TabsTrigger>
+          <TabsTrigger value="phases" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
+            <Lock className="h-4 w-4" />
+            <span>Fases</span>
           </TabsTrigger>
           <TabsTrigger value="analytics" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <BarChart3 className="h-4 w-4" />
@@ -413,6 +418,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
         <TabsContent value="questions">
           <QuestionBank theme={theme} />
+        </TabsContent>
+
+        <TabsContent value="phases">
+          <PhaseAuthorizationManagement theme={theme} />
         </TabsContent>
 
         <TabsContent value="analytics">

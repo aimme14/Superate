@@ -15,6 +15,9 @@ import ImageGallery from "@/components/common/ImageGallery";
 import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
+import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
+import { useNotification } from "@/hooks/ui/useNotification";
+import { dbService } from "@/services/firebase/db.service";
 
 const db = getFirestore(firebaseApp);
 
@@ -64,6 +67,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const navigate = useNavigate()
   const { user } = useAuthContext();
   const { theme } = useThemeContext();
+  const { notifySuccess, notifyError } = useNotification();
   const userId = user?.uid;
 
   // Usar sanitizeMathHtml para permitir fórmulas matemáticas de KaTeX
@@ -115,6 +119,25 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         const quiz = quizResult.data;
         setQuizData(quiz);
         setTimeLeft(quiz.timeLimit * 60);
+
+        // Verificar acceso a la fase antes de permitir iniciar
+        const userResult = await dbService.getUserById(userId);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data;
+          const gradeId = studentData.gradeId || studentData.grade;
+
+          if (gradeId) {
+            const accessCheck = await checkPhaseAccess(userId, gradeId, phase);
+            if (!accessCheck.canAccess) {
+              setExamState('blocked');
+              notifyError({
+                title: 'Acceso bloqueado',
+                message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
+              });
+              return;
+            }
+          }
+        }
 
         // Verificar si ya se presentó este examen
         const existingExam = await checkExamStatus(userId, quiz.id);
@@ -278,6 +301,38 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
+
+      // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
+      if (result.success && quizData.phase) {
+        try {
+          const processResult = await processExamResults(
+            userId!,
+            quizData.subject,
+            quizData.phase,
+            examResult
+          );
+
+          if (processResult.success) {
+            console.log('✅ Resultados procesados exitosamente');
+            if (quizData.phase === 'first') {
+              notifySuccess({
+                title: 'Análisis completado',
+                message: 'Tu rendimiento ha sido analizado. Revisa tu plan de mejoramiento personalizado.'
+              });
+            }
+          } else {
+            console.error('⚠️ Error procesando resultados:', processResult.error);
+            notifyError({
+              title: 'Advertencia',
+              message: 'El examen se guardó pero hubo un error al procesar el análisis. Los resultados están disponibles.'
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error procesando resultados:', error);
+          // No mostrar error al usuario, el examen ya se guardó
+        }
+      }
+
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)
@@ -1374,6 +1429,41 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}
       {examState === 'already_taken' && <AlreadyTakenScreen />}
+
+      {examState === 'blocked' && (
+        <div className="max-w-2xl mx-auto">
+          <Card className={cn("shadow-lg", theme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-red-800' : 'border-red-200')}>
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", theme === 'dark' ? 'bg-red-900/50' : 'bg-red-100')}>
+                  <AlertCircle className={cn("h-8 w-8", theme === 'dark' ? 'text-red-400' : 'text-red-600')} />
+                </div>
+              </div>
+              <CardTitle className={cn("text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-800')}>Acceso Bloqueado</CardTitle>
+              <CardDescription className={cn("text-lg", theme === 'dark' ? 'text-gray-400' : '')}>
+                No tienes acceso a esta fase evaluativa
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert className={cn(theme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertTitle className={cn(theme === 'dark' ? 'text-red-300' : 'text-red-800')}>Información</AlertTitle>
+                <AlertDescription className={cn(theme === 'dark' ? 'text-red-200' : 'text-red-700')}>
+                  Esta fase aún no está disponible para ti. Debes completar la fase anterior y esperar la autorización del administrador.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+            <CardFooter className="flex justify-center">
+              <Button
+                onClick={() => navigate('/dashboard#fases')}
+                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+              >
+                Ver Estado de Fases
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
 
       {/* Modales - siempre al final para que estén encima de todo */}
       {showWarning && <SubmitWarningModal />}
