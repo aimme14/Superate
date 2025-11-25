@@ -1,4 +1,4 @@
-import { HousePlug, ContactRound, NotepadText, BarChart2, Apple, Target } from "lucide-react"
+import { HousePlug, ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
 import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { useAuthContext } from "@/context/AuthContext"
 import { User } from "@/interfaces/context.interface"
@@ -12,7 +12,6 @@ import { useEffect } from "react"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
-import PhaseDashboard from "@/components/student/PhaseDashboard"
   
 
 export function Home() {
@@ -55,7 +54,6 @@ export function Home() {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/dashboard#fases" icon={<Target className="w-5 h-5" />} text="Fases Evaluativas" theme={theme} />
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
             <NavItem href="/exam-analyzer" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso" theme={theme}/>
@@ -72,23 +70,6 @@ export function Home() {
           <InnovativeHero />
         </section>
 
-        {/* Sección de Fases Evaluativas */}
-        <section id="fases" className={cn("py-12", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
-          <div className="container mx-auto px-4">
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-              <h2 className={cn("text-4xl font-bold mb-4 text-center", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                Sistema de{" "}
-                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Evaluación por Fases
-                </span>
-              </h2>
-              <p className={cn("text-xl max-w-3xl mx-auto text-center", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Completa cada fase para desbloquear la siguiente. Tu progreso será analizado por IA para generar planes de mejoramiento personalizados.
-              </p>
-            </motion.div>
-            <PhaseDashboard theme={theme} />
-          </div>
-        </section>
 
         {/* Alert Section Mejorado */}
         <section className={cn("py-8", theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-r from-blue-50/50 to-indigo-50/50')}>

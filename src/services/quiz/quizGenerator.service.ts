@@ -4,6 +4,9 @@ import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
 import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
+import { questionTrackingService } from './questionTracking.service';
+import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
+import { dbService } from '@/services/firebase/db.service';
 
 /**
  * Configuración de cuestionarios por materia y fase
@@ -41,119 +44,119 @@ export interface GeneratedQuiz {
 const QUIZ_CONFIGURATIONS: Record<string, Record<string, Partial<QuizConfig>>> = {
   'Matemáticas': {
     first: {
-      questionCount: 18,
+      questionCount: 18, // 6 Álgebra/Cálculo + 6 Geometría + 6 Estadística
       timeLimit: 45,
       level: 'Fácil'
     },
     second: {
-      questionCount: 18,
+      questionCount: 18, // Mismas cantidades que Fase 1
       timeLimit: 50,
       level: 'Medio'
     },
     third: {
-      questionCount: 18,
+      questionCount: 30, // 10 Álgebra/Cálculo + 10 Geometría + 10 Estadística
       timeLimit: 60,
       level: 'Difícil'
     }
   },
   'Lenguaje': {
     first: {
-      questionCount: 18,
+      questionCount: 18, // 6 por cada tema (3 temas)
       timeLimit: 40,
       level: 'Fácil'
     },
     second: {
-      questionCount: 18,
+      questionCount: 18, // Mismas cantidades que Fase 1
       timeLimit: 45,
       level: 'Medio'
     },
     third: {
-      questionCount: 18,
+      questionCount: 36, // 12 por cada tema (3 temas)
       timeLimit: 55,
       level: 'Difícil'
     }
   },
   'Ciencias Sociales': {
     first: {
-      questionCount: 20,
+      questionCount: 20, // 5 por cada tema (4 temas)
       timeLimit: 40,
       level: 'Fácil'
     },
     second: {
-      questionCount: 20,
+      questionCount: 20, // Mismas cantidades que Fase 1
       timeLimit: 45,
       level: 'Medio'
     },
     third: {
-      questionCount: 20,
+      questionCount: 40, // 10 por cada tema (4 temas)
       timeLimit: 50,
       level: 'Difícil'
     }
   },
   'Biologia': {
     first: {
-      questionCount: 15,
+      questionCount: 15, // 5 por cada tema (3 temas)
       timeLimit: 35,
       level: 'Fácil'
     },
     second: {
-      questionCount: 15,
+      questionCount: 15, // Mismas cantidades que Fase 1
       timeLimit: 40,
       level: 'Medio'
     },
     third: {
-      questionCount: 15,
+      questionCount: 30, // 10 por cada tema (3 temas)
       timeLimit: 45,
       level: 'Difícil'
     }
   },
   'Quimica': {
     first: {
-      questionCount: 15,
+      questionCount: 20, // 5 por cada tema (4 temas)
       timeLimit: 35,
       level: 'Fácil'
     },
     second: {
-      questionCount: 15,
+      questionCount: 20, // Mismas cantidades que Fase 1
       timeLimit: 40,
       level: 'Medio'
     },
     third: {
-      questionCount: 15,
+      questionCount: 40, // 10 por cada tema (4 temas)
       timeLimit: 45,
       level: 'Difícil'
     }
   },
   'Física': {
     first: {
-      questionCount: 15,
+      questionCount: 20, // 5 por cada tema (4 temas)
       timeLimit: 35,
       level: 'Fácil'
     },
     second: {
-      questionCount: 15,
+      questionCount: 20, // Mismas cantidades que Fase 1
       timeLimit: 40,
       level: 'Medio'
     },
     third: {
-      questionCount: 15,
+      questionCount: 40, // 10 por cada tema (4 temas)
       timeLimit: 45,
       level: 'Difícil'
     }
   },
   'Inglés': {
     first: {
-      questionCount: 12,
+      questionCount: 7, // 1 pregunta agrupada por tema (7 temas), nivel Fácil
       timeLimit: 30,
       level: 'Fácil'
     },
     second: {
-      questionCount: 14,
+      questionCount: 7, // Misma cantidad, nivel Medio
       timeLimit: 35,
       level: 'Medio'
     },
     third: {
-      questionCount: 16,
+      questionCount: 7, // Misma cantidad, nivel Difícil
       timeLimit: 40,
       level: 'Difícil'
     }
@@ -192,13 +195,56 @@ interface SubjectTopicRule {
   perTopicTarget: number;
 }
 
+/**
+ * Configuración de cantidades por tema según la fase
+ */
+interface PhaseTopicDistribution {
+  first: { totalQuestions: number; perTopicTarget: number };
+  second: { totalQuestions: number; perTopicTarget: number };
+  third: { totalQuestions: number; perTopicTarget: number };
+}
+
+const SUBJECT_PHASE_DISTRIBUTIONS: Record<string, PhaseTopicDistribution> = {
+  'Lenguaje': {
+    first: { totalQuestions: 18, perTopicTarget: 6 }, // 6 por cada tema (3 temas)
+    second: { totalQuestions: 18, perTopicTarget: 6 }, // Mismas cantidades que Fase 1
+    third: { totalQuestions: 36, perTopicTarget: 12 } // 12 por cada tema (3 temas)
+  },
+  'Matemáticas': {
+    first: { totalQuestions: 18, perTopicTarget: 6 }, // 6 por cada tema (3 temas: Álgebra/Cálculo, Geometría, Estadística)
+    second: { totalQuestions: 18, perTopicTarget: 6 }, // Mismas cantidades que Fase 1
+    third: { totalQuestions: 30, perTopicTarget: 10 } // 10 por cada tema (3 temas)
+  },
+  'Ciencias Sociales': {
+    first: { totalQuestions: 20, perTopicTarget: 5 }, // 5 por cada tema (4 temas)
+    second: { totalQuestions: 20, perTopicTarget: 5 }, // Mismas cantidades que Fase 1
+    third: { totalQuestions: 40, perTopicTarget: 10 } // 10 por cada tema (4 temas)
+  },
+  'Biologia': {
+    first: { totalQuestions: 15, perTopicTarget: 5 }, // 5 por cada tema (3 temas)
+    second: { totalQuestions: 15, perTopicTarget: 5 }, // Mismas cantidades que Fase 1
+    third: { totalQuestions: 30, perTopicTarget: 10 } // 10 por cada tema (3 temas)
+  },
+  'Física': {
+    first: { totalQuestions: 20, perTopicTarget: 5 }, // 5 por cada tema (4 temas)
+    second: { totalQuestions: 20, perTopicTarget: 5 }, // Mismas cantidades que Fase 1
+    third: { totalQuestions: 40, perTopicTarget: 10 } // 10 por cada tema (4 temas)
+  },
+  'Quimica': {
+    first: { totalQuestions: 20, perTopicTarget: 5 }, // 5 por cada tema (4 temas)
+    second: { totalQuestions: 20, perTopicTarget: 5 }, // Mismas cantidades que Fase 1
+    third: { totalQuestions: 40, perTopicTarget: 10 } // 10 por cada tema (4 temas)
+  }
+};
+
+// Mantener compatibilidad con código existente
 const SUBJECT_TOPIC_RULES: Record<string, SubjectTopicRule> = {
   'Lenguaje': { totalQuestions: 18, perTopicTarget: 6 },
   'Matemáticas': { totalQuestions: 18, perTopicTarget: 6 },
   'Ciencias Sociales': { totalQuestions: 20, perTopicTarget: 5 },
-  'Biologia': { totalQuestions: 15, perTopicTarget: 6 },
-  'Física': { totalQuestions: 15, perTopicTarget: 6 },
-  'Quimica': { totalQuestions: 15, perTopicTarget: 6 },
+  'Biologia': { totalQuestions: 15, perTopicTarget: 5 },
+  'Física': { totalQuestions: 20, perTopicTarget: 5 },
+  'Quimica': { totalQuestions: 20, perTopicTarget: 5 },
 };
 
 /**
@@ -226,22 +272,80 @@ class QuizGeneratorService {
     try {
       console.log(`🎯 Generando cuestionario: ${subject} - ${phase}${grade ? ` - Grado ${grade}` : ''}${studentId ? ` - Estudiante ${studentId}` : ''}`);
 
+      // Validar autorización de fase si hay studentId (capa adicional de seguridad)
+      if (studentId) {
+        const userResult = await dbService.getUserById(studentId);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data;
+          const gradeId = studentData.gradeId || studentData.grade;
+          
+          if (gradeId) {
+            // Verificar si ya completó esta materia en esta fase (prevenir repetición)
+            const hasCompletedResult = await questionTrackingService.hasCompletedSubjectInPhase(
+              studentId,
+              subject,
+              phase
+            );
+            
+            if (hasCompletedResult.success && hasCompletedResult.data) {
+              console.warn(`⚠️ Intento de repetir examen: ${studentId} - ${subject} - ${phase}`);
+              return failure(new ErrorAPI({ 
+                message: `Ya completaste este examen de ${subject} en esta fase. Solo puedes presentar cada materia una vez por fase.` 
+              }));
+            }
+
+            const accessResult = await phaseAuthorizationService.canStudentAccessPhase(
+              studentId,
+              gradeId,
+              phase as 'first' | 'second' | 'third'
+            );
+            
+            if (!accessResult.success) {
+              console.warn(`⚠️ Error verificando acceso: ${studentId} - ${phase} - ${gradeId}`);
+              return failure(accessResult.error);
+            }
+            
+            if (!accessResult.data?.canAccess) {
+              console.warn(`⚠️ Intento de generar cuestionario sin autorización: ${studentId} - ${phase} - ${gradeId}`);
+              return failure(new ErrorAPI({ 
+                message: accessResult.data?.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.' 
+              }));
+            }
+          }
+        }
+      }
+
       // Obtener configuración para la materia y fase
       const config = this.getQuizConfig(subject, phase);
       if (!config) {
         return failure(new ErrorAPI({ message: `No se encontró configuración para ${subject} - ${phase}` }));
       }
 
+      // Obtener preguntas ya respondidas en fases anteriores (solo si hay studentId)
+      let answeredQuestionIds = new Set<string>();
+      if (studentId) {
+        const answeredResult = await questionTrackingService.getAnsweredQuestions(
+          studentId,
+          subject,
+          phase
+        );
+        if (answeredResult.success) {
+          answeredQuestionIds = answeredResult.data;
+        } else {
+          console.warn('⚠️ No se pudieron obtener preguntas respondidas, continuando sin filtro:', answeredResult.error);
+        }
+      }
+
       // Para Fase 2, usar distribución personalizada si hay studentId
       if (phase === 'second' && studentId && subject !== 'Inglés') {
         console.log(`📊 Generando cuestionario personalizado Fase 2 para ${studentId}`);
-        return await this.generatePersonalizedPhase2Quiz(subject, config, grade, studentId);
+        return await this.generatePersonalizedPhase2Quiz(subject, config, grade, studentId, answeredQuestionIds);
       }
 
       // Lógica especial para Inglés: preguntas agrupadas por tema
       if (subject === 'Inglés') {
         console.log(`🇬🇧 Aplicando lógica especial para Inglés con preguntas agrupadas`);
-        const englishResult = await this.getEnglishGroupedQuestions(subject, config, grade, phase);
+        const englishResult = await this.getEnglishGroupedQuestions(subject, config, grade, phase, answeredQuestionIds);
         if (!englishResult.success) {
           return failure(englishResult.error);
         }
@@ -269,17 +373,42 @@ class QuizGeneratorService {
         return success(quiz);
       }
 
-      const subjectRule = SUBJECT_TOPIC_RULES[subject];
+      // Obtener distribución según la fase
+      const phaseDistribution = SUBJECT_PHASE_DISTRIBUTIONS[subject];
+      const subjectRule = phaseDistribution 
+        ? { totalQuestions: phaseDistribution[phase].totalQuestions, perTopicTarget: phaseDistribution[phase].perTopicTarget }
+        : SUBJECT_TOPIC_RULES[subject];
       const expectedCount = subjectRule?.totalQuestions || config.questionCount || 15;
 
       let questions: Question[] = [];
 
-      if (subjectRule) {
-        console.log(`🧠 Aplicando reglas por tópico para ${subject}`);
-        const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule);
+      if (subjectRule && phaseDistribution) {
+        console.log(`🧠 Aplicando reglas por tópico para ${subject} - Fase ${phase}`);
+        const topicResult = await this.getQuestionsWithTopicRules(
+          subject, 
+          config, 
+          grade, 
+          subjectRule, 
+          answeredQuestionIds,
+          phase // Pasar la fase para priorizar nivel Fácil en Fase 1
+        );
         if (!topicResult.success) {
           console.warn('⚠️ No se pudieron aplicar reglas por tópico, usando búsqueda general', topicResult.error);
-          const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+          const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds, phase);
+          if (!generalResult.success) {
+            return failure(generalResult.error);
+          }
+          questions = generalResult.data;
+        } else {
+          questions = topicResult.data;
+        }
+      } else if (subjectRule) {
+        // Fallback a reglas antiguas si no hay distribución por fase
+        console.log(`🧠 Aplicando reglas por tópico para ${subject}`);
+        const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule, answeredQuestionIds, phase);
+        if (!topicResult.success) {
+          console.warn('⚠️ No se pudieron aplicar reglas por tópico, usando búsqueda general', topicResult.error);
+          const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds, phase);
           if (!generalResult.success) {
             return failure(generalResult.error);
           }
@@ -288,11 +417,38 @@ class QuizGeneratorService {
           questions = topicResult.data;
         }
       } else {
-        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds, phase);
         if (!generalResult.success) {
           return failure(generalResult.error);
         }
         questions = generalResult.data;
+      }
+
+      // Filtrar preguntas ya respondidas
+      if (answeredQuestionIds.size > 0) {
+        questions = questionTrackingService.filterAnsweredQuestions(questions, answeredQuestionIds);
+        
+        // Si después de filtrar no hay suficientes preguntas, intentar obtener más
+        if (questions.length < expectedCount) {
+          console.log(`⚠️ Después de filtrar, solo quedan ${questions.length} preguntas. Intentando obtener más...`);
+          const additionalNeeded = expectedCount - questions.length;
+          const additionalResult = await this.getGeneralQuestions(
+            subject, 
+            config, 
+            grade, 
+            additionalNeeded * 2, // Obtener más para tener opciones
+            answeredQuestionIds,
+            phase
+          );
+          if (additionalResult.success && additionalResult.data.length > 0) {
+            const existingIds = new Set(questions.map(q => q.id || q.code));
+            const newQuestions = additionalResult.data.filter(q => {
+              const qId = String(q.id || q.code);
+              return !existingIds.has(qId) && !answeredQuestionIds.has(qId);
+            });
+            questions = [...questions, ...newQuestions].slice(0, expectedCount);
+          }
+        }
       }
 
       if (questions.length < expectedCount) {
@@ -334,11 +490,39 @@ class QuizGeneratorService {
     subject: string,
     _config: Partial<QuizConfig>,
     grade: string | undefined,
-    expectedCount: number
+    expectedCount: number,
+    answeredQuestionIds: Set<string> = new Set(),
+    phase?: 'first' | 'second' | 'third'
   ): Promise<Result<Question[]>> {
     const gradeValues = this.getGradeSearchValues(grade);
     const subjectCode = this.getSubjectCode(subject);
-    const attempts: QuestionFilters[] = [
+    
+    // En Fase 1, priorizar nivel Fácil (excepto Inglés que ya tiene su lógica)
+    const priorityLevelCode = phase === 'first' && subject !== 'Inglés' ? 'F' : undefined;
+    
+    const attempts: QuestionFilters[] = [];
+    
+    // Si es Fase 1 y no es Inglés, buscar primero nivel Fácil
+    if (priorityLevelCode) {
+      attempts.push(
+        ...gradeValues.map(gradeValue => ({
+          subject,
+          subjectCode,
+          grade: gradeValue,
+          levelCode: priorityLevelCode,
+          limit: expectedCount * 4
+        })),
+        {
+          subject,
+          subjectCode,
+          levelCode: priorityLevelCode,
+          limit: expectedCount * 3
+        }
+      );
+    }
+    
+    // Luego buscar sin restricción de nivel (para tener opciones si no hay suficientes de nivel Fácil)
+    attempts.push(
       ...gradeValues.map(gradeValue => ({
         subject,
         subjectCode,
@@ -354,9 +538,14 @@ class QuizGeneratorService {
         subject,
         limit: expectedCount * 3
       }
-    ];
+    );
 
-    const questions = await this.fetchQuestionsWithFallback(attempts, expectedCount);
+    // Obtener más preguntas de las necesarias para tener opciones después de filtrar
+    const fetchCount = answeredQuestionIds.size > 0 
+      ? Math.max(expectedCount * 2, expectedCount + answeredQuestionIds.size)
+      : expectedCount;
+    
+    const questions = await this.fetchQuestionsWithFallback(attempts, fetchCount);
 
     if (questions.length === 0) {
       return failure(new ErrorAPI({
@@ -364,14 +553,26 @@ class QuizGeneratorService {
       }));
     }
 
-    return success(questions);
+    // Filtrar preguntas ya respondidas
+    const filteredQuestions = questionTrackingService.filterAnsweredQuestions(questions, answeredQuestionIds);
+    
+    // Si después de filtrar no hay suficientes, devolver las que hay
+    if (filteredQuestions.length < expectedCount && filteredQuestions.length > 0) {
+      console.warn(`⚠️ Solo se encontraron ${filteredQuestions.length} preguntas nuevas de ${expectedCount} solicitadas`);
+      return success(filteredQuestions);
+    }
+
+    // Devolver la cantidad esperada
+    return success(filteredQuestions.slice(0, expectedCount));
   }
 
   private async getQuestionsWithTopicRules(
     subject: string,
     config: Partial<QuizConfig>,
     grade: string | undefined,
-    rule: SubjectTopicRule
+    rule: SubjectTopicRule,
+    answeredQuestionIds: Set<string> = new Set(),
+    phase?: 'first' | 'second' | 'third'
   ): Promise<Result<Question[]>> {
     const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
     if (!subjectConfig) {
@@ -387,7 +588,52 @@ class QuizGeneratorService {
     for (const topic of subjectConfig.topics) {
       const gradeValues = this.getGradeSearchValues(grade);
       const subjectCode = subjectConfig.code;
-      const attempts: QuestionFilters[] = [
+      
+      // En Fase 1, priorizar nivel Fácil (excepto Inglés que ya tiene su lógica)
+      const priorityLevelCode = phase === 'first' && subject !== 'Inglés' ? 'F' : undefined;
+      
+      const attempts: QuestionFilters[] = [];
+      
+      // Si es Fase 1 y no es Inglés, buscar primero nivel Fácil
+      if (priorityLevelCode) {
+        attempts.push(
+          ...gradeValues.flatMap(gradeValue => ([
+            {
+              subject,
+              subjectCode,
+              topicCode: topic.code,
+              grade: gradeValue,
+              levelCode: priorityLevelCode,
+              limit: rule.perTopicTarget * 4
+            },
+            {
+              subject,
+              subjectCode,
+              topic: topic.name,
+              grade: gradeValue,
+              levelCode: priorityLevelCode,
+              limit: rule.perTopicTarget * 4
+            }
+          ])),
+          {
+            subject,
+            subjectCode,
+            topicCode: topic.code,
+            levelCode: priorityLevelCode,
+            limit: rule.perTopicTarget * 3
+          },
+          {
+            subject,
+            subjectCode,
+            topic: topic.name,
+            levelCode: priorityLevelCode,
+            limit: rule.perTopicTarget * 3
+          }
+        );
+      }
+      
+      // Luego buscar sin restricción de nivel (para tener opciones si no hay suficientes de nivel Fácil)
+      attempts.push(
         ...gradeValues.flatMap(gradeValue => ([
           {
             subject,
@@ -421,12 +667,18 @@ class QuizGeneratorService {
           topic: topic.name,
           limit: rule.perTopicTarget * 3
         }
-      ];
+      );
 
       console.log(`🧩 Buscando preguntas para tópico ${topic.name} (${subject}) con ${attempts.length} intentos`);
-      const topicQuestions = await this.fetchQuestionsWithFallback(attempts, rule.perTopicTarget);
+      // Obtener más preguntas para tener opciones después de filtrar
+      const fetchCount = answeredQuestionIds.size > 0 
+        ? rule.perTopicTarget * 2 
+        : rule.perTopicTarget;
+      const topicQuestionsRaw = await this.fetchQuestionsWithFallback(attempts, fetchCount);
+      // Filtrar preguntas ya respondidas
+      const topicQuestions = questionTrackingService.filterAnsweredQuestions(topicQuestionsRaw, answeredQuestionIds);
       topicQuestionMap[topic.code] = topicQuestions;
-      console.log(`✅ ${topicQuestions.length} preguntas almacenadas para ${topic.name}`);
+      console.log(`✅ ${topicQuestions.length} preguntas almacenadas para ${topic.name} (después de filtrar)`);
     }
 
     let questions = this.balanceQuestionsByTopic(
@@ -440,10 +692,13 @@ class QuizGeneratorService {
       const missing = rule.totalQuestions - questions.length;
       console.warn(`⚠️ Faltan ${missing} preguntas para ${subject}, intentando completar con selección general`);
 
-      const fallbackResult = await this.getGeneralQuestions(subject, config, grade, missing);
+      const fallbackResult = await this.getGeneralQuestions(subject, config, grade, missing, answeredQuestionIds, phase);
       if (fallbackResult.success && fallbackResult.data.length > 0) {
         const existingIds = new Set(questions.map(q => q.id || q.code));
-        const extras = fallbackResult.data.filter(q => !existingIds.has(q.id || q.code));
+        const extras = fallbackResult.data.filter(q => {
+          const qId = String(q.id || q.code);
+          return !existingIds.has(qId) && !answeredQuestionIds.has(qId);
+        });
         questions = this.shuffleArray([...questions, ...extras]).slice(0, rule.totalQuestions);
       }
     }
@@ -463,7 +718,8 @@ class QuizGeneratorService {
     subject: string,
     config: Partial<QuizConfig>,
     grade: string | undefined,
-    phase: 'first' | 'second' | 'third'
+    phase: 'first' | 'second' | 'third',
+    answeredQuestionIds: Set<string> = new Set()
   ): Promise<Result<Question[]>> {
     console.log(`🇬🇧 Generando cuestionario de Inglés con preguntas agrupadas por tema`);
     
@@ -524,11 +780,14 @@ class QuizGeneratorService {
       const allQuestions = await this.fetchQuestionsWithFallback(attempts, 100);
       
       // Filtrar solo preguntas agrupadas (que tienen informativeText)
-      const groupedQuestions = allQuestions.filter(q => 
+      let groupedQuestions = allQuestions.filter(q => 
         q.subjectCode === 'IN' && 
         q.informativeText && 
         q.informativeText.trim() !== ''
       );
+      
+      // Filtrar preguntas ya respondidas
+      groupedQuestions = questionTrackingService.filterAnsweredQuestions(groupedQuestions, answeredQuestionIds);
 
       // Agrupar preguntas por su informativeText (grupos de preguntas relacionadas)
       const groupsMap: { [key: string]: Question[] } = {};
@@ -1013,7 +1272,8 @@ class QuizGeneratorService {
     subject: string,
     config: Partial<QuizConfig>,
     grade: string | undefined,
-    studentId: string
+    studentId: string,
+    answeredQuestionIds: Set<string> = new Set()
   ): Promise<Result<GeneratedQuiz>> {
     try {
       // Obtener distribución personalizada
@@ -1027,36 +1287,72 @@ class QuizGeneratorService {
       if (!distributionResult.success) {
         console.warn('⚠️ No se pudo obtener distribución personalizada, usando distribución estándar');
         // Fallback a distribución estándar
-        return this.generateStandardPhase2Quiz(subject, config, grade);
+        return this.generateStandardPhase2Quiz(subject, config, grade, answeredQuestionIds);
       }
 
       const distribution = distributionResult.data;
       const questions: Question[] = [];
 
-      // Obtener preguntas de la debilidad principal (50%)
-      const primaryWeaknessQuestions = await this.getQuestionsForTopic(
-        subject,
-        distribution.primaryWeakness,
-        distribution.primaryWeaknessCount,
-        grade,
-        config.level || 'Medio'
-      );
-      questions.push(...primaryWeaknessQuestions);
+      // Usar distribución proporcional si está disponible, sino usar distribución simple
+      if (distribution.weaknessDistribution && distribution.strengthDistribution) {
+        // Distribución proporcional de debilidades
+        for (const weaknessDist of distribution.weaknessDistribution) {
+          if (weaknessDist.count > 0) {
+            const weaknessQuestions = await this.getQuestionsForTopic(
+              subject,
+              weaknessDist.topic,
+              weaknessDist.count,
+              grade,
+              config.level || 'Medio',
+              answeredQuestionIds
+            );
+            questions.push(...weaknessQuestions);
+            console.log(`   - ${weaknessDist.count} preguntas de ${weaknessDist.topic} (debilidad)`);
+          }
+        }
 
-      // Obtener preguntas de otros temas (50% distribuido)
-      const questionsPerOtherTopic = distribution.otherTopics.length > 0
-        ? Math.floor(distribution.otherTopicsCount / distribution.otherTopics.length)
-        : 0;
-
-      for (const topic of distribution.otherTopics) {
-        const topicQuestions = await this.getQuestionsForTopic(
+        // Distribución equitativa de fortalezas
+        for (const strengthDist of distribution.strengthDistribution) {
+          if (strengthDist.count > 0) {
+            const strengthQuestions = await this.getQuestionsForTopic(
+              subject,
+              strengthDist.topic,
+              strengthDist.count,
+              grade,
+              config.level || 'Medio',
+              answeredQuestionIds
+            );
+            questions.push(...strengthQuestions);
+            console.log(`   - ${strengthDist.count} preguntas de ${strengthDist.topic} (fortaleza)`);
+          }
+        }
+      } else {
+        // Fallback a distribución simple (compatibilidad)
+        const primaryWeaknessQuestions = await this.getQuestionsForTopic(
           subject,
-          topic,
-          questionsPerOtherTopic,
+          distribution.primaryWeakness,
+          distribution.primaryWeaknessCount,
           grade,
-          config.level || 'Medio'
+          config.level || 'Medio',
+          answeredQuestionIds
         );
-        questions.push(...topicQuestions);
+        questions.push(...primaryWeaknessQuestions);
+
+        const questionsPerOtherTopic = distribution.otherTopics.length > 0
+          ? Math.floor(distribution.otherTopicsCount / distribution.otherTopics.length)
+          : 0;
+
+        for (const topic of distribution.otherTopics) {
+          const topicQuestions = await this.getQuestionsForTopic(
+            subject,
+            topic,
+            questionsPerOtherTopic,
+            grade,
+            config.level || 'Medio',
+            answeredQuestionIds
+          );
+          questions.push(...topicQuestions);
+        }
       }
 
       // Mezclar preguntas
@@ -1096,7 +1392,8 @@ class QuizGeneratorService {
   private async generateStandardPhase2Quiz(
     subject: string,
     config: Partial<QuizConfig>,
-    grade: string | undefined
+    grade: string | undefined,
+    answeredQuestionIds: Set<string> = new Set()
   ): Promise<Result<GeneratedQuiz>> {
     const subjectRule = SUBJECT_TOPIC_RULES[subject];
     const expectedCount = subjectRule?.totalQuestions || config.questionCount || 15;
@@ -1104,17 +1401,17 @@ class QuizGeneratorService {
     let questions: Question[] = [];
 
     if (subjectRule) {
-      const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule);
+      const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule, answeredQuestionIds, 'second');
       if (topicResult.success) {
         questions = topicResult.data;
       } else {
-        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds, 'second');
         if (generalResult.success) {
           questions = generalResult.data;
         }
       }
     } else {
-      const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+      const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds, 'second');
       if (generalResult.success) {
         questions = generalResult.data;
       }
@@ -1146,7 +1443,8 @@ class QuizGeneratorService {
     topic: string,
     count: number,
     grade: string | undefined,
-    level: string
+    level: string,
+    answeredQuestionIds: Set<string> = new Set()
   ): Promise<Question[]> {
     const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
     if (!subjectConfig) {
@@ -1187,8 +1485,15 @@ class QuizGeneratorService {
       }
     ];
 
-    const questions = await this.fetchQuestionsWithFallback(attempts, count);
-    return questions;
+    // Obtener más preguntas para tener opciones después de filtrar
+    const fetchCount = answeredQuestionIds.size > 0 ? count * 2 : count;
+    const questions = await this.fetchQuestionsWithFallback(attempts, fetchCount);
+    
+    // Filtrar preguntas ya respondidas
+    const filteredQuestions = questionTrackingService.filterAnsweredQuestions(questions, answeredQuestionIds);
+    
+    // Devolver la cantidad solicitada
+    return filteredQuestions.slice(0, count);
   }
 
   /**
