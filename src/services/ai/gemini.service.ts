@@ -423,7 +423,7 @@ Sé estratégico, específico y accionable. Responde SOLO con el JSON, sin texto
     }
 
     try {
-      const prompt = `Eres un tutor educativo experto con maestría y doctorado en educación. Genera una ruta de mejoramiento personalizada, detallada y avanzada para un estudiante.
+      const prompt = `Eres un tutor educativo experto. Genera una ruta de mejoramiento personalizada y detallada para un estudiante.
 
 Datos del estudiante:
 - Materia: ${analysisData.subject}
@@ -437,59 +437,36 @@ ${analysisData.topicPerformance.map(tp => `
 - ${tp.topic}: ${tp.percentage.toFixed(1)}% (${tp.correct}/${tp.total} correctas)
 `).join('')}
 
-Genera una ruta de mejoramiento completa y avanzada en formato JSON:
+Genera una ruta de mejoramiento completa en formato JSON:
 {
   "primaryFocus": "Tema principal a trabajar",
-  "learningObjectives": [
-    {
-      "objective": "Objetivo de aprendizaje específico y medible",
-      "topic": "Tema relacionado",
-      "criteria": "Criterios de éxito para este objetivo"
-    }
-  ],
   "resources": [
     {
       "type": "video|quiz|exercise|material|reading",
       "title": "Título del recurso",
-      "description": "Descripción detallada del contenido y cómo ayuda",
-      "url": "URL opcional si es un recurso externo",
+      "description": "Descripción detallada",
+      "url": "URL opcional",
       "topic": "Tema relacionado",
-      "priority": "high|medium|low",
-      "duration": "Duración estimada (ej: '15 minutos', '1 hora')",
-      "difficulty": "Fácil|Medio|Difícil",
-      "prerequisites": ["Prerequisito 1", "Prerequisito 2"]
+      "priority": "high|medium|low"
     }
   ],
   "studyPlan": [
     {
       "week": 1,
       "topics": ["Tema 1", "Tema 2"],
-      "activities": ["Actividad específica 1", "Actividad específica 2"],
-      "goals": ["Meta específica y medible 1", "Meta específica y medible 2"],
-      "selfAssessment": ["Pregunta de autoevaluación 1", "Pregunta de autoevaluación 2"],
-      "estimatedHours": 5
-    }
-  ],
-  "selfAssessmentActivities": [
-    {
-      "type": "quiz|exercise|reflection|practice",
-      "title": "Título de la actividad",
-      "description": "Descripción de la actividad de autoevaluación",
-      "topic": "Tema relacionado",
-      "frequency": "Diaria|Semanal|Al finalizar tema"
+      "activities": ["Actividad 1", "Actividad 2"],
+      "goals": ["Meta 1", "Meta 2"]
     }
   ],
   "estimatedTime": "X semanas",
-  "description": "Descripción general detallada de la ruta de mejoramiento (2-3 párrafos explicando la estrategia, enfoque y metodología)"
+  "description": "Descripción general de la ruta de mejoramiento (párrafo completo)"
 }
 
 Enfócate en:
-1. La debilidad principal (${analysisData.primaryWeakness}) y todas las debilidades identificadas
-2. Recursos específicos, accionables y de calidad (videos educativos, ejercicios prácticos, material de lectura complejo)
-3. Un plan de estudio semanal realista con horas estimadas
-4. Metas claras, específicas y medibles (SMART)
-5. Actividades de autoevaluación para que el estudiante verifique su progreso
-6. Objetivos de aprendizaje bien definidos con criterios de éxito
+1. La debilidad principal (${analysisData.primaryWeakness})
+2. Recursos específicos y accionables
+3. Un plan de estudio semanal realista
+4. Metas claras y alcanzables
 
 Responde SOLO con el JSON, sin texto adicional.`;
 
