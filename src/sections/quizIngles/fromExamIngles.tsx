@@ -16,9 +16,6 @@ import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerat
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Question } from "@/services/firebase/question.service";
-import { checkPhaseAccess } from "@/utils/phaseIntegration";
-import { dbService } from "@/services/firebase/db.service";
-import { useNotification } from "@/hooks/ui/useNotification";
 
 const db = getFirestore(firebaseApp);
 
@@ -112,7 +109,6 @@ const ExamWithFirebase = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuthContext();
   const { theme: appTheme } = useThemeContext();
-  const { notifyError } = useNotification();
   const userId = user?.uid;
 
   // Obtener parámetros de la URL para determinar la fase
@@ -183,8 +179,7 @@ const ExamWithFirebase = () => {
         const quizResult = await quizGeneratorService.generateQuiz(
           examConfig.subject, 
           currentPhase,
-          userGrade,
-          userId
+          userGrade
         );
         
         console.log('Resultado del generador de cuestionario:', quizResult);
@@ -256,27 +251,6 @@ const ExamWithFirebase = () => {
           // Calcular tiempo límite: usar el del quiz o 2 minutos por pregunta como fallback
           const timeLimitMinutes = quiz.timeLimit || (quiz.questions.length * 2);
           setTimeLeft(timeLimitMinutes * 60);
-        }
-
-        // Verificar acceso a la fase antes de permitir iniciar
-        const userResult = await dbService.getUserById(userId);
-        if (userResult.success && userResult.data) {
-          const studentData = userResult.data;
-          const gradeId = studentData.gradeId || studentData.grade;
-
-          if (gradeId) {
-            const accessCheck = await checkPhaseAccess(userId, gradeId, currentPhase);
-            if (!accessCheck.canAccess) {
-              if (isMounted) {
-                setExamState('blocked');
-              }
-              notifyError({
-                title: 'Acceso bloqueado',
-                message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
-              });
-              return;
-            }
-          }
         }
 
         // Verificar si ya se presentó este examen
@@ -521,29 +495,6 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-
-      // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
-      if (result.success && examConfig.phase) {
-        try {
-          const { processExamResults } = await import('@/utils/phaseIntegration');
-          const processResult = await processExamResults(
-            userId,
-            examConfig.subject,
-            examConfig.phase,
-            examResult
-          );
-
-          if (processResult.success) {
-            console.log('✅ Resultados procesados exitosamente');
-          } else {
-            console.error('⚠️ Error procesando resultados:', processResult.error);
-          }
-        } catch (error) {
-          console.error('❌ Error procesando resultados:', error);
-          // No mostrar error al usuario, el examen ya se guardó
-        }
-      }
-
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)
@@ -1334,42 +1285,6 @@ const ExamWithFirebase = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Pantalla cuando el acceso está bloqueado
-  const BlockedScreen = () => (
-    <div className="max-w-2xl mx-auto">
-      <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-red-800' : 'border-red-200')}>
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-red-900/50' : 'bg-red-100')}>
-              <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-red-400' : 'text-red-600')} />
-            </div>
-          </div>
-          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-red-400' : 'text-red-800')}>Acceso Bloqueado</CardTitle>
-          <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
-            No tienes acceso a esta fase evaluativa
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert className={cn(appTheme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Información</AlertTitle>
-            <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
-              Esta fase aún no está disponible para ti. Debes completar la fase anterior y esperar la autorización del administrador.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <Button
-            onClick={() => navigate('/dashboard#fases')}
-            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
-          >
-            Ver Estado de Fases
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  )
-
   // Pantalla cuando no hay preguntas disponibles
   const NoQuestionsScreen = () => (
     <div className="max-w-2xl mx-auto">
@@ -1380,26 +1295,26 @@ const ExamWithFirebase = () => {
               <AlertCircle className="h-8 w-8 text-red-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl text-red-800">Examen inhabilitado</CardTitle>
+          <CardTitle className="text-2xl text-red-800">No hay preguntas disponibles</CardTitle>
           <CardDescription className="text-lg">
-            Espera que el administrador habilite la sección de examen
+            No se encontraron preguntas para este cuestionario en este momento
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/*<Alert className="border-red-200 bg-red-50">
+          <Alert className="border-red-200 bg-red-50">
             <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertTitle className="text-red-800">Información</AlertTitle>
             <AlertDescription className="text-red-700">
               Por favor, contacta al administrador o intenta más tarde.
             </AlertDescription>
-          </Alert>*/}
+          </Alert>
         </CardContent>
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
             className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
           >
-            Volver al Inicio
+            Volver al Dashboard
           </Button>
         </CardFooter>
       </Card>
@@ -2297,7 +2212,6 @@ const ExamWithFirebase = () => {
       style={appTheme === 'dark' ? {} : getQuizBackgroundStyle(theme)}
     >
       {examState === 'loading' && <LoadingScreen />}
-      {examState === 'blocked' && <BlockedScreen />}
       {examState === 'welcome' && <WelcomeScreen />}
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}

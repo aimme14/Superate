@@ -161,8 +161,7 @@ const ExamWithFirebase = () => {
         const quizResult = await quizGeneratorService.generateQuiz(
           examConfig.subject, 
           examConfig.phase,
-          userGrade,
-          userId
+          userGrade
         );
         
         console.log('Resultado del generador de cuestionario:', quizResult);
@@ -391,29 +390,6 @@ const ExamWithFirebase = () => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-
-      // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
-      if (result.success && examConfig.phase) {
-        try {
-          const { processExamResults } = await import('@/utils/phaseIntegration');
-          const processResult = await processExamResults(
-            userId,
-            examConfig.subject,
-            examConfig.phase,
-            examResult
-          );
-
-          if (processResult.success) {
-            console.log('✅ Resultados procesados exitosamente');
-          } else {
-            console.error('⚠️ Error procesando resultados:', processResult.error);
-          }
-        } catch (error) {
-          console.error('❌ Error procesando resultados:', error);
-          // No mostrar error al usuario, el examen ya se guardó
-        }
-      }
-
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)
@@ -725,26 +701,26 @@ const ExamWithFirebase = () => {
               <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
             </div>
           </div>
-          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-800')}>Examen inhabilitado</CardTitle>
+          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-800')}>No hay preguntas disponibles</CardTitle>
           <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
-            Espera que el administrador habilite la sección de examen
+            No se encontraron preguntas suficientes para este examen
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/*<Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
+          <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
             <AlertCircle className="h-4 w-4 text-amber-600" />
             <AlertTitle className={cn(appTheme === 'dark' ? 'text-amber-300' : 'text-amber-800')}>Información</AlertTitle>
             <AlertDescription className={cn(appTheme === 'dark' ? 'text-amber-200' : 'text-amber-700')}>
               El banco de preguntas no tiene suficientes preguntas de {examConfig.subject} para tu grado y nivel actual.
             </AlertDescription>
-          </Alert>*/}
+          </Alert>
         </CardContent>
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
             className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
           >
-            Volver al Inicio
+            Volver al Dashboard
           </Button>
         </CardFooter>
       </Card>

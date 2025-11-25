@@ -102,7 +102,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         setExamState('loading');
         
         // Generar el cuestionario dinámicamente
-        const quizResult = await quizGeneratorService.generateQuiz(subject, phase, grade, userId);
+        const quizResult = await quizGeneratorService.generateQuiz(subject, phase, grade);
         
         if (!quizResult.success) {
           console.error('Error generando cuestionario:', quizResult.error);

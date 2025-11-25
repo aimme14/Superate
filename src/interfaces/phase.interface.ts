@@ -50,9 +50,8 @@ export interface GradePhaseCompletion {
   inProgressStudents: number;
   pendingStudents: number;
   completionPercentage: number;
-  allCompleted: boolean; // true si todos los estudiantes completaron TODAS las materias
+  allCompleted: boolean; // true si todos los estudiantes completaron
   lastUpdated: string;
-  pendingStudentsDetails?: Array<{ studentId: string; pendingSubjects: string[] }>; // Detalles de estudiantes pendientes
 }
 
 /**
@@ -119,13 +118,11 @@ export interface LearningResource {
  */
 export interface Phase2QuestionDistribution {
   subject: string;
-  primaryWeakness: string; // Tema principal (para compatibilidad)
-  otherTopics: string[]; // Otros temas (para compatibilidad)
+  primaryWeakness: string; // Tema que recibirá 50% de preguntas
+  otherTopics: string[]; // Temas que compartirán el 50% restante
   totalQuestions: number;
-  primaryWeaknessCount: number; // 50% del total (suma de todas las debilidades)
-  otherTopicsCount: number; // 50% distribuido equitativamente (fortalezas)
-  weaknessDistribution?: Array<{ topic: string; count: number }>; // Distribución proporcional de debilidades
-  strengthDistribution?: Array<{ topic: string; count: number }>; // Distribución equitativa de fortalezas
+  primaryWeaknessCount: number; // 50% del total
+  otherTopicsCount: number; // 50% distribuido equitativamente
 }
 
 /**
