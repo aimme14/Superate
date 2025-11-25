@@ -272,41 +272,102 @@ export default function PhaseDashboard({ theme }: PhaseDashboardProps) {
                       </div>
 
                       {status.status === 'locked' && access.reason && (
-                        <Alert className="mt-4">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>Fase bloqueada</AlertTitle>
-                          <AlertDescription>{access.reason}</AlertDescription>
+                        <Alert className={cn(
+                          "mt-4",
+                          theme === 'dark' ? 'bg-red-950/20 border-red-800' : 'bg-red-50 border-red-200'
+                        )}>
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          <AlertTitle className="text-red-800 dark:text-red-200">Fase bloqueada</AlertTitle>
+                          <AlertDescription className="text-red-700 dark:text-red-300">
+                            {access.reason}
+                          </AlertDescription>
                         </Alert>
                       )}
 
                       {status.status === 'in_progress' && progress && (
-                        <div className="mt-4 space-y-2">
+                        <div className="mt-4 space-y-3">
                           <div className="flex items-center justify-between text-sm">
                             <span className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                               Progreso
                             </span>
                             <span className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                              {completedSubjects} / {SUBJECTS.length} materias
+                              {completedSubjects} / {SUBJECTS.length} materias completadas
                             </span>
                           </div>
                           <Progress 
                             value={(completedSubjects / SUBJECTS.length) * 100} 
-                            className="h-2"
+                            className="h-3"
                           />
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {progress.subjectsCompleted.map((subject) => (
-                              <Badge key={subject} variant="outline" className="text-xs">
-                                <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
-                                {subject}
-                              </Badge>
-                            ))}
-                            {progress.subjectsInProgress.map((subject) => (
-                              <Badge key={subject} variant="outline" className="text-xs">
-                                <Clock className="h-3 w-3 mr-1 text-yellow-500" />
-                                {subject}
-                              </Badge>
-                            ))}
-                          </div>
+                          
+                          {/* Materias completadas */}
+                          {progress.subjectsCompleted.length > 0 && (
+                            <div className="mt-3">
+                              <p className={cn("text-xs font-medium mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                Materias completadas ({progress.subjectsCompleted.length}):
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {progress.subjectsCompleted.map((subject) => (
+                                  <Badge key={subject} variant="outline" className={cn(
+                                    "text-xs border-green-500",
+                                    theme === 'dark' ? 'bg-green-950/30 text-green-300' : 'bg-green-50 text-green-700'
+                                  )}>
+                                    <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
+                                    {subject}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Materias pendientes */}
+                          {progress.subjectsCompleted.length < SUBJECTS.length && (
+                            <div className="mt-3">
+                              <p className={cn("text-xs font-medium mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                Materias pendientes ({SUBJECTS.length - progress.subjectsCompleted.length}):
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {SUBJECTS.filter(s => !progress.subjectsCompleted.includes(s)).map((subject) => (
+                                  <Badge key={subject} variant="outline" className={cn(
+                                    "text-xs",
+                                    theme === 'dark' ? 'bg-zinc-800 text-gray-400' : 'bg-gray-50 text-gray-600'
+                                  )}>
+                                    {subject}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Mensaje contextual */}
+                          {completedSubjects === SUBJECTS.length && (
+                            <Alert className={cn(
+                              "mt-3",
+                              theme === 'dark' ? 'bg-green-950/20 border-green-800' : 'bg-green-50 border-green-200'
+                            )}>
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              <AlertTitle className="text-green-800 dark:text-green-200">
+                                ¡Fase completada!
+                              </AlertTitle>
+                              <AlertDescription className="text-green-700 dark:text-green-300">
+                                Has completado todas las materias de esta fase. Esperando autorización del administrador para avanzar a la siguiente fase.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
+                          {completedSubjects < SUBJECTS.length && completedSubjects > 0 && (
+                            <Alert className={cn(
+                              "mt-3",
+                              theme === 'dark' ? 'bg-yellow-950/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'
+                            )}>
+                              <Clock className="h-4 w-4 text-yellow-500" />
+                              <AlertTitle className="text-yellow-800 dark:text-yellow-200">
+                                En progreso
+                              </AlertTitle>
+                              <AlertDescription className="text-yellow-700 dark:text-yellow-300">
+                                Faltan {SUBJECTS.length - completedSubjects} materia(s) para completar esta fase: {SUBJECTS.filter(s => !progress.subjectsCompleted.includes(s)).join(', ')}
+                              </AlertDescription>
+                            </Alert>
+                          )}
                         </div>
                       )}
 

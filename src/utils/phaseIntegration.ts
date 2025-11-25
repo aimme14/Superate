@@ -6,6 +6,7 @@ import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
 import { dbService } from '@/services/firebase/db.service';
 import { PhaseType } from '@/interfaces/phase.interface';
+import { phaseNotificationService } from '@/services/notifications/phaseNotification.service';
 
 /**
  * Procesa los resultados de un examen completado según la fase
@@ -24,6 +25,17 @@ export async function processExamResults(
     if (!phase || !['first', 'second', 'third'].includes(phase)) {
       console.log('⚠️ No se procesará el resultado: fase no definida o inválida');
       return { success: true };
+    }
+
+    // Verificar que el resultado tenga los datos mínimos necesarios
+    if (!examResult.completed) {
+      console.log('⚠️ El examen no está marcado como completado, no se procesará');
+      return { success: true };
+    }
+
+    // Si no hay questionDetails, intentar procesar de todas formas (para resultados antiguos)
+    if (!examResult.questionDetails || examResult.questionDetails.length === 0) {
+      console.warn('⚠️ El resultado no tiene questionDetails, el análisis será limitado');
     }
 
     const phaseType = phase as PhaseType;
@@ -59,7 +71,7 @@ export async function processExamResults(
           return { success: false, error: 'Error al analizar resultados' };
         }
 
-        // Actualizar progreso del estudiante
+        // Actualizar progreso del estudiante - marcar materia como completada
         await phaseAuthorizationService.updateStudentPhaseProgress(
           userId,
           gradeId,
@@ -67,6 +79,19 @@ export async function processExamResults(
           subject,
           true // completed
         );
+
+        // Verificar si completó todas las materias de la fase
+        const phase1CompletionCheck = await phaseAuthorizationService.hasCompletedAllSubjectsInPhase(
+          userId,
+          gradeId,
+          'first'
+        );
+
+        if (phase1CompletionCheck.success && phase1CompletionCheck.data.completed) {
+          console.log(`🎉 Estudiante ${userId} completó TODAS las materias de Fase 1`);
+          // El estado se actualiza automáticamente cuando todas las materias están completadas
+          // en el método calculatePhaseStatus del servicio
+        }
 
         console.log(`✅ Fase 1 procesada exitosamente para ${subject}`);
         break;
@@ -121,7 +146,7 @@ export async function processExamResults(
           }
         }
 
-        // Actualizar progreso del estudiante
+        // Actualizar progreso del estudiante - marcar materia como completada
         await phaseAuthorizationService.updateStudentPhaseProgress(
           userId,
           gradeId,
@@ -129,6 +154,28 @@ export async function processExamResults(
           subject,
           true
         );
+
+        // Verificar si completó todas las materias de la fase
+        const phase2CompletionCheck = await phaseAuthorizationService.hasCompletedAllSubjectsInPhase(
+          userId,
+          gradeId,
+          'second'
+        );
+
+        if (phase2CompletionCheck.success && phase2CompletionCheck.data.completed) {
+          console.log(`🎉 Estudiante ${userId} completó TODAS las materias de Fase 2`);
+          // Notificar al estudiante
+          await phaseNotificationService.notifyPhaseCompleted(userId, 'second', gradeId);
+          // Verificar si todos los estudiantes completaron para notificar a administradores
+          const studentsResult = await dbService.getFilteredStudents({ gradeId, isActive: true });
+          if (studentsResult.success) {
+            const totalStudents = studentsResult.data.length;
+            const completionResult = await phaseAuthorizationService.checkGradePhaseCompletion(gradeId, 'second', totalStudents);
+            if (completionResult.success && completionResult.data.allCompleted) {
+              // Notificar a administradores (en producción obtener IDs de administradores)
+            }
+          }
+        }
 
         console.log(`✅ Fase 2 procesada exitosamente para ${subject}`);
         break;
@@ -148,7 +195,7 @@ export async function processExamResults(
           return { success: false, error: 'Error al generar resultado ICFES' };
         }
 
-        // Actualizar progreso del estudiante
+        // Actualizar progreso del estudiante - marcar materia como completada
         await phaseAuthorizationService.updateStudentPhaseProgress(
           userId,
           gradeId,
@@ -156,6 +203,28 @@ export async function processExamResults(
           subject,
           true
         );
+
+        // Verificar si completó todas las materias de la fase
+        const phase3CompletionCheck = await phaseAuthorizationService.hasCompletedAllSubjectsInPhase(
+          userId,
+          gradeId,
+          'third'
+        );
+
+        if (phase3CompletionCheck.success && phase3CompletionCheck.data.completed) {
+          console.log(`🎉 Estudiante ${userId} completó TODAS las materias de Fase 3`);
+          // Notificar al estudiante
+          await phaseNotificationService.notifyPhaseCompleted(userId, 'third', gradeId);
+          // Verificar si todos los estudiantes completaron para notificar a administradores
+          const studentsResult = await dbService.getFilteredStudents({ gradeId, isActive: true });
+          if (studentsResult.success) {
+            const totalStudents = studentsResult.data.length;
+            const completionResult = await phaseAuthorizationService.checkGradePhaseCompletion(gradeId, 'third', totalStudents);
+            if (completionResult.success && completionResult.data.allCompleted) {
+              // Notificar a administradores (en producción obtener IDs de administradores)
+            }
+          }
+        }
 
         console.log(`✅ Fase 3 procesada exitosamente para ${subject}`);
         break;

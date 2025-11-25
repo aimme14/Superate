@@ -14,6 +14,9 @@ import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerat
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
+import { checkPhaseAccess } from "@/utils/phaseIntegration";
+import { dbService } from "@/services/firebase/db.service";
+import { useNotification } from "@/hooks/ui/useNotification";
 
 const db = getFirestore(firebaseApp);
 
@@ -105,6 +108,7 @@ const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const { user } = useAuthContext();
   const { theme: appTheme } = useThemeContext();
+  const { notifyError } = useNotification();
   const userId = user?.uid;
 
   // Estados principales
@@ -161,7 +165,8 @@ const ExamWithFirebase = () => {
         const quizResult = await quizGeneratorService.generateQuiz(
           examConfig.subject, 
           examConfig.phase,
-          userGrade
+          userGrade,
+          userId
         );
         
         console.log('Resultado del generador de cuestionario:', quizResult);
@@ -190,6 +195,27 @@ const ExamWithFirebase = () => {
           // Calcular tiempo límite: 2 minutos por pregunta
           const timeLimitMinutes = quiz.questions.length * 2;
           setTimeLeft(timeLimitMinutes * 60);
+        }
+
+        // Verificar acceso a la fase antes de permitir iniciar
+        const userResult = await dbService.getUserById(userId);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data;
+          const gradeId = studentData.gradeId || studentData.grade;
+
+          if (gradeId) {
+            const accessCheck = await checkPhaseAccess(userId, gradeId, examConfig.phase);
+            if (!accessCheck.canAccess) {
+              if (isMounted) {
+                setExamState('blocked');
+              }
+              notifyError({
+                title: 'Acceso bloqueado',
+                message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
+              });
+              return;
+            }
+          }
         }
 
         // Verificar si ya se presentó este examen
@@ -390,6 +416,29 @@ const ExamWithFirebase = () => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
+
+      // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
+      if (result.success && examConfig.phase) {
+        try {
+          const { processExamResults } = await import('@/utils/phaseIntegration');
+          const processResult = await processExamResults(
+            userId,
+            examConfig.subject,
+            examConfig.phase,
+            examResult
+          );
+
+          if (processResult.success) {
+            console.log('✅ Resultados procesados exitosamente');
+          } else {
+            console.error('⚠️ Error procesando resultados:', processResult.error);
+          }
+        } catch (error) {
+          console.error('❌ Error procesando resultados:', error);
+          // No mostrar error al usuario, el examen ya se guardó
+        }
+      }
+
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)
@@ -654,6 +703,42 @@ const ExamWithFirebase = () => {
     </div>
   )
 
+  // Pantalla cuando el acceso está bloqueado
+  const BlockedScreen = () => (
+    <div className="max-w-2xl mx-auto">
+      <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-red-800' : 'border-red-200')}>
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-red-900/50' : 'bg-red-100')}>
+              <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-red-400' : 'text-red-600')} />
+            </div>
+          </div>
+          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-red-400' : 'text-red-800')}>Acceso Bloqueado</CardTitle>
+          <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
+            No tienes acceso a esta fase evaluativa
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className={cn(appTheme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Información</AlertTitle>
+            <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
+              Esta fase aún no está disponible para ti. Debes completar la fase anterior y esperar la autorización del administrador.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button
+            onClick={() => navigate('/dashboard#fases')}
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+          >
+            Ver Estado de Fases
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+
   // Pantalla cuando no hay preguntas
   const NoQuestionsScreen = () => (
     <div className="max-w-2xl mx-auto">
@@ -664,26 +749,26 @@ const ExamWithFirebase = () => {
               <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
             </div>
           </div>
-          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-800')}>No hay preguntas disponibles</CardTitle>
+          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-amber-400' : 'text-amber-800')}>Examen inhabilitado</CardTitle>
           <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
-            No se encontraron preguntas suficientes para este examen
+            Espera que el administrador habilite la sección de examen
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
+          {/*<Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
             <AlertCircle className="h-4 w-4 text-amber-600" />
             <AlertTitle className={cn(appTheme === 'dark' ? 'text-amber-300' : 'text-amber-800')}>Información</AlertTitle>
             <AlertDescription className={cn(appTheme === 'dark' ? 'text-amber-200' : 'text-amber-700')}>
               El banco de preguntas no tiene suficientes preguntas de {examConfig.subject} para tu grado y nivel actual.
             </AlertDescription>
-          </Alert>
+          </Alert>*/}
         </CardContent>
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
             className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
           >
-            Volver al Dashboard
+            Volver al Inicio
           </Button>
         </CardFooter>
       </Card>
@@ -1530,6 +1615,7 @@ const ExamWithFirebase = () => {
       {examState === 'loading' && <LoadingScreen />}
       {examState === 'error' && <ErrorScreen />}
       {examState === 'no_questions' && <NoQuestionsScreen />}
+      {examState === 'blocked' && <BlockedScreen />}
       {examState === 'welcome' && <WelcomeScreen />}
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}

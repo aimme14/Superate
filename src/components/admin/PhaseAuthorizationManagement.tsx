@@ -97,6 +97,9 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
     if (selectedGrade === 'all') return;
 
     try {
+      // Forzar sincronización de progreso desde results antes de cargar
+      console.log('🔄 Forzando sincronización de progreso para todos los estudiantes del grado...');
+      
       // Obtener número total de estudiantes del grado
       const studentsResult = await dbService.getFilteredStudents({
         gradeId: selectedGrade,
@@ -359,34 +362,79 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
                             </div>
                           </div>
 
-                          {status.authorized && completion && (
-                            <div className="mt-4 space-y-2">
+                          {completion && (
+                            <div className="mt-4 space-y-3">
                               <div className="flex items-center justify-between text-sm">
                                 <span className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                                   Progreso del grado
                                 </span>
                                 <span className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                  {completion.completedStudents} / {completion.totalStudents} estudiantes
+                                  {completion.completedStudents} / {completion.totalStudents} estudiantes ({completion.completionPercentage.toFixed(1)}%)
                                 </span>
                               </div>
                               <Progress 
                                 value={completion.completionPercentage} 
-                                className="h-2"
+                                className={cn(
+                                  "h-3",
+                                  completion.allCompleted ? "bg-green-500" : completion.completionPercentage >= 50 ? "bg-yellow-500" : "bg-red-500"
+                                )}
                               />
-                              <div className="flex items-center gap-4 text-xs text-gray-500">
-                                <span className="flex items-center gap-1">
-                                  <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                  {completion.completedStudents} completados
+                              <div className="flex items-center gap-4 text-xs">
+                                <span className={cn("flex items-center gap-1", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  {completion.completedStudents} completaron todas las materias
                                 </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3 text-yellow-500" />
+                                <span className={cn("flex items-center gap-1", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600')}>
+                                  <Clock className="h-3 w-3" />
                                   {completion.inProgressStudents} en progreso
                                 </span>
-                                <span className="flex items-center gap-1">
-                                  <Users className="h-3 w-3 text-gray-400" />
+                                <span className={cn("flex items-center gap-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                  <Users className="h-3 w-3" />
                                   {completion.pendingStudents} pendientes
                                 </span>
                               </div>
+
+                              {/* Mostrar detalles de estudiantes pendientes */}
+                              {completion.pendingStudentsDetails && completion.pendingStudentsDetails.length > 0 && (
+                                <div className={cn(
+                                  "mt-3 p-3 rounded-lg border",
+                                  theme === 'dark' 
+                                    ? 'bg-yellow-950/20 border-yellow-800' 
+                                    : 'bg-yellow-50 border-yellow-200'
+                                )}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <AlertCircle className={cn("h-4 w-4", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600')} />
+                                    <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-yellow-200' : 'text-yellow-800')}>
+                                      Estudiantes pendientes ({completion.pendingStudentsDetails.length})
+                                    </span>
+                                  </div>
+                                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                                    {completion.pendingStudentsDetails.slice(0, 5).map((detail, idx) => (
+                                      <div key={idx} className={cn(
+                                        "text-xs p-2 rounded",
+                                        theme === 'dark' ? 'bg-zinc-800' : 'bg-white'
+                                      )}>
+                                        <span className={cn("font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                          Estudiante {detail.studentId.slice(0, 8)}...
+                                        </span>
+                                        <div className="mt-1">
+                                          <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                            Materias faltantes ({detail.pendingSubjects.length}): 
+                                          </span>
+                                          <span className={cn("ml-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                            {detail.pendingSubjects.join(', ')}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {completion.pendingStudentsDetails.length > 5 && (
+                                      <div className={cn("text-xs text-center pt-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                        ... y {completion.pendingStudentsDetails.length - 5} más
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -395,7 +443,20 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
                               <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
                                 <AlertCircle className="h-4 w-4" />
                                 <span className="text-sm font-medium">
-                                  Debe completarse la fase anterior antes de autorizar esta fase
+                                  {completion?.allCompleted 
+                                    ? 'Debe completarse la fase anterior antes de autorizar esta fase'
+                                    : `No se puede autorizar: ${completion?.totalStudents || 0} estudiantes deben completar TODAS las materias de la fase anterior`}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {!status.authorized && phase !== 'first' && canAuthorize && completion && !completion.allCompleted && (
+                            <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                              <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+                                <AlertCircle className="h-4 w-4" />
+                                <span className="text-sm font-medium">
+                                  No se puede autorizar: {completion.totalStudents - completion.completedStudents} estudiantes aún no han completado todas las materias
                                 </span>
                               </div>
                             </div>
@@ -436,7 +497,11 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
                                 });
                                 setIsAuthorizeDialogOpen(true);
                               }}
-                              disabled={isLoading || !canAuthorize}
+                              disabled={
+                                isLoading || 
+                                !canAuthorize || 
+                                (phase !== 'first' && completion && !completion.allCompleted)
+                              }
                             >
                               <Lock className="h-4 w-4 mr-2" />
                               Autorizar
