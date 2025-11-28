@@ -6,7 +6,7 @@ import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
 import { dbService } from '@/services/firebase/db.service';
 import { PhaseType } from '@/interfaces/phase.interface';
-import { getPhaseName, getAllPhases } from '@/utils/firestoreHelpers';
+import { getPhaseName } from '@/utils/firestoreHelpers';
 
 /**
  * Procesa los resultados de un examen completado según la fase
@@ -134,7 +134,7 @@ export async function processExamResults(
 
         // Obtener resultado de Fase 1 para comparar
         const phase1AnalysisId = `${userId}_${subject}_phase1`;
-        const { collection, doc, getDoc, getDocs, getFirestore } = await import('firebase/firestore');
+        const { collection, doc, getDoc, getFirestore } = await import('firebase/firestore');
         const { firebaseApp } = await import('@/services/db');
         const db = getFirestore(firebaseApp);
         const phase1Ref = doc(collection(db, 'superate', 'auth', 'phase1Analyses'), phase1AnalysisId);

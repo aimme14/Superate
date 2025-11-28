@@ -236,7 +236,7 @@ const ExamWithFirebase = () => {
         }
 
         // Verificar si ya se presentó este examen
-        const existingExam = await checkExamStatus(userId, quiz.id, quiz.phase);
+        const existingExam = await checkExamStatus(userId, quiz.id, quiz.phase as 'first' | 'second' | 'third' | undefined);
         if (existingExam) {
           console.log('Examen ya presentado:', existingExam);
           if (isMounted) {
