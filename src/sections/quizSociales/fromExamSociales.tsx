@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom"
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
+import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
 
 const db = getFirestore(firebaseApp);
 
@@ -45,29 +46,62 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 };
 
 // Verifica si el usuario ya presentó el examen
-const checkExamStatus = async (userId: string, examId: string) => {
-  const docRef = doc(db, "results", userId);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    const data = docSnap.data();
+const checkExamStatus = async (userId: string, examId: string, phase?: 'first' | 'second' | 'third') => {
+  // Si se proporciona la fase, buscar solo en esa subcolección
+  if (phase) {
+    const phaseName = getPhaseName(phase);
+    const docRef = doc(db, "results", userId, phaseName, examId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } else {
+    // Si no se proporciona fase, buscar en todas las subcolecciones
+    const phases = getAllPhases();
+    for (const phaseName of phases) {
+      const docRef = doc(db, "results", userId, phaseName, examId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+    }
+  }
+  
+  // También verificar estructura antigua para compatibilidad
+  const oldDocRef = doc(db, "results", userId);
+  const oldDocSnap = await getDoc(oldDocRef);
+  if (oldDocSnap.exists()) {
+    const data = oldDocSnap.data();
     return data[examId] || null;
   }
+  
   return null;
 };
 
 // Guarda los resultados del examen
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
-  const docRef = doc(db, "results", userId);
+  // Determinar la fase y obtener el nombre de la subcolección
+  const phaseName = getPhaseName(examData.phase);
+  
+  // Verificar que las respuestas de fase 2 se guarden en "Fase II"
+  if (examData.phase === 'second') {
+    console.log(`✅ Guardando respuestas de Fase 2 en carpeta: results/${userId}/${phaseName}/${examId}`);
+    if (phaseName !== 'Fase II') {
+      console.error(`❌ ERROR: La fase 2 debería guardarse en "Fase II" pero se está usando: ${phaseName}`);
+    }
+  }
+  
+  // Guardar en la subcolección correspondiente a la fase
+  const docRef = doc(db, "results", userId, phaseName, examId);
   await setDoc(
     docRef,
     {
-      [examId]: {
-        ...examData,
-        timestamp: Date.now(),
-      },
-    },
-    { merge: true }
+      ...examData,
+      timestamp: Date.now(),
+    }
   );
+  
+  console.log(`✅ Examen guardado exitosamente en: results/${userId}/${phaseName}/${examId}`);
   return { success: true, id: `${userId}_${examId}` };
 };
 
@@ -1179,12 +1213,13 @@ const ExamWithFirebase = () => {
               <RadioGroup
                 value={answers[currentQ.id] || ""}
                 onValueChange={(value) => handleAnswerChange(currentQ.id, value)}
-                className="space-y-4 mt-6"
+                className="space-y-0.5 mt-6"
               >
                 {currentQ.options.map((option) => (
                   <div
                     key={option.id}
-                    className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                    onClick={() => handleAnswerChange(currentQ.id, option.id)}
+                    className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     <RadioGroupItem
                       value={option.id}

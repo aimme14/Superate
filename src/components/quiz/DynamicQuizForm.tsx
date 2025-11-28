@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { dbService } from "@/services/firebase/db.service";
+import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
 
 const db = getFirestore(firebaseApp);
 
@@ -31,29 +32,97 @@ interface QuestionTimeData {
 
 
 // Verifica si el usuario ya presentó el examen
-const checkExamStatus = async (userId: string, examId: string) => {
-  const docRef = doc(db, "results", userId);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    const data = docSnap.data();
+const checkExamStatus = async (userId: string, examId: string, phase?: 'first' | 'second' | 'third') => {
+  // Si se proporciona la fase, buscar solo en esa subcolección
+  if (phase) {
+    const phaseName = getPhaseName(phase);
+    const docRef = doc(db, "results", userId, phaseName, examId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } else {
+    // Si no se proporciona fase, buscar en todas las subcolecciones
+    const phases = getAllPhases();
+    for (const phaseName of phases) {
+      const docRef = doc(db, "results", userId, phaseName, examId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+    }
+  }
+  
+  // También verificar estructura antigua para compatibilidad
+  const oldDocRef = doc(db, "results", userId);
+  const oldDocSnap = await getDoc(oldDocRef);
+  if (oldDocSnap.exists()) {
+    const data = oldDocSnap.data();
     return data[examId] || null;
   }
+  
   return null;
 };
 
 // Guarda los resultados del examen
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
-  const docRef = doc(db, "results", userId);
+  // DEBUG: Información completa antes de guardar
+  console.log(`[saveExamResults] 🔍 DEBUG - Información completa:`, {
+    userId,
+    examId,
+    examDataPhase: examData.phase,
+    examDataPhaseType: typeof examData.phase,
+    examDataPhaseValue: JSON.stringify(examData.phase),
+    isSecond: examData.phase === 'second',
+    isSecondString: examData.phase === 'second' || examData.phase === 'Second' || examData.phase === 'SECOND'
+  });
+  
+  // Determinar la fase y obtener el nombre de la subcolección
+  const phaseName = getPhaseName(examData.phase);
+  
+  console.log(`[saveExamResults] 🔍 DEBUG - Resultado de getPhaseName:`, {
+    inputPhase: examData.phase,
+    outputPhaseName: phaseName,
+    expectedForSecond: 'Fase II',
+    matches: phaseName === 'Fase II'
+  });
+  
+  // Verificar que las respuestas de fase 2 se guarden en "Fase II"
+  if (examData.phase === 'second' || examData.phase === 'Second' || examData.phase === 'SECOND') {
+    console.log(`[saveExamResults] ✅ Guardando respuestas de Fase 2 en carpeta: results/${userId}/${phaseName}/${examId}`);
+    if (phaseName !== 'Fase II') {
+      console.error(`[saveExamResults] ❌ ERROR: La fase 2 debería guardarse en "Fase II" pero se está usando: ${phaseName}`);
+      console.error(`[saveExamResults] ❌ Valores recibidos:`, {
+        examDataPhase: examData.phase,
+        phaseName,
+        getPhaseNameResult: getPhaseName(examData.phase)
+      });
+    } else {
+      console.log(`[saveExamResults] ✅ Confirmado: Se guardará en "Fase II"`);
+    }
+  }
+  
+  // Guardar en la subcolección correspondiente a la fase
+  const docRef = doc(db, "results", userId, phaseName, examId);
+  console.log(`[saveExamResults] 📝 Guardando en ruta: results/${userId}/${phaseName}/${examId}`);
+  
+  // Para Fase II, asegurarse de que la carpeta existe
+  // Si no existe, se creará automáticamente al guardar el primer documento
+  if (examData.phase === 'second' && phaseName === 'Fase II') {
+    console.log(`[saveExamResults] 🔍 Verificando/creando carpeta "Fase II" para el primer examen de Fase 2`);
+  }
+  
   await setDoc(
     docRef,
     {
-      [examId]: {
-        ...examData,
-        timestamp: Date.now(),
-      },
-    },
-    { merge: true }
+      ...examData,
+      timestamp: Date.now(),
+    }
   );
+  
+  console.log(`[saveExamResults] ✅ Examen guardado exitosamente en: results/${userId}/${phaseName}/${examId}`);
+  console.log(`[saveExamResults] 📁 La carpeta "${phaseName}" ahora existe en Firestore`);
+  
   return { success: true, id: `${userId}_${examId}` };
 };
 
@@ -101,8 +170,179 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       try {
         setExamState('loading');
         
-        // Generar el cuestionario dinámicamente
-        const quizResult = await quizGeneratorService.generateQuiz(subject, phase, grade);
+        // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
+        const userResult = await dbService.getUserById(userId);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data;
+          const gradeId = studentData.gradeId || studentData.grade;
+
+          if (gradeId) {
+            // Verificar acceso a la fase
+            const accessCheck = await checkPhaseAccess(userId, gradeId, phase);
+            if (!accessCheck.canAccess) {
+              setExamState('blocked');
+              notifyError({
+                title: 'Acceso bloqueado',
+                message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
+              });
+              return;
+            }
+
+            // Verificar si el examen ya fue completado y si debe estar bloqueado
+            const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service');
+            const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(userId, phase);
+            
+            let isSubjectCompleted = false;
+            let allSubjectsCompleted = false;
+            
+            if (progressResult.success && progressResult.data) {
+              const progress = progressResult.data;
+              // Normalizar nombres para comparación (case-insensitive y sin espacios extra)
+              const normalizedSubject = subject.trim();
+              const completedSubjects = (progress.subjectsCompleted || []).map((s: string) => s.trim());
+              
+              // Comparación case-insensitive
+              isSubjectCompleted = completedSubjects.some(
+                (s: string) => s.toLowerCase() === normalizedSubject.toLowerCase()
+              );
+              allSubjectsCompleted = completedSubjects.length >= 7; // Total de materias (>= por si hay más)
+              
+              console.log(`[DynamicQuizForm] Verificando bloqueo para "${subject}" - Fase ${phase}:`, {
+                normalizedSubject,
+                isSubjectCompleted,
+                allSubjectsCompleted,
+                completedCount: completedSubjects.length,
+                completedSubjects,
+                progressData: progress
+              });
+            } else {
+              console.log(`[DynamicQuizForm] No se pudo obtener progreso para ${subject} - Fase ${phase}`);
+            }
+            
+            // VERIFICACIÓN CRÍTICA: Consultar directamente los exámenes guardados en Firestore
+            // Ruta: results/estudiante/fase/examen
+            // Esta es la fuente de verdad para verificar si un examen está completado
+            // Funciona para TODAS las materias
+            try {
+              const { getFirestore, collection, getDocs } = await import('firebase/firestore');
+              const { firebaseApp } = await import('@/services/db');
+              const db = getFirestore(firebaseApp);
+              const { getPhaseName } = await import('@/utils/firestoreHelpers');
+              
+              const phaseName = getPhaseName(phase);
+              const resultsRef = collection(db, 'results', userId, phaseName);
+              const resultsSnapshot = await getDocs(resultsRef);
+              
+              // Verificar si hay algún examen completado para esta materia
+              const normalizedSubject = subject.trim().toLowerCase();
+              
+              // Mapeo de códigos de materia a nombres (para detectar exámenes antiguos sin campo subject)
+              const subjectCodeMap: Record<string, string> = {
+                'IN': 'inglés',
+                'MA': 'matemáticas',
+                'LE': 'lenguaje',
+                'CS': 'ciencias sociales',
+                'BI': 'biologia',
+                'QU': 'quimica',
+                'FI': 'física'
+              };
+              
+              console.log(`[DynamicQuizForm] 🔍 Verificando Firestore para ${subject} - Fase ${phase}:`, {
+                totalDocs: resultsSnapshot.docs.length
+              });
+              
+              resultsSnapshot.docs.forEach(doc => {
+                const examData = doc.data();
+                const examSubject = (examData.subject || '').trim().toLowerCase();
+                const examCompleted = examData.completed === true;
+                
+                // FALLBACK: Si no hay campo subject, intentar detectar por el ID del documento
+                // Los IDs de exámenes dinámicos siguen el patrón: <CODIGO_MATERIA><GRADO><NUMERO>
+                let detectedSubject = examSubject;
+                if (!examSubject && doc.id) {
+                  const docIdUpper = doc.id.toUpperCase();
+                  // Buscar si el ID empieza con algún código de materia conocido
+                  for (const [code, subjectName] of Object.entries(subjectCodeMap)) {
+                    if (docIdUpper.startsWith(code)) {
+                      detectedSubject = subjectName;
+                      console.log(`[DynamicQuizForm] 🔍 Examen sin campo subject detectado por ID: ${doc.id} -> ${subjectName} (código: ${code})`);
+                      break;
+                    }
+                  }
+                }
+                
+                // Si el examen está completado y es de la materia correcta
+                if (examCompleted && detectedSubject === normalizedSubject) {
+                  isSubjectCompleted = true;
+                  console.log(`[DynamicQuizForm] ✅ Examen completado encontrado en Firestore: ${subject} - Fase ${phase} - Doc ID: ${doc.id}`, {
+                    detectedBy: examData.subject ? 'subject field' : 'document ID'
+                  });
+                  
+                  // Si el examen no tiene el campo subject, actualizarlo (sin await, se ejecuta en background)
+                  if (!examData.subject && gradeId) {
+                    console.log(`[DynamicQuizForm] 🔄 Actualizando examen antiguo: agregando campo subject a ${doc.id}`);
+                    import('firebase/firestore').then(({ updateDoc, doc: docFn }) => {
+                      const examRef = docFn(db, 'results', userId, phaseName, doc.id);
+                      updateDoc(examRef, {
+                        subject: subject
+                      }).then(() => {
+                        console.log(`[DynamicQuizForm] ✅ Campo subject agregado a ${doc.id}`);
+                      }).catch((error) => {
+                        console.error(`[DynamicQuizForm] ❌ Error actualizando examen:`, error);
+                      });
+                    }).catch((error) => {
+                      console.error(`[DynamicQuizForm] ❌ Error importando updateDoc:`, error);
+                    });
+                  }
+                  
+                  // Intentar sincronizar el progreso
+                  if (gradeId) {
+                    phaseAuthorizationService.updateStudentPhaseProgress(
+                      userId,
+                      gradeId,
+                      phase,
+                      subject,
+                      true
+                    ).then(() => {
+                      console.log(`[DynamicQuizForm] ✅ Progreso sincronizado para ${subject} - Fase ${phase}`);
+                    }).catch((error) => {
+                      console.error(`[DynamicQuizForm] ❌ Error sincronizando progreso:`, error);
+                    });
+                  }
+                }
+              });
+            } catch (error) {
+              console.error(`[DynamicQuizForm] ❌ Error consultando exámenes guardados:`, error);
+            }
+            
+            // Verificar si la siguiente fase está autorizada
+            const nextPhase: 'first' | 'second' | 'third' | null = phase === 'first' ? 'second' : phase === 'second' ? 'third' : null;
+            let nextPhaseAuthorized = false;
+            if (nextPhase) {
+              const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, nextPhase);
+              nextPhaseAuthorized = nextPhaseAccess.success && nextPhaseAccess.data.canAccess;
+            }
+            
+            // Si el examen ya fue completado Y no todas las materias están completadas Y la siguiente fase no está autorizada
+            if (isSubjectCompleted && !allSubjectsCompleted && !nextPhaseAuthorized) {
+              console.log(`[DynamicQuizForm] BLOQUEANDO examen: ${subject} - Fase ${phase}`);
+              setExamState('blocked');
+              notifyError({
+                title: 'Examen Finalizado',
+                message: 'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.'
+              });
+              return;
+            } else if (isSubjectCompleted) {
+              console.log(`[DynamicQuizForm] Examen completado pero NO bloqueado:`, {
+                allSubjectsCompleted,
+                nextPhaseAuthorized
+              });
+            }
+          }
+        }
+        
+        // SEGUNDO: Generar el cuestionario solo si no está bloqueado
+        const quizResult = await quizGeneratorService.generateQuiz(subject, phase, grade, userId);
         
         if (!quizResult.success) {
           console.error('Error generando cuestionario:', quizResult.error);
@@ -120,27 +360,9 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         setQuizData(quiz);
         setTimeLeft(quiz.timeLimit * 60);
 
-        // Verificar acceso a la fase antes de permitir iniciar
-        const userResult = await dbService.getUserById(userId);
-        if (userResult.success && userResult.data) {
-          const studentData = userResult.data;
-          const gradeId = studentData.gradeId || studentData.grade;
-
-          if (gradeId) {
-            const accessCheck = await checkPhaseAccess(userId, gradeId, phase);
-            if (!accessCheck.canAccess) {
-              setExamState('blocked');
-              notifyError({
-                title: 'Acceso bloqueado',
-                message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
-              });
-              return;
-            }
-          }
-        }
-
-        // Verificar si ya se presentó este examen
-        const existingExam = await checkExamStatus(userId, quiz.id);
+        // Verificar si ya se presentó este examen específico (por examId)
+        // Esto es adicional, pero el bloqueo principal ya se verificó arriba
+        const existingExam = await checkExamStatus(userId, quiz.id, phase);
         if (existingExam) {
           setExistingExamData(existingExam);
           setExamState('already_taken');
@@ -264,12 +486,20 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       const examEndTime = Date.now();
       const totalExamTime = Math.floor((examEndTime - examStartTime) / 1000);
 
+      // DEBUG: Verificar el valor de phase antes de crear examResult
+      console.log(`[DynamicQuizForm] 🔍 DEBUG - Valores de fase antes de guardar:`, {
+        propPhase: phase,
+        quizDataPhase: quizData.phase,
+        phaseType: typeof quizData.phase,
+        phaseValue: quizData.phase
+      });
+
       const examResult = {
         userId,
         examId: quizData.id,
         examTitle: quizData.title,
         subject: quizData.subject,
-        phase: quizData.phase,
+        phase: quizData.phase || phase, // Usar quizData.phase o el prop phase como fallback
         answers,
         score,
         timeExpired,
@@ -298,6 +528,14 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           }
         })
       }
+
+      // DEBUG: Verificar el valor de phase en examResult
+      console.log(`[DynamicQuizForm] 🔍 DEBUG - examResult.phase antes de guardar:`, {
+        examResultPhase: examResult.phase,
+        phaseType: typeof examResult.phase,
+        isSecond: examResult.phase === 'second',
+        willUseFaseII: getPhaseName(examResult.phase) === 'Fase II'
+      });
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
@@ -1212,12 +1450,13 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               <RadioGroup
                 value={answers[questionId] || ""}
                 onValueChange={(value) => handleAnswerChange(questionId, value)}
-                className="space-y-4 mt-6"
+                className="space-y-0.5 mt-6"
               >
                 {currentQ.options.map((option) => (
                   <div
                     key={option.id}
-                    className={cn("flex items-start space-x-3 border rounded-lg p-3 transition-colors", theme === 'dark' ? 'border-zinc-700 hover:bg-zinc-700' : 'hover:bg-gray-50')}
+                    onClick={() => handleAnswerChange(questionId, option.id)}
+                    className={cn("flex items-start space-x-3 border rounded-lg p-3 transition-colors cursor-pointer", theme === 'dark' ? 'border-zinc-700 hover:bg-zinc-700' : 'hover:bg-gray-50')}
                   >
                     <RadioGroupItem
                       value={option.id}

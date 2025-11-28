@@ -6,16 +6,18 @@ import { useState, useEffect } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
+import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
 import DOMPurify from 'dompurify'
 import katex from 'katex'
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
+import { processExamResults } from "@/utils/phaseIntegration";
 import 'katex/dist/katex.min.css'
 
 const db = getFirestore(firebaseApp);
@@ -119,29 +121,62 @@ interface QuestionTimeData {
 }
 
 // Verifica si el usuario ya presentó el examen
-const checkExamStatus = async (userId: string, examId: string) => {
-  const docRef = doc(db, "results", userId);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    const data = docSnap.data();
+const checkExamStatus = async (userId: string, examId: string, phase?: 'first' | 'second' | 'third') => {
+  // Si se proporciona la fase, buscar solo en esa subcolección
+  if (phase) {
+    const phaseName = getPhaseName(phase);
+    const docRef = doc(db, "results", userId, phaseName, examId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } else {
+    // Si no se proporciona fase, buscar en todas las subcolecciones
+    const phases = getAllPhases();
+    for (const phaseName of phases) {
+      const docRef = doc(db, "results", userId, phaseName, examId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+    }
+  }
+  
+  // También verificar estructura antigua para compatibilidad
+  const oldDocRef = doc(db, "results", userId);
+  const oldDocSnap = await getDoc(oldDocRef);
+  if (oldDocSnap.exists()) {
+    const data = oldDocSnap.data();
     return data[examId] || null;
   }
+  
   return null;
 };
 
 // Guarda los resultados del examen
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
-  const docRef = doc(db, "results", userId);
+  // Determinar la fase y obtener el nombre de la subcolección
+  const phaseName = getPhaseName(examData.phase);
+  
+  // Verificar que las respuestas de fase 2 se guarden en "Fase II"
+  if (examData.phase === 'second') {
+    console.log(`✅ Guardando respuestas de Fase 2 en carpeta: results/${userId}/${phaseName}/${examId}`);
+    if (phaseName !== 'Fase II') {
+      console.error(`❌ ERROR: La fase 2 debería guardarse en "Fase II" pero se está usando: ${phaseName}`);
+    }
+  }
+  
+  // Guardar en la subcolección correspondiente a la fase
+  const docRef = doc(db, "results", userId, phaseName, examId);
   await setDoc(
     docRef,
     {
-      [examId]: {
-        ...examData,
-        timestamp: Date.now(),
-      },
-    },
-    { merge: true }
+      ...examData,
+      timestamp: Date.now(),
+    }
   );
+  
+  console.log(`✅ Examen guardado exitosamente en: results/${userId}/${phaseName}/${examId}`);
   return { success: true, id: `${userId}_${examId}` };
 };
 
@@ -170,7 +205,14 @@ const examConfig = {
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams();
   const { user } = useAuthContext();
+
+  // Obtener parámetros de la URL para determinar la fase y materia
+  const phaseParam = searchParams.get('phase') as 'first' | 'second' | 'third' | null;
+  const subjectParam = searchParams.get('subject');
+  const currentPhase = phaseParam || examConfig.phase;
+  const currentSubject = subjectParam || examConfig.subject;
   const { theme: appTheme } = useThemeContext();
   const userId = user?.uid;
 
@@ -211,7 +253,7 @@ const ExamWithFirebase = () => {
       }
 
       try {
-        console.log('Iniciando carga del cuestionario para:', examConfig.subject, examConfig.phase);
+        console.log('Iniciando carga del cuestionario para:', currentSubject, currentPhase);
         if (isMounted) {
           setExamState('loading');
         }
@@ -226,9 +268,10 @@ const ExamWithFirebase = () => {
         
         // Generar el cuestionario dinámicamente desde el banco de preguntas
         const quizResult = await quizGeneratorService.generateQuiz(
-          examConfig.subject, 
-          examConfig.phase,
-          userGrade
+          currentSubject, 
+          currentPhase,
+          userGrade,
+          userId // Pasar userId para personalización en Fase 2
         );
         
         console.log('Resultado del generador de cuestionario:', quizResult);
@@ -236,8 +279,8 @@ const ExamWithFirebase = () => {
         if (!quizResult.success) {
           console.error('Error generando cuestionario:', quizResult.error);
           console.log('Detalles del error:', {
-            subject: examConfig.subject,
-            phase: examConfig.phase,
+            subject: currentSubject,
+            phase: currentPhase,
             userGrade,
             userGradeName,
             error: quizResult.error
@@ -260,7 +303,7 @@ const ExamWithFirebase = () => {
         }
 
         // Verificar si ya se presentó este examen
-        const existingExam = await checkExamStatus(userId, examConfig.examId);
+        const existingExam = await checkExamStatus(userId, quiz.id, quiz.phase);
         if (existingExam) {
           console.log('Examen ya presentado:', existingExam);
           if (isMounted) {
@@ -424,8 +467,8 @@ const ExamWithFirebase = () => {
         userId,
         examId: quizData.id,
         examTitle: quizData.title,
-        subject: quizData.subject,
-        phase: quizData.phase,
+        subject: currentSubject,
+        phase: currentPhase,
         answers,
         score,
         timeExpired,
@@ -457,6 +500,26 @@ const ExamWithFirebase = () => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
+      
+      // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
+      if (result && currentPhase) {
+        try {
+          const processResult = await processExamResults(
+            userId,
+            currentSubject,
+            currentPhase,
+            examResult
+          );
+          if (processResult.success) {
+            console.log('✅ Resultados procesados exitosamente');
+          } else {
+            console.error('⚠️ Error procesando resultados:', processResult.error);
+          }
+        } catch (error) {
+          console.error('⚠️ Error al procesar resultados:', error);
+        }
+      }
+      
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)
@@ -1297,13 +1360,14 @@ const ExamWithFirebase = () => {
               <RadioGroup
                 value={answers[questionId] || ""}
                 onValueChange={(value) => handleAnswerChange(questionId, value)}
-                className="space-y-4 mt-6"
+                className="space-y-0.5 mt-6"
               >
                 {currentQ.options.map((option) => (
                   <div
                     key={option.id}
+                    onClick={() => handleAnswerChange(questionId, option.id)}
                     className={cn(
-                      `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden`,
+                      `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden cursor-pointer`,
                       appTheme === 'dark' 
                         ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
                         : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`

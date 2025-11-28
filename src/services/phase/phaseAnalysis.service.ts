@@ -19,6 +19,7 @@ import {
   PhaseComparison
 } from '@/interfaces/phase.interface';
 import { geminiService } from '@/services/ai/gemini.service';
+import { SUBJECTS_CONFIG } from '@/utils/subjects.config';
 
 /**
  * Servicio para analizar resultados de fases y generar distribuciones de preguntas personalizadas
@@ -101,10 +102,37 @@ class PhaseAnalysisService {
         .filter(tp => tp.isWeakness)
         .map(tp => tp.topic);
 
-      // Identificar la debilidad principal (la que tiene más errores)
-      const primaryWeakness = topicPerformance
-        .filter(tp => tp.isWeakness)
-        .sort((a, b) => b.incorrect - a.incorrect)[0]?.topic || '';
+      // Identificar la debilidad principal
+      // Prioridad: 1) Menor porcentaje, 2) Más errores totales, 3) Más preguntas totales
+      let primaryWeakness = '';
+      if (topicPerformance.length > 0) {
+        const weaknesses = topicPerformance.filter(tp => tp.isWeakness);
+        if (weaknesses.length > 0) {
+          // Ordenar por: menor porcentaje primero, luego más errores, luego más preguntas
+          const sorted = weaknesses.sort((a, b) => {
+            // Primero por porcentaje (menor es peor)
+            if (a.percentage !== b.percentage) {
+              return a.percentage - b.percentage;
+            }
+            // Si hay empate en porcentaje, por más errores
+            if (b.incorrect !== a.incorrect) {
+              return b.incorrect - a.incorrect;
+            }
+            // Si hay empate en errores, por más preguntas totales
+            return b.total - a.total;
+          });
+          primaryWeakness = sorted[0].topic;
+        } else {
+          // Si no hay debilidades claras (< 60%), usar el tema con menor porcentaje
+          const sorted = [...topicPerformance].sort((a, b) => {
+            if (a.percentage !== b.percentage) {
+              return a.percentage - b.percentage;
+            }
+            return b.incorrect - a.incorrect;
+          });
+          primaryWeakness = sorted[0].topic;
+        }
+      }
 
       // Generar plan de mejoramiento con IA
       const improvementPlanResult = await this.generateImprovementPlan(
@@ -270,12 +298,44 @@ class PhaseAnalysisService {
 
       const analysis = analysisSnap.data() as Phase1Analysis;
 
+      // Verificar que hay una debilidad principal identificada
+      if (!analysis.primaryWeakness || analysis.primaryWeakness === '') {
+        return failure(new ErrorAPI({ 
+          message: 'No se pudo identificar una debilidad principal en el análisis de Fase 1.' 
+        }));
+      }
+
+      // Obtener todos los temas de la materia desde SUBJECTS_CONFIG
+      const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
+      const allTopics = subjectConfig?.topics?.map(t => t.name) || [];
+      
+      // Si solo hay 1 tema en la materia, no se puede personalizar
+      if (allTopics.length <= 1) {
+        return failure(new ErrorAPI({ 
+          message: `La materia ${subject} solo tiene 1 tema. No se puede personalizar la distribución.` 
+        }));
+      }
+
       // Calcular distribución
       const primaryWeaknessCount = Math.floor(totalQuestions * 0.5); // 50% para debilidad principal
       const remainingCount = totalQuestions - primaryWeaknessCount;
-      const otherTopics = analysis.topicPerformance
+      
+      // Obtener otros temas (excluyendo la debilidad principal)
+      // Priorizar temas que aparecieron en el análisis, pero incluir todos los temas de la materia
+      const topicsFromAnalysis = analysis.topicPerformance
         .filter(tp => tp.topic !== analysis.primaryWeakness)
         .map(tp => tp.topic);
+      
+      // Agregar temas de la materia que no aparecieron en el análisis
+      const otherTopics = [...new Set([...topicsFromAnalysis, ...allTopics])]
+        .filter(topic => topic !== analysis.primaryWeakness);
+
+      // Si no hay otros temas, usar distribución estándar
+      if (otherTopics.length === 0) {
+        return failure(new ErrorAPI({ 
+          message: 'No se encontraron otros temas para distribuir las preguntas.' 
+        }));
+      }
 
       const distribution: Phase2QuestionDistribution = {
         subject,
@@ -690,25 +750,38 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
 
   /**
    * Obtiene el código de tema basado en el nombre y materia
+   * Usa SUBJECTS_CONFIG para obtener el código correcto
    */
   private getTopicCode(topic: string, subject: string): string {
-    // Mapeo básico de temas a códigos
-    const topicCodeMap: Record<string, Record<string, string>> = {
-      'Matemáticas': {
-        'Álgebra': 'AL',
-        'Geometría': 'GE',
-        'Estadística': 'ES',
-        'Cálculo': 'CA',
-      },
-      'Lenguaje': {
-        'Lectura': 'LE',
-        'Escritura': 'ES',
-        'Gramática': 'GR',
-      },
-      // Agregar más mapeos según sea necesario
-    };
+    // Buscar la materia en SUBJECTS_CONFIG
+    const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
+    if (!subjectConfig || !subjectConfig.topics) {
+      // Fallback: usar primeras 2 letras del tema en mayúsculas
+      return topic.substring(0, 2).toUpperCase();
+    }
 
-    return topicCodeMap[subject]?.[topic] || topic.substring(0, 2).toUpperCase();
+    // Buscar el tema en la configuración de la materia
+    const topicConfig = subjectConfig.topics.find(t => 
+      t.name.toLowerCase() === topic.toLowerCase() ||
+      t.name === topic
+    );
+
+    if (topicConfig) {
+      return topicConfig.code;
+    }
+
+    // Si no se encuentra exacto, intentar búsqueda parcial (para casos como "Álgebra y Cálculo" vs "Álgebra")
+    const partialMatch = subjectConfig.topics.find(t => 
+      topic.toLowerCase().includes(t.name.toLowerCase()) ||
+      t.name.toLowerCase().includes(topic.toLowerCase())
+    );
+
+    if (partialMatch) {
+      return partialMatch.code;
+    }
+
+    // Fallback: usar primeras 2 letras del tema en mayúsculas
+    return topic.substring(0, 2).toUpperCase();
   }
 
   /**

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { doc, getDoc, getFirestore } from "firebase/firestore";
+import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { Progress } from "@/components/ui/progress";
@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useThemeContext } from "@/context/ThemeContext";
+import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
 
 const db = getFirestore(firebaseApp);
 
@@ -136,26 +137,41 @@ export default function EvaluationsTab() {
       }
 
       try {
-        // Obtenemos los resultados del documento "results" usando el userId
-        const docRef = doc(db, "results", user.uid);
-        const docSnap = await getDoc(docRef);
+        // Obtenemos los resultados de todas las subcolecciones de fases
+        const phases = getAllPhases();
+        const evaluationsArray: any[] = [];
 
-        if (docSnap.exists()) {
-          const data = docSnap.data() as UserResults;
-
-          // Convertimos el objeto a array de evaluaciones
-          const evaluationsArray = Object.entries(data).map(([examId, examData]) => ({
-            ...examData,
-            examId, // Asegurar que el examId esté presente
-          }));
-
-          // Ordenamos por fecha (más reciente primero)
-          evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-          setEvaluations(evaluationsArray);
-        } else {
-          setEvaluations([]);
+        // Leer de las subcolecciones de fases
+        for (const phaseName of phases) {
+          const phaseRef = collection(db, "results", user.uid, phaseName);
+          const phaseSnap = await getDocs(phaseRef);
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data();
+            evaluationsArray.push({
+              ...examData,
+              examId: doc.id,
+              phase: getPhaseType(phaseName) || phaseName,
+            });
+          });
         }
+
+        // También leer de la estructura antigua para compatibilidad
+        const oldDocRef = doc(db, "results", user.uid);
+        const oldDocSnap = await getDoc(oldDocRef);
+        if (oldDocSnap.exists()) {
+          const oldData = oldDocSnap.data() as UserResults;
+          Object.entries(oldData).forEach(([examId, examData]) => {
+            evaluationsArray.push({
+              ...examData,
+              examId,
+            });
+          });
+        }
+
+        // Ordenamos por fecha (más reciente primero)
+        evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        setEvaluations(evaluationsArray);
       } catch (error) {
         console.error("Error al obtener las evaluaciones:", error);
         setEvaluations([]);

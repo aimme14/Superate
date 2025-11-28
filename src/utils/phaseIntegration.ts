@@ -6,6 +6,7 @@ import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
 import { dbService } from '@/services/firebase/db.service';
 import { PhaseType } from '@/interfaces/phase.interface';
+import { getPhaseName, getAllPhases } from '@/utils/firestoreHelpers';
 
 /**
  * Procesa los resultados de un examen completado según la fase
@@ -68,6 +69,62 @@ export async function processExamResults(
           true // completed
         );
 
+        // Verificar si todas las materias de Fase I están completadas
+        // Si es así, crear la carpeta "Fase II" automáticamente
+        const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(userId, 'first');
+        if (progressResult.success && progressResult.data) {
+          const progress = progressResult.data;
+          const completedSubjects = progress.subjectsCompleted || [];
+          
+          // Lista de todas las materias del sistema
+          const ALL_SUBJECTS = [
+            'Matemáticas',
+            'Lenguaje',
+            'Ciencias Sociales',
+            'Biologia',
+            'Quimica',
+            'Física',
+            'Inglés'
+          ];
+          
+          // Normalizar nombres para comparación (case-insensitive)
+          const normalizedCompleted = completedSubjects.map((s: string) => s.trim().toLowerCase());
+          const allCompleted = ALL_SUBJECTS.every(subject => 
+            normalizedCompleted.includes(subject.trim().toLowerCase())
+          );
+          
+          if (allCompleted) {
+            console.log(`🎉 Todas las materias de Fase I completadas. Creando carpeta "Fase II"...`);
+            
+            // Crear la carpeta "Fase II" creando un documento placeholder
+            try {
+              const { collection, doc, setDoc, getFirestore } = await import('firebase/firestore');
+              const { firebaseApp } = await import('@/services/db');
+              const db = getFirestore(firebaseApp);
+              const phase2Name = getPhaseName('second');
+              
+              // Crear un documento placeholder para que se cree la carpeta "Fase II"
+              const placeholderDocId = `_phase2_initialized_${Date.now()}`;
+              const phase2Ref = doc(collection(db, 'results', userId, phase2Name), placeholderDocId);
+              
+              await setDoc(phase2Ref, {
+                initialized: true,
+                createdAt: new Date().toISOString(),
+                message: 'Carpeta Fase II inicializada automáticamente al completar todas las materias de Fase I',
+                phase: 'second',
+                timestamp: Date.now()
+              });
+              
+              console.log(`✅ Carpeta "Fase II" creada exitosamente en: results/${userId}/${phase2Name}`);
+            } catch (error) {
+              console.error('❌ Error creando carpeta "Fase II":', error);
+              // No fallar el proceso si hay error al crear la carpeta
+            }
+          } else {
+            console.log(`📊 Progreso Fase I: ${completedSubjects.length}/${ALL_SUBJECTS.length} materias completadas`);
+          }
+        }
+
         console.log(`✅ Fase 1 procesada exitosamente para ${subject}`);
         break;
 
@@ -77,7 +134,7 @@ export async function processExamResults(
 
         // Obtener resultado de Fase 1 para comparar
         const phase1AnalysisId = `${userId}_${subject}_phase1`;
-        const { collection, doc, getDoc, getFirestore } = await import('firebase/firestore');
+        const { collection, doc, getDoc, getDocs, getFirestore } = await import('firebase/firestore');
         const { firebaseApp } = await import('@/services/db');
         const db = getFirestore(firebaseApp);
         const phase1Ref = doc(collection(db, 'superate', 'auth', 'phase1Analyses'), phase1AnalysisId);
@@ -96,17 +153,34 @@ export async function processExamResults(
           break;
         }
 
-        // Obtener resultado de Fase 1 desde results
-        const resultsRef = doc(collection(db, 'results'), userId);
-        const resultsSnap = await getDoc(resultsRef);
-        const results = resultsSnap.exists() ? resultsSnap.data() : {};
-
+        // Obtener resultado de Fase 1 desde la subcolección 'fase I'
         let phase1Result: any = null;
-        Object.values(results).forEach((exam: any) => {
-          if (exam.subject === subject && exam.phase === 'first') {
-            phase1Result = exam;
+        
+        // Buscar en la subcolección de fase I
+        const phase1Name = getPhaseName('first');
+        const phase1ResultsRef = collection(db, 'results', userId, phase1Name);
+        const { getDocs: getDocsPhase1 } = await import('firebase/firestore');
+        const phase1ResultsSnap = await getDocsPhase1(phase1ResultsRef);
+        
+        phase1ResultsSnap.docs.forEach(doc => {
+          const examData = doc.data();
+          if (examData.subject === subject) {
+            phase1Result = examData;
           }
         });
+        
+        // Si no se encuentra en la nueva estructura, buscar en la estructura antigua
+        if (!phase1Result) {
+          const resultsRef = doc(collection(db, 'results'), userId);
+          const resultsSnap = await getDoc(resultsRef);
+          const results = resultsSnap.exists() ? resultsSnap.data() : {};
+          
+          Object.values(results).forEach((exam: any) => {
+            if (exam.subject === subject && exam.phase === 'first') {
+              phase1Result = exam;
+            }
+          });
+        }
 
         if (phase1Result) {
           const progressResult = await phaseAnalysisService.analyzeProgress(

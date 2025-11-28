@@ -1,7 +1,4 @@
-import { HousePlug, ContactRound, NotepadText, BarChart2, Apple, Target } from "lucide-react"
-import { useQueryUser } from "@/hooks/query/useAuthQuery"
-import { useAuthContext } from "@/context/AuthContext"
-import { User } from "@/interfaces/context.interface"
+import { HousePlug, ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
 import { Link } from "react-router-dom"
 import InnovativeHero from "../inovativeGero"
 import { motion } from "framer-motion"
@@ -12,7 +9,6 @@ import { useEffect } from "react"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
-import PhaseDashboard from "@/components/student/PhaseDashboard"
   
 
 export function Home() {
@@ -25,14 +21,9 @@ export function Home() {
       }
     }
   }, [])
-  const { user } = useAuthContext()
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution()
   const { theme } = useThemeContext()
 
-  const userId = user?.uid
-  const { data: userFound } = useQueryUser().fetchUserById<User>(userId as string, !!user)
-
-  console.log(userFound)
   return (
     <div className={cn("min-h-screen flex flex-col", theme === 'dark' ? 'bg-zinc-900' : '')}>
       {/* Sección 1: Encabezado y Navegación */}
@@ -55,7 +46,6 @@ export function Home() {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/dashboard#fases" icon={<Target className="w-5 h-5" />} text="Fases Evaluativas" theme={theme} />
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
             <NavItem href="/exam-analyzer" icon={<HousePlug className="w-5 h-5" />} text="Mi progreso" theme={theme}/>
@@ -72,24 +62,6 @@ export function Home() {
           <InnovativeHero />
         </section>
 
-        {/* Sección de Fases Evaluativas */}
-        <section id="fases" className={cn("py-12", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
-          <div className="container mx-auto px-4">
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-              <h2 className={cn("text-4xl font-bold mb-4 text-center", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                Sistema de{" "}
-                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Evaluación por Fases
-                </span>
-              </h2>
-              <p className={cn("text-xl max-w-3xl mx-auto text-center", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Completa cada fase para desbloquear la siguiente. Tu progreso será analizado por IA para generar planes de mejoramiento personalizados.
-              </p>
-            </motion.div>
-            <PhaseDashboard theme={theme} />
-          </div>
-        </section>
-
         {/* Alert Section Mejorado */}
         <section className={cn("py-8", theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-r from-blue-50/50 to-indigo-50/50')}>
           <div className="max-w-6xl mx-auto px-8">
@@ -103,8 +75,8 @@ export function Home() {
                 <div>
                   <h3 className={cn("font-semibold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Información Importante</h3>
                   <p className={cn("leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                    El examen Saber 11.° evalúa competencias. En las preguntas encontrarás situaciones donde deberás
-                    aplicar tus conocimientos para tomar decisiones y elegir la respuesta correcta.
+                    Este examen evalúa todas las competencias del Saber 11.°. En las preguntas encontrarás situaciones donde deberás
+                    aplicar tus conocimientos para tomar decisiones y elegir la respuesta correcta simulando la prueba ICFES.
                   </p>
                 </div>
               </div>
@@ -124,7 +96,7 @@ export function Home() {
                 </span>
               </h2>
               <p className={cn("text-xl max-w-3xl mx-auto", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Selecciona un módulo para comenzar tu evaluación. Nuestra IA analizará tus respuestas en tiempo real.
+                Selecciona un módulo para comenzar tu evaluación.
               </p>
               <Intento />
               <Prueba />
@@ -161,7 +133,4 @@ function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemP
     </Link>
   )
 }
-
-
-
 

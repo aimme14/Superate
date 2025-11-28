@@ -1,26 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { 
-  CheckCircle2, 
-  Lock, 
-  Play, 
-  Clock, 
-  TrendingUp,
-  BookOpen,
-  Target,
-  Award,
-  AlertCircle,
-  Loader2
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
 import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
-import { StudentPhaseProgress, PhaseType } from '@/interfaces/phase.interface';
+import { PhaseType } from '@/interfaces/phase.interface';
 import { dbService } from '@/services/firebase/db.service';
 import { useNotification } from '@/hooks/ui/useNotification';
 
@@ -28,43 +10,10 @@ interface PhaseDashboardProps {
   theme: 'light' | 'dark';
 }
 
-const PHASE_NAMES: Record<PhaseType, string> = {
-  first: 'Fase 1 - Diagnóstico',
-  second: 'Fase 2 - Refuerzo',
-  third: 'Fase 3 - Simulacro ICFES',
-};
-
-const PHASE_DESCRIPTIONS: Record<PhaseType, string> = {
-  first: 'Evaluación inicial para determinar tus fortalezas y debilidades',
-  second: 'Refuerzo personalizado basado en tus resultados de la Fase 1',
-  third: 'Simulacro final tipo ICFES con puntuación 0-500',
-};
-
-const SUBJECTS = [
-  'Matemáticas',
-  'Lenguaje',
-  'Ciencias Sociales',
-  'Biologia',
-  'Quimica',
-  'Física',
-  'Inglés',
-];
-
-export default function PhaseDashboard({ theme }: PhaseDashboardProps) {
+export default function PhaseDashboard(_props: PhaseDashboardProps) {
   const { user } = useAuthContext();
-  const navigate = useNavigate();
   const { notifyError } = useNotification();
   
-  const [phaseProgress, setPhaseProgress] = useState<Record<PhaseType, StudentPhaseProgress | null>>({
-    first: null,
-    second: null,
-    third: null,
-  });
-  const [phaseAccess, setPhaseAccess] = useState<Record<PhaseType, { canAccess: boolean; reason?: string }>>({
-    first: { canAccess: false },
-    second: { canAccess: false },
-    third: { canAccess: false },
-  });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -101,37 +50,18 @@ export default function PhaseDashboard({ theme }: PhaseDashboardProps) {
 
       // Cargar progreso y acceso para cada fase
       const phases: PhaseType[] = ['first', 'second', 'third'];
-      const newProgress: Record<PhaseType, StudentPhaseProgress | null> = {
-        first: null,
-        second: null,
-        third: null,
-      };
-      const newAccess: Record<PhaseType, { canAccess: boolean; reason?: string }> = {
-        first: { canAccess: false },
-        second: { canAccess: false },
-        third: { canAccess: false },
-      };
 
       for (const phase of phases) {
         // Cargar progreso
-        const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(user.uid, phase);
-        if (progressResult.success && progressResult.data) {
-          newProgress[phase] = progressResult.data;
-        }
+        await phaseAuthorizationService.getStudentPhaseProgress(user.uid, phase);
 
         // Verificar acceso
-        const accessResult = await phaseAuthorizationService.canStudentAccessPhase(
+        await phaseAuthorizationService.canStudentAccessPhase(
           user.uid,
           studentGradeId,
           phase
         );
-        if (accessResult.success) {
-          newAccess[phase] = accessResult.data;
-        }
       }
-
-      setPhaseProgress(newProgress);
-      setPhaseAccess(newAccess);
     } catch (error) {
       console.error('Error cargando datos del estudiante:', error);
       notifyError({ 
@@ -141,59 +71,6 @@ export default function PhaseDashboard({ theme }: PhaseDashboardProps) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleStartPhase = (phase: PhaseType) => {
-    // Navegar a la página de selección de materia para la fase
-    navigate(`/quiz?phase=${phase}`);
-  };
-
-  const getPhaseStatus = (phase: PhaseType) => {
-    const progress = phaseProgress[phase];
-    const access = phaseAccess[phase];
-
-    if (!access.canAccess) {
-      return {
-        status: 'locked',
-        label: 'Bloqueada',
-        icon: Lock,
-        color: 'text-gray-400',
-        bgColor: 'bg-gray-100 dark:bg-zinc-800',
-      };
-    }
-
-    if (progress?.status === 'completed') {
-      return {
-        status: 'completed',
-        label: 'Completada',
-        icon: CheckCircle2,
-        color: 'text-green-500',
-        bgColor: 'bg-green-50 dark:bg-green-950/20',
-      };
-    }
-
-    if (progress?.status === 'in_progress') {
-      return {
-        status: 'in_progress',
-        label: 'En progreso',
-        icon: Clock,
-        color: 'text-yellow-500',
-        bgColor: 'bg-yellow-50 dark:bg-yellow-950/20',
-      };
-    }
-
-    return {
-      status: 'available',
-      label: 'Disponible',
-      icon: Play,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50 dark:bg-blue-950/20',
-    };
-  };
-
-  const getCompletedSubjectsCount = (phase: PhaseType) => {
-    const progress = phaseProgress[phase];
-    return progress?.subjectsCompleted.length || 0;
   };
 
   if (isLoading) {
@@ -206,7 +83,7 @@ export default function PhaseDashboard({ theme }: PhaseDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+      {/*<Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
           <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
             <Target className="h-5 w-5 text-blue-500" />
@@ -366,10 +243,10 @@ export default function PhaseDashboard({ theme }: PhaseDashboardProps) {
             );
           })}
         </CardContent>
-      </Card>
+      </Card>*/}
 
       {/* Información adicional */}
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+      {/*<Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
           <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
             <BookOpen className="h-5 w-5 text-purple-500" />
@@ -408,7 +285,7 @@ export default function PhaseDashboard({ theme }: PhaseDashboardProps) {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card>*/}
     </div>
   );
 }

@@ -1043,20 +1043,32 @@ class QuizGeneratorService {
       );
       questions.push(...primaryWeaknessQuestions);
 
-      // Obtener preguntas de otros temas (50% distribuido)
-      const questionsPerOtherTopic = distribution.otherTopics.length > 0
-        ? Math.floor(distribution.otherTopicsCount / distribution.otherTopics.length)
-        : 0;
-
-      for (const topic of distribution.otherTopics) {
-        const topicQuestions = await this.getQuestionsForTopic(
-          subject,
-          topic,
-          questionsPerOtherTopic,
-          grade,
-          config.level || 'Medio'
-        );
-        questions.push(...topicQuestions);
+      // Obtener preguntas de otros temas (50% distribuido equitativamente)
+      if (distribution.otherTopics.length > 0) {
+        const baseQuestionsPerTopic = Math.floor(distribution.otherTopicsCount / distribution.otherTopics.length);
+        const remainder = distribution.otherTopicsCount % distribution.otherTopics.length;
+        
+        // Distribuir equitativamente, asignando el resto a los primeros temas
+        for (let i = 0; i < distribution.otherTopics.length; i++) {
+          const topic = distribution.otherTopics[i];
+          const questionsForThisTopic = baseQuestionsPerTopic + (i < remainder ? 1 : 0);
+          
+          if (questionsForThisTopic > 0) {
+            const topicQuestions = await this.getQuestionsForTopic(
+              subject,
+              topic,
+              questionsForThisTopic,
+              grade,
+              config.level || 'Medio'
+            );
+            questions.push(...topicQuestions);
+          }
+        }
+      } else {
+        // Caso edge: solo hay 1 tema (la debilidad principal)
+        // En este caso, usar distribución estándar
+        console.warn(`⚠️ Solo hay 1 tema en ${subject}, usando distribución estándar`);
+        return this.generateStandardPhase2Quiz(subject, config, grade);
       }
 
       // Mezclar preguntas

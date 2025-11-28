@@ -8,14 +8,17 @@ import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
+import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Question } from "@/services/firebase/question.service";
+import { useNotification } from "@/hooks/ui/useNotification";
+import { processExamResults } from "@/utils/phaseIntegration";
 
 const db = getFirestore(firebaseApp);
 
@@ -29,29 +32,62 @@ interface QuestionTimeData {
 
 
 // Verifica si el usuario ya presentó el examen
-const checkExamStatus = async (userId: string, examId: string) => {
-  const docRef = doc(db, "results", userId);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    const data = docSnap.data();
+const checkExamStatus = async (userId: string, examId: string, phase?: 'first' | 'second' | 'third') => {
+  // Si se proporciona la fase, buscar solo en esa subcolección
+  if (phase) {
+    const phaseName = getPhaseName(phase);
+    const docRef = doc(db, "results", userId, phaseName, examId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } else {
+    // Si no se proporciona fase, buscar en todas las subcolecciones
+    const phases = getAllPhases();
+    for (const phaseName of phases) {
+      const docRef = doc(db, "results", userId, phaseName, examId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+    }
+  }
+  
+  // También verificar estructura antigua para compatibilidad
+  const oldDocRef = doc(db, "results", userId);
+  const oldDocSnap = await getDoc(oldDocRef);
+  if (oldDocSnap.exists()) {
+    const data = oldDocSnap.data();
     return data[examId] || null;
   }
+  
   return null;
 };
 
 // Guarda los resultados del examen
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
-  const docRef = doc(db, "results", userId);
+  // Determinar la fase y obtener el nombre de la subcolección
+  const phaseName = getPhaseName(examData.phase);
+  
+  // Verificar que las respuestas de fase 2 se guarden en "Fase II"
+  if (examData.phase === 'second') {
+    console.log(`✅ Guardando respuestas de Fase 2 en carpeta: results/${userId}/${phaseName}/${examId}`);
+    if (phaseName !== 'Fase II') {
+      console.error(`❌ ERROR: La fase 2 debería guardarse en "Fase II" pero se está usando: ${phaseName}`);
+    }
+  }
+  
+  // Guardar en la subcolección correspondiente a la fase
+  const docRef = doc(db, "results", userId, phaseName, examId);
   await setDoc(
     docRef,
     {
-      [examId]: {
-        ...examData,
-        timestamp: Date.now(),
-      },
-    },
-    { merge: true }
+      ...examData,
+      timestamp: Date.now(),
+    }
   );
+  
+  console.log(`✅ Examen guardado exitosamente en: results/${userId}/${phaseName}/${examId}`);
   return { success: true, id: `${userId}_${examId}` };
 };
 
@@ -109,6 +145,7 @@ const ExamWithFirebase = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuthContext();
   const { theme: appTheme } = useThemeContext();
+  const { notifyError } = useNotification();
   const userId = user?.uid;
 
   // Obtener parámetros de la URL para determinar la fase
@@ -167,6 +204,161 @@ const ExamWithFirebase = () => {
           setExamState('loading');
         }
         
+        // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
+        const { dbService } = await import('@/services/firebase/db.service');
+        const userResult = await dbService.getUserById(userId);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data;
+          const gradeId = studentData.gradeId || studentData.grade;
+
+          if (gradeId) {
+            // Verificar acceso a la fase
+            const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service');
+            const checkPhaseAccess = async (userId: string, gradeId: string, phase: 'first' | 'second' | 'third') => {
+              const accessResult = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, phase);
+              return accessResult.success ? accessResult.data : { canAccess: false, reason: 'Error verificando acceso' };
+            };
+
+            const accessCheck = await checkPhaseAccess(userId, gradeId, currentPhase);
+            if (!accessCheck.canAccess) {
+              console.log(`[fromExamIngles] Acceso bloqueado: ${accessCheck.reason}`);
+              if (isMounted) {
+                setExamState('blocked');
+                notifyError({
+                  title: 'Acceso bloqueado',
+                  message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
+                });
+              }
+              return;
+            }
+
+            // Verificar si el examen ya fue completado y si debe estar bloqueado
+            const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(userId, currentPhase);
+            
+            let isSubjectCompleted = false;
+            let allSubjectsCompleted = false;
+            
+            if (progressResult.success && progressResult.data) {
+              const progress = progressResult.data;
+              // Normalizar nombres para comparación (case-insensitive)
+              const normalizedSubject = examConfig.subject.trim();
+              const completedSubjects = (progress.subjectsCompleted || []).map((s: string) => s.trim());
+              isSubjectCompleted = completedSubjects.some(
+                (s: string) => s.toLowerCase() === normalizedSubject.toLowerCase()
+              );
+              allSubjectsCompleted = completedSubjects.length >= 7; // Total de materias
+              
+              console.log(`[fromExamIngles] Verificando bloqueo para ${examConfig.subject} - Fase ${currentPhase}:`, {
+                normalizedSubject,
+                isSubjectCompleted,
+                allSubjectsCompleted,
+                completedCount: completedSubjects.length,
+                completedSubjects
+              });
+            }
+            
+            // VERIFICACIÓN CRÍTICA: Consultar directamente Firestore (results/estudiante/fase/examen)
+            // Esta es la fuente de verdad para verificar si un examen está completado
+            // Funciona para TODAS las materias, no solo Inglés
+            try {
+              const phaseName = getPhaseName(currentPhase as 'first' | 'second' | 'third');
+              const resultsRef = collection(db, 'results', userId, phaseName);
+              const resultsSnapshot = await getDocs(resultsRef);
+              
+              const normalizedSubject = examConfig.subject.trim().toLowerCase();
+              
+              // Mapeo de códigos de materia a nombres (para detectar exámenes antiguos sin campo subject)
+              const subjectCodeMap: Record<string, string> = {
+                'IN': 'inglés',
+                'MA': 'matemáticas',
+                'LE': 'lenguaje',
+                'CS': 'ciencias sociales',
+                'BI': 'biologia',
+                'QU': 'quimica',
+                'FI': 'física'
+              };
+              
+              console.log(`[fromExamIngles] 🔍 Verificando Firestore para ${examConfig.subject} - Fase ${currentPhase}:`, {
+                totalDocs: resultsSnapshot.docs.length
+              });
+              
+              resultsSnapshot.docs.forEach(doc => {
+                const examData = doc.data();
+                const examSubject = (examData.subject || '').trim().toLowerCase();
+                const examCompleted = examData.completed === true;
+                
+                // FALLBACK: Si no hay campo subject, intentar detectar por el ID del documento
+                // Los IDs de exámenes dinámicos siguen el patrón: <CODIGO_MATERIA><GRADO><NUMERO>
+                let detectedSubject = examSubject;
+                if (!examSubject && doc.id) {
+                  const docIdUpper = doc.id.toUpperCase();
+                  // Buscar si el ID empieza con algún código de materia conocido
+                  for (const [code, subjectName] of Object.entries(subjectCodeMap)) {
+                    if (docIdUpper.startsWith(code)) {
+                      detectedSubject = subjectName;
+                      console.log(`[fromExamIngles] 🔍 Examen sin campo subject detectado por ID: ${doc.id} -> ${subjectName} (código: ${code})`);
+                      break;
+                    }
+                  }
+                }
+                
+                // Si el examen está completado y es de la materia correcta
+                if (examCompleted && detectedSubject === normalizedSubject) {
+                  isSubjectCompleted = true;
+                  console.log(`[fromExamIngles] ✅ Examen completado encontrado en Firestore: ${examConfig.subject} - Fase ${currentPhase} - Doc ID: ${doc.id}`, {
+                    detectedBy: examData.subject ? 'subject field' : 'document ID'
+                  });
+                  
+                  // Si el examen no tiene el campo subject, actualizarlo (sin await, se ejecuta en background)
+                  if (!examData.subject) {
+                    console.log(`[fromExamIngles] 🔄 Actualizando examen antiguo: agregando campo subject a ${doc.id}`);
+                    import('firebase/firestore').then(({ updateDoc, doc: docFn }) => {
+                      const examRef = docFn(db, 'results', userId, phaseName, doc.id);
+                      updateDoc(examRef, {
+                        subject: examConfig.subject
+                      }).then(() => {
+                        console.log(`[fromExamIngles] ✅ Campo subject agregado a ${doc.id}`);
+                      }).catch((error) => {
+                        console.error(`[fromExamIngles] ❌ Error actualizando examen:`, error);
+                      });
+                    }).catch((error) => {
+                      console.error(`[fromExamIngles] ❌ Error importando updateDoc:`, error);
+                    });
+                  }
+                }
+              });
+            } catch (error) {
+              console.error(`[fromExamIngles] ❌ Error consultando Firestore:`, error);
+            }
+            
+            // Verificar si la siguiente fase está autorizada
+            const nextPhase: 'first' | 'second' | 'third' | null = currentPhase === 'first' ? 'second' : currentPhase === 'second' ? 'third' : null;
+            let nextPhaseAuthorized = false;
+            if (nextPhase) {
+              const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, nextPhase);
+              nextPhaseAuthorized = nextPhaseAccess.success && nextPhaseAccess.data.canAccess;
+            }
+            
+            // Si el examen ya fue completado Y no todas las materias están completadas Y la siguiente fase no está autorizada
+            if (isSubjectCompleted && !allSubjectsCompleted && !nextPhaseAuthorized) {
+              console.log(`[fromExamIngles] BLOQUEANDO examen: ${examConfig.subject} - Fase ${currentPhase}`);
+              if (isMounted) {
+                setExamState('blocked');
+                notifyError({
+                  title: 'Examen bloqueado',
+                  message: 'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.'
+                });
+              }
+              return;
+            } else if (isSubjectCompleted) {
+              console.log(`[fromExamIngles] Examen completado pero NO bloqueado:`, {
+                allSubjectsCompleted,
+                nextPhaseAuthorized
+              });
+            }
+          }
+        }
+        
         // Obtener el grado del usuario desde el contexto
         const userGradeName = (user as any)?.gradeName || (user as any)?.grade;
         console.log('Grado del usuario (nombre):', userGradeName);
@@ -175,11 +367,13 @@ const ExamWithFirebase = () => {
         const userGrade = mapGradeToCode(userGradeName);
         console.log('Grado del usuario (código):', userGrade);
         
-        // Generar el cuestionario dinámicamente desde el banco de preguntas
+        // SEGUNDO: Generar el cuestionario solo si no está bloqueado
+        // Nota: Inglés tiene lógica especial de preguntas agrupadas, pero aún así pasamos userId
         const quizResult = await quizGeneratorService.generateQuiz(
           examConfig.subject, 
           currentPhase,
-          userGrade
+          userGrade,
+          userId // Pasar userId para personalización en Fase 2 (aunque Inglés tiene lógica especial)
         );
         
         console.log('Resultado del generador de cuestionario:', quizResult);
@@ -255,7 +449,7 @@ const ExamWithFirebase = () => {
 
         // Verificar si ya se presentó este examen
         const examId = quiz.id;
-        const existingExam = await checkExamStatus(userId, examId);
+        const existingExam = await checkExamStatus(userId, examId, quiz.phase as 'first' | 'second' | 'third' | undefined);
         if (existingExam) {
           console.log('Examen ya presentado:', existingExam);
           if (isMounted) {
@@ -458,6 +652,7 @@ const ExamWithFirebase = () => {
         userId,
         examId: quizData.id,
         examTitle: quizData.title,
+        subject: quizData.subject || examConfig.subject, // IMPORTANTE: Incluir el campo subject
         answers,
         score,
         topic: quizData.questions[currentQuestion]?.topic || '',
@@ -495,6 +690,26 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
+      
+      // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
+      if (result && quizData.phase) {
+        try {
+          const processResult = await processExamResults(
+            userId,
+            quizData.subject || examConfig.subject,
+            quizData.phase,
+            examResult
+          );
+          if (processResult.success) {
+            console.log('✅ Resultados procesados exitosamente');
+          } else {
+            console.error('⚠️ Error procesando resultados:', processResult.error);
+          }
+        } catch (error) {
+          console.error('⚠️ Error al procesar resultados:', error);
+        }
+      }
+      
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)
@@ -783,6 +998,42 @@ const ExamWithFirebase = () => {
             Por favor espera mientras verificamos si ya has presentado este examen
           </CardDescription>
         </CardHeader>
+      </Card>
+    </div>
+  )
+
+  // Pantalla cuando el examen está bloqueado
+  const BlockedScreen = () => (
+    <div className="max-w-2xl mx-auto">
+      <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-red-800' : 'border-red-200')}>
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-red-900/50' : 'bg-red-100')}>
+              <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-red-400' : 'text-red-600')} />
+            </div>
+          </div>
+          <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-red-400' : 'text-red-800')}>Examen Bloqueado</CardTitle>
+          <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
+            Este examen ya fue completado
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className={cn(appTheme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Información</AlertTitle>
+            <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
+              Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button
+            onClick={() => navigate('/dashboard')}
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+          >
+            Volver al Dashboard
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   )
@@ -1930,13 +2181,14 @@ const ExamWithFirebase = () => {
                           <RadioGroup
                             value={answers[question.id || ''] || ""}
                             onValueChange={(value) => handleAnswerChange(question.id || '', value)}
-                            className="space-y-4"
+                            className="space-y-0.5"
                           >
                             {question.options.map((option) => (
                               <div
                                 key={option.id}
+                                onClick={() => handleAnswerChange(question.id || '', option.id)}
                                 className={cn(
-                                  `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden`,
+                                  `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden cursor-pointer`,
                                   appTheme === 'dark' 
                                     ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
                                     : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
@@ -2215,6 +2467,7 @@ const ExamWithFirebase = () => {
       {examState === 'welcome' && <WelcomeScreen />}
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}
+      {examState === 'blocked' && <BlockedScreen />}
       {examState === 'already_taken' && <AlreadyTakenScreen />}
       {examState === 'no_questions' && <NoQuestionsScreen />}
 

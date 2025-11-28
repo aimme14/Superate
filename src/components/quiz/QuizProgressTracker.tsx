@@ -5,10 +5,11 @@ import { Badge } from '#/ui/badge';
 import { Button } from '#/ui/button';
 import { CheckCircle2, Clock, BookOpen, Calculator, BookMarked, Leaf, BookCheck, AlertCircle } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/services/firebase/db.service';
 import { quizGeneratorService } from '@/services/quiz/quizGenerator.service';
 import { Link } from 'react-router-dom';
+import { getAllPhases, getPhaseType } from '@/utils/firestoreHelpers';
 
 const db = getFirestore(firebaseApp);
 
@@ -74,11 +75,36 @@ const QuizProgressTracker = () => {
     try {
       setLoading(true);
       
-      // Obtener resultados del usuario
-      const docRef = doc(db, "results", user!.uid);
-      const docSnap = await getDoc(docRef);
+      // Obtener resultados de todas las subcolecciones de fases
+      const phases = getAllPhases();
+      const userResults: QuizResult[] = [];
       
-      const userResults: Record<string, QuizResult> = docSnap.exists() ? docSnap.data() : {};
+      // Leer de las subcolecciones de fases
+      for (const phaseName of phases) {
+        const phaseRef = collection(db, "results", user!.uid, phaseName);
+        const phaseSnap = await getDocs(phaseRef);
+        phaseSnap.docs.forEach(doc => {
+          const examData = doc.data();
+          userResults.push({
+            ...examData,
+            examId: doc.id,
+            phase: getPhaseType(phaseName) || phaseName,
+          } as QuizResult);
+        });
+      }
+      
+      // También leer de la estructura antigua para compatibilidad
+      const oldDocRef = doc(db, "results", user!.uid);
+      const oldDocSnap = await getDoc(oldDocRef);
+      if (oldDocSnap.exists()) {
+        const oldData = oldDocSnap.data();
+        Object.entries(oldData).forEach(([examId, examData]: [string, any]) => {
+          userResults.push({
+            ...examData,
+            examId,
+          } as QuizResult);
+        });
+      }
       
       // Obtener materias disponibles
       const availableSubjects = quizGeneratorService.getAvailableSubjects();
@@ -92,7 +118,7 @@ const QuizProgressTracker = () => {
         };
         
         // Buscar resultados para esta materia
-        Object.values(userResults).forEach(result => {
+        userResults.forEach(result => {
           if (result.subject === subject) {
             if (result.phase === 'first') phases.first = result;
             else if (result.phase === 'second') phases.second = result;
