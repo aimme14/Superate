@@ -12,6 +12,8 @@ import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
+import { phase1AIAnalysisService, Phase1ConsolidatedAnalysis } from "@/services/phase/phase1AIAnalysis.service";
+import { Brain, Sparkles, Loader2 as Loader2Icon } from "lucide-react";
 
 const db = getFirestore(firebaseApp);
 
@@ -92,6 +94,8 @@ const ExamAnalyzer = () => {
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [consolidatedAnalysis, setConsolidatedAnalysis] = useState<Phase1ConsolidatedAnalysis | null>(null);
+  const [loadingAIAnalysis, setLoadingAIAnalysis] = useState(false);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
 
@@ -141,6 +145,24 @@ const ExamAnalyzer = () => {
 
         evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setEvaluations(evaluationsArray);
+
+        // Cargar análisis consolidado de Fase I si hay exámenes de Fase I
+        const hasPhase1Exams = evaluationsArray.some(e => 
+          e.phase === 'first' || e.phase === 'Fase I' || e.phase === 'fase I'
+        );
+        if (hasPhase1Exams && user) {
+          setLoadingAIAnalysis(true);
+          try {
+            const analysisResult = await phase1AIAnalysisService.getOrGenerateConsolidatedAnalysis(user.uid);
+            if (analysisResult.success) {
+              setConsolidatedAnalysis(analysisResult.data);
+            }
+          } catch (error) {
+            console.error('Error cargando análisis consolidado:', error);
+          } finally {
+            setLoadingAIAnalysis(false);
+          }
+        }
       } catch (error) {
         console.error("Error al obtener las evaluaciones:", error);
         setError("Error al cargar los datos");
@@ -424,6 +446,146 @@ const ExamAnalyzer = () => {
           <h1 className={cn("text-3xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Mi Progreso Académico</h1>
           <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Análisis detallado de tu evolución y rendimiento</p>
         </div>
+
+        {/* Análisis Consolidado de IA para Fase I */}
+        {consolidatedAnalysis && (
+          <Card className={cn("shadow-lg mb-6", theme === 'dark' ? 'bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-purple-700' : 'bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200')}>
+            <CardHeader>
+              <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                <Brain className="h-6 w-6 text-purple-500" />
+                Análisis Inteligente de Fase I
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingAIAnalysis ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2Icon className={cn("h-6 w-6 animate-spin mr-2", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
+                  <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Generando análisis con IA...</span>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Resumen General de IA */}
+                  <div className={cn("p-4 rounded-lg", theme === 'dark' ? 'bg-zinc-800/50' : 'bg-white/50')}>
+                    <h4 className={cn("font-semibold mb-3 flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      Resumen Ejecutivo
+                    </h4>
+                    <p className={cn("text-sm leading-relaxed mb-4", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                      {consolidatedAnalysis.aiGeneratedSummary.summary}
+                    </p>
+                    
+                    {consolidatedAnalysis.aiGeneratedSummary.keyFindings.length > 0 && (
+                      <div className="mt-4">
+                        <h5 className={cn("font-medium mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Hallazgos Clave:</h5>
+                        <ul className="space-y-1">
+                          {consolidatedAnalysis.aiGeneratedSummary.keyFindings.map((finding, index) => (
+                            <li key={index} className={cn("text-sm flex items-start gap-2", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                              <span className="text-purple-500 mt-1">•</span>
+                              <span>{finding}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Plan de Acción */}
+                  {consolidatedAnalysis.aiGeneratedSummary.actionPlan && (
+                    <div className={cn("p-4 rounded-lg", theme === 'dark' ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-200')}>
+                      <h4 className={cn("font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                        Plan de Acción
+                      </h4>
+                      <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-blue-200' : 'text-blue-700')}>
+                        {consolidatedAnalysis.aiGeneratedSummary.actionPlan}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Mensaje Motivador */}
+                  {consolidatedAnalysis.aiGeneratedSummary.motivation && (
+                    <div className={cn("p-4 rounded-lg", theme === 'dark' ? 'bg-green-900/20 border border-green-800' : 'bg-green-50 border border-green-200')}>
+                      <h4 className={cn("font-semibold mb-2", theme === 'dark' ? 'text-green-300' : 'text-green-800')}>
+                        💪 Motivación
+                      </h4>
+                      <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-green-200' : 'text-green-700')}>
+                        {consolidatedAnalysis.aiGeneratedSummary.motivation}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Análisis por Materia */}
+                  <div className="space-y-4">
+                    <h4 className={cn("font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      Análisis Detallado por Materia
+                    </h4>
+                    {consolidatedAnalysis.subjectAnalyses.map((subjectAnalysis, index) => (
+                      <Card key={index} className={cn(theme === 'dark' ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white/50 border-gray-200')}>
+                        <CardHeader>
+                          <CardTitle className={cn("text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                            {subjectAnalysis.subject} - {subjectAnalysis.score.toFixed(1)}%
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {subjectAnalysis.aiInsights && (
+                            <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                              {subjectAnalysis.aiInsights}
+                            </p>
+                          )}
+                          
+                          {subjectAnalysis.strengths.length > 0 && (
+                            <div>
+                              <h5 className={cn("font-medium text-sm mb-2", theme === 'dark' ? 'text-green-300' : 'text-green-700')}>
+                                Fortalezas:
+                              </h5>
+                              <div className="flex flex-wrap gap-2">
+                                {subjectAnalysis.strengths.map((strength, i) => (
+                                  <Badge key={i} className="bg-green-100 text-green-800 text-xs">
+                                    {strength}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {subjectAnalysis.weaknesses.length > 0 && (
+                            <div>
+                              <h5 className={cn("font-medium text-sm mb-2", theme === 'dark' ? 'text-orange-300' : 'text-orange-700')}>
+                                Áreas de Mejora:
+                              </h5>
+                              <div className="flex flex-wrap gap-2">
+                                {subjectAnalysis.weaknesses.map((weakness, i) => (
+                                  <Badge key={i} className="bg-orange-100 text-orange-800 text-xs">
+                                    {weakness}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {subjectAnalysis.recommendations.length > 0 && (
+                            <div>
+                              <h5 className={cn("font-medium text-sm mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-700')}>
+                                Recomendaciones:
+                              </h5>
+                              <ul className="space-y-1">
+                                {subjectAnalysis.recommendations.map((rec, i) => (
+                                  <li key={i} className={cn("text-sm flex items-start gap-2", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                    <span className="text-blue-500 mt-1">→</span>
+                                    <span>{rec}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Resumen General */}
         <Card className={cn("shadow-lg border-l-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700 border-l-green-500' : 'border-l-green-500')}>
