@@ -1,4 +1,4 @@
-import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Atom, Timer, HelpCircle, Users, Play, Maximize, X, Database } from "lucide-react"
+import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Atom, Timer, HelpCircle, Users, Play, Maximize, X, Database, ZoomIn } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
@@ -231,6 +231,7 @@ const ExamWithFirebase = () => {
   const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [existingExamData, setExistingExamData] = useState<any | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   // Estados para el seguimiento de tiempo por pregunta
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
@@ -1357,63 +1358,149 @@ const ExamWithFirebase = () => {
                 )}
               </div>
               
-              <RadioGroup
-                value={answers[questionId] || ""}
-                onValueChange={(value) => handleAnswerChange(questionId, value)}
-                className="space-y-0.5 mt-6"
-              >
-                {currentQ.options.map((option) => (
-                  <div
-                    key={option.id}
-                    onClick={() => handleAnswerChange(questionId, option.id)}
-                    className={cn(
-                      `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden cursor-pointer`,
-                      appTheme === 'dark' 
-                        ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
-                        : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
-                    )}
-                    style={appTheme === 'dark' ? {} : (theme.pattern ? { 
-                      backgroundImage: theme.pattern,
-                      backgroundSize: '100% 100%'
-                    } : {})}
-                  >
-                    <RadioGroupItem
-                      value={option.id}
-                      id={`${questionId}-${option.id}`}
-                      className="mt-1 relative z-10"
-                    />
-                    <Label
-                      htmlFor={`${questionId}-${option.id}`}
-                      className="flex-1 cursor-pointer relative z-10"
+              {/* Detectar si todas las opciones tienen imágenes y no tienen texto significativo */}
+              {(() => {
+                const allOptionsHaveImages = currentQ.options.every(opt => opt.imageUrl);
+                const noSignificantText = currentQ.options.every(opt => !opt.text || stripHtmlTags(opt.text).trim().length === 0);
+                const isImageOnlyLayout = allOptionsHaveImages && noSignificantText;
+
+                if (isImageOnlyLayout) {
+                  // Layout 2x2 para respuestas solo con imágenes
+                  return (
+                    <RadioGroup
+                      value={answers[questionId] || ""}
+                      onValueChange={(value) => handleAnswerChange(questionId, value)}
+                      className="mt-6"
                     >
-                      <div className="flex items-start gap-3">
-                        <span className={cn(`font-bold mr-2 text-base flex-shrink-0`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
-                        <div className="flex-1">
-                          {option.text && (
-                            <div 
-                              className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}
-                              dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
-                            />
-                          )}
-                          {option.imageUrl && (
-                            <div className="mt-2 flex justify-center">
-                              <img 
-                                src={option.imageUrl} 
-                                alt={`Opción ${option.id}`}
-                                className="option-image"
-                                onError={(e) => {
-                                  console.error('Error cargando imagen de opción:', option.imageUrl);
-                                  e.currentTarget.style.display = 'none';
-                                }}
+                      <div className="grid grid-cols-2 gap-4">
+                        {currentQ.options.map((option) => {
+                          return (
+                            <div
+                              key={option.id}
+                              onClick={() => handleAnswerChange(questionId, option.id)}
+                              className={cn(
+                                `relative rounded-lg p-2 transition-all duration-200 cursor-pointer border-2`,
+                                answers[questionId] === option.id
+                                  ? appTheme === 'dark'
+                                    ? 'border-purple-500 bg-purple-900/30'
+                                    : 'border-purple-500 bg-purple-50'
+                                  : appTheme === 'dark'
+                                    ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700'
+                                    : 'border-gray-300 bg-white hover:border-purple-300 hover:bg-purple-50/50'
+                              )}
+                            >
+                              <RadioGroupItem
+                                value={option.id}
+                                id={`${questionId}-${option.id}`}
+                                className="absolute top-1.5 left-1.5 z-10"
                               />
+                              <div className="flex flex-col items-center justify-center pt-5">
+                                <span className={cn(`font-bold text-sm mb-1.5`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>
+                                  {option.id}.
+                                </span>
+                                {option.imageUrl && (
+                                  <div 
+                                    className="relative w-full flex justify-center"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setZoomedImage(option.imageUrl || null);
+                                    }}
+                                  >
+                                    <img 
+                                      src={option.imageUrl} 
+                                      alt={`Opción ${option.id}`}
+                                      className="max-w-[180px] max-h-[120px] w-auto h-auto rounded-md cursor-zoom-in hover:opacity-90 transition-opacity object-contain"
+                                      onError={(e) => {
+                                        console.error('Error cargando imagen de opción:', option.imageUrl);
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/10 rounded-md">
+                                      <ZoomIn className="h-6 w-6 text-white drop-shadow-lg" />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
+                          );
+                        })}
                       </div>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
+                    </RadioGroup>
+                  );
+                } else {
+                  // Layout normal para respuestas con texto o mixtas
+                  return (
+                    <RadioGroup
+                      value={answers[questionId] || ""}
+                      onValueChange={(value) => handleAnswerChange(questionId, value)}
+                      className="space-y-0.5 mt-6"
+                    >
+                      {currentQ.options.map((option) => (
+                        <div
+                          key={option.id}
+                          onClick={() => handleAnswerChange(questionId, option.id)}
+                          className={cn(
+                            `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden cursor-pointer`,
+                            appTheme === 'dark' 
+                              ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
+                              : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
+                          )}
+                          style={appTheme === 'dark' ? {} : (theme.pattern ? { 
+                            backgroundImage: theme.pattern,
+                            backgroundSize: '100% 100%'
+                          } : {})}
+                        >
+                          <RadioGroupItem
+                            value={option.id}
+                            id={`${questionId}-${option.id}`}
+                            className="mt-1 relative z-10"
+                          />
+                          <Label
+                            htmlFor={`${questionId}-${option.id}`}
+                            className="flex-1 cursor-pointer relative z-10"
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className={cn(`font-bold mr-2 text-base flex-shrink-0`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
+                              <div className="flex-1">
+                                {option.text && (
+                                  <div 
+                                    className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}
+                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
+                                  />
+                                )}
+                                {option.imageUrl && (
+                                  <div 
+                                    className="mt-2 flex justify-center"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setZoomedImage(option.imageUrl || null);
+                                    }}
+                                  >
+                                    <div className="relative">
+                                      <img 
+                                        src={option.imageUrl} 
+                                        alt={`Opción ${option.id}`}
+                                        className="option-image cursor-zoom-in hover:opacity-90 transition-opacity"
+                                        onError={(e) => {
+                                          console.error('Error cargando imagen de opción:', option.imageUrl);
+                                          e.currentTarget.style.display = 'none';
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/10 rounded">
+                                        <ZoomIn className="h-6 w-6 text-white drop-shadow-lg" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  );
+                }
+              })()}
             </CardContent>
             <CardFooter className="flex justify-end">
               <Button
@@ -1702,6 +1789,32 @@ const ExamWithFirebase = () => {
       {/* Modales */}
       {showFullscreenExit && <FullscreenExitModal />}
       {showWarning && <SubmitWarningModal />}
+      
+      {/* Modal de zoom para imágenes */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[100] p-4"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]">
+            <button
+              onClick={() => setZoomedImage(null)}
+              className={cn(
+                "absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors",
+                appTheme === 'dark' ? 'text-white' : 'text-white'
+              )}
+            >
+              <X className="h-8 w-8" />
+            </button>
+            <img 
+              src={zoomedImage} 
+              alt="Imagen ampliada"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
