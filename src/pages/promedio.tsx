@@ -1274,16 +1274,6 @@ export default function ICFESAnalysisInterface() {
     return analysisData;
   };
 
-  const getCurrentPhaseEvaluations = (): ExamResult[] => {
-    if (selectedPhase === 'phase1' && phase1Evaluations.length > 0) return phase1Evaluations;
-    if (selectedPhase === 'phase2' && phase2Evaluations.length > 0) return phase2Evaluations;
-    if (selectedPhase === 'all' && evaluations.length > 0) return evaluations;
-    // Si no hay datos para la fase seleccionada, intentar con otra fase disponible
-    if (phase2Evaluations.length > 0) return phase2Evaluations;
-    if (phase1Evaluations.length > 0) return phase1Evaluations;
-    return evaluations;
-  };
-
   if (loading) {
     return (
       <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
