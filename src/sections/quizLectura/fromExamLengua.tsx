@@ -430,12 +430,15 @@ const ExamWithFirebase = () => {
       const examEndTime = Date.now();
       const totalExamTime = Math.floor((examEndTime - examStartTime) / 1000);
 
+      // Asegurar que siempre tengamos una fase válida
+      const finalPhase = currentPhase || examConfig.phase || 'first';
+      
       const examResult = {
         userId,
         examId: examConfig.examId,
         examTitle: examConfig.title,
         subject: currentSubject,
-        phase: currentPhase,
+        phase: finalPhase,
         answers,
         score,
         timeExpired,

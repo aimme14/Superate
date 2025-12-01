@@ -790,6 +790,49 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setFieldErrors({})
   }
 
+  // Función para limpiar solo los campos de pregunta y opciones, manteniendo los campos básicos
+  const resetQuestionFieldsOnly = () => {
+    // Mantener: subject, subjectCode, topic, topicCode, grade, level, levelCode
+    // Limpiar solo: informativeText, questionText, opciones e imágenes
+    setFormData(prev => ({
+      ...prev,
+      informativeText: '',
+      questionText: '',
+    }))
+    setInformativeImages([])
+    setInformativeImagePreviews([])
+    setQuestionImages([])
+    setQuestionImagePreviews([])
+    setEditInformativeImages([])
+    setEditQuestionImages([])
+    setOptions([
+      { id: 'A', text: '', imageUrl: null, isCorrect: false },
+      { id: 'B', text: '', imageUrl: null, isCorrect: false },
+      { id: 'C', text: '', imageUrl: null, isCorrect: false },
+      { id: 'D', text: '', imageUrl: null, isCorrect: false },
+    ])
+    setOptionFiles({ A: null, B: null, C: null, D: null })
+    setOptionImagePreviews({ A: null, B: null, C: null, D: null })
+    // Limpiar estados de modalidades especiales
+    setMatchingQuestions([])
+    setExpandedViewOptions(new Set())
+    setClozeText('')
+    setClozeGaps({})
+    setReadingText('')
+    setReadingImage(null)
+    setReadingImagePreview(null)
+    setReadingQuestions([])
+    // Limpiar estados de comprensión de lectura de otras materias
+    setOtherSubjectsReadingText('')
+    setOtherSubjectsReadingImage(null)
+    setOtherSubjectsReadingImagePreview(null)
+    setOtherSubjectsReadingQuestions([])
+    // Resetear modalidad de otras materias a estándar para la siguiente pregunta
+    setOtherSubjectsModality('standard_mc')
+    // Limpiar errores de validación
+    setFieldErrors({})
+  }
+
   // Función para comprimir imagen
   const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -1445,7 +1488,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Éxito', 
             message: `${successCount} pregunta(s) creada(s) exitosamente. Códigos: ${createdQuestions.join(', ')}` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1454,7 +1497,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Advertencia', 
             message: `Se crearon ${successCount} pregunta(s) de ${matchingQuestions.length}. ${errorCount} fallaron.` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1566,7 +1609,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Éxito', 
             message: `${successCount} pregunta(s) agrupada(s) creada(s) exitosamente. Códigos: ${createdQuestions.join(', ')}` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1575,7 +1618,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Advertencia', 
             message: `Se crearon ${successCount} pregunta(s) de ${sortedGaps.length}. ${errorCount} fallaron.` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1718,7 +1761,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Éxito', 
             message: `${successCount} pregunta(s) creada(s) exitosamente. Códigos: ${createdQuestions.join(', ')}` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1727,7 +1770,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Advertencia', 
             message: `Se crearon ${successCount} pregunta(s) de ${readingQuestions.length}. ${errorCount} fallaron.` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1870,7 +1913,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Éxito', 
             message: `${successCount} pregunta(s) creada(s) exitosamente. Códigos: ${createdQuestions.join(', ')}` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1879,7 +1922,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Advertencia', 
             message: `Se crearon ${successCount} pregunta(s) de ${otherSubjectsReadingQuestions.length}. ${errorCount} fallaron.` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -1898,8 +1941,20 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           options: finalOptions,
         }
 
+        // Para modalidad "Opción Múltiple Estándar" en otras materias (no inglés):
+        // Matemáticas (MA), Lenguaje (LE), Ciencias Sociales (CS), Biología (BI), Química (QU), Física (FI)
+        // El texto informativo se mantiene si el usuario lo proporcionó (es opcional)
+        // Las imágenes informativas también se mantienen si fueron proporcionadas
+        if (formData.subjectCode !== 'IN' && otherSubjectsModality === 'standard_mc') {
+          // Mantener el informativeText si fue proporcionado (no limpiarlo)
+          // Mantener las imágenes informativas si fueron proporcionadas
+          if (informativeImageUrls.length > 0) {
+            questionData.informativeImages = informativeImageUrls
+          }
+        }
+
         // Solo agregar campos de imágenes si tienen contenido (evitar undefined)
-        if (informativeImageUrls.length > 0) {
+        if (informativeImageUrls.length > 0 && questionData.informativeImages === undefined) {
           questionData.informativeImages = informativeImageUrls
         }
         if (questionImageUrls.length > 0) {
@@ -1931,7 +1986,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Éxito', 
             message: `Pregunta creada con código: ${result.data.code}` 
           })
-          resetForm()
+          resetQuestionFieldsOnly()
           setIsCreateDialogOpen(false)
           loadQuestions()
           loadStats()
@@ -4357,7 +4412,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           title: '✅ Éxito', 
           message: `Pregunta creada con código: ${result.data.code}` 
         })
-        resetForm()
+        resetQuestionFieldsOnly()
         setIsCreateDialogOpen(false)
         loadQuestions()
         loadStats()
@@ -5187,21 +5242,37 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                                        !isClozeTest
                   
                   // Detectar si es comprensión de lectura para otras materias
+                  // Aplica a: Matemáticas (MA), Lenguaje (LE), Ciencias Sociales (CS), Biología (BI), Química (QU), Física (FI)
+                  // IMPORTANTE: Solo considerar "Comprensión de Lectura Corta" si hay otras preguntas relacionadas
+                  // Una sola pregunta con informativeText no es "Comprensión de Lectura Corta"
+                  const hasRelatedQuestions = questions.some(q => 
+                    q.informativeText === question.informativeText && 
+                    q.id !== question.id &&
+                    q.subjectCode === question.subjectCode &&
+                    q.topicCode === question.topicCode &&
+                    q.grade === question.grade &&
+                    q.levelCode === question.levelCode
+                  )
+                  
                   const isOtherSubjectsReadingComprehension = question.subjectCode !== 'IN' && 
                                                              question.informativeText && 
                                                              typeof question.informativeText === 'string' &&
                                                              question.informativeText.trim().length > 0 &&
                                                              !question.informativeText.includes('MATCHING_COLUMNS_') &&
-                                                             !question.questionText?.includes('completar el hueco')
+                                                             !question.questionText?.includes('completar el hueco') &&
+                                                             hasRelatedQuestions // Solo si hay preguntas relacionadas
                   
                   // Para preguntas con informativeText, buscar preguntas relacionadas
                   // (Cloze Test, Comprensión de Lectura o Matching/Columnas)
-                  if (question.informativeText && 
+                  // IMPORTANTE: Para otras materias, solo agrupar si hay múltiples preguntas relacionadas (es comprensión de lectura)
+                  // Para inglés, agrupar si hay otras preguntas con el mismo informativeText
+                  const shouldGroup = question.informativeText && 
                       (isMatchingColumns ||
                        isClozeTest ||
                        isEnglishReadingComprehension ||
-                       isOtherSubjectsReadingComprehension ||
-                       questions.some(q => q.informativeText === question.informativeText && q.id !== question.id))) {
+                       isOtherSubjectsReadingComprehension) // Ya verifica hasRelatedQuestions internamente
+                  
+                  if (shouldGroup) {
                     // Para matching/columnas, usar el identificador de grupo como parte del key
                     const groupKey = isMatchingColumns
                       ? `${extractMatchingGroupId(question.informativeText)}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
@@ -5315,12 +5386,18 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         const isClozeTest = groupQuestions.some(q => q.questionText?.includes('completar el hueco'))
                         
                         // Detectar si es comprensión de lectura de otras materias
-                        const isOtherSubjectsReadingComprehension = groupQuestions.some(q => 
-                          q.subjectCode !== 'IN' && 
-                          q.informativeText && 
-                          !q.questionText?.includes('completar el hueco') &&
-                          !q.informativeText?.includes('MATCHING_COLUMNS_')
-                        )
+                        // Aplica a: Matemáticas (MA), Lenguaje (LE), Ciencias Sociales (CS), Biología (BI), Química (QU), Física (FI)
+                        // IMPORTANTE: Solo considerar "Comprensión de Lectura Corta" si hay múltiples preguntas agrupadas
+                        // Una sola pregunta con informativeText no es "Comprensión de Lectura Corta"
+                        const isOtherSubjectsReadingComprehension = groupQuestions.length > 1 && 
+                          groupQuestions.some(q => 
+                            q.subjectCode !== 'IN' && 
+                            q.informativeText && 
+                            typeof q.informativeText === 'string' &&
+                            q.informativeText.trim().length > 0 &&
+                            !q.questionText?.includes('completar el hueco') &&
+                            !q.informativeText?.includes('MATCHING_COLUMNS_')
+                          )
                         
                         // Determinar el nombre del grupo
                         // IMPORTANTE: Priorizar matching/columnas sobre otras modalidades
@@ -8678,55 +8755,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   </Button>
                 </div>
               </>
-            ) : (
-              <>
-                {/* Texto informativo */}
-                <div className="space-y-2">
-                  <Label 
-                    htmlFor="edit-informativeText" 
-                    className={cn(theme === 'dark' ? 'text-gray-300' : '')}
-                  >
-                    {(formData.subjectCode === 'IN' && (inglesModality === 'matching_columns' || 
-                      (formData.informativeText && typeof formData.informativeText === 'string' && formData.informativeText.includes('MATCHING_COLUMNS_'))))
-                      ? 'Texto Compartido (opcional)'
-                      : 'Texto Informativo (opcional)'}
-                  </Label>
-                  <RichTextEditor
-                    ref={editInformativeTextEditorRef}
-                    value={formData.informativeText}
-                    onChange={(html) => setFormData({ ...formData, informativeText: html })}
-                    placeholder="Información adicional o contexto para la pregunta..."
-                    theme={theme}
-                  />
-                </div>
-
-                {/* Pregunta */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-questionText" className={cn(fieldErrors['questionText'] ? 'text-red-600' : '', theme === 'dark' && !fieldErrors['questionText'] ? 'text-gray-300' : '')}>
-                    Texto de la Pregunta *
-                    {fieldErrors['questionText'] && <span className="ml-2 text-red-600">⚠️ Campo obligatorio</span>}
-                  </Label>
-                  <div className={cn(fieldErrors['questionText'] ? 'border-2 border-red-500 rounded-md p-2' : '', theme === 'dark' && !fieldErrors['questionText'] ? 'border-zinc-600' : '')}>
-                    <RichTextEditor
-                      ref={editQuestionTextEditorRef}
-                      value={formData.questionText}
-                      onChange={(html) => {
-                        setFormData({ ...formData, questionText: html })
-                        if (fieldErrors['questionText']) {
-                          setFieldErrors(prev => {
-                            const newErrors = { ...prev }
-                            delete newErrors['questionText']
-                            return newErrors
-                          })
-                        }
-                      }}
-                      placeholder="Escribe la pregunta aquí..."
-                      theme={theme}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+            ) : null}
 
             {/* Imágenes informativas - Edición - Solo para cloze test - Solo mostrar si hay imágenes existentes o nuevas */}
             {isEditingClozeTest && (informativeImagePreviews.length > 0 || editInformativeImages.length > 0) && (
@@ -8808,6 +8837,25 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Secciones para preguntas normales (NO cloze test, NO comprensión de lectura, NO matching/columnas, NO comprensión lectura otras materias) */}
             {!isEditingClozeTest && !isEditingReadingComprehension && !isEditingOtherSubjectsReadingComprehension && !(formData.subjectCode === 'IN' && inglesModality === 'matching_columns') && (
               <>
+                {/* Texto informativo */}
+                <div className="space-y-2">
+                  <Label 
+                    htmlFor="edit-informativeText" 
+                    className={cn(theme === 'dark' ? 'text-gray-300' : '')}
+                  >
+                    {formData.subjectCode === 'IN' && inglesModality === 'matching_columns'
+                      ? 'Texto Compartido (opcional)'
+                      : 'Texto Informativo (opcional)'}
+                  </Label>
+                  <RichTextEditor
+                    ref={editInformativeTextEditorRef}
+                    value={formData.informativeText}
+                    onChange={(html) => setFormData({ ...formData, informativeText: html })}
+                    placeholder="Información adicional o contexto para la pregunta..."
+                    theme={theme}
+                  />
+                </div>
+
                 {/* Imágenes informativas - Edición */}
                 <div className="space-y-2">
                   <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imágenes Informativas (opcional)</Label>
