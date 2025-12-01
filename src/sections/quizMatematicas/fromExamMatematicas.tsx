@@ -19,6 +19,7 @@ import { dbService } from "@/services/firebase/db.service";
 import { checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { processExamResults } from "@/utils/phaseIntegration";
+import ImageGallery from "@/components/common/ImageGallery";
 
 const db = getFirestore(firebaseApp);
 
@@ -1603,41 +1604,17 @@ const ExamWithFirebase = () => {
                   </div>
                 )}
 
-                {/* Imágenes informativas - Grandes y bonitas, sin necesidad de click */}
+                {/* Imágenes informativas */}
                 {currentQ.informativeImages && currentQ.informativeImages.length > 0 && (
-                  <div className="mb-6 space-y-4">
-                    {currentQ.informativeImages.map((imageUrl, index) => (
-                      <div key={index} className="flex justify-center">
-                        <img 
-                          src={imageUrl} 
-                          alt={`Imagen informativa ${index + 1}`}
-                          className="question-image"
-                          onError={(e) => {
-                            console.error('Error cargando imagen informativa:', imageUrl);
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    ))}
+                  <div className="mb-4">
+                    <ImageGallery images={currentQ.informativeImages} title="Imágenes informativas" maxImages={5} />
                   </div>
                 )}
 
-                {/* Imagen de la pregunta - Grandes y bonitas, sin necesidad de click */}
+                {/* Imágenes de la pregunta */}
                 {currentQ.questionImages && currentQ.questionImages.length > 0 && (
-                  <div className="mb-6 space-y-4">
-                    {currentQ.questionImages.map((imageUrl, index) => (
-                      <div key={index} className="flex justify-center">
-                        <img 
-                          src={imageUrl} 
-                          alt={`Imagen de pregunta ${index + 1}`}
-                          className="question-image"
-                          onError={(e) => {
-                            console.error('Error cargando imagen de pregunta:', imageUrl);
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    ))}
+                  <div className="mb-4">
+                    <ImageGallery images={currentQ.questionImages} title="Imágenes de la pregunta" maxImages={3} />
                   </div>
                 )}
 

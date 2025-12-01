@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Question } from "@/services/firebase/question.service";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { processExamResults } from "@/utils/phaseIntegration";
+import ImageGallery from "@/components/common/ImageGallery";
 
 const db = getFirestore(firebaseApp);
 
@@ -1771,19 +1772,8 @@ const ExamWithFirebase = () => {
                     
                     {/* Imágenes informativas */}
                     {firstGroupQuestion.informativeImages && firstGroupQuestion.informativeImages.length > 0 && (
-                      <div className="mb-4 space-y-2">
-                        {firstGroupQuestion.informativeImages.map((imageUrl: string, idx: number) => (
-                          <img 
-                            key={idx}
-                            src={imageUrl} 
-                            alt={`Información ${idx + 1}`} 
-                            className="max-w-full h-auto rounded-lg border shadow-sm"
-                            onError={(e) => {
-                              console.error('Error cargando imagen informativa:', imageUrl);
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ))}
+                      <div className="mb-4">
+                        <ImageGallery images={firstGroupQuestion.informativeImages} title="Imágenes informativas" maxImages={5} />
                       </div>
                     )}
                     
@@ -2153,15 +2143,7 @@ const ExamWithFirebase = () => {
                           {/* Imágenes de la pregunta individual */}
                           {question.questionImages && question.questionImages.length > 0 && (
                             <div className="mb-4">
-                              <img 
-                                src={question.questionImages[0]} 
-                                alt={question.questionText || 'Pregunta con imagen'} 
-                                className="max-w-full h-auto rounded-lg border shadow-sm"
-                                onError={(e) => {
-                                  console.error('Error cargando imagen:', question.questionImages?.[0]);
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
+                              <ImageGallery images={question.questionImages} title="Imágenes de la pregunta" maxImages={3} />
                             </div>
                           )}
                           

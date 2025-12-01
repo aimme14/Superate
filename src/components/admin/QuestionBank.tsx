@@ -830,25 +830,48 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     })
   }
 
-  // Función para convertir archivos a base64 (optimizada y con límite de tamaño)
+  // Función helper para comprimir imagen antes de subir a Firebase Storage (MÁXIMA CALIDAD)
+  const compressImageForStorage = async (file: File): Promise<File> => {
+    // Solo comprimir si el archivo es realmente muy grande (>10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      console.log('📦 Comprimiendo imagen muy grande para Storage (2400px, calidad 0.98)...')
+      return await compressImage(file, 2400, 0.98)
+    } else if (file.size > 5 * 1024 * 1024) {
+      // Archivos grandes: compresión mínima con máxima calidad
+      console.log('📦 Comprimiendo imagen grande para Storage (3000px, calidad 0.99)...')
+      return await compressImage(file, 3000, 0.99)
+    } else {
+      // Archivos medianos/pequeños: NO comprimir, mantener calidad original
+      console.log('📦 Manteniendo calidad original de la imagen (sin compresión)...')
+      return file
+    }
+  }
+
+  // Función para convertir archivos a base64 (optimizada con MÁXIMA CALIDAD)
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise(async (resolve, reject) => {
       try {
-        // Si el archivo es muy grande (>2MB), usar una versión muy comprimida
-        if (file.size > 2 * 1024 * 1024) {
-          console.log('⚠️ Archivo muy grande, comprimiendo agresivamente...')
-          const compressedFile = await compressImage(file, 400, 0.5) // Más compresión
+        // Solo comprimir si el archivo es realmente muy grande (>10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          console.log('⚠️ Archivo muy grande, comprimiendo con máxima calidad...')
+          const compressedFile = await compressImage(file, 2400, 0.98) // Máxima calidad
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(compressedFile)
+        } else if (file.size > 5 * 1024 * 1024) {
+          // Archivos grandes: compresión mínima con máxima calidad
+          const compressedFile = await compressImage(file, 3000, 0.99)
           const reader = new FileReader()
           reader.onloadend = () => resolve(reader.result as string)
           reader.onerror = reject
           reader.readAsDataURL(compressedFile)
         } else {
-          // Comprimir normalmente
-          const compressedFile = await compressImage(file, 600, 0.7)
+          // Archivos medianos/pequeños: NO comprimir, mantener calidad original
           const reader = new FileReader()
           reader.onloadend = () => resolve(reader.result as string)
           reader.onerror = reject
-          reader.readAsDataURL(compressedFile)
+          reader.readAsDataURL(file)
         }
       } catch (error) {
         // Si falla la compresión, usar el archivo original pero con timeout
@@ -1134,9 +1157,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const imagePromises = informativeImages.map(async (file, index) => {
           console.log(`📤 Procesando imagen informativa ${index + 1}/${informativeImages.length}:`, file.name)
           try {
+            // Comprimir imagen antes de subir a Firebase Storage
+            const compressedFile = await compressImageForStorage(file)
+            console.log(`📦 Imagen comprimida: ${file.size} → ${compressedFile.size} bytes (${Math.round((1 - compressedFile.size / file.size) * 100)}% reducción)`)
+            
             // Intentar Firebase Storage primero con timeout
             const storagePromise = questionService.uploadImage(
-              file, 
+              compressedFile, 
               `questions/informative/${Date.now()}_${index}_${file.name}`
             )
             const timeoutPromise = new Promise((_, reject) => 
@@ -1191,9 +1218,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const imagePromises = questionImages.map(async (file, index) => {
           console.log(`📤 Procesando imagen de pregunta ${index + 1}/${questionImages.length}:`, file.name)
           try {
+            // Comprimir imagen antes de subir a Firebase Storage
+            const compressedFile = await compressImageForStorage(file)
+            console.log(`📦 Imagen comprimida: ${file.size} → ${compressedFile.size} bytes (${Math.round((1 - compressedFile.size / file.size) * 100)}% reducción)`)
+            
             // Intentar Firebase Storage primero con timeout
             const storagePromise = questionService.uploadImage(
-              file, 
+              compressedFile, 
               `questions/question/${Date.now()}_${index}_${file.name}`
             )
             const timeoutPromise = new Promise((_, reject) => 
@@ -1245,9 +1276,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         if (optionFiles[option.id]) {
           console.log('📤 Procesando imagen de opción:', option.id)
           try {
+            // Comprimir imagen antes de subir a Firebase Storage
+            const compressedFile = await compressImageForStorage(optionFiles[option.id]!)
+            console.log(`📦 Imagen comprimida: ${optionFiles[option.id]!.size} → ${compressedFile.size} bytes (${Math.round((1 - compressedFile.size / optionFiles[option.id]!.size) * 100)}% reducción)`)
+            
             // Intentar Firebase Storage primero con timeout
             const storagePromise = questionService.uploadImage(
-              optionFiles[option.id]!, 
+              compressedFile, 
               `questions/options/${Date.now()}_${option.id}.jpg`
             )
             const timeoutPromise = new Promise((_, reject) => 
@@ -1325,9 +1360,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             if (mq.questionImage) {
               console.log(`📤 Procesando imagen de pregunta ${i + 1}/${matchingQuestions.length}:`, mq.questionImage.name)
               try {
+                // Comprimir imagen antes de subir a Firebase Storage
+                const compressedFile = await compressImageForStorage(mq.questionImage)
+                console.log(`📦 Imagen comprimida: ${mq.questionImage.size} → ${compressedFile.size} bytes (${Math.round((1 - compressedFile.size / mq.questionImage.size) * 100)}% reducción)`)
+                
                 // Intentar Firebase Storage primero con timeout
                 const storagePromise = questionService.uploadImage(
-                  mq.questionImage, 
+                  compressedFile, 
                   `questions/question/${Date.now()}_matching_${i}_${mq.questionImage.name}`
                 )
                 const timeoutPromise = new Promise((_, reject) => 
