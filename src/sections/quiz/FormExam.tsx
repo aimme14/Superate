@@ -740,7 +740,7 @@ const ExamWithFirebase = () => {
             </div>
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent mb-2">
-            ¡Bienvenido al {examData.title}!
+            ¡Bienvenido al examen de {examData.title}!
           </CardTitle>
           <CardDescription className="text-lg text-gray-600 max-w-2xl mx-auto">
             {examData.description}

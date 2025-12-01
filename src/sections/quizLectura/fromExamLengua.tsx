@@ -963,7 +963,7 @@ const ExamWithFirebase = () => {
               </div>
             </div>
             <CardTitle className={cn(`text-3xl font-bold mb-2`, appTheme === 'dark' ? 'text-white' : theme.primaryColor)}>
-              ¡Bienvenido al {quizData.title}!
+              ¡Bienvenido al examen de {quizData.title}!
             </CardTitle>
             <CardDescription className={cn("text-lg max-w-2xl mx-auto", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               {quizData.description}
