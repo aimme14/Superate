@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +27,8 @@ import {
   Crown,
   Users,
   Loader2,
-  X
+  X,
+  Check
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -36,6 +37,7 @@ import { useInstitutions, useInstitutionMutations, useCampusOptions } from '@/ho
 import { useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
 import { useFilteredTeachers } from '@/hooks/query/useTeacherQuery'
 import { useFilteredStudents, useStudentsByTeacher } from '@/hooks/query/useStudentQuery'
+import { useRectors, useFilteredRectors } from '@/hooks/query/useRectorQuery'
 import ImageUpload from '@/components/common/fields/ImageUpload'
 import InstitutionWizard from './InstitutionWizard'
 import InstitutionStats from './InstitutionStats'
@@ -547,6 +549,400 @@ function InstitutionStudentCard({ theme, student }: InstitutionStudentCardProps)
   )
 }
 
+// Componente para editar sede en el modal de edición
+interface CampusEditCardProps {
+  campus: Campus
+  theme: 'light' | 'dark'
+  isExpanded: boolean
+  onToggle: () => void
+  onUpdate: (data: any) => void
+  onDelete: () => void
+  onAddGrade: (campusId: string) => void
+  newGrade: { campusId: string; name: string; level: number } | null
+  onNewGradeChange: (data: { campusId: string; name: string; level: number } | null) => void
+  onSaveGrade: () => void
+  onUpdateGrade: (gradeId: string, data: any) => void
+  onDeleteGrade: (gradeId: string) => void
+  gradeLevels: number[]
+  principalOptions: Array<{ id: string; name: string; email: string }>
+}
+
+function CampusEditCard({
+  campus,
+  theme,
+  isExpanded,
+  onToggle,
+  onUpdate,
+  onDelete,
+  onAddGrade,
+  newGrade,
+  onNewGradeChange,
+  onSaveGrade,
+  onUpdateGrade,
+  onDeleteGrade,
+  gradeLevels,
+  principalOptions
+}: CampusEditCardProps) {
+  const [editMode, setEditMode] = useState(false)
+  const [editData, setEditData] = useState({
+    name: campus.name,
+    address: campus.address,
+    phone: campus.phone || '',
+    email: campus.email || '',
+    principal: campus.principal || 'none',
+    isActive: campus.isActive
+  })
+  const [editingGrades, setEditingGrades] = useState<Map<string, { name: string; level: number }>>(new Map())
+
+  // Cuando se activa el modo edición, expandir automáticamente
+  const handleStartEdit = () => {
+    setEditMode(true)
+    if (!isExpanded) {
+      onToggle()
+    }
+  }
+
+  const handleSave = () => {
+    // Convertir 'none' a string vacío antes de guardar
+    const dataToSave = {
+      ...editData,
+      principal: editData.principal === 'none' ? '' : editData.principal
+    }
+    onUpdate(dataToSave)
+    setEditMode(false)
+  }
+
+  const handleCancel = () => {
+    setEditData({
+      name: campus.name,
+      address: campus.address,
+      phone: campus.phone || '',
+      email: campus.email || '',
+      principal: campus.principal || 'none',
+      isActive: campus.isActive
+    })
+    setEditMode(false)
+  }
+
+  const startEditGrade = (grade: any) => {
+    setEditingGrades(prev => new Map(prev).set(grade.id, { name: grade.name, level: grade.level }))
+  }
+
+  const cancelEditGrade = (gradeId: string) => {
+    setEditingGrades(prev => {
+      const newMap = new Map(prev)
+      newMap.delete(gradeId)
+      return newMap
+    })
+  }
+
+  const saveEditGrade = (gradeId: string) => {
+    const gradeData = editingGrades.get(gradeId)
+    if (gradeData) {
+      onUpdateGrade(gradeId, gradeData)
+      cancelEditGrade(gradeId)
+    }
+  }
+
+  // Mostrar contenido si está expandido O en modo edición
+  const shouldShowContent = isExpanded || editMode
+
+  return (
+    <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 flex-1">
+            {!editMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggle}
+                className="p-0 h-auto"
+              >
+                <ChevronRight className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-90")} />
+              </Button>
+            )}
+            <div className="flex-1">
+              {editMode ? (
+                <div className="grid gap-2">
+                  <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre de la sede *</Label>
+                  <Input
+                    value={editData.name}
+                    onChange={(e) => setEditData(prev => ({ ...prev, name: e.target.value }))}
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                </div>
+              ) : (
+                <>
+                  <CardTitle className={cn('text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
+                    {campus.name}
+                  </CardTitle>
+                  <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
+                    {campus.address}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            {editMode ? (
+              <>
+                <Button size="sm" variant="outline" onClick={handleCancel} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600' : '')}>
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Guardar
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="ghost" onClick={handleStartEdit}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={onDelete} className="text-red-600 hover:text-red-700">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      {shouldShowContent && (
+        <CardContent className="space-y-4">
+          {editMode ? (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Dirección *</Label>
+                <Textarea
+                  value={editData.address}
+                  onChange={(e) => setEditData(prev => ({ ...prev, address: e.target.value }))}
+                  rows={2}
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Teléfono</Label>
+                  <Input
+                    value={editData.phone}
+                    onChange={(e) => setEditData(prev => ({ ...prev, phone: e.target.value }))}
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Email</Label>
+                  <Input
+                    type="email"
+                    value={editData.email}
+                    onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Director</Label>
+                <Select
+                  value={editData.principal || 'none'}
+                  onValueChange={(value) => {
+                    setEditData(prev => ({ ...prev, principal: value === 'none' ? '' : value }))
+                  }}
+                >
+                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                    <SelectValue placeholder="Seleccionar coordinador" />
+                  </SelectTrigger>
+                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                    <SelectItem value="none">Sin director asignado</SelectItem>
+                    {principalOptions.map(principal => (
+                      <SelectItem key={principal.id} value={principal.id}>
+                        {principal.name} ({principal.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={editData.isActive}
+                  onChange={(e) => setEditData(prev => ({ ...prev, isActive: e.target.checked }))}
+                  className="rounded"
+                />
+                <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Sede activa</Label>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {campus.phone && (
+                <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
+                  <strong>Teléfono:</strong> {campus.phone}
+                </p>
+              )}
+              {campus.email && (
+                <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
+                  <strong>Email:</strong> {campus.email}
+                </p>
+              )}
+              {campus.principal && (() => {
+                const principal = principalOptions.find(p => p.id === campus.principal)
+                return principal ? (
+                  <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
+                    <strong>Director:</strong> {principal.name} ({principal.email})
+                  </p>
+                ) : (
+                  <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
+                    <strong>Director:</strong> {campus.principal}
+                  </p>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* Gestión de Grados */}
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className={cn('font-semibold', theme === 'dark' ? 'text-white' : 'text-black')}>
+                Grados ({campus.grades?.length || 0})
+              </h4>
+              {!newGrade && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onAddGrade(campus.id)}
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar Grado
+                </Button>
+              )}
+            </div>
+
+            {/* Formulario para nuevo grado */}
+            {newGrade && newGrade.campusId === campus.id && (
+              <Card className={cn("p-3", theme === 'dark' ? 'bg-zinc-800 border-zinc-600' : 'bg-gray-50 border-gray-200')}>
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className={cn("font-semibold text-sm", theme === 'dark' ? 'text-white' : 'text-black')}>Nuevo Grado</h5>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onNewGradeChange(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1">
+                    <Label className={cn('text-xs font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre *</Label>
+                    <Input
+                      value={newGrade.name}
+                      onChange={(e) => onNewGradeChange({ ...newGrade, name: e.target.value })}
+                      placeholder="Ej: 6°, 7°..."
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label className={cn('text-xs font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nivel</Label>
+                    <Select
+                      value={newGrade.level.toString()}
+                      onValueChange={(value) => onNewGradeChange({ ...newGrade, level: parseInt(value) })}
+                    >
+                      <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {gradeLevels.map(level => (
+                          <SelectItem key={level} value={level.toString()}>
+                            {level}°
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button size="sm" onClick={onSaveGrade} className="mt-3 bg-blue-600 hover:bg-blue-700 text-white w-full">
+                  Guardar Grado
+                </Button>
+              </Card>
+            )}
+
+            {/* Lista de grados */}
+            <div className="space-y-2">
+              {campus.grades && campus.grades.length > 0 ? (
+                campus.grades.map((grade) => {
+                  const isEditing = editingGrades.has(grade.id)
+                  const editData = editingGrades.get(grade.id) || { name: grade.name, level: grade.level }
+                  
+                  return (
+                    <div
+                      key={grade.id}
+                      className={cn("flex items-center justify-between p-2 rounded border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-gray-50')}
+                    >
+                      {isEditing ? (
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          <Input
+                            value={editData.name}
+                            onChange={(e) => setEditingGrades(prev => new Map(prev).set(grade.id, { ...editData, name: e.target.value }))}
+                            className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                          />
+                          <Select
+                            value={editData.level.toString()}
+                            onValueChange={(value) => setEditingGrades(prev => new Map(prev).set(grade.id, { ...editData, level: parseInt(value) }))}
+                          >
+                            <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {gradeLevels.map(level => (
+                                <SelectItem key={level} value={level.toString()}>
+                                  {level}°
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <div className="flex-1">
+                          <p className={cn('font-semibold', theme === 'dark' ? 'text-white' : 'text-black')}>
+                            {grade.name} ({grade.level}°)
+                          </p>
+                        </div>
+                      )}
+                      <div className="flex items-center space-x-2">
+                        {isEditing ? (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => cancelEditGrade(grade.id)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => saveEditGrade(grade.id)}>
+                              <Check className="h-4 w-4 text-green-600" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => startEditGrade(grade)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => onDeleteGrade(grade.id)} className="text-red-600 hover:text-red-700">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className={cn("text-center py-4 text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  No hay grados registrados
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
 interface InstitutionManagementProps {
   theme: 'light' | 'dark'
 }
@@ -555,6 +951,24 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   const { notifySuccess, notifyError } = useNotification()
   const { data: institutions = [], isLoading, error } = useInstitutions()
   const { createCampus, createGrade, updateInstitution, deleteInstitution, updateCampus, deleteCampus, updateGrade, deleteGrade } = useInstitutionMutations()
+  
+  // Obtener rectores y coordinadores para los selects
+  const { data: allRectors = [], isLoading: rectorsLoading } = useRectors()
+  const { principals: allPrincipals = [], isLoading: principalsLoading } = useFilteredPrincipals({ 
+    isActive: true 
+  })
+  
+  // Estados para gestión de sedes y grados en el modal de edición
+  const [editingCampuses, setEditingCampuses] = useState<Campus[]>([])
+  const [expandedCampusSections, setExpandedCampusSections] = useState<Set<string>>(new Set())
+  const [newCampusInEdit, setNewCampusInEdit] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    principal: ''
+  })
+  const [newGradeInEdit, setNewGradeInEdit] = useState<{campusId: string, name: string, level: number} | null>(null)
   
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
@@ -568,6 +982,16 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   const [isEditGradeDialogOpen, setIsEditGradeDialogOpen] = useState(false)
   // const [activeTab, setActiveTab] = useState('institutions')
   const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null)
+  
+  // Obtener rectores filtrados por institución seleccionada (después de declarar selectedInstitution)
+  const rectorsForInstitution = selectedInstitution && allRectors
+    ? allRectors.filter(rector => rector?.institutionId === selectedInstitution.id)
+    : (allRectors || [])
+  
+  // Obtener coordinadores filtrados por institución seleccionada (después de declarar selectedInstitution)
+  const principalsForInstitution = selectedInstitution && allPrincipals
+    ? allPrincipals.filter(principal => principal?.institutionId === selectedInstitution.id)
+    : (allPrincipals || [])
   const [selectedCampus, setSelectedCampus] = useState<Campus | null>(null)
   const [selectedGrade, _setSelectedGrade] = useState<any>(null)
   const [institutionToDelete, setInstitutionToDelete] = useState<Institution | null>(null)
@@ -623,6 +1047,16 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   ]
 
   const gradeLevels = [6, 7, 8, 9, 10, 11]
+
+  // Efecto para sincronizar el estado de sedes cuando se actualizan los datos de la institución
+  useEffect(() => {
+    if (isEditInstitutionDialogOpen && selectedInstitution) {
+      const updatedInstitution = institutions.find(inst => inst.id === selectedInstitution.id)
+      if (updatedInstitution) {
+        setEditingCampuses(updatedInstitution.campuses || [])
+      }
+    }
+  }, [institutions, isEditInstitutionDialogOpen, selectedInstitution?.id])
 
   // Función para limpiar formularios
   const clearForms = () => {
@@ -712,6 +1146,16 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   // Funciones para editar
   const handleEditInstitution = (institution: Institution) => {
     setSelectedInstitution(institution)
+    // Obtener el ID del rector si es un objeto, o usar el valor directamente si es un string
+    let rectorId = ''
+    if (institution.rector) {
+      if (typeof institution.rector === 'object' && institution.rector !== null) {
+        rectorId = (institution.rector as any).id || (institution.rector as any).uid || ''
+      } else if (typeof institution.rector === 'string') {
+        rectorId = institution.rector
+      }
+    }
+    
     setEditInstitution({
       name: institution.name,
       type: institution.type,
@@ -720,11 +1164,151 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       phone: institution.phone || '',
       email: institution.email || '',
       website: institution.website || '',
-      rector: institution.rector || '',
+      rector: rectorId || 'none',
       logo: institution.logo || '',
       isActive: institution.isActive
     })
+    // Cargar sedes existentes
+    setEditingCampuses(institution.campuses || [])
+    setExpandedCampusSections(new Set())
+    setNewCampusInEdit({
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
+      principal: ''
+    })
+    setNewGradeInEdit(null)
     setIsEditInstitutionDialogOpen(true)
+  }
+  
+  // Función para agregar nueva sede en el modal de edición
+  const handleAddCampusInEdit = async () => {
+    if (!selectedInstitution || !newCampusInEdit.name || !newCampusInEdit.address) {
+      notifyError({ title: 'Error', message: 'Nombre y dirección de la sede son obligatorios' })
+      return
+    }
+
+    try {
+      await createCampus.mutateAsync({
+        institutionId: selectedInstitution.id,
+        ...newCampusInEdit
+      })
+      setNewCampusInEdit({
+        name: '',
+        address: '',
+        phone: '',
+        email: '',
+        principal: ''
+      })
+      notifySuccess({ title: 'Éxito', message: 'Sede agregada correctamente' })
+      // El efecto sincronizará el estado automáticamente
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al agregar la sede' })
+    }
+  }
+  
+  // Función para actualizar sede en el modal de edición
+  const handleUpdateCampusInEdit = async (campusId: string, data: any) => {
+    if (!selectedInstitution) return
+
+    try {
+      await updateCampus.mutateAsync({
+        institutionId: selectedInstitution.id,
+        campusId,
+        data
+      })
+      notifySuccess({ title: 'Éxito', message: 'Sede actualizada correctamente' })
+      // El efecto sincronizará el estado automáticamente
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al actualizar la sede' })
+    }
+  }
+  
+  // Función para eliminar sede en el modal de edición
+  const handleDeleteCampusInEdit = async (campusId: string) => {
+    if (!selectedInstitution) return
+
+    try {
+      await deleteCampus.mutateAsync({
+        institutionId: selectedInstitution.id,
+        campusId
+      })
+      notifySuccess({ title: 'Éxito', message: 'Sede eliminada correctamente' })
+      // El efecto sincronizará el estado automáticamente
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al eliminar la sede' })
+    }
+  }
+  
+  // Función para agregar nuevo grado en el modal de edición
+  const handleAddGradeInEdit = async (campusId: string) => {
+    if (!selectedInstitution || !newGradeInEdit || !newGradeInEdit.name) {
+      notifyError({ title: 'Error', message: 'Nombre del grado es obligatorio' })
+      return
+    }
+
+    try {
+      await createGrade.mutateAsync({
+        institutionId: selectedInstitution.id,
+        campusId,
+        name: newGradeInEdit.name,
+        level: newGradeInEdit.level
+      })
+      setNewGradeInEdit(null)
+      notifySuccess({ title: 'Éxito', message: 'Grado agregado correctamente' })
+      // El efecto sincronizará el estado automáticamente
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al agregar el grado' })
+    }
+  }
+  
+  // Función para actualizar grado en el modal de edición
+  const handleUpdateGradeInEdit = async (campusId: string, gradeId: string, data: any) => {
+    if (!selectedInstitution) return
+
+    try {
+      await updateGrade.mutateAsync({
+        institutionId: selectedInstitution.id,
+        campusId,
+        gradeId,
+        data
+      })
+      notifySuccess({ title: 'Éxito', message: 'Grado actualizado correctamente' })
+      // El efecto sincronizará el estado automáticamente
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al actualizar el grado' })
+    }
+  }
+  
+  // Función para eliminar grado en el modal de edición
+  const handleDeleteGradeInEdit = async (campusId: string, gradeId: string) => {
+    if (!selectedInstitution) return
+
+    try {
+      await deleteGrade.mutateAsync({
+        institutionId: selectedInstitution.id,
+        campusId,
+        gradeId
+      })
+      notifySuccess({ title: 'Éxito', message: 'Grado eliminado correctamente' })
+      // El efecto sincronizará el estado automáticamente
+    } catch (error) {
+      notifyError({ title: 'Error', message: 'Error al eliminar el grado' })
+    }
+  }
+  
+  // Función para toggle de sección expandible de sede
+  const toggleCampusSection = (campusId: string) => {
+    setExpandedCampusSections(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(campusId)) {
+        newSet.delete(campusId)
+      } else {
+        newSet.add(campusId)
+      }
+      return newSet
+    })
   }
 
   const handleUpdateInstitution = async () => {
@@ -734,11 +1318,17 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
     }
 
     try {
+      // Convertir 'none' a string vacío antes de guardar
+      const dataToSave = {
+        ...editInstitution,
+        rector: editInstitution.rector === 'none' ? '' : editInstitution.rector
+      }
       await updateInstitution.mutateAsync({
         id: selectedInstitution.id,
-        data: editInstitution
+        data: dataToSave
       })
       setIsEditInstitutionDialogOpen(false)
+      // El efecto sincronizará el estado automáticamente
       notifySuccess({ title: 'Éxito', message: 'Institución actualizada correctamente' })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar la institución' })
@@ -1323,128 +1913,283 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
 
       {/* Modal para editar institución */}
       <Dialog open={isEditInstitutionDialogOpen} onOpenChange={setIsEditInstitutionDialogOpen}>
-        <DialogContent className={cn("sm:max-w-[600px] max-h-[80vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+        <DialogContent className={cn("sm:max-w-[900px] max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
             <DialogTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>Editar Institución</DialogTitle>
             <DialogDescription className={cn('font-semibold', theme === 'dark' ? 'text-gray-400' : 'text-black')}>
               Modifica la información de {selectedInstitution?.name}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="editInstitutionName" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre de la institución *</Label>
-              <Input
-                id="editInstitutionName"
-                value={editInstitution.name}
-                onChange={(e) => setEditInstitution(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Ej: Colegio San José"
-                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="editInstitutionType" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Tipo de institución *</Label>
-                <Select value={editInstitution.type} onValueChange={(value: 'public' | 'private') => setEditInstitution(prev => ({ ...prev, type: value }))}>
-                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                    <SelectValue placeholder="Seleccionar tipo" />
-                  </SelectTrigger>
-                  <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                    {institutionTypes.map(type => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <div className="grid gap-6 py-4">
+            {/* Información básica de la institución */}
+            <div className="space-y-4">
+              <h3 className={cn('text-lg font-bold border-b pb-2', theme === 'dark' ? 'text-white border-zinc-700' : 'text-black border-gray-200')}>
+                Información Básica
+              </h3>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="editInstitutionName" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre de la institución *</Label>
+                  <Input
+                    id="editInstitutionName"
+                    value={editInstitution.name}
+                    onChange={(e) => setEditInstitution(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Ej: Colegio San José"
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="editInstitutionType" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Tipo de institución *</Label>
+                    <Select value={editInstitution.type} onValueChange={(value: 'public' | 'private') => setEditInstitution(prev => ({ ...prev, type: value }))}>
+                      <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                        <SelectValue placeholder="Seleccionar tipo" />
+                      </SelectTrigger>
+                      <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                        {institutionTypes.map(type => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editInstitutionNIT" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>NIT (opcional)</Label>
+                    <Input
+                      id="editInstitutionNIT"
+                      value={editInstitution.nit}
+                      onChange={(e) => setEditInstitution(prev => ({ ...prev, nit: e.target.value }))}
+                      placeholder="900123456-1"
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="editInstitutionAddress" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Dirección *</Label>
+                  <Textarea
+                    id="editInstitutionAddress"
+                    value={editInstitution.address}
+                    onChange={(e) => setEditInstitution(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="Dirección completa de la institución"
+                    rows={2}
+                    className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="editInstitutionPhone" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Teléfono</Label>
+                    <Input
+                      id="editInstitutionPhone"
+                      value={editInstitution.phone}
+                      onChange={(e) => setEditInstitution(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="+57 1 234-5678"
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editInstitutionEmail" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Email</Label>
+                    <Input
+                      id="editInstitutionEmail"
+                      type="email"
+                      value={editInstitution.email}
+                      onChange={(e) => setEditInstitution(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="info@institucion.edu.co"
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="editInstitutionWebsite" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Sitio web</Label>
+                    <Input
+                      id="editInstitutionWebsite"
+                      value={editInstitution.website}
+                      onChange={(e) => setEditInstitution(prev => ({ ...prev, website: e.target.value }))}
+                      placeholder="www.institucion.edu.co"
+                      className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editInstitutionRector" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Rector</Label>
+                    <Select
+                      value={editInstitution.rector || 'none'}
+                      onValueChange={(value) => {
+                        setEditInstitution(prev => ({ ...prev, rector: value === 'none' ? '' : value }))
+                      }}
+                    >
+                      <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                        <SelectValue placeholder="Seleccionar rector" />
+                      </SelectTrigger>
+                      <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                        <SelectItem value="none">Sin rector asignado</SelectItem>
+                        {rectorsForInstitution.length > 0 ? (
+                          rectorsForInstitution.map(rector => (
+                            <SelectItem key={rector.id} value={rector.id}>
+                              {rector.name} ({rector.email})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-rectors" disabled>No hay rectores disponibles</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <ImageUpload
+                    value={editInstitution.logo}
+                    onChange={(value) => setEditInstitution(prev => ({ ...prev, logo: value }))}
+                    label="Logo de la institución"
+                    placeholder="Arrastra y suelta el logo aquí o haz clic para seleccionar"
+                    theme={theme}
+                    maxSize={2}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="editInstitutionActive"
+                    checked={editInstitution.isActive}
+                    onChange={(e) => setEditInstitution(prev => ({ ...prev, isActive: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <Label htmlFor="editInstitutionActive" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Institución activa</Label>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editInstitutionNIT" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>NIT (opcional)</Label>
-                <Input
-                  id="editInstitutionNIT"
-                  value={editInstitution.nit}
-                  onChange={(e) => setEditInstitution(prev => ({ ...prev, nit: e.target.value }))}
-                  placeholder="900123456-1"
-                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="editInstitutionAddress" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Dirección *</Label>
-              <Textarea
-                id="editInstitutionAddress"
-                value={editInstitution.address}
-                onChange={(e) => setEditInstitution(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="Dirección completa de la institución"
-                rows={2}
-                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="editInstitutionPhone" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Teléfono</Label>
-                <Input
-                  id="editInstitutionPhone"
-                  value={editInstitution.phone}
-                  onChange={(e) => setEditInstitution(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="+57 1 234-5678"
-                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editInstitutionEmail" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Email</Label>
-                <Input
-                  id="editInstitutionEmail"
-                  type="email"
-                  value={editInstitution.email}
-                  onChange={(e) => setEditInstitution(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="info@institucion.edu.co"
-                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="editInstitutionWebsite" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Sitio web</Label>
-                <Input
-                  id="editInstitutionWebsite"
-                  value={editInstitution.website}
-                  onChange={(e) => setEditInstitution(prev => ({ ...prev, website: e.target.value }))}
-                  placeholder="www.institucion.edu.co"
-                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editInstitutionRector" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Rector</Label>
-                <Input
-                  id="editInstitutionRector"
-                  value={editInstitution.rector}
-                  onChange={(e) => setEditInstitution(prev => ({ ...prev, rector: e.target.value }))}
-                  placeholder="Dr. María González"
-                  className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                />
-              </div>
-            </div>
-            
-            <div className="grid gap-2">
-              <ImageUpload
-                value={editInstitution.logo}
-                onChange={(value) => setEditInstitution(prev => ({ ...prev, logo: value }))}
-                label="Logo de la institución"
-                placeholder="Arrastra y suelta el logo aquí o haz clic para seleccionar"
-                theme={theme}
-                maxSize={2}
-              />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="editInstitutionActive"
-                checked={editInstitution.isActive}
-                onChange={(e) => setEditInstitution(prev => ({ ...prev, isActive: e.target.checked }))}
-                className="rounded"
-              />
-              <Label htmlFor="editInstitutionActive" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Institución activa</Label>
+            {/* Gestión de Sedes */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className={cn('text-lg font-bold', theme === 'dark' ? 'text-white border-zinc-700' : 'text-black border-gray-200')}>
+                  Sedes ({editingCampuses.length})
+                </h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddCampusInEdit}
+                  className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar Sede
+                </Button>
+              </div>
+
+              {/* Formulario para nueva sede */}
+              {(newCampusInEdit.name || newCampusInEdit.address) && (
+                <Card className={cn("p-4", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className={cn("font-semibold", theme === 'dark' ? 'text-white' : 'text-black')}>Nueva Sede</h4>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setNewCampusInEdit({ name: '', address: '', phone: '', email: '', principal: '' })}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Nombre de la sede *</Label>
+                      <Input
+                        value={newCampusInEdit.name}
+                        onChange={(e) => setNewCampusInEdit(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Ej: Sede Principal"
+                        className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Dirección *</Label>
+                      <Textarea
+                        value={newCampusInEdit.address}
+                        onChange={(e) => setNewCampusInEdit(prev => ({ ...prev, address: e.target.value }))}
+                        placeholder="Dirección completa de la sede"
+                        rows={2}
+                        className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Teléfono</Label>
+                        <Input
+                          value={newCampusInEdit.phone}
+                          onChange={(e) => setNewCampusInEdit(prev => ({ ...prev, phone: e.target.value }))}
+                          placeholder="+57 1 234-5678"
+                          className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Email</Label>
+                        <Input
+                          type="email"
+                          value={newCampusInEdit.email}
+                          onChange={(e) => setNewCampusInEdit(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="sede@institucion.edu.co"
+                          className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Director</Label>
+                      <Select
+                        value={newCampusInEdit.principal || 'none'}
+                        onValueChange={(value) => setNewCampusInEdit(prev => ({ ...prev, principal: value === 'none' ? '' : value }))}
+                      >
+                        <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder="Seleccionar coordinador" />
+                        </SelectTrigger>
+                        <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                          <SelectItem value="none">Sin director asignado</SelectItem>
+                          {principalsForInstitution.length > 0 ? (
+                            principalsForInstitution.map(principal => (
+                              <SelectItem key={principal.id} value={principal.id}>
+                                {principal.name} ({principal.email})
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-principals" disabled>No hay coordinadores disponibles</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={handleAddCampusInEdit} className="bg-blue-600 hover:bg-blue-700 text-white">
+                      Guardar Sede
+                    </Button>
+                  </div>
+                </Card>
+              )}
+
+              {/* Lista de sedes existentes */}
+              <div className="space-y-3">
+                {editingCampuses.map((campus) => (
+                  <CampusEditCard
+                    key={campus.id}
+                    campus={campus}
+                    theme={theme}
+                    isExpanded={expandedCampusSections.has(campus.id)}
+                    onToggle={() => toggleCampusSection(campus.id)}
+                    onUpdate={(data) => handleUpdateCampusInEdit(campus.id, data)}
+                    onDelete={() => handleDeleteCampusInEdit(campus.id)}
+                    onAddGrade={(campusId) => setNewGradeInEdit({ campusId, name: '', level: 6 })}
+                    newGrade={newGradeInEdit?.campusId === campus.id ? newGradeInEdit : null}
+                    onNewGradeChange={(data) => setNewGradeInEdit(data)}
+                    onSaveGrade={() => newGradeInEdit && handleAddGradeInEdit(newGradeInEdit.campusId)}
+                    onUpdateGrade={(gradeId, data) => handleUpdateGradeInEdit(campus.id, gradeId, data)}
+                    onDeleteGrade={(gradeId) => handleDeleteGradeInEdit(campus.id, gradeId)}
+                    gradeLevels={gradeLevels}
+                    principalOptions={principalsForInstitution.map(p => ({ id: p.id, name: p.name, email: p.email }))}
+                  />
+                ))}
+                {editingCampuses.length === 0 && (
+                  <div className={cn("text-center py-8 border border-dashed rounded-lg", theme === 'dark' ? 'border-zinc-700 text-gray-400' : 'border-gray-300 text-gray-500')}>
+                    <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-semibold">No hay sedes registradas</p>
+                    <p className="text-xs">Haz clic en "Agregar Sede" para crear una nueva</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>
