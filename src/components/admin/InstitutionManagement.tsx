@@ -37,7 +37,7 @@ import { useInstitutions, useInstitutionMutations, useCampusOptions } from '@/ho
 import { useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
 import { useFilteredTeachers } from '@/hooks/query/useTeacherQuery'
 import { useFilteredStudents, useStudentsByTeacher } from '@/hooks/query/useStudentQuery'
-import { useRectors, useFilteredRectors } from '@/hooks/query/useRectorQuery'
+import { useRectors } from '@/hooks/query/useRectorQuery'
 import ImageUpload from '@/components/common/fields/ImageUpload'
 import InstitutionWizard from './InstitutionWizard'
 import InstitutionStats from './InstitutionStats'
@@ -953,8 +953,8 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   const { createCampus, createGrade, updateInstitution, deleteInstitution, updateCampus, deleteCampus, updateGrade, deleteGrade } = useInstitutionMutations()
   
   // Obtener rectores y coordinadores para los selects
-  const { data: allRectors = [], isLoading: rectorsLoading } = useRectors()
-  const { principals: allPrincipals = [], isLoading: principalsLoading } = useFilteredPrincipals({ 
+  const { data: allRectors = [] } = useRectors()
+  const { principals: allPrincipals = [] } = useFilteredPrincipals({ 
     isActive: true 
   })
   
