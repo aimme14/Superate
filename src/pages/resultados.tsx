@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X } from "lucide-react";
+import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
@@ -89,6 +89,7 @@ interface ExamResult {
   timeSpent: number;
   completed: boolean;
   timestamp: number;
+  phase?: string;
   questionDetails: Array<{
     questionId: number | string;
     questionText: string;
@@ -121,6 +122,11 @@ export default function EvaluationsTab() {
   } | null>(null);
   const [showQuestionView, setShowQuestionView] = useState(false);
   const [loadingQuestion, setLoadingQuestion] = useState(false);
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({
+    'fase I': true,
+    'Fase II': true,
+    'fase III': true,
+  });
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
 
@@ -147,10 +153,56 @@ export default function EvaluationsTab() {
           const phaseSnap = await getDocs(phaseRef);
           phaseSnap.docs.forEach(doc => {
             const examData = doc.data();
+            // Determinar la fase: SIEMPRE usar el nombre de la subcolección como fuente de verdad
+            // Esto asegura que incluso si el documento tiene phase: undefined, sabemos la fase correcta
+            const phaseFromCollection = getPhaseType(phaseName); // Esto devuelve 'first', 'second', 'third' o null
+            const phaseFromDocument = examData.phase;
+            
+            // Priorizar: si el documento tiene una fase válida, usarla; sino, usar la de la subcolección
+            let finalPhase: string = 'first'; // Valor por defecto
+            
+            // Primero intentar usar la fase de la subcolección (fuente de verdad más confiable)
+            if (phaseFromCollection) {
+              finalPhase = phaseFromCollection;
+            }
+            
+            // Si el documento tiene una fase válida, intentar usarla (pero solo si es válida)
+            if (phaseFromDocument) {
+              const phaseType = getPhaseType(String(phaseFromDocument));
+              if (phaseType) {
+                // El documento tiene una fase válida en formato 'first', 'second', 'third'
+                finalPhase = phaseType;
+              } else if (phaseFromDocument === 'fase I' || phaseFromDocument === 'Fase I' || 
+                         phaseFromDocument === 'Fase II' || phaseFromDocument === 'fase II' ||
+                         phaseFromDocument === 'fase III' || phaseFromDocument === 'Fase III') {
+                // El documento tiene una fase en formato español, convertirla
+                const convertedPhase = getPhaseType(phaseFromDocument);
+                if (convertedPhase) {
+                  finalPhase = convertedPhase;
+                }
+              }
+            }
+            
+            // Asegurar que siempre tengamos un valor válido
+            if (!finalPhase || (finalPhase !== 'first' && finalPhase !== 'second' && finalPhase !== 'third')) {
+              // Si no pudimos determinar la fase, usar la de la subcolección o 'first' por defecto
+              finalPhase = phaseFromCollection || 'first';
+            }
+            
+            // Debug: Log para resultados problemáticos
+            if (!examData.phase || examData.phase === undefined) {
+              console.log(`🔍 Resultado sin phase en documento - Subcolección: ${phaseName}, Fase asignada: ${finalPhase}`, {
+                examTitle: examData.examTitle,
+                examId: doc.id,
+                phaseFromCollection,
+                phaseFromDocument: examData.phase
+              });
+            }
+            
             evaluationsArray.push({
               ...examData,
               examId: doc.id,
-              phase: getPhaseType(phaseName) || phaseName,
+              phase: finalPhase,
             });
           });
         }
@@ -161,15 +213,48 @@ export default function EvaluationsTab() {
         if (oldDocSnap.exists()) {
           const oldData = oldDocSnap.data() as UserResults;
           Object.entries(oldData).forEach(([examId, examData]) => {
+            // Intentar inferir la fase del título o usar 'first' por defecto
+            let inferredPhase: string = 'first';
+            if (examData.phase) {
+              const phaseType = getPhaseType(String(examData.phase));
+              if (phaseType) {
+                inferredPhase = phaseType;
+              }
+            } else if (examData.examTitle) {
+              // Intentar inferir de el título
+              const title = String(examData.examTitle).toLowerCase();
+              if (title.includes('fase ii') || title.includes('segunda fase')) {
+                inferredPhase = 'second';
+              } else if (title.includes('fase iii') || title.includes('tercera fase')) {
+                inferredPhase = 'third';
+              }
+            }
+            
             evaluationsArray.push({
               ...examData,
               examId,
+              phase: inferredPhase,
             });
           });
         }
 
         // Ordenamos por fecha (más reciente primero)
         evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        // Debug: Log para ver qué fases tienen los resultados
+        console.log('📊 Resultados agrupados por fase:', {
+          total: evaluationsArray.length,
+          porFase: evaluationsArray.reduce((acc, evaluation) => {
+            const phase = evaluation.phase || 'sin fase';
+            acc[phase] = (acc[phase] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>),
+          sinFase: evaluationsArray.filter(e => !e.phase || e.phase === 'Sin fase').map(e => ({
+            examTitle: e.examTitle,
+            phase: e.phase,
+            examId: e.examId
+          }))
+        });
 
         setEvaluations(evaluationsArray);
       } catch (error) {
@@ -274,6 +359,106 @@ export default function EvaluationsTab() {
     setShowQuestionView(false);
     setSelectedQuestion(null);
     setSelectedQuestionDetail(null);
+  };
+
+  // Función para agrupar evaluaciones por fase
+  const groupEvaluationsByPhase = (evaluations: ExamResult[]) => {
+    const grouped: Record<string, ExamResult[]> = {
+      'fase I': [],
+      'Fase II': [],
+      'fase III': [],
+      'Sin fase': []
+    };
+
+    evaluations.forEach(evaluation => {
+      // Determinar la fase del examen
+      let phaseKey = 'Sin fase';
+      
+      if (evaluation.phase) {
+        // Normalizar el valor de phase (puede venir como string o como tipo PhaseType)
+        const phaseValue = String(evaluation.phase).toLowerCase().trim();
+        
+        // Intentar mapear usando getPhaseType primero
+        const phaseType = getPhaseType(evaluation.phase);
+        if (phaseType === 'first') {
+          phaseKey = 'fase I';
+        } else if (phaseType === 'second') {
+          phaseKey = 'Fase II';
+        } else if (phaseType === 'third') {
+          phaseKey = 'fase III';
+        } else {
+          // Si getPhaseType no funcionó, verificar directamente los nombres de fase
+          if (phaseValue === 'first' || phaseValue === 'fase i' || evaluation.phase === 'fase I' || evaluation.phase === 'Fase I') {
+            phaseKey = 'fase I';
+          } else if (phaseValue === 'second' || phaseValue === 'fase ii' || evaluation.phase === 'Fase II' || evaluation.phase === 'fase II') {
+            phaseKey = 'Fase II';
+          } else if (phaseValue === 'third' || phaseValue === 'fase iii' || evaluation.phase === 'fase III' || evaluation.phase === 'Fase III') {
+            phaseKey = 'fase III';
+          }
+        }
+      }
+
+      grouped[phaseKey].push(evaluation);
+    });
+
+    return grouped;
+  };
+
+  // Función para toggle de expandir/colapsar fase
+  const togglePhase = (phaseKey: string) => {
+    setExpandedPhases(prev => ({
+      ...prev,
+      [phaseKey]: !prev[phaseKey]
+    }));
+  };
+
+  // Función para obtener el nombre de la fase en español
+  const getPhaseDisplayName = (phaseKey: string) => {
+    const phaseNames: Record<string, string> = {
+      'fase I': 'Primera Fase',
+      'Fase II': 'Segunda Fase',
+      'fase III': 'Tercera Fase',
+      'Sin fase': 'Sin Fase Específica'
+    };
+    return phaseNames[phaseKey] || phaseKey;
+  };
+
+  // Función para ordenar las fases por la fecha del examen más reciente
+  const getPhaseOrderByLatestExam = (groupedEvaluations: Record<string, ExamResult[]>) => {
+    const allPhases = ['fase I', 'Fase II', 'fase III', 'Sin fase'];
+    
+    // Calcular la fecha del examen más reciente de cada fase
+    const phaseDates: Record<string, number> = {};
+    allPhases.forEach(phaseKey => {
+      const phaseExams = groupedEvaluations[phaseKey] || [];
+      if (phaseExams.length > 0) {
+        // Obtener el timestamp más reciente de esta fase
+        const latestTimestamp = Math.max(...phaseExams.map(exam => exam.timestamp || 0));
+        phaseDates[phaseKey] = latestTimestamp;
+      } else {
+        // Si no hay exámenes, usar 0 para que aparezcan al final
+        phaseDates[phaseKey] = 0;
+      }
+    });
+    
+    // Ordenar las fases por fecha descendente (más reciente primero)
+    // Si tienen la misma fecha o no tienen exámenes, mantener el orden original
+    return allPhases.sort((a, b) => {
+      const dateA = phaseDates[a] || 0;
+      const dateB = phaseDates[b] || 0;
+      
+      // Si ambas tienen exámenes, ordenar por fecha (más reciente primero)
+      if (dateA > 0 && dateB > 0) {
+        return dateB - dateA;
+      }
+      
+      // Si solo una tiene exámenes, esa va primero
+      if (dateA > 0 && dateB === 0) return -1;
+      if (dateA === 0 && dateB > 0) return 1;
+      
+      // Si ninguna tiene exámenes, mantener el orden original
+      return 0;
+    });
   };
 
   // Modal de detalles del examen
@@ -529,59 +714,115 @@ export default function EvaluationsTab() {
                 </Link>
               </div>
             ) : (
-              <div className="space-y-4">
-                {evaluations.map((evaluation) => (
-                  <div key={evaluation.examId} className={cn("border rounded-lg p-6 transition-shadow", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-200 hover:shadow-md')}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className={cn("text-lg font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                            {evaluation.examTitle}
-                          </h3>
-                          <Badge className={getScoreBadgeColor(evaluation.score.overallPercentage)}>
-                            {evaluation.score.overallPercentage}%
-                          </Badge>
-                          {getSecurityBadge(evaluation)}
-                        </div>
-                        <div className={cn("grid grid-cols-1 md:grid-cols-3 gap-4 text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            <span>Fecha: {formatDate(evaluation.timestamp)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <BookOpen className="h-4 w-4" />
-                            <span>
-                              {evaluation.score.correctAnswers}/{evaluation.score.totalQuestions} correctas
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4" />
-                            <span>Tiempo: {formatDuration(evaluation.timeSpent)}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className={`text-3xl font-bold ${getScoreColor(evaluation.score.overallPercentage)}`}>
-                            {evaluation.score.overallPercentage}%
-                          </div>
-                          <Progress
-                            value={evaluation.score.overallPercentage}
-                            className="w-24 mt-1"
-                          />
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => showExamDetails(evaluation)}
-                          className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+              <div className="space-y-6">
+                {(() => {
+                  const groupedEvaluations = groupEvaluationsByPhase(evaluations);
+                  // Ordenar las fases por la fecha del examen más reciente
+                  const phaseOrder = getPhaseOrderByLatestExam(groupedEvaluations);
+                  
+                  return phaseOrder.map((phaseKey) => {
+                    const phaseEvaluations = groupedEvaluations[phaseKey];
+                    // Ocultar si está vacía
+                    if (phaseEvaluations.length === 0) return null;
+
+                    const isExpanded = expandedPhases[phaseKey] ?? true;
+
+                    return (
+                      <div key={phaseKey} className={cn("border rounded-lg overflow-hidden", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-white')}>
+                        {/* Header de la fase */}
+                        <button
+                          onClick={() => togglePhase(phaseKey)}
+                          className={cn(
+                            "w-full p-4 flex items-center justify-between transition-colors",
+                            theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-50'
+                          )}
                         >
-                          Ver Detalles
-                        </Button>
+                          <div className="flex items-center gap-3">
+                            {isExpanded ? (
+                              <ChevronUp className={cn("h-5 w-5", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')} />
+                            ) : (
+                              <ChevronDown className={cn("h-5 w-5", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')} />
+                            )}
+                            <h2 className={cn("text-xl font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                              {getPhaseDisplayName(phaseKey)}
+                            </h2>
+                            <Badge variant="outline" className={cn(
+                              phaseKey === 'fase I' ? (theme === 'dark' ? 'bg-blue-900/30 border-blue-700 text-blue-300' : 'bg-blue-50 border-blue-200 text-blue-700') :
+                              phaseKey === 'Fase II' ? (theme === 'dark' ? 'bg-purple-900/30 border-purple-700 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-700') :
+                              phaseKey === 'fase III' ? (theme === 'dark' ? 'bg-green-900/30 border-green-700 text-green-300' : 'bg-green-50 border-green-200 text-green-700') :
+                              (theme === 'dark' ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-700')
+                            )}>
+                              {phaseEvaluations.length} {phaseEvaluations.length === 1 ? 'examen' : 'exámenes'}
+                            </Badge>
+                          </div>
+                          <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                            {isExpanded ? 'Ocultar' : 'Mostrar'}
+                          </span>
+                        </button>
+
+                        {/* Contenido de la fase (colapsable) */}
+                        {isExpanded && (
+                          <div className={cn("border-t", theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
+                            <div className="p-4 space-y-4">
+                              {phaseEvaluations.map((evaluation) => (
+                                <div key={evaluation.examId} className={cn("border rounded-lg p-6 transition-shadow", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-200 hover:shadow-md')}>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <h3 className={cn("text-lg font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                          {evaluation.examTitle}
+                                        </h3>
+                                        <Badge className={getScoreBadgeColor(evaluation.score.overallPercentage)}>
+                                          {evaluation.score.overallPercentage}%
+                                        </Badge>
+                                        {getSecurityBadge(evaluation)}
+                                      </div>
+                                      <div className={cn("grid grid-cols-1 md:grid-cols-3 gap-4 text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="h-4 w-4" />
+                                          <span>Fecha: {formatDate(evaluation.timestamp)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <BookOpen className="h-4 w-4" />
+                                          <span>
+                                            {evaluation.score.correctAnswers}/{evaluation.score.totalQuestions} correctas
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <TrendingUp className="h-4 w-4" />
+                                          <span>Tiempo: {formatDuration(evaluation.timeSpent)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      <div className="text-right">
+                                        <div className={`text-3xl font-bold ${getScoreColor(evaluation.score.overallPercentage)}`}>
+                                          {evaluation.score.overallPercentage}%
+                                        </div>
+                                        <Progress
+                                          value={evaluation.score.overallPercentage}
+                                          className="w-24 mt-1"
+                                        />
+                                      </div>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => showExamDetails(evaluation)}
+                                        className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+                                      >
+                                        Ver Detalles
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  });
+                })()}
               </div>
             )}
           </CardContent>

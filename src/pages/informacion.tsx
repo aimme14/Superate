@@ -8,13 +8,40 @@ import { Link } from "react-router-dom"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
+import React from "react"
 
+interface NavItemProps {
+  icon: React.ReactNode;
+  active?: boolean;
+  href: string;
+  text: string;
+  theme?: 'light' | 'dark';
+}
+
+// Componente auxiliar
+function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps) {
+  return (
+    <Link
+      to={href}
+      className={cn(
+        "flex items-center",
+        active 
+          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
+          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
+      )}
+    >
+      <span className="mr-2">{icon}</span>
+      <span>{text}</span>
+    </Link>
+  );
+}
 
 export default function InfoTab() {
   const { user } = useAuthContext()
   const { theme } = useThemeContext()
   const userId = user?.uid
-  const { data: userData } = useQueryUser().fetchUserById<any>(userId as string, !!userId)
+  const queryUser = useQueryUser()
+  const { data: userData } = queryUser.fetchUserById<any>(userId as string, !!userId)
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution()
 
   return (
@@ -86,30 +113,4 @@ export default function InfoTab() {
     </Card>
     </div>
   )
-  interface NavItemProps {
-    icon: React.ReactNode;
-    active?: boolean;
-    href: string;
-    text: string;
-    theme?: 'light' | 'dark';
-  }
-  
-  // Componentes auxiliares
-  function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps) {
-    return (
-      <Link
-        to={href}
-        className={cn(
-          "flex items-center",
-          active 
-            ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
-            : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
-        )}
-      >
-        <span className="mr-2">{icon}</span>
-        <span>{text}</span>
-      </Link>
-    );
-  }
-  
 }
