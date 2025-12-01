@@ -504,8 +504,6 @@ export default function ICFESAnalysisInterface() {
   const [loading, setLoading] = useState(true);
   const [loadingAI, setLoadingAI] = useState(false);
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
-  const [phase1Evaluations, setPhase1Evaluations] = useState<ExamResult[]>([]);
-  const [phase2Evaluations, setPhase2Evaluations] = useState<ExamResult[]>([]);
   const [studentRank, setStudentRank] = useState<number | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [isLoadingRank, setIsLoadingRank] = useState(false);
@@ -822,9 +820,6 @@ export default function ICFESAnalysisInterface() {
                  phase === 'Fase II' ||
                  getPhaseType(phase) === 'second';
         });
-
-        setPhase1Evaluations(phase1Evals);
-        setPhase2Evaluations(phase2Evals);
 
         // Procesar datos para el análisis general
         const processedData = processEvaluationData(evaluationsArray, user);
