@@ -306,6 +306,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     options: QuestionOption[]
   }>>([])
   
+  // Estados para archivos e imágenes de opciones en comprensión de lectura (otras materias)
+  const [otherSubjectsReadingOptionFiles, setOtherSubjectsReadingOptionFiles] = useState<{ [questionId: string]: { [optionId: string]: File | null } }>({})
+  const [otherSubjectsReadingOptionImagePreviews, setOtherSubjectsReadingOptionImagePreviews] = useState<{ [questionId: string]: { [optionId: string]: string | null } }>({})
+  
   // Estados para edición de Comprensión de Lectura en otras materias
   const [isEditingOtherSubjectsReadingComprehension, setIsEditingOtherSubjectsReadingComprehension] = useState(false)
   const [editOtherSubjectsReadingText, setEditOtherSubjectsReadingText] = useState<string>('')
@@ -634,29 +638,25 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   // Funciones para edición de imágenes informativas
   const handleEditInformativeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    if (files.length + editInformativeImages.length > 5) {
+    // Verificar límite total: imágenes existentes que se mantienen + nuevas imágenes
+    if (files.length + editInformativeImages.length + informativeImagePreviews.length > 5) {
       notifyError({ 
         title: 'Error', 
-        message: 'Máximo 5 imágenes informativas' 
+        message: 'Máximo 5 imágenes informativas en total (existentes + nuevas)' 
       })
       return
     }
 
     setEditInformativeImages([...editInformativeImages, ...files])
-    
-    // Crear previsualizaciones
-    files.forEach(file => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setInformativeImagePreviews(prev => [...prev, reader.result as string])
-      }
-      reader.readAsDataURL(file)
-    })
+    // NO agregar las nuevas imágenes a informativeImagePreviews
+    // informativeImagePreviews solo contiene imágenes existentes que se mantienen
+    // Las nuevas imágenes se muestran desde editInformativeImages usando URL.createObjectURL
   }
 
   const removeEditInformativeImage = (index: number) => {
+    // Solo eliminar de editInformativeImages (nuevas imágenes)
+    // NO tocar informativeImagePreviews (imágenes existentes)
     setEditInformativeImages(editInformativeImages.filter((_, i) => i !== index))
-    setInformativeImagePreviews(informativeImagePreviews.filter((_, i) => i !== index))
   }
 
   // Funciones para edición de imágenes de pregunta
@@ -706,6 +706,58 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setOptionImagePreviews({ ...optionImagePreviews, [optionId]: null })
     setOptions(options.map(opt => 
       opt.id === optionId ? { ...opt, imageUrl: null } : opt
+    ))
+  }
+
+  // Funciones para manejar imágenes de opciones en comprensión de lectura (otras materias)
+  const handleOtherSubjectsReadingOptionImageUpload = (questionId: string, optionId: string, file: File) => {
+    setOtherSubjectsReadingOptionFiles(prev => ({
+      ...prev,
+      [questionId]: {
+        ...(prev[questionId] || {}),
+        [optionId]: file
+      }
+    }))
+    
+    // Crear previsualización
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setOtherSubjectsReadingOptionImagePreviews(prev => ({
+        ...prev,
+        [questionId]: {
+          ...(prev[questionId] || {}),
+          [optionId]: reader.result as string
+        }
+      }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const removeOtherSubjectsReadingOptionImage = (questionId: string, optionId: string) => {
+    setOtherSubjectsReadingOptionFiles(prev => ({
+      ...prev,
+      [questionId]: {
+        ...(prev[questionId] || {}),
+        [optionId]: null
+      }
+    }))
+    setOtherSubjectsReadingOptionImagePreviews(prev => ({
+      ...prev,
+      [questionId]: {
+        ...(prev[questionId] || {}),
+        [optionId]: null
+      }
+    }))
+    // Actualizar la opción en el estado de preguntas
+    setOtherSubjectsReadingQuestions(prev => prev.map(rq => 
+      rq.id === questionId 
+        ? {
+            ...rq,
+            options: rq.options.map(opt => 
+              opt.id === optionId ? { ...opt, imageUrl: null } : opt
+            )
+          }
+        : rq
     ))
   }
 
@@ -827,6 +879,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setOtherSubjectsReadingImage(null)
     setOtherSubjectsReadingImagePreview(null)
     setOtherSubjectsReadingQuestions([])
+    setOtherSubjectsReadingOptionFiles({})
+    setOtherSubjectsReadingOptionImagePreviews({})
     // Resetear modalidad de otras materias a estándar para la siguiente pregunta
     setOtherSubjectsModality('standard_mc')
     // Limpiar errores de validación
@@ -1064,8 +1118,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             // Validar cada pregunta de lectura
             otherSubjectsReadingQuestions.forEach((rq, rqIndex) => {
               // El texto de la pregunta es opcional, no se valida
-              // Validar opciones de cada pregunta
-              const emptyOptions = rq.options.filter(opt => !opt.text || !opt.text.trim())
+              // Validar opciones de cada pregunta (debe tener texto o imagen)
+              const emptyOptions = rq.options.filter(opt => {
+                const hasText = opt.text && opt.text.trim()
+                const hasImageFile = otherSubjectsReadingOptionFiles[rq.id]?.[opt.id]
+                const hasImageUrl = opt.imageUrl
+                return !hasText && !hasImageFile && !hasImageUrl
+              })
               if (emptyOptions.length > 0) {
                 errors[`otherSubjectsReadingQuestionOptions_${rqIndex}`] = true
               }
@@ -1857,14 +1916,48 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             }
           }
           
-          // Procesar opciones de esta pregunta (todas las opciones definidas por el usuario)
-          const rqOptions: QuestionOption[] = rq.options
-            .map(opt => ({
+          // Procesar opciones de esta pregunta con imágenes
+          const rqOptionsPromises = rq.options.map(async (opt) => {
+            let imageUrl = opt.imageUrl || null // Mantener imagen existente si hay
+            
+            // Procesar nueva imagen si existe
+            const optionFile = otherSubjectsReadingOptionFiles[rq.id]?.[opt.id]
+            if (optionFile) {
+              try {
+                // Comprimir imagen antes de subir
+                const compressedFile = await compressImageForStorage(optionFile)
+                const storagePromise = questionService.uploadImage(
+                  compressedFile, 
+                  `questions/options/${Date.now()}_${rq.id}_${opt.id}.jpg`
+                )
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout')), 10000)
+                )
+                const result = await Promise.race([storagePromise, timeoutPromise]) as any
+                if (result.success) {
+                  imageUrl = result.data
+                } else {
+                  imageUrl = await fileToBase64(compressedFile)
+                }
+              } catch (error) {
+                console.log('⚠️ Fallback a Base64 para imagen de opción')
+                try {
+                  imageUrl = await fileToBase64(optionFile)
+                } catch (base64Error) {
+                  console.error('❌ Error procesando imagen de opción:', base64Error)
+                }
+              }
+            }
+            
+            return {
               id: opt.id,
               text: opt.text || '',
-              imageUrl: null, // Las opciones de lectura no tienen imágenes por ahora
+              imageUrl,
               isCorrect: opt.isCorrect
-            }))
+            }
+          })
+          
+          const rqOptions: QuestionOption[] = await Promise.all(rqOptionsPromises)
 
           const questionData: any = {
             ...formData,
@@ -2159,16 +2252,104 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                    !question.questionText?.includes('completar el hueco')
     
     // Verificar si es una pregunta de comprensión de lectura para otras materias
-    // Las preguntas de comprensión de lectura tienen informativeText pero NO son de inglés
-    const isOtherSubjectsReadingComprehension = !isMatchingColumns && 
-                                                !isClozeTest &&
-                                                !isReadingComprehension &&
-                                                question.subjectCode !== 'IN' && 
-                                                question.informativeText && 
-                                                typeof question.informativeText === 'string' &&
-                                                question.informativeText.trim().length > 0 &&
-                                                !question.informativeText.includes('MATCHING_COLUMNS_') &&
-                                                !question.questionText?.includes('completar el hueco')
+    // IMPORTANTE: Solo se considera comprensión de lectura si hay MÚLTIPLES preguntas relacionadas
+    // Si solo hay una pregunta con informativeText, es una pregunta estándar con texto informativo
+    let isOtherSubjectsReadingComprehension = false
+    if (!isMatchingColumns && 
+        !isClozeTest &&
+        !isReadingComprehension &&
+        question.subjectCode !== 'IN' && 
+        question.informativeText && 
+        typeof question.informativeText === 'string' &&
+        question.informativeText.trim().length > 0 &&
+        !question.informativeText.includes('MATCHING_COLUMNS_') &&
+        !question.questionText?.includes('completar el hueco')) {
+      
+      // Buscar preguntas relacionadas para determinar si es comprensión de lectura
+      const related = questions.filter(q => 
+        q.subjectCode === question.subjectCode &&
+        q.informativeText === question.informativeText &&
+        JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
+        q.topicCode === question.topicCode &&
+        q.grade === question.grade &&
+        q.levelCode === question.levelCode &&
+        !q.questionText?.includes('completar el hueco') &&
+        !q.informativeText?.includes('MATCHING_COLUMNS_')
+      )
+      
+      // Solo es comprensión de lectura si hay MÁS DE UNA pregunta relacionada
+      // Y además, deben cumplir DOS condiciones:
+      // 1. Haber sido creadas en un rango de tiempo corto (menos de 60 segundos)
+      // 2. Tener códigos consecutivos o muy cercanos (diferencia <= 10 en números de serie)
+      // Esto distingue entre:
+      // - Comprensión de lectura: múltiples preguntas creadas juntas en el mismo lote
+      // - Preguntas estándar independientes: creadas en momentos diferentes pero con mismo informativeText
+      if (related.length > 1) {
+        // Ordenar por fecha de creación
+        const sortedRelated = [...related].sort((a, b) => {
+          const dateA = new Date(a.createdAt).getTime()
+          const dateB = new Date(b.createdAt).getTime()
+          return dateA - dateB
+        })
+        
+        // Verificar si todas las preguntas fueron creadas en un rango de tiempo corto (60 segundos)
+        // Las preguntas de comprensión de lectura se crean en un loop secuencial, por lo que
+        // todas deberían estar dentro de un minuto. Las preguntas estándar independientes
+        // creadas en momentos diferentes (días, horas aparte) tendrán una diferencia mucho mayor.
+        const firstCreated = new Date(sortedRelated[0].createdAt).getTime()
+        const lastCreated = new Date(sortedRelated[sortedRelated.length - 1].createdAt).getTime()
+        const timeDifference = (lastCreated - firstCreated) / 1000 // Diferencia en segundos
+        
+        // Verificar también si los códigos son relativamente consecutivos
+        // Las preguntas de comprensión de lectura suelen tener códigos consecutivos o cercanos
+        // porque se generan en el mismo momento
+        let codesAreConsecutive = true
+        if (sortedRelated.length > 1) {
+          // Extraer los números de serie de los códigos (últimos 3 dígitos)
+          const serialNumbers = sortedRelated.map(q => {
+            const match = q.code.match(/(\d{3})$/);
+            return match ? parseInt(match[1]) : 0;
+          }).sort((a, b) => a - b);
+          
+          // Verificar si los números de serie son consecutivos o muy cercanos (diferencia máxima de 10)
+          // Esto permite que haya algunas preguntas intermedias de otras materias/temas
+          for (let i = 1; i < serialNumbers.length; i++) {
+            const diff = serialNumbers[i] - serialNumbers[i - 1];
+            if (diff > 10) {
+              codesAreConsecutive = false;
+              break;
+            }
+          }
+        }
+        
+        // Es comprensión de lectura si:
+        // 1. Fueron creadas en menos de 60 segundos Y
+        // 2. Los códigos son consecutivos o muy cercanos (diferencia <= 10)
+        // Esto distingue entre comprensión de lectura (creadas juntas) y preguntas estándar independientes
+        isOtherSubjectsReadingComprehension = timeDifference <= 60 && codesAreConsecutive
+        
+        console.log('🔍 Análisis de tiempo de creación y códigos:', {
+          relatedCount: related.length,
+          timeDifferenceSeconds: timeDifference,
+          codesAreConsecutive,
+          isReadingComprehension: isOtherSubjectsReadingComprehension,
+          firstCreated: sortedRelated[0].createdAt,
+          lastCreated: sortedRelated[sortedRelated.length - 1].createdAt,
+          codes: sortedRelated.map(q => q.code)
+        })
+      } else {
+        // Si solo hay una pregunta, es estándar
+        isOtherSubjectsReadingComprehension = false
+      }
+      
+      console.log('🔍 Verificación de comprensión de lectura (otras materias):', {
+        code: question.code,
+        subjectCode: question.subjectCode,
+        hasInformativeText: !!question.informativeText,
+        relatedQuestionsCount: related.length,
+        isReadingComprehension: isOtherSubjectsReadingComprehension
+      })
+    }
     
     // Debug: Verificar la detección de modalidad
     console.log('🔍 Detección de modalidad para edición:', {
@@ -2177,6 +2358,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       isMatchingColumns,
       isClozeTest,
       isReadingComprehension,
+      isOtherSubjectsReadingComprehension,
       hasInformativeText: !!question.informativeText,
       informativeTextPreview: question.informativeText?.substring(0, 50),
       questionTextPreview: question.questionText?.substring(0, 50)
@@ -2368,10 +2550,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       if (informativeImages.length > 0) {
         const lastImage = informativeImages[informativeImages.length - 1]
         setEditOtherSubjectsReadingExistingImageUrl(lastImage)
+        // También establecer el preview para que se muestre la imagen
+        setEditOtherSubjectsReadingImagePreview(lastImage)
         // Las demás son imágenes informativas normales (excluyendo la última)
         const informativeOnlyImages = informativeImages.slice(0, -1)
         setInformativeImagePreviews(informativeOnlyImages)
       } else {
+        setEditOtherSubjectsReadingExistingImageUrl(null)
+        setEditOtherSubjectsReadingImagePreview(null)
         setInformativeImagePreviews([])
       }
       
@@ -2388,10 +2574,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           questionId: `q${index + 1}`, // ID único para el formulario
           questionText: q.questionText || '',
           questionImage: null,
-          questionImagePreview: questionImageUrl,
-          existingQuestionImageUrl: questionImageUrl,
+          questionImagePreview: null, // Solo se establece cuando el usuario selecciona una nueva imagen
+          existingQuestionImageUrl: questionImageUrl, // Imagen existente de la base de datos
           options: allOptions
         }
+      })
+      
+      console.log('📚 Preguntas de comprensión de lectura cargadas para edición:', {
+        count: readingQuestionsData.length,
+        questions: readingQuestionsData.map(rq => ({
+          id: rq.id,
+          questionId: rq.questionId,
+          hasQuestionText: !!rq.questionText,
+          hasExistingImage: !!rq.existingQuestionImageUrl,
+          optionsCount: rq.options.length
+        }))
       })
       
       setEditOtherSubjectsReadingQuestions(readingQuestionsData)
@@ -4294,10 +4491,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           updates.code = newCode
         }
 
-        // Agregar nuevas imágenes si las hay
-        if (newInformativeImageUrls.length > 0) {
-          updates.informativeImages = [...(selectedQuestion.informativeImages || []), ...newInformativeImageUrls]
+        // Actualizar imágenes informativas: mantener solo las que no se eliminaron + agregar las nuevas
+        // informativeImagePreviews contiene las imágenes existentes que se mantienen (las que no se eliminaron)
+        const keptExistingImages = informativeImagePreviews
+        const allInformativeImages = [...keptExistingImages, ...newInformativeImageUrls]
+        
+        // Siempre actualizar informativeImages si hay cambios:
+        // - Si se eliminaron algunas imágenes existentes (keptExistingImages.length < original)
+        // - Si se agregaron nuevas imágenes (newInformativeImageUrls.length > 0)
+        // - Si no hay imágenes (se eliminaron todas)
+        const originalImageCount = selectedQuestion.informativeImages?.length || 0
+        const hasChanges = keptExistingImages.length !== originalImageCount || newInformativeImageUrls.length > 0
+        
+        if (hasChanges) {
+          updates.informativeImages = allInformativeImages
         }
+        
+        // Actualizar imágenes de pregunta: mantener las existentes + agregar las nuevas
         if (newQuestionImageUrls.length > 0) {
           updates.questionImages = [...(selectedQuestion.questionImages || []), ...newQuestionImageUrls]
         }
@@ -6897,73 +7107,161 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
                             </Label>
                           </div>
-                          {rq.options.map((opt) => (
-                            <div key={opt.id} className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                name={`other-subjects-reading-q-${rq.id}`}
-                                checked={opt.isCorrect}
-                                onChange={() => {
-                                  const updated = [...otherSubjectsReadingQuestions]
-                                  updated[rqIndex].options = updated[rqIndex].options.map(o => ({
-                                    ...o,
-                                    isCorrect: o.id === opt.id
-                                  }))
-                                  setOtherSubjectsReadingQuestions(updated)
-                                  // Limpiar error cuando se selecciona una respuesta
-                                  if (fieldErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]) {
-                                    setFieldErrors(prev => {
-                                      const newErrors = { ...prev }
-                                      delete newErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]
-                                      return newErrors
-                                    })
-                                  }
-                                }}
-                                className="w-4 h-4"
-                              />
-                              <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{opt.id}:</Label>
-                              <Input
-                                value={opt.text || ''}
-                                onChange={(e) => {
-                                  const updated = [...otherSubjectsReadingQuestions]
-                                  updated[rqIndex].options = updated[rqIndex].options.map(o =>
-                                    o.id === opt.id ? { ...o, text: e.target.value } : o
-                                  )
-                                  setOtherSubjectsReadingQuestions(updated)
-                                  // Limpiar error cuando el usuario empiece a escribir
-                                  if (fieldErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]) {
-                                    setFieldErrors(prev => {
-                                      const newErrors = { ...prev }
-                                      delete newErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]
-                                      return newErrors
-                                    })
-                                  }
-                                }}
-                                placeholder={`Opción ${opt.id}`}
-                                className={cn(`flex-1`, hasOptionsError && !opt.text?.trim() ? 'border-red-500' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                              />
-                              {rq.options.length > 2 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const updated = [...otherSubjectsReadingQuestions]
-                                    updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
-                                    setOtherSubjectsReadingQuestions(updated)
-                                  }}
-                                  className={cn(
-                                    "h-8 w-8 p-0",
-                                    theme === 'dark'
-                                      ? 'text-red-400 hover:text-red-300 hover:bg-red-950/50'
-                                      : 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                          <div className={cn(`space-y-3`, hasOptionsError || hasAnswerError ? 'border-2 border-red-500 rounded-md p-2' : '')}>
+                            {rq.options.map((opt) => {
+                              const optionPreview = otherSubjectsReadingOptionImagePreviews[rq.id]?.[opt.id] || opt.imageUrl
+                              const hasError = hasOptionsError && !opt.text?.trim() && !optionPreview
+                              return (
+                                <div key={opt.id} className={cn(`border rounded-lg p-3 space-y-2`, hasError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : '')}>
+                                  <div className="flex items-start gap-2">
+                                    <input
+                                      type="radio"
+                                      name={`other-subjects-reading-q-${rq.id}`}
+                                      checked={opt.isCorrect}
+                                      onChange={() => {
+                                        const updated = [...otherSubjectsReadingQuestions]
+                                        updated[rqIndex].options = updated[rqIndex].options.map(o => ({
+                                          ...o,
+                                          isCorrect: o.id === opt.id
+                                        }))
+                                        setOtherSubjectsReadingQuestions(updated)
+                                        // Limpiar error cuando se selecciona una respuesta
+                                        if (fieldErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]) {
+                                          setFieldErrors(prev => {
+                                            const newErrors = { ...prev }
+                                            delete newErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]
+                                            return newErrors
+                                          })
+                                        }
+                                      }}
+                                      className="w-4 h-4 mt-2"
+                                    />
+                                    <span className={cn("font-medium mt-2", theme === 'dark' ? 'text-gray-300' : '')}>{opt.id})</span>
+                                    <div className="flex-1">
+                                      <RichTextEditor
+                                        value={opt.text || ''}
+                                        onChange={(html) => {
+                                          const updated = [...otherSubjectsReadingQuestions]
+                                          updated[rqIndex].options = updated[rqIndex].options.map(o =>
+                                            o.id === opt.id ? { ...o, text: html } : o
+                                          )
+                                          setOtherSubjectsReadingQuestions(updated)
+                                          // Limpiar error cuando el usuario empiece a escribir
+                                          if (fieldErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]) {
+                                            setFieldErrors(prev => {
+                                              const newErrors = { ...prev }
+                                              delete newErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]
+                                              return newErrors
+                                            })
+                                          }
+                                        }}
+                                        placeholder={`Texto de la opción ${opt.id}`}
+                                        className="min-h-[100px]"
+                                        theme={theme}
+                                        simplifiedToolbar={true}
+                                      />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                      <Input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0]
+                                          if (file) {
+                                            // Validar tamaño (máximo 5MB)
+                                            if (file.size > 5 * 1024 * 1024) {
+                                              notifyError({
+                                                title: 'Error',
+                                                message: 'La imagen es demasiado grande. Tamaño máximo: 5MB'
+                                              })
+                                              return
+                                            }
+                                            // Validar tipo
+                                            if (!file.type.startsWith('image/')) {
+                                              notifyError({
+                                                title: 'Error',
+                                                message: 'El archivo debe ser una imagen'
+                                              })
+                                              return
+                                            }
+                                            handleOtherSubjectsReadingOptionImageUpload(rq.id, opt.id, file)
+                                          }
+                                        }}
+                                        className="hidden"
+                                        id={`other-subjects-reading-option-${rq.id}-${opt.id}-image`}
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => document.getElementById(`other-subjects-reading-option-${rq.id}-${opt.id}-image`)?.click()}
+                                        className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+                                      >
+                                        <ImageIcon className="h-4 w-4" />
+                                      </Button>
+                                      {rq.options.length > 2 && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            const updated = [...otherSubjectsReadingQuestions]
+                                            updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
+                                            // Limpiar archivos e imágenes de la opción eliminada
+                                            setOtherSubjectsReadingOptionFiles(prev => {
+                                              const newFiles = { ...prev }
+                                              if (newFiles[rq.id]) {
+                                                const questionFiles = { ...newFiles[rq.id] }
+                                                delete questionFiles[opt.id]
+                                                newFiles[rq.id] = questionFiles
+                                              }
+                                              return newFiles
+                                            })
+                                            setOtherSubjectsReadingOptionImagePreviews(prev => {
+                                              const newPreviews = { ...prev }
+                                              if (newPreviews[rq.id]) {
+                                                const questionPreviews = { ...newPreviews[rq.id] }
+                                                delete questionPreviews[opt.id]
+                                                newPreviews[rq.id] = questionPreviews
+                                              }
+                                              return newPreviews
+                                            })
+                                            setOtherSubjectsReadingQuestions(updated)
+                                          }}
+                                          className={cn(
+                                            "h-8 w-8 p-0",
+                                            theme === 'dark'
+                                              ? 'text-red-400 hover:text-red-300 hover:bg-red-950/50'
+                                              : 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                                          )}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {optionPreview && (
+                                    <div className="relative w-32 h-32">
+                                      <img 
+                                        src={optionPreview} 
+                                        alt={`Opción ${opt.id}`} 
+                                        className="w-full h-full object-cover rounded" 
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="destructive"
+                                        size="sm"
+                                        className="absolute top-0 right-0 h-6 w-6 p-0"
+                                        onClick={() => removeOtherSubjectsReadingOptionImage(rq.id, opt.id)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                   )}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          ))}
+                                </div>
+                              )
+                            })}
+                          </div>
                           <Button
                             type="button"
                             variant="outline"
@@ -7177,6 +7475,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               placeholder={`Texto de la opción ${option.id}`}
                               className="min-h-[100px]"
                               theme={theme}
+                              simplifiedToolbar={true}
                             />
                           </div>
                           <div className="flex flex-col gap-2">
@@ -8215,6 +8514,40 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     </div>
                   )}
                 </div>
+                
+                {/* Imágenes informativas adicionales (opcional) */}
+                {informativeImagePreviews.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Imágenes Informativas Adicionales</Label>
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      Imágenes informativas existentes (además de la imagen de lectura).
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {informativeImagePreviews.map((preview, index) => (
+                        <div key={index} className="relative w-full h-32">
+                          <img 
+                            src={preview} 
+                            alt={`Imagen informativa ${index + 1}`} 
+                            className="w-full h-full object-cover rounded border" 
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-1 right-1 h-6 w-6 p-0"
+                            onClick={() => {
+                              // Eliminar la imagen existente de la lista
+                              setInformativeImagePreviews(informativeImagePreviews.filter((_, i) => i !== index))
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="space-y-4">
                   <Label className={cn(
                     fieldErrors['otherSubjectsReadingQuestions'] ? 'text-red-600' : '',
@@ -8777,6 +9110,18 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             alt={`Imagen informativa ${index + 1}`} 
                             className="w-full h-full object-cover rounded border" 
                           />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-1 right-1 h-6 w-6 p-0"
+                            onClick={() => {
+                              // Eliminar la imagen existente de la lista
+                              setInformativeImagePreviews(informativeImagePreviews.filter((_, i) => i !== index))
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
                         </div>
                       ))}
                     </div>
@@ -8875,6 +9220,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               alt={`Imagen informativa ${index + 1}`} 
                               className="w-full h-full object-cover rounded border" 
                             />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className={cn(
+                                "absolute top-1 right-1 h-7 w-7 p-0 z-10 shadow-lg",
+                                theme === 'dark' 
+                                  ? 'bg-red-600 hover:bg-red-700 text-white border border-red-500' 
+                                  : 'bg-red-500 hover:bg-red-600 text-white'
+                              )}
+                              onClick={() => {
+                                // Eliminar la imagen existente de la lista
+                                setInformativeImagePreviews(informativeImagePreviews.filter((_, i) => i !== index))
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
                           </div>
                         ))}
                       </div>
@@ -8895,11 +9257,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       type="button"
                       variant="outline"
                       onClick={() => document.getElementById('edit-informative-images')?.click()}
-                      disabled={editInformativeImages.length >= 5}
+                      disabled={(informativeImagePreviews.length + editInformativeImages.length) >= 5}
                       className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                     >
                       <ImageIcon className="h-4 w-4 mr-2" />
-                      Agregar Imágenes ({editInformativeImages.length}/5)
+                      Agregar Imágenes ({(informativeImagePreviews.length + editInformativeImages.length)}/5)
                     </Button>
                   </div>
 
@@ -9070,6 +9432,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             placeholder={`Texto de la opción ${option.id}`}
                             className="min-h-[100px]"
                             theme={theme}
+                            simplifiedToolbar={true}
                           />
                         </div>
                         <div className="flex flex-col gap-2">
