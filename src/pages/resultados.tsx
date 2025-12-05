@@ -21,14 +21,6 @@ import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
 
 const db = getFirestore(firebaseApp);
 
-// Función para eliminar etiquetas HTML y obtener solo el texto
-const stripHtml = (html: string): string => {
-  if (!html) return ''
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = html
-  return tempDiv.textContent || tempDiv.innerText || ''
-}
-
 // Función para renderizar fórmulas matemáticas en el HTML
 const renderMathInHtml = (html: string): string => {
   if (!html) return ''
@@ -486,6 +478,75 @@ export default function EvaluationsTab() {
               </Button>
             </div>
 
+            {/* Información general */}
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : '')}>
+                <CardHeader>
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
+                    <TrendingUp className="h-5 w-5" />
+                    Puntuación General
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center">
+                    <div className={`text-4xl font-bold ${getScoreColor(selectedExam.score.overallPercentage)}`}>
+                      {selectedExam.score.overallPercentage}%
+                    </div>
+                    <div className={cn("mt-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      {selectedExam.score.correctAnswers} de {selectedExam.score.totalQuestions} correctas
+                    </div>
+                    <Progress
+                      value={selectedExam.score.overallPercentage}
+                      className="mt-4"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : '')}>
+                <CardHeader>
+                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
+                    <Clock className="h-5 w-5" />
+                    Información del Examen
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Fecha:</span>
+                    <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{formatDate(selectedExam.timestamp)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Tiempo empleado:</span>
+                    <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{formatDuration(selectedExam.timeSpent)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Preguntas respondidas:</span>
+                    <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{selectedExam.score.totalAnswered}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Estado:</span>
+                    <Badge className={selectedExam.completed ? (theme === 'dark' ? "bg-green-800 text-green-200" : "bg-green-100 text-green-800") : (theme === 'dark' ? "bg-yellow-800 text-yellow-200" : "bg-yellow-100 text-yellow-800")}>
+                      {selectedExam.completed ? "Completado" : "Incompleto"}
+                    </Badge>
+                  </div>
+                  {isFraudAttempt(selectedExam) ? (
+                    <div className="flex justify-between">
+                      <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Seguridad:</span>
+                      <Badge className={theme === 'dark' ? "bg-red-800 text-red-200 border-red-700" : "bg-red-100 text-red-800 border-red-200"}>
+                        <Shield className="h-3 w-3 mr-1" />
+                        Intento de fraude detectado
+                      </Badge>
+                    </div>
+                  ) : selectedExam.tabChangeCount > 0 ? (
+                    <div className="flex justify-between">
+                      <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Advertencias:</span>
+                      <span className={cn("font-medium", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>{selectedExam.tabChangeCount}</span>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Mensaje de intento de fraude */}
             {isFraudAttempt(selectedExam) && (
               <Card className={cn("mb-6", theme === 'dark' ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50')}>
@@ -516,7 +577,7 @@ export default function EvaluationsTab() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4 max-h-[calc(90vh-300px)] overflow-y-auto">
+                <div className="space-y-4 max-h-60 overflow-y-auto">
                   {selectedExam.questionDetails.map((question, index) => (
                     <div key={question.questionId} className={cn("border rounded-lg p-4", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-200 hover:bg-gray-50')}>
                       <div className="flex items-start gap-3">
@@ -549,7 +610,7 @@ export default function EvaluationsTab() {
                               Ver pregunta
                             </Button>
                           </div>
-                          <p className={cn("text-sm mb-3", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{stripHtml(question.questionText)}</p>
+                          <p className={cn("text-sm mb-3", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{question.questionText}</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                             <div>
                               <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Tu respuesta: </span>
@@ -968,21 +1029,6 @@ export default function EvaluationsTab() {
                           </div>
                         </div>
                       </CardContent>
-                      {/* Justificación de la respuesta */}
-                      {selectedQuestion.justification && (
-                        <CardContent className="pt-0">
-                          <div className={cn("mt-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200')}>
-                            <h4 className={cn("text-sm font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-700')}>
-                              <BookOpen className="h-4 w-4" />
-                              Justificación
-                            </h4>
-                            <div
-                              className={cn("prose prose-sm max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
-                              dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(selectedQuestion.justification)) }}
-                            />
-                          </div>
-                        </CardContent>
-                      )}
                     </Card>
                   </div>
                 </div>

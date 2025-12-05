@@ -167,8 +167,3 @@ Después de configurar CORS:
 **Última actualización**: Enero 2025
 
 
-
-
-
-
-

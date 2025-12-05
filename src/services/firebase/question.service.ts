@@ -122,8 +122,19 @@ class QuestionService {
       
       console.log('✅ Imagen subida exitosamente:', downloadURL);
       return success(downloadURL);
-    } catch (e) {
-      console.error('❌ Error al subir imagen:', e);
+    } catch (e: any) {
+      // Detectar errores CORS específicamente
+      const isCorsError = e?.code === 'storage/unauthorized' || 
+                         e?.message?.includes('CORS') ||
+                         e?.message?.includes('cors') ||
+                         e?.code === 'storage/canceled';
+      
+      if (isCorsError) {
+        // Error CORS esperado en desarrollo - el fallback a Base64 funcionará
+        console.log('⚠️ Firebase Storage no disponible (CORS). Se usará Base64 como fallback.');
+      } else {
+        console.error('❌ Error al subir imagen:', e);
+      }
       return failure(new ErrorAPI(normalizeError(e, 'subir imagen')));
     }
   }
