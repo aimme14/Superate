@@ -633,13 +633,8 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           quill.setSelection(Math.min(index + 1, newLength - 1), 'user')
         }
         
-        // Ejecutar inmediatamente y múltiples veces
+        // Ejecutar con un solo timeout optimizado
         setTimeout(forceRenderAndProtect, 0)
-        setTimeout(forceRenderAndProtect, 10)
-        setTimeout(forceRenderAndProtect, 50)
-        setTimeout(forceRenderAndProtect, 100)
-        setTimeout(forceRenderAndProtect, 200)
-        setTimeout(forceRenderAndProtect, 500)
         
       } catch (embedError) {
         console.error('Error insertando fórmula con insertEmbed:', embedError)
@@ -872,15 +867,15 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         }
       }
 
-      // MutationObserver más agresivo para proteger las fórmulas
+      // MutationObserver optimizado con debounce para proteger las fórmulas
       let renderTimeout: NodeJS.Timeout | null = null
       const observer = new MutationObserver(() => {
-        // Cancelar timeout anterior si existe
+        // Cancelar timeout anterior si existe (debounce)
         if (renderTimeout) {
           clearTimeout(renderTimeout)
         }
         
-        // Ejecutar renderizado después de un breve delay
+        // Ejecutar renderizado después de un delay más largo para reducir llamadas
         renderTimeout = setTimeout(() => {
           let needsRender = false
           
@@ -890,12 +885,13 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             const latex = el.getAttribute('data-latex')
             if (latex) {
               const hasKaTeX = el.querySelector('.katex') !== null
+              const hasUnicode = el.querySelector('.math-unicode') !== null
               
-              // Si no tiene KaTeX o el contenido parece ser texto plano, renderizar
-              if (!hasKaTeX || 
+              // Si no tiene KaTeX/Unicode o el contenido parece ser texto plano, renderizar
+              if ((!hasKaTeX && !hasUnicode) || 
                   el.innerHTML.trim() === '' || 
                   el.textContent === latex ||
-                  (el.innerHTML && !el.innerHTML.includes('katex'))) {
+                  (el.innerHTML && !el.innerHTML.includes('katex') && !el.innerHTML.includes('math-unicode'))) {
                 if (renderFormula(el)) {
                   needsRender = true
                 }
@@ -907,7 +903,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             const newHtml = quill.root.innerHTML
             onChange(newHtml)
           }
-        }, 50)
+        }, 150) // Aumentado de 50ms a 150ms para reducir frecuencia
       })
       
       // Observar cambios en el editor de Quill de manera más agresiva
@@ -920,10 +916,8 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         characterDataOldValue: true
       })
       
-      // Ejecutar renderizado inicial
+      // Ejecutar renderizado inicial (una sola vez es suficiente)
       setTimeout(renderFormulas, 0)
-      setTimeout(renderFormulas, 100)
-      setTimeout(renderFormulas, 300)
       
       // Limpiar observer al desmontar
       return () => {
