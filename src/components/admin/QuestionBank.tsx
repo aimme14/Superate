@@ -4675,6 +4675,203 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     }
   }
 
+  const handleCreateQuestionTextOnly = async () => {
+    try {
+      // Validaciones básicas
+      if (!formData.subject || !formData.topic || !formData.questionText) {
+        notifyError({ 
+          title: 'Error', 
+          message: 'Complete todos los campos obligatorios' 
+        })
+        return
+      }
+
+      // Validar que todas las opciones tengan contenido
+      const emptyOptions = options.filter(opt => !opt.text)
+      if (emptyOptions.length > 0) {
+        notifyError({ 
+          title: 'Error', 
+          message: 'Todas las opciones deben tener texto' 
+        })
+        return
+      }
+
+      // Validar que haya exactamente una respuesta correcta
+      const correctOptions = options.filter(opt => opt.isCorrect)
+      if (correctOptions.length !== 1) {
+        notifyError({ 
+          title: 'Error', 
+          message: 'Debe marcar exactamente una opción como correcta' 
+        })
+        return
+      }
+
+      if (!currentUser || currentUser.role !== 'admin') {
+        notifyError({ 
+          title: 'Error', 
+          message: 'No tiene permisos para crear preguntas' 
+        })
+        return
+      }
+
+      setIsLoading(true)
+      console.log('📝 Creando pregunta solo con texto...')
+
+      notifySuccess({ 
+        title: 'Creando', 
+        message: 'Creando pregunta solo con texto...' 
+      })
+
+      // Datos de la pregunta sin imágenes
+      const questionData = {
+        ...formData,
+        answerType: 'MCQ' as const,
+        options: options.map(opt => ({
+          ...opt,
+          imageUrl: null // Sin imágenes
+        }))
+      }
+
+      console.log('📝 Datos de la pregunta (solo texto):', questionData)
+      
+      // Crear la pregunta con timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado')), 10000) // 10 segundos
+      })
+      
+      const createPromise = questionService.createQuestion(questionData, currentUser.uid)
+      
+      const result = await Promise.race([createPromise, timeoutPromise]) as any
+      
+      console.log('📝 Resultado:', result)
+
+      if (result.success) {
+        notifySuccess({ 
+          title: '✅ Éxito', 
+          message: `Pregunta creada con código: ${result.data.code}` 
+        })
+        resetQuestionFieldsOnly()
+        setIsCreateDialogOpen(false)
+        loadQuestions()
+        loadStats()
+      } else {
+        notifyError({ 
+          title: '❌ Error', 
+          message: `Error: ${result.error?.message || 'Error desconocido'}` 
+        })
+      }
+    } catch (error) {
+      console.error('❌ Error creando pregunta:', error)
+      let errorMessage = 'Error creando pregunta'
+      if (error instanceof Error) {
+        if (error.message.includes('Timeout')) {
+          errorMessage = 'La operación tardó demasiado. Verifique su conexión.'
+        } else {
+          errorMessage = `Error: ${error.message}`
+        }
+      }
+      notifyError({ 
+        title: '❌ Error', 
+        message: errorMessage 
+      })
+    } finally {
+      setIsLoading(false)
+      console.log('🏁 Proceso finalizado')
+    }
+  }
+
+  const handleCreateTestQuestion = async () => {
+    try {
+      if (!currentUser) {
+        notifyError({ 
+          title: 'Error', 
+          message: 'Usuario no autenticado' 
+        })
+        return
+      }
+
+      if (currentUser.role !== 'admin') {
+        notifyError({ 
+          title: 'Error', 
+          message: 'No tienes permisos para crear preguntas' 
+        })
+        return
+      }
+
+      setIsLoading(true)
+      console.log('🧪 Creando pregunta de prueba...')
+
+      notifySuccess({ 
+        title: 'Prueba', 
+        message: 'Creando pregunta de prueba sin imágenes...' 
+      })
+
+      // Datos de prueba simples
+      const testQuestionData = {
+        subject: 'Matemáticas',
+        subjectCode: 'MA',
+        topic: 'Álgebra',
+        topicCode: 'AL',
+        grade: '6' as const,
+        level: 'Fácil' as const,
+        levelCode: 'F' as const,
+        informativeText: 'Esta es una pregunta de prueba para verificar que el sistema funciona correctamente.',
+        questionText: '¿Cuál es el resultado de 2 + 2? (Pregunta de prueba)',
+        answerType: 'MCQ' as const,
+        options: [
+          { id: 'A' as const, text: '3', imageUrl: null, isCorrect: false },
+          { id: 'B' as const, text: '4', imageUrl: null, isCorrect: true },
+          { id: 'C' as const, text: '5', imageUrl: null, isCorrect: false },
+          { id: 'D' as const, text: '6', imageUrl: null, isCorrect: false },
+        ]
+      }
+
+      console.log('🧪 Datos de prueba:', testQuestionData)
+      
+      // Agregar timeout para evitar que se cuelgue
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado')), 15000) // 15 segundos
+      })
+      
+      const createPromise = questionService.createQuestion(testQuestionData, currentUser.uid)
+      
+      const result = await Promise.race([createPromise, timeoutPromise]) as any
+      
+      console.log('🧪 Resultado:', result)
+
+      if (result.success) {
+        notifySuccess({ 
+          title: '✅ Éxito', 
+          message: `Pregunta de prueba creada con código: ${result.data.code}` 
+        })
+        loadQuestions()
+        loadStats()
+      } else {
+        notifyError({ 
+          title: '❌ Error en prueba', 
+          message: `Error: ${result.error?.message || 'Error desconocido'}` 
+        })
+      }
+    } catch (error) {
+      console.error('❌ Error en prueba:', error)
+      let errorMessage = 'Error en prueba'
+      if (error instanceof Error) {
+        if (error.message.includes('Timeout')) {
+          errorMessage = 'La prueba tardó demasiado. Verifique la conexión.'
+        } else {
+          errorMessage = `Error: ${error.message}`
+        }
+      }
+      notifyError({ 
+        title: '❌ Error en prueba', 
+        message: errorMessage 
+      })
+    } finally {
+      setIsLoading(false)
+      console.log('🏁 Prueba finalizada')
+    }
+  }
+
   const availableTopics = formData.subjectCode 
     ? getSubjectByCode(formData.subjectCode)?.topics || []
     : []
