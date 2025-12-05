@@ -57,7 +57,6 @@ export interface Question {
   questionImages?: string[];
   answerType: 'MCQ'; // Multiple Choice Question
   options: QuestionOption[];
-  justification?: string; // Justificación de la respuesta correcta
   createdBy: string; // UID del usuario que creó la pregunta
   createdAt: Date;
   rand?: number; // Número aleatorio para muestreo eficiente
