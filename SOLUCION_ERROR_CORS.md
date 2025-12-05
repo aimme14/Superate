@@ -172,4 +172,3 @@ Después de configurar CORS:
 
 
 
-

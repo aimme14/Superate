@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -327,10 +327,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   }>>([])
   const [editOtherSubjectsReadingRelatedQuestions, setEditOtherSubjectsReadingRelatedQuestions] = useState<Question[]>([])
   
-  // Estados para archivos e imágenes de opciones en edición de comprensión de lectura (otras materias)
-  const [editOtherSubjectsReadingOptionFiles, setEditOtherSubjectsReadingOptionFiles] = useState<{ [questionId: string]: { [optionId: string]: File | null } }>({})
-  const [editOtherSubjectsReadingOptionImagePreviews, setEditOtherSubjectsReadingOptionImagePreviews] = useState<{ [questionId: string]: { [optionId: string]: string | null } }>({})
-  
   // Función helper para generar letras de opciones dinámicamente (A, B, C, ..., Z)
   const getOptionLetter = (index: number): string => {
     return String.fromCharCode(65 + index) // 65 es el código ASCII de 'A'
@@ -421,8 +417,72 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     loadStats()
   }, [])
 
-  // Calcular preguntas filtradas con useMemo para optimización
-  const computedFilteredQuestions = useMemo(() => {
+  // Aplicar filtros
+  useEffect(() => {
+    applyFilters()
+  }, [questions, filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
+
+  // Cerrar dropdowns de matching al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      Object.keys(matchingDropdownRefs.current).forEach((questionKey) => {
+        const ref = matchingDropdownRefs.current[questionKey]
+        if (ref && !ref.contains(event.target as Node)) {
+          if (expandedViewOptions.has(questionKey)) {
+            setExpandedViewOptions(prev => {
+              const newSet = new Set(prev)
+              newSet.delete(questionKey)
+              return newSet
+            })
+          }
+        }
+      })
+    }
+
+    if (expandedViewOptions.size > 0) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [expandedViewOptions])
+
+  // Limpiar selección cuando cambien los filtros
+  useEffect(() => {
+    setSelectedQuestionIds(new Set())
+  }, [filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
+
+  const loadQuestions = async () => {
+    setIsLoading(true)
+    try {
+      const result = await questionService.getFilteredQuestions({})
+      if (result.success) {
+        setQuestions(result.data)
+      } else {
+        notifyError({ 
+          title: 'Error', 
+          message: 'No se pudieron cargar las preguntas' 
+        })
+      }
+    } catch (error) {
+      console.error('Error cargando preguntas:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadStats = async () => {
+    try {
+      const result = await questionService.getQuestionStats()
+      if (result.success) {
+        setStats(result.data)
+      }
+    } catch (error) {
+      console.error('Error cargando estadísticas:', error)
+    }
+  }
+
+  const applyFilters = () => {
     let filtered = [...questions]
 
     // Filtro por materia
@@ -456,77 +516,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       )
     }
 
-    return filtered
-  }, [questions, filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
-
-  // Sincronizar filteredQuestions con el cálculo cuando cambian los filtros o preguntas
-  useEffect(() => {
-    setFilteredQuestions(computedFilteredQuestions)
-  }, [computedFilteredQuestions])
-
-  // Cerrar dropdowns de matching al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      Object.keys(matchingDropdownRefs.current).forEach((questionKey) => {
-        const ref = matchingDropdownRefs.current[questionKey]
-        if (ref && !ref.contains(event.target as Node)) {
-          if (expandedViewOptions.has(questionKey)) {
-            setExpandedViewOptions(prev => {
-              const newSet = new Set(prev)
-              newSet.delete(questionKey)
-              return newSet
-            })
-          }
-        }
-      })
-    }
-
-    if (expandedViewOptions.size > 0) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-  }, [expandedViewOptions])
-
-  // Limpiar selección cuando cambien los filtros
-  useEffect(() => {
-    setSelectedQuestionIds(new Set())
-  }, [filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
-
-  const loadQuestions = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const result = await questionService.getFilteredQuestions({})
-      if (result.success) {
-        setQuestions(result.data)
-      } else {
-        notifyError({ 
-          title: 'Error', 
-          message: 'No se pudieron cargar las preguntas' 
-        })
-      }
-    } catch (error) {
-      console.error('Error cargando preguntas:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [notifyError])
-
-  const loadStats = async () => {
-    try {
-      const result = await questionService.getQuestionStats()
-      if (result.success) {
-        setStats(result.data)
-      }
-    } catch (error) {
-      console.error('Error cargando estadísticas:', error)
-    }
+    setFilteredQuestions(filtered)
   }
 
-  // applyFilters eliminado - ahora se usa useMemo directamente arriba
-
-  const handleSubjectChange = useCallback((subjectCode: string) => {
+  const handleSubjectChange = (subjectCode: string) => {
     const subject = getSubjectByCode(subjectCode)
     if (subject) {
       // Si cambia a una materia que no es Inglés, resetear modalidad
@@ -555,41 +548,38 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         setOtherSubjectsReadingImagePreview(null)
         setOtherSubjectsReadingQuestions([])
       }
-      setFormData(prev => ({
-        ...prev,
+      setFormData({
+        ...formData,
         subject: subject.name,
         subjectCode: subject.code,
         topic: '',
         topicCode: '',
-      }))
+      })
     }
-  }, [])
+  }
 
-  const handleTopicChange = useCallback((topicCode: string) => {
-    setFormData(prev => {
-      const subject = getSubjectByCode(prev.subjectCode)
-      const topic = subject?.topics.find(t => t.code === topicCode)
-      if (topic) {
-        return {
-          ...prev,
-          topic: topic.name,
-          topicCode: topic.code,
-        }
-      }
-      return prev
-    })
-  }, [])
+  const handleTopicChange = (topicCode: string) => {
+    const subject = getSubjectByCode(formData.subjectCode)
+    const topic = subject?.topics.find(t => t.code === topicCode)
+    if (topic) {
+      setFormData({
+        ...formData,
+        topic: topic.name,
+        topicCode: topic.code,
+      })
+    }
+  }
 
-  const handleLevelChange = useCallback((level: 'Fácil' | 'Medio' | 'Difícil') => {
+  const handleLevelChange = (level: 'Fácil' | 'Medio' | 'Difícil') => {
     const levelObj = DIFFICULTY_LEVELS.find(l => l.name === level)
     if (levelObj) {
-      setFormData(prev => ({
-        ...prev,
+      setFormData({
+        ...formData,
         level,
         levelCode: levelObj.code,
-      }))
+      })
     }
-  }, [])
+  }
 
   const handleInformativeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -771,58 +761,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     ))
   }
 
-  // Funciones para manejar imágenes de opciones en edición de comprensión de lectura (otras materias)
-  const handleEditOtherSubjectsReadingOptionImageUpload = (questionId: string, optionId: string, file: File) => {
-    setEditOtherSubjectsReadingOptionFiles(prev => ({
-      ...prev,
-      [questionId]: {
-        ...(prev[questionId] || {}),
-        [optionId]: file
-      }
-    }))
-    
-    // Crear previsualización
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setEditOtherSubjectsReadingOptionImagePreviews(prev => ({
-        ...prev,
-        [questionId]: {
-          ...(prev[questionId] || {}),
-          [optionId]: reader.result as string
-        }
-      }))
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const removeEditOtherSubjectsReadingOptionImage = (questionId: string, optionId: string) => {
-    setEditOtherSubjectsReadingOptionFiles(prev => ({
-      ...prev,
-      [questionId]: {
-        ...(prev[questionId] || {}),
-        [optionId]: null
-      }
-    }))
-    setEditOtherSubjectsReadingOptionImagePreviews(prev => ({
-      ...prev,
-      [questionId]: {
-        ...(prev[questionId] || {}),
-        [optionId]: null
-      }
-    }))
-    // Actualizar la opción en el estado de preguntas
-    setEditOtherSubjectsReadingQuestions(prev => prev.map(rq => 
-      rq.questionId === questionId 
-        ? {
-            ...rq,
-            options: rq.options.map(opt => 
-              opt.id === optionId ? { ...opt, imageUrl: null } : opt
-            )
-          }
-        : rq
-    ))
-  }
-
   const handleOptionTextChange = (optionId: string, text: string) => {
     setOptions(options.map(opt => 
       opt.id === optionId ? { ...opt, text } : opt
@@ -900,8 +838,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setEditOtherSubjectsReadingExistingImageUrl(null)
     setEditOtherSubjectsReadingQuestions([])
     setEditOtherSubjectsReadingRelatedQuestions([])
-    setEditOtherSubjectsReadingOptionFiles({})
-    setEditOtherSubjectsReadingOptionImagePreviews({})
     // Limpiar errores de validación
     setFieldErrors({})
   }
@@ -2632,31 +2568,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         // Extraer todas las opciones (pueden ser más de 4)
         const allOptions = q.options || []
-        const questionId = `q${index + 1}`
-        
-        // Cargar imágenes existentes de las opciones
-        const optionFiles: { [optionId: string]: File | null } = {}
-        const optionImagePreviews: { [optionId: string]: string | null } = {}
-        
-        allOptions.forEach(opt => {
-          if (opt.imageUrl) {
-            optionImagePreviews[opt.id] = opt.imageUrl
-          }
-        })
-        
-        // Actualizar estados de imágenes de opciones
-        setEditOtherSubjectsReadingOptionFiles(prev => ({
-          ...prev,
-          [questionId]: optionFiles
-        }))
-        setEditOtherSubjectsReadingOptionImagePreviews(prev => ({
-          ...prev,
-          [questionId]: optionImagePreviews
-        }))
         
         return {
           id: q.id || `rq-temp-${Date.now()}-${index}`, // ID de la pregunta en la base de datos
-          questionId: questionId, // ID único para el formulario
+          questionId: `q${index + 1}`, // ID único para el formulario
           questionText: q.questionText || '',
           questionImage: null,
           questionImagePreview: null, // Solo se establece cuando el usuario selecciona una nueva imagen
@@ -2777,8 +2692,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       setEditOtherSubjectsReadingExistingImageUrl(null)
       setEditOtherSubjectsReadingQuestions([])
       setEditOtherSubjectsReadingRelatedQuestions([])
-      setEditOtherSubjectsReadingOptionFiles({})
-      setEditOtherSubjectsReadingOptionImagePreviews({})
       
       // Cargar los datos de la pregunta en el formulario
       // Asegurar que el grado sea string para consistencia
@@ -2863,7 +2776,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     const updatedQuestions = questions.filter(q => q.id !== question.id)
     setQuestions(updatedQuestions)
     
-    // Actualizar también las preguntas filtradas inmediatamente
+    // Actualizar también las preguntas filtradas
     const updatedFilteredQuestions = filteredQuestions.filter(q => q.id !== question.id)
     setFilteredQuestions(updatedFilteredQuestions)
 
@@ -3165,13 +3078,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           } else {
             // Validar cada pregunta de lectura
             editOtherSubjectsReadingQuestions.forEach((rq, rqIndex) => {
-              // Validar opciones de cada pregunta (debe tener texto o imagen)
-              const emptyOptions = rq.options.filter(opt => {
-                const hasText = opt.text && opt.text.trim()
-                const hasImageFile = editOtherSubjectsReadingOptionFiles[rq.questionId]?.[opt.id]
-                const hasImageUrl = opt.imageUrl
-                return !hasText && !hasImageFile && !hasImageUrl
-              })
+              // Validar opciones de cada pregunta
+              const emptyOptions = rq.options.filter(opt => !opt.text || !opt.text.trim())
               if (emptyOptions.length > 0) {
                 errors[`otherSubjectsReadingQuestionOptions_${rqIndex}`] = true
               }
@@ -4133,48 +4041,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 }
               }
               
-              // Procesar opciones de esta pregunta con imágenes
-              const rqOptionsPromises = rq.options.map(async (opt) => {
-                let imageUrl = opt.imageUrl || null // Mantener imagen existente si hay
-                
-                // Procesar nueva imagen si existe
-                const optionFile = editOtherSubjectsReadingOptionFiles[rq.questionId]?.[opt.id]
-                if (optionFile) {
-                  try {
-                    // Comprimir imagen antes de subir
-                    const compressedFile = await compressImageForStorage(optionFile)
-                    const storagePromise = questionService.uploadImage(
-                      compressedFile, 
-                      `questions/options/${Date.now()}_${rq.questionId}_${opt.id}.jpg`
-                    )
-                    const timeoutPromise = new Promise((_, reject) => 
-                      setTimeout(() => reject(new Error('Timeout')), 10000)
-                    )
-                    const result = await Promise.race([storagePromise, timeoutPromise]) as any
-                    if (result.success) {
-                      imageUrl = result.data
-                    } else {
-                      imageUrl = await fileToBase64(compressedFile)
-                    }
-                  } catch (error) {
-                    console.log('⚠️ Fallback a Base64 para imagen de opción')
-                    try {
-                      imageUrl = await fileToBase64(optionFile)
-                    } catch (base64Error) {
-                      console.error('❌ Error procesando imagen de opción:', base64Error)
-                    }
-                  }
-                }
-                
-                return {
+              // Preparar opciones
+              const rqOptions: QuestionOption[] = rq.options
+                .map(opt => ({
                   id: opt.id,
                   text: opt.text || '',
-                  imageUrl,
+                  imageUrl: null,
                   isCorrect: opt.isCorrect
-                }
-              })
-              
-              const rqOptions: QuestionOption[] = await Promise.all(rqOptionsPromises)
+                }))
               
               // Preparar datos de actualización o creación
               const questionData: any = {
@@ -4273,8 +4147,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               setEditOtherSubjectsReadingExistingImageUrl(null)
               setEditOtherSubjectsReadingQuestions([])
               setEditOtherSubjectsReadingRelatedQuestions([])
-              setEditOtherSubjectsReadingOptionFiles({})
-              setEditOtherSubjectsReadingOptionImagePreviews({})
               loadQuestions()
               loadStats()
             } else if (successCount > 0) {
@@ -7740,6 +7612,33 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   </>
                 )}
               </Button>
+              <Button 
+                onClick={handleCreateTestQuestion} 
+                disabled={isLoading}
+                variant="outline"
+                className={cn(
+                  theme === 'dark' 
+                    ? 'border-zinc-600 text-gray-300 hover:bg-zinc-700 hover:text-white' 
+                    : ''
+                )}
+              >
+                Prueba Rápida
+              </Button>
+              <Button 
+                onClick={() => {
+                  // Crear pregunta solo con texto, sin imágenes
+                  handleCreateQuestionTextOnly()
+                }} 
+                disabled={isLoading}
+                variant="secondary"
+                className={cn(
+                  theme === 'dark' 
+                    ? 'bg-zinc-700 text-gray-300 hover:bg-zinc-600 hover:text-white' 
+                    : ''
+                )}
+              >
+                Solo Texto
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -7770,8 +7669,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             setEditOtherSubjectsReadingExistingImageUrl(null)
             setEditOtherSubjectsReadingQuestions([])
             setEditOtherSubjectsReadingRelatedQuestions([])
-            setEditOtherSubjectsReadingOptionFiles({})
-            setEditOtherSubjectsReadingOptionImagePreviews({})
             setSelectedQuestion(null)
           }
         }}
@@ -8797,161 +8694,67 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               Opciones *
                               {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
                             </Label>
-                            <div className={cn(`space-y-3`, hasOptionsError || hasAnswerError ? 'border-2 border-red-500 rounded-md p-2' : '')}>
-                              {rq.options.map((opt) => {
-                                const optionPreview = editOtherSubjectsReadingOptionImagePreviews[rq.questionId]?.[opt.id] || opt.imageUrl
-                                const hasError = hasOptionsError && !opt.text?.trim() && !optionPreview
-                                return (
-                                  <div key={opt.id} className={cn(`border rounded-lg p-3 space-y-2`, hasError ? 'border-red-500 bg-red-50' : theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : '')}>
-                                    <div className="flex items-start gap-2">
-                                      <input
-                                        type="radio"
-                                        name={`edit-other-subjects-reading-q-${rq.questionId}`}
-                                        checked={opt.isCorrect}
-                                        onChange={() => {
-                                          const updated = [...editOtherSubjectsReadingQuestions]
-                                          updated[rqIndex].options = updated[rqIndex].options.map(o => ({
-                                            ...o,
-                                            isCorrect: o.id === opt.id
-                                          }))
-                                          setEditOtherSubjectsReadingQuestions(updated)
-                                          // Limpiar error cuando se selecciona una respuesta
-                                          if (fieldErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]) {
-                                            setFieldErrors(prev => {
-                                              const newErrors = { ...prev }
-                                              delete newErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]
-                                              return newErrors
-                                            })
-                                          }
-                                        }}
-                                        className="w-4 h-4 mt-2"
-                                      />
-                                      <span className={cn("font-medium mt-2", theme === 'dark' ? 'text-gray-300' : '')}>{opt.id})</span>
-                                      <div className="flex-1">
-                                        <RichTextEditor
-                                          value={opt.text || ''}
-                                          onChange={(html) => {
-                                            const updated = [...editOtherSubjectsReadingQuestions]
-                                            updated[rqIndex].options = updated[rqIndex].options.map(o =>
-                                              o.id === opt.id ? { ...o, text: html } : o
-                                            )
-                                            setEditOtherSubjectsReadingQuestions(updated)
-                                            // Limpiar error cuando el usuario empiece a escribir
-                                            if (fieldErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]) {
-                                              setFieldErrors(prev => {
-                                                const newErrors = { ...prev }
-                                                delete newErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]
-                                                return newErrors
-                                              })
-                                            }
-                                          }}
-                                          placeholder={`Texto de la opción ${opt.id}`}
-                                          className="min-h-[100px]"
-                                          theme={theme}
-                                          simplifiedToolbar={true}
-                                        />
-                                      </div>
-                                      <div className="flex flex-col gap-2">
-                                        <Input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0]
-                                            if (file) {
-                                              // Validar tamaño (máximo 5MB)
-                                              if (file.size > 5 * 1024 * 1024) {
-                                                notifyError({
-                                                  title: 'Error',
-                                                  message: 'La imagen es demasiado grande. Tamaño máximo: 5MB'
-                                                })
-                                                return
-                                              }
-                                              // Validar tipo
-                                              if (!file.type.startsWith('image/')) {
-                                                notifyError({
-                                                  title: 'Error',
-                                                  message: 'El archivo debe ser una imagen'
-                                                })
-                                                return
-                                              }
-                                              handleEditOtherSubjectsReadingOptionImageUpload(rq.questionId, opt.id, file)
-                                            }
-                                          }}
-                                          className="hidden"
-                                          id={`edit-other-subjects-reading-option-${rq.questionId}-${opt.id}-image`}
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => document.getElementById(`edit-other-subjects-reading-option-${rq.questionId}-${opt.id}-image`)?.click()}
-                                          className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
-                                        >
-                                          <ImageIcon className="h-4 w-4" />
-                                        </Button>
-                                        {rq.options.length > 2 && (
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => {
-                                              const updated = [...editOtherSubjectsReadingQuestions]
-                                              updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
-                                              // Limpiar archivos e imágenes de la opción eliminada
-                                              setEditOtherSubjectsReadingOptionFiles(prev => {
-                                                const newFiles = { ...prev }
-                                                if (newFiles[rq.questionId]) {
-                                                  const questionFiles = { ...newFiles[rq.questionId] }
-                                                  delete questionFiles[opt.id]
-                                                  newFiles[rq.questionId] = questionFiles
-                                                }
-                                                return newFiles
-                                              })
-                                              setEditOtherSubjectsReadingOptionImagePreviews(prev => {
-                                                const newPreviews = { ...prev }
-                                                if (newPreviews[rq.questionId]) {
-                                                  const questionPreviews = { ...newPreviews[rq.questionId] }
-                                                  delete questionPreviews[opt.id]
-                                                  newPreviews[rq.questionId] = questionPreviews
-                                                }
-                                                return newPreviews
-                                              })
-                                              setEditOtherSubjectsReadingQuestions(updated)
-                                            }}
-                                            className={cn(
-                                              "h-8 w-8 p-0",
-                                              theme === 'dark'
-                                                ? 'text-red-400 hover:text-red-300 hover:bg-red-950/50'
-                                                : 'text-red-500 hover:text-red-700 hover:bg-red-50'
-                                            )}
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </div>
-                                    {optionPreview && (
-                                      <div className="relative w-32 h-32">
-                                        <img 
-                                          src={optionPreview} 
-                                          alt={`Opción ${opt.id}`} 
-                                          className="w-full h-full object-cover rounded" 
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="destructive"
-                                          size="sm"
-                                          className="absolute top-0 right-0 h-6 w-6 p-0"
-                                          onClick={() => removeEditOtherSubjectsReadingOptionImage(rq.questionId, opt.id)}
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
+                            {rq.options.map((opt) => (
+                              <div key={opt.id} className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name={`edit-other-subjects-reading-q-${rq.questionId}`}
+                                  checked={opt.isCorrect}
+                                  onChange={() => {
+                                    const updated = [...editOtherSubjectsReadingQuestions]
+                                    updated[rqIndex].options = updated[rqIndex].options.map(o => ({
+                                      ...o,
+                                      isCorrect: o.id === opt.id
+                                    }))
+                                    setEditOtherSubjectsReadingQuestions(updated)
+                                    // Limpiar error cuando se selecciona una respuesta
+                                    if (fieldErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]) {
+                                      setFieldErrors(prev => {
+                                        const newErrors = { ...prev }
+                                        delete newErrors[`otherSubjectsReadingQuestionAnswer_${rqIndex}`]
+                                        return newErrors
+                                      })
+                                    }
+                                  }}
+                                  className="w-4 h-4"
+                                />
+                                <Label className={cn("font-medium w-6", theme === 'dark' ? 'text-gray-300' : '')}>{opt.id}:</Label>
+                                <Input
+                                  value={opt.text || ''}
+                                  onChange={(e) => {
+                                    const updated = [...editOtherSubjectsReadingQuestions]
+                                    updated[rqIndex].options = updated[rqIndex].options.map(o =>
+                                      o.id === opt.id ? { ...o, text: e.target.value } : o
+                                    )
+                                    setEditOtherSubjectsReadingQuestions(updated)
+                                    // Limpiar error cuando el usuario empiece a escribir
+                                    if (fieldErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]) {
+                                      setFieldErrors(prev => {
+                                        const newErrors = { ...prev }
+                                        delete newErrors[`otherSubjectsReadingQuestionOptions_${rqIndex}`]
+                                        return newErrors
+                                      })
+                                    }
+                                  }}
+                                  placeholder={`Opción ${opt.id}`}
+                                  className={cn(`flex-1`, hasOptionsError && !opt.text?.trim() ? 'border-red-500' : '', theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                                />
+                                {rq.options.length > 2 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const updated = [...editOtherSubjectsReadingQuestions]
+                                      updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
+                                      setEditOtherSubjectsReadingQuestions(updated)
+                                    }}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
                             <Button
                               type="button"
                               variant="outline"
