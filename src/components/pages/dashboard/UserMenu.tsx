@@ -3,11 +3,19 @@ import { ThemeContextProps, User } from "@/interfaces/context.interface"
 import { Avatar, AvatarFallback, AvatarImage } from "#/ui/avatar"
 import { useAuthContext } from "@/context/AuthContext"
 import { LogOut, Settings } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Button } from "#/ui/button"
 
 const UserMenu = ({ }: ThemeContextProps) => {
   const { user = {} as User, signout } = useAuthContext()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    await signout()
+    // Redirigir a la página de inicio después de cerrar sesión
+    navigate('/', { replace: true })
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -38,7 +46,7 @@ const UserMenu = ({ }: ThemeContextProps) => {
             <span>Configuración</span>
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem className="cursor-pointer" onClick={signout}>
+        <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar sesión
         </DropdownMenuItem>
