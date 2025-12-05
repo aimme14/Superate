@@ -426,6 +426,7 @@ export type RichTextEditorProps = {
   placeholder?: string
   className?: string
   theme?: 'light' | 'dark'
+  simplifiedToolbar?: boolean // Si es true, quita listas y selector de fuente
 }
 
 export type RichTextEditorRef = {
@@ -444,7 +445,14 @@ const baseToolbar = [
   ['math']
 ]
 
-const formats = [
+// Toolbar simplificado sin listas, selector de fuente, tamaño, color y alineación (para opciones de respuesta)
+const simplifiedToolbarConfig = [
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ script: 'sub' }, { script: 'super' }],
+  ['math']
+]
+
+const baseFormats = [
   'font',
   'size',
   'bold',
@@ -459,8 +467,18 @@ const formats = [
   'mathFormula' // Añadir el formato personalizado
 ]
 
+// Formatos simplificados sin font, size, list, color, background y align (para opciones de respuesta)
+const simplifiedFormats = [
+  'bold',
+  'italic',
+  'underline',
+  'strike',
+  'script',
+  'mathFormula'
+]
+
 const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
-  ({ value, onChange, placeholder, className, theme = 'light' }, ref) => {
+  ({ value, onChange, placeholder, className, theme = 'light', simplifiedToolbar = false }, ref) => {
     const quillRef = useRef<ReactQuill | null>(null)
     const [mathEditorOpen, setMathEditorOpen] = useState(false)
 
@@ -715,7 +733,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     const modules = useMemo(() => {
       return {
         toolbar: {
-          container: baseToolbar,
+          container: simplifiedToolbar ? simplifiedToolbarConfig : baseToolbar,
           handlers: {
             math: () => {
               setMathEditorOpen(true)
@@ -728,7 +746,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           sanitize: false
         }
       }
-    }, [])
+    }, [simplifiedToolbar])
 
     // Efecto para renderizar fórmulas cuando se carga el contenido y protegerlas
     useEffect(() => {
@@ -1310,7 +1328,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             onChange={handleChange}
             placeholder={placeholder}
             modules={modules}
-            formats={formats}
+            formats={simplifiedToolbar ? simplifiedFormats : baseFormats}
           />
           
           <MathEditor
