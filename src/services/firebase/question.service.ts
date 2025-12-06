@@ -91,6 +91,109 @@ class QuestionService {
   }
 
   /**
+   * Comprime una imagen si es mayor a 200KB usando Canvas API
+   * @param file - Archivo de imagen a comprimir
+   * @returns Archivo comprimido o el original si no necesita compresión
+   */
+  private async compressImageIfNeeded(file: File): Promise<File> {
+    const maxSizeBeforeCompression = 200 * 1024; // 200KB
+    
+    // Si la imagen es menor a 200KB, no comprimir
+    if (file.size <= maxSizeBeforeCompression) {
+      console.log(`ℹ️ Imagen de ${(file.size / 1024).toFixed(2)}KB no requiere compresión`);
+      return file;
+    }
+
+    try {
+      console.log(`🗜️ Comprimiendo imagen de ${(file.size / 1024).toFixed(2)}KB...`);
+      
+      // Crear una imagen desde el archivo
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = objectUrl;
+      });
+
+      // Calcular nuevas dimensiones (máximo 1920px en el lado más grande)
+      const maxDimension = 1920;
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = (height * maxDimension) / width;
+          width = maxDimension;
+        } else {
+          width = (width * maxDimension) / height;
+          height = maxDimension;
+        }
+      }
+
+      // Crear canvas y dibujar la imagen redimensionada
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        throw new Error('No se pudo obtener el contexto del canvas');
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(objectUrl);
+
+      // Convertir a blob con calidad ajustable
+      const targetSize = 200 * 1024; // 200KB
+      let quality = 0.9;
+      let blob: Blob | null = null;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      // Ajustar calidad hasta alcanzar el tamaño objetivo
+      while (attempts < maxAttempts) {
+        blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob(
+            (b) => resolve(b || new Blob()),
+            file.type || 'image/jpeg',
+            quality
+          );
+        });
+
+        if (blob && blob.size <= targetSize) {
+          break;
+        }
+
+        quality -= 0.1;
+        attempts++;
+      }
+
+      if (!blob) {
+        throw new Error('No se pudo crear el blob comprimido');
+      }
+
+      // Crear nuevo archivo desde el blob
+      const compressedFile = new File([blob], file.name, {
+        type: file.type || 'image/jpeg',
+        lastModified: Date.now(),
+      });
+
+      const originalSize = (file.size / 1024).toFixed(2);
+      const compressedSize = (compressedFile.size / 1024).toFixed(2);
+      const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+      
+      console.log(`✅ Imagen comprimida: ${originalSize}KB → ${compressedSize}KB (reducción del ${reduction}%)`);
+      
+      return compressedFile;
+    } catch (error) {
+      console.warn('⚠️ Error al comprimir imagen, usando imagen original:', error);
+      return file; // Si falla la compresión, usar el archivo original
+    }
+  }
+
+  /**
    * Sube una imagen a Firebase Storage
    * @param file - Archivo de imagen a subir
    * @param path - Ruta donde se guardará la imagen
@@ -116,8 +219,11 @@ class QuestionService {
         }));
       }
 
+      // Comprimir imagen si es mayor a 200KB
+      const fileToUpload = await this.compressImageIfNeeded(file);
+
       const storageRef = ref(storage, path);
-      const snapshot = await uploadBytes(storageRef, file);
+      const snapshot = await uploadBytes(storageRef, fileToUpload);
       const downloadURL = await getDownloadURL(snapshot.ref);
       
       console.log('✅ Imagen subida exitosamente:', downloadURL);
