@@ -3682,13 +3682,49 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
           
           // Preparar opciones (todas las opciones definidas por el usuario)
-          const rqOptions: QuestionOption[] = rq.options
-            .map(opt => ({
+          const rqOptionsPromises = rq.options.map(async (opt) => {
+            let imageUrl = opt.imageUrl || null
+            
+            // Procesar imagen de opción si existe una nueva
+            if (editReadingOptionFiles[rq.questionId]?.[opt.id]) {
+              console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1}...`)
+              try {
+                const storagePromise = questionService.uploadImage(
+                  editReadingOptionFiles[rq.questionId][opt.id]!, 
+                  `questions/reading/options/${Date.now()}_q${i + 1}_${opt.id}.jpg`
+                )
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout')), 10000)
+                )
+                const result = await Promise.race([storagePromise, timeoutPromise]) as any
+                
+                if (result.success) {
+                  imageUrl = result.data
+                  console.log('✅ Nueva imagen de opción subida a Firebase:', result.data)
+                } else {
+                  throw new Error('Storage failed')
+                }
+              } catch (error) {
+                console.log('⚠️ Fallback a Base64 para nueva imagen de opción')
+                try {
+                  imageUrl = await fileToBase64(editReadingOptionFiles[rq.questionId][opt.id]!)
+                  console.log('✅ Nueva imagen de opción convertida a Base64')
+                } catch (base64Error) {
+                  console.error('❌ Error procesando nueva imagen de opción:', base64Error)
+                  // Mantener la imagen existente si hay error
+                }
+              }
+            }
+            
+            return {
               id: opt.id,
               text: opt.text || '',
-              imageUrl: null,
+              imageUrl: imageUrl,
               isCorrect: opt.isCorrect
-            }))
+            }
+          })
+          
+          const rqOptions: QuestionOption[] = await Promise.all(rqOptionsPromises)
           
           // Preparar datos de actualización o creación
           const questionData: any = {
@@ -3929,13 +3965,49 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               }
               
               // Preparar opciones
-              const rqOptions: QuestionOption[] = rq.options
-                .map(opt => ({
+              const rqOptionsPromises = rq.options.map(async (opt) => {
+                let imageUrl = opt.imageUrl || null
+                
+                // Procesar imagen de opción si existe una nueva
+                if (editReadingOptionFiles[rq.questionId]?.[opt.id]) {
+                  console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
+                  try {
+                    const storagePromise = questionService.uploadImage(
+                      editReadingOptionFiles[rq.questionId][opt.id]!, 
+                      `questions/reading/options/${Date.now()}_q${i + 1}_${opt.id}.jpg`
+                    )
+                    const timeoutPromise = new Promise((_, reject) => 
+                      setTimeout(() => reject(new Error('Timeout')), 10000)
+                    )
+                    const result = await Promise.race([storagePromise, timeoutPromise]) as any
+                    
+                    if (result.success) {
+                      imageUrl = result.data
+                      console.log('✅ Nueva imagen de opción subida a Firebase:', result.data)
+                    } else {
+                      throw new Error('Storage failed')
+                    }
+                  } catch (error) {
+                    console.log('⚠️ Fallback a Base64 para nueva imagen de opción')
+                    try {
+                      imageUrl = await fileToBase64(editReadingOptionFiles[rq.questionId][opt.id]!)
+                      console.log('✅ Nueva imagen de opción convertida a Base64')
+                    } catch (base64Error) {
+                      console.error('❌ Error procesando nueva imagen de opción:', base64Error)
+                      // Mantener la imagen existente si hay error
+                    }
+                  }
+                }
+                
+                return {
                   id: opt.id,
                   text: opt.text || '',
-                  imageUrl: null,
+                  imageUrl: imageUrl,
                   isCorrect: opt.isCorrect
-                }))
+                }
+              })
+              
+              const rqOptions: QuestionOption[] = await Promise.all(rqOptionsPromises)
               
               // Preparar datos de actualización o creación
               const questionData: any = {
@@ -8122,96 +8194,141 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             </div>
                             <div className="space-y-2">
                               {rq.options.map((opt) => (
-                                <div 
-                                  key={opt.id} 
-                                  className={cn(
-                                    "flex items-center gap-3 p-3 rounded-lg border transition-all",
-                                    theme === 'dark'
-                                      ? 'bg-zinc-800/50 border-zinc-600 hover:border-zinc-500'
-                                      : 'bg-white border-gray-200 hover:border-gray-300'
-                                  )}
-                                >
-                                  <input
-                                    type="radio"
-                                    name={`edit-reading-q-${rq.questionId}`}
-                                    checked={opt.isCorrect}
-                                    onChange={() => {
-                                      const updated = [...editReadingQuestions]
-                                      updated[rqIndex].options = updated[rqIndex].options.map(o => ({
-                                        ...o,
-                                        isCorrect: o.id === opt.id
-                                      }))
-                                      setEditReadingQuestions(updated)
-                                      // Limpiar error cuando se selecciona una respuesta
-                                      if (fieldErrors[`readingQuestionAnswer_${rqIndex}`]) {
-                                        setFieldErrors(prev => {
-                                          const newErrors = { ...prev }
-                                          delete newErrors[`readingQuestionAnswer_${rqIndex}`]
-                                          return newErrors
-                                        })
-                                      }
-                                    }}
+                                <div key={opt.id} className="space-y-2">
+                                  <div 
                                     className={cn(
-                                      "w-4 h-4",
-                                      theme === 'dark' ? 'accent-purple-500' : ''
+                                      "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                                      theme === 'dark'
+                                        ? 'bg-zinc-800/50 border-zinc-600 hover:border-zinc-500'
+                                        : 'bg-white border-gray-200 hover:border-gray-300'
                                     )}
-                                  />
-                                  <Label className={cn(
-                                    "font-medium w-6 flex-shrink-0",
-                                    theme === 'dark' ? 'text-gray-300' : ''
-                                  )}>
-                                    {opt.id}:
-                                  </Label>
-                                  <Input
-                                    value={opt.text || ''}
-                                    onChange={(e) => {
-                                      const updated = [...editReadingQuestions]
-                                      updated[rqIndex].options = updated[rqIndex].options.map(o =>
-                                        o.id === opt.id ? { ...o, text: e.target.value } : o
-                                      )
-                                      setEditReadingQuestions(updated)
-                                      // Limpiar error cuando el usuario empiece a escribir
-                                      if (fieldErrors[`readingQuestionOptions_${rqIndex}`]) {
-                                        const allFilled = updated[rqIndex].options.every(o => o.text && o.text.trim())
-                                        if (allFilled) {
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`edit-reading-q-${rq.questionId}`}
+                                      checked={opt.isCorrect}
+                                      onChange={() => {
+                                        const updated = [...editReadingQuestions]
+                                        updated[rqIndex].options = updated[rqIndex].options.map(o => ({
+                                          ...o,
+                                          isCorrect: o.id === opt.id
+                                        }))
+                                        setEditReadingQuestions(updated)
+                                        // Limpiar error cuando se selecciona una respuesta
+                                        if (fieldErrors[`readingQuestionAnswer_${rqIndex}`]) {
                                           setFieldErrors(prev => {
                                             const newErrors = { ...prev }
-                                            delete newErrors[`readingQuestionOptions_${rqIndex}`]
+                                            delete newErrors[`readingQuestionAnswer_${rqIndex}`]
                                             return newErrors
                                           })
                                         }
-                                      }
-                                    }}
-                                    placeholder={`Opción ${opt.id}`}
-                                    className={cn(
-                                      "flex-1",
-                                      hasOptionsError && !opt.text?.trim() 
-                                        ? 'border-red-500 border-2' 
-                                        : '',
-                                      theme === 'dark' 
-                                        ? 'bg-zinc-700 border-zinc-600 text-white placeholder:text-gray-500' 
-                                        : ''
-                                    )}
-                                  />
-                                  {rq.options.length > 2 && (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        const updated = [...editReadingQuestions]
-                                        updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
-                                        setEditReadingQuestions(updated)
                                       }}
                                       className={cn(
-                                        "h-8 w-8 p-0 flex-shrink-0",
-                                        theme === 'dark'
-                                          ? 'text-red-400 hover:text-red-300 hover:bg-red-950/50'
-                                          : 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                                        "w-4 h-4",
+                                        theme === 'dark' ? 'accent-purple-500' : ''
+                                      )}
+                                    />
+                                    <Label className={cn(
+                                      "font-medium w-6 flex-shrink-0",
+                                      theme === 'dark' ? 'text-gray-300' : ''
+                                    )}>
+                                      {opt.id}:
+                                    </Label>
+                                    <Input
+                                      value={opt.text || ''}
+                                      onChange={(e) => {
+                                        const updated = [...editReadingQuestions]
+                                        updated[rqIndex].options = updated[rqIndex].options.map(o =>
+                                          o.id === opt.id ? { ...o, text: e.target.value } : o
+                                        )
+                                        setEditReadingQuestions(updated)
+                                        // Limpiar error cuando el usuario empiece a escribir
+                                        if (fieldErrors[`readingQuestionOptions_${rqIndex}`]) {
+                                          const allFilled = updated[rqIndex].options.every(o => 
+                                            (o.text && o.text.trim()) || 
+                                            o.imageUrl || 
+                                            editReadingOptionImagePreviews[rq.questionId]?.[o.id]
+                                          )
+                                          if (allFilled) {
+                                            setFieldErrors(prev => {
+                                              const newErrors = { ...prev }
+                                              delete newErrors[`readingQuestionOptions_${rqIndex}`]
+                                              return newErrors
+                                            })
+                                          }
+                                        }
+                                      }}
+                                      placeholder={`Opción ${opt.id}`}
+                                      className={cn(
+                                        "flex-1",
+                                        hasOptionsError && !opt.text?.trim() && !opt.imageUrl && !editReadingOptionImagePreviews[rq.questionId]?.[opt.id]
+                                          ? 'border-red-500 border-2' 
+                                          : '',
+                                        theme === 'dark' 
+                                          ? 'bg-zinc-700 border-zinc-600 text-white placeholder:text-gray-500' 
+                                          : ''
+                                      )}
+                                    />
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      id={`edit-reading-option-${rq.questionId}-${opt.id}-image`}
+                                      className="hidden"
+                                      onChange={(e) => e.target.files && handleEditReadingOptionImageUpload(rq.questionId, opt.id, e.target.files[0])}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => document.getElementById(`edit-reading-option-${rq.questionId}-${opt.id}-image`)?.click()}
+                                      className={cn(
+                                        theme === 'dark' 
+                                          ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' 
+                                          : ''
                                       )}
                                     >
-                                      <X className="h-4 w-4" />
+                                      <ImageIcon className="h-4 w-4" />
                                     </Button>
+                                    {rq.options.length > 2 && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          const updated = [...editReadingQuestions]
+                                          updated[rqIndex].options = updated[rqIndex].options.filter(o => o.id !== opt.id)
+                                          setEditReadingQuestions(updated)
+                                          // Limpiar imágenes de la opción eliminada
+                                          removeEditReadingOptionImage(rq.questionId, opt.id)
+                                        }}
+                                        className={cn(
+                                          "h-8 w-8 p-0 flex-shrink-0",
+                                          theme === 'dark'
+                                            ? 'text-red-400 hover:text-red-300 hover:bg-red-950/50'
+                                            : 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                                        )}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {(editReadingOptionImagePreviews[rq.questionId]?.[opt.id] || opt.imageUrl) && (
+                                    <div className="relative w-32 h-32 ml-12">
+                                      <img 
+                                        src={editReadingOptionImagePreviews[rq.questionId]?.[opt.id] || opt.imageUrl || ''} 
+                                        alt={`Opción ${opt.id}`} 
+                                        className="w-full h-full object-cover rounded" 
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="destructive"
+                                        size="sm"
+                                        className="absolute top-0 right-0 h-6 w-6 p-0"
+                                        onClick={() => removeEditReadingOptionImage(rq.questionId, opt.id)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
                               ))}
