@@ -5398,21 +5398,34 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                                        !isClozeTest
                   
                   // Detectar si es comprensión de lectura para otras materias
+                  // IMPORTANTE: Solo es comprensión de lectura si hay múltiples preguntas con el mismo informativeText
+                  // Si solo hay una pregunta con informativeText, es Opción Múltiple Estándar
+                  const hasMultipleWithSameInformativeText = questions.some(q => 
+                    q.informativeText === question.informativeText && 
+                    q.id !== question.id &&
+                    q.subjectCode === question.subjectCode &&
+                    q.topicCode === question.topicCode &&
+                    q.grade === question.grade &&
+                    q.levelCode === question.levelCode
+                  )
+                  
                   const isOtherSubjectsReadingComprehension = question.subjectCode !== 'IN' && 
                                                              question.informativeText && 
                                                              typeof question.informativeText === 'string' &&
                                                              question.informativeText.trim().length > 0 &&
                                                              !question.informativeText.includes('MATCHING_COLUMNS_') &&
-                                                             !question.questionText?.includes('completar el hueco')
+                                                             !question.questionText?.includes('completar el hueco') &&
+                                                             hasMultipleWithSameInformativeText
                   
                   // Para preguntas con informativeText, buscar preguntas relacionadas
                   // (Cloze Test, Comprensión de Lectura o Matching/Columnas)
+                  // IMPORTANTE: Para otras materias, solo agrupar si hay múltiples preguntas con el mismo informativeText
                   if (question.informativeText && 
                       (isMatchingColumns ||
                        isClozeTest ||
                        isEnglishReadingComprehension ||
                        isOtherSubjectsReadingComprehension ||
-                       questions.some(q => q.informativeText === question.informativeText && q.id !== question.id))) {
+                       (question.subjectCode === 'IN' && questions.some(q => q.informativeText === question.informativeText && q.id !== question.id)))) {
                     // Para matching/columnas, usar el identificador de grupo como parte del key
                     const groupKey = isMatchingColumns
                       ? `${extractMatchingGroupId(question.informativeText)}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
@@ -5526,12 +5539,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         const isClozeTest = groupQuestions.some(q => q.questionText?.includes('completar el hueco'))
                         
                         // Detectar si es comprensión de lectura de otras materias
-                        const isOtherSubjectsReadingComprehension = groupQuestions.some(q => 
+                        // IMPORTANTE: Solo es comprensión de lectura si hay múltiples preguntas en el grupo
+                        // Si solo hay una pregunta, es Opción Múltiple Estándar con texto informativo
+                        const hasOtherSubjectsWithInformativeText = groupQuestions.some(q => 
                           q.subjectCode !== 'IN' && 
                           q.informativeText && 
                           !q.questionText?.includes('completar el hueco') &&
                           !q.informativeText?.includes('MATCHING_COLUMNS_')
                         )
+                        
+                        const isOtherSubjectsReadingComprehension = hasOtherSubjectsWithInformativeText && 
+                          groupQuestions.length > 1
+                        
+                        // Si es una pregunta individual de otras materias con informativeText, mostrarla como Opción Múltiple Estándar
+                        const isSingleOtherSubjectQuestion = hasOtherSubjectsWithInformativeText && 
+                          groupQuestions.length === 1
                         
                         // Determinar el nombre del grupo
                         // IMPORTANTE: Priorizar matching/columnas sobre otras modalidades
@@ -5549,6 +5571,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         } else if (isClozeTest) {
                           // Formato: "materia - modalidad - # preguntas - grado - nivel"
                           groupName = `Inglés - Cloze Test / Rellenar Huecos - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
+                        } else if (isSingleOtherSubjectQuestion) {
+                          // Pregunta individual de otras materias con texto informativo = Opción Múltiple Estándar
+                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
+                          groupName = `${firstQuestion.subject} - Opción Múltiple Estándar - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
                         } else if (isOtherSubjectsReadingComprehension) {
                           // Comprensión de Lectura Corta para otras materias
                           // Formato: "materia - modalidad - # preguntas - grado - nivel"
@@ -9600,12 +9626,33 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                       (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
                                        q.informativeText.includes('MATCHING_COLUMNS_'))
                                     )
+                                    const isOtherSubjectsReadingComprehension = relatedQuestions.length > 1 &&
+                                      relatedQuestions.some(q => 
+                                        q.subjectCode !== 'IN' && 
+                                        q.informativeText && 
+                                        !q.questionText?.includes('completar el hueco') &&
+                                        !q.informativeText?.includes('MATCHING_COLUMNS_')
+                                      )
+                                    const isEnglishReadingComprehension = relatedQuestions.length > 1 &&
+                                      relatedQuestions.some(q => 
+                                        q.subjectCode === 'IN' && 
+                                        q.informativeText && 
+                                        !isMatchingColumns &&
+                                        !isClozeTest
+                                      )
+                                    
                                     if (isClozeTest) {
                                       return `Cloze Test / Rellenar Huecos (${relatedQuestions.length} preguntas agrupadas)`
                                     } else if (isMatchingColumns) {
                                       return `Matching / Columnas (${relatedQuestions.length} preguntas)`
-                                    } else {
+                                    } else if (isOtherSubjectsReadingComprehension) {
                                       return `Comprensión de Lectura Corta (${relatedQuestions.length} preguntas)`
+                                    } else if (isEnglishReadingComprehension) {
+                                      return `Comprensión de Lectura Corta (${relatedQuestions.length} preguntas)`
+                                    } else {
+                                      // Si hay múltiples preguntas pero no encajan en las categorías anteriores,
+                                      // mostrar como opción múltiple estándar (preguntas individuales agrupadas)
+                                      return `Opción Múltiple Estándar (${relatedQuestions.length} preguntas)`
                                     }
                                   })()
                                 : 'Pregunta del Banco de Datos'}
