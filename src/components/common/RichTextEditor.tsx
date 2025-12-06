@@ -427,6 +427,7 @@ export type RichTextEditorProps = {
   className?: string
   theme?: 'light' | 'dark'
   simplifiedToolbar?: boolean // Si es true, quita listas y selector de fuente
+  minimalToolbar?: boolean // Si es true, solo muestra subíndice y superíndice
 }
 
 export type RichTextEditorRef = {
@@ -448,6 +449,12 @@ const baseToolbar = [
 // Toolbar simplificado sin listas, selector de fuente, tamaño, color y alineación (para opciones de respuesta)
 const simplifiedToolbarConfig = [
   ['bold', 'italic', 'underline', 'strike'],
+  [{ script: 'sub' }, { script: 'super' }],
+  ['math']
+]
+
+// Toolbar mínimo solo con subíndice, superíndice y fórmulas matemáticas
+const minimalToolbarConfig = [
   [{ script: 'sub' }, { script: 'super' }],
   ['math']
 ]
@@ -477,8 +484,14 @@ const simplifiedFormats = [
   'mathFormula'
 ]
 
+// Formatos mínimos solo con script (subíndice y superíndice) y fórmulas matemáticas
+const minimalFormats = [
+  'script',
+  'mathFormula'
+]
+
 const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
-  ({ value, onChange, placeholder, className, theme = 'light', simplifiedToolbar = false }, ref) => {
+  ({ value, onChange, placeholder, className, theme = 'light', simplifiedToolbar = false, minimalToolbar = false }, ref) => {
     const quillRef = useRef<ReactQuill | null>(null)
     const [mathEditorOpen, setMathEditorOpen] = useState(false)
 
@@ -731,9 +744,16 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     }))
 
     const modules = useMemo(() => {
+      let toolbarConfig = baseToolbar
+      if (minimalToolbar) {
+        toolbarConfig = minimalToolbarConfig
+      } else if (simplifiedToolbar) {
+        toolbarConfig = simplifiedToolbarConfig
+      }
+      
       return {
         toolbar: {
-          container: simplifiedToolbar ? simplifiedToolbarConfig : baseToolbar,
+          container: toolbarConfig,
           handlers: {
             math: () => {
               setMathEditorOpen(true)
@@ -746,7 +766,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           sanitize: false
         }
       }
-    }, [simplifiedToolbar])
+    }, [simplifiedToolbar, minimalToolbar])
 
     // Efecto para renderizar fórmulas cuando se carga el contenido y protegerlas
     useEffect(() => {
@@ -1328,7 +1348,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             onChange={handleChange}
             placeholder={placeholder}
             modules={modules}
-            formats={simplifiedToolbar ? simplifiedFormats : baseFormats}
+            formats={minimalToolbar ? minimalFormats : (simplifiedToolbar ? simplifiedFormats : baseFormats)}
           />
           
           <MathEditor
