@@ -7553,33 +7553,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   </>
                 )}
               </Button>
-              <Button 
-                onClick={handleCreateTestQuestion} 
-                disabled={isLoading}
-                variant="outline"
-                className={cn(
-                  theme === 'dark' 
-                    ? 'border-zinc-600 text-gray-300 hover:bg-zinc-700 hover:text-white' 
-                    : ''
-                )}
-              >
-                Prueba Rápida
-              </Button>
-              <Button 
-                onClick={() => {
-                  // Crear pregunta solo con texto, sin imágenes
-                  handleCreateQuestionTextOnly()
-                }} 
-                disabled={isLoading}
-                variant="secondary"
-                className={cn(
-                  theme === 'dark' 
-                    ? 'bg-zinc-700 text-gray-300 hover:bg-zinc-600 hover:text-white' 
-                    : ''
-                )}
-              >
-                Solo Texto
-              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
