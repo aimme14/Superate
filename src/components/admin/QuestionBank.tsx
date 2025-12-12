@@ -708,7 +708,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     reader.readAsDataURL(file)
   }
 
-  const removeOptionImage = (optionId: string) => {
+  const removeOptionImage = async (optionId: string) => {
+    // Buscar la opción para obtener su imageUrl
+    const option = options.find(opt => opt.id === optionId)
+    
+    // Si la opción tiene una imagen en Firebase Storage, eliminarla
+    if (option?.imageUrl && option.imageUrl.trim() !== '' && !option.imageUrl.startsWith('data:')) {
+      try {
+        console.log(`🗑️ Eliminando imagen de opción ${optionId} del Storage...`)
+        await questionService.deleteImage(option.imageUrl)
+        console.log('✅ Imagen eliminada del Storage correctamente')
+      } catch (error) {
+        console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+      }
+    }
+    
     setOptionFiles({ ...optionFiles, [optionId]: null })
     setOptionImagePreviews({ ...optionImagePreviews, [optionId]: null })
     setOptions(options.map(opt => 
@@ -740,7 +754,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     reader.readAsDataURL(file)
   }
 
-  const removeReadingOptionImage = (questionId: string, optionId: string) => {
+  const removeReadingOptionImage = async (questionId: string, optionId: string) => {
+    // Buscar la pregunta y opción para obtener su imageUrl
+    const question = readingQuestions.find(rq => rq.id === questionId) || 
+                     otherSubjectsReadingQuestions.find(rq => rq.id === questionId)
+    const option = question?.options.find(opt => opt.id === optionId)
+    
+    // Si la opción tiene una imagen en Firebase Storage, eliminarla
+    if (option?.imageUrl && option.imageUrl.trim() !== '' && !option.imageUrl.startsWith('data:')) {
+      try {
+        console.log(`🗑️ Eliminando imagen de opción ${optionId} de pregunta ${questionId} del Storage...`)
+        await questionService.deleteImage(option.imageUrl)
+        console.log('✅ Imagen eliminada del Storage correctamente')
+      } catch (error) {
+        console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+      }
+    }
+    
     setReadingOptionFiles(prev => ({
       ...prev,
       [questionId]: {
@@ -756,6 +786,16 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
     }))
     setReadingQuestions(prev => prev.map(rq => 
+      rq.id === questionId 
+        ? {
+            ...rq,
+            options: rq.options.map(opt => 
+              opt.id === optionId ? { ...opt, imageUrl: null } : opt
+            )
+          }
+        : rq
+    ))
+    setOtherSubjectsReadingQuestions(prev => prev.map(rq => 
       rq.id === questionId 
         ? {
             ...rq,
@@ -791,7 +831,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     reader.readAsDataURL(file)
   }
 
-  const removeEditReadingOptionImage = (questionId: string, optionId: string) => {
+  const removeEditReadingOptionImage = async (questionId: string, optionId: string) => {
+    // Buscar la pregunta y opción para obtener su imageUrl
+    const question = editReadingQuestions.find(rq => rq.questionId === questionId) || 
+                     editOtherSubjectsReadingQuestions.find(rq => rq.questionId === questionId)
+    const option = question?.options.find(opt => opt.id === optionId)
+    
+    // Si la opción tiene una imagen en Firebase Storage, eliminarla
+    if (option?.imageUrl && option.imageUrl.trim() !== '' && !option.imageUrl.startsWith('data:')) {
+      try {
+        console.log(`🗑️ Eliminando imagen de opción ${optionId} de pregunta ${questionId} del Storage...`)
+        await questionService.deleteImage(option.imageUrl)
+        console.log('✅ Imagen eliminada del Storage correctamente')
+      } catch (error) {
+        console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+      }
+    }
+    
     setEditReadingOptionFiles(prev => ({
       ...prev,
       [questionId]: {
@@ -807,6 +863,16 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
     }))
     setEditReadingQuestions(prev => prev.map(rq => 
+      rq.questionId === questionId 
+        ? {
+            ...rq,
+            options: rq.options.map(opt => 
+              opt.id === optionId ? { ...opt, imageUrl: null } : opt
+            )
+          }
+        : rq
+    ))
+    setEditOtherSubjectsReadingQuestions(prev => prev.map(rq => 
       rq.questionId === questionId 
         ? {
             ...rq,
@@ -1108,7 +1174,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             otherSubjectsReadingQuestions.forEach((rq, rqIndex) => {
               // El texto de la pregunta es opcional, no se valida
               // Validar opciones de cada pregunta
-              const emptyOptions = rq.options.filter(opt => (!opt.text || !opt.text.trim()) && !readingOptionImagePreviews[rq.id]?.[opt.id])
+              const emptyOptions = rq.options.filter(opt => (!opt.text || !opt.text.trim()) && !readingOptionImagePreviews[rq.id]?.[opt.id] && !opt.imageUrl)
               if (emptyOptions.length > 0) {
                 errors[`otherSubjectsReadingQuestionOptions_${rqIndex}`] = true
               }
@@ -2927,7 +2993,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             // Validar cada pregunta de lectura
             questionsToValidate.forEach((rq, rqIndex) => {
               // Validar opciones de cada pregunta
-              const emptyOptions = rq.options.filter(opt => (!opt.text || !opt.text.trim()) && !readingOptionImagePreviews[rq.id]?.[opt.id])
+              const emptyOptions = rq.options.filter(opt => (!opt.text || !opt.text.trim()) && !readingOptionImagePreviews[rq.id]?.[opt.id] && !opt.imageUrl)
               if (emptyOptions.length > 0) {
                 errors[`readingQuestionOptions_${rqIndex}`] = true
               }
@@ -2967,7 +3033,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             // Validar cada pregunta de lectura
             editOtherSubjectsReadingQuestions.forEach((rq, rqIndex) => {
               // Validar opciones de cada pregunta
-              const emptyOptions = rq.options.filter(opt => (!opt.text || !opt.text.trim()) && !readingOptionImagePreviews[rq.id]?.[opt.id])
+              const emptyOptions = rq.options.filter(opt => (!opt.text || !opt.text.trim()) && !readingOptionImagePreviews[rq.id]?.[opt.id] && !opt.imageUrl)
               if (emptyOptions.length > 0) {
                 errors[`otherSubjectsReadingQuestionOptions_${rqIndex}`] = true
               }
@@ -3196,7 +3262,34 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       const optionPromises = options.map(async (option) => {
         let imageUrl = option.imageUrl // Mantener imagen existente por defecto
         
+        // Buscar la opción original para detectar si se eliminó una imagen
+        const originalOption = selectedQuestion?.options?.find(o => o.id === option.id)
+        const hadImageBefore = originalOption?.imageUrl && originalOption.imageUrl.trim() !== ''
+        const hasImageNow = option.imageUrl && option.imageUrl.trim() !== ''
+        
+        // Si tenía imagen antes pero ahora no, eliminarla del Storage
+        if (hadImageBefore && !hasImageNow && !optionFiles[option.id]) {
+          console.log(`🗑️ Eliminando imagen de opción ${option.id}...`)
+          try {
+            await questionService.deleteImage(originalOption.imageUrl)
+            console.log('✅ Imagen de opción eliminada del Storage')
+          } catch (error) {
+            console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+          }
+          imageUrl = null
+        }
+        
         if (optionFiles[option.id]) {
+          // Si había una imagen anterior, eliminarla antes de subir la nueva
+          if (hadImageBefore) {
+            try {
+              await questionService.deleteImage(originalOption.imageUrl)
+              console.log('✅ Imagen anterior de opción eliminada del Storage')
+            } catch (error) {
+              console.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
+            }
+          }
+          
           try {
             const storagePromise = questionService.uploadImage(
               optionFiles[option.id]!, 
@@ -3686,9 +3779,37 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const rqOptionsPromises = rq.options.map(async (opt) => {
             let imageUrl = opt.imageUrl || null
             
+            // Buscar la opción original para detectar si se eliminó una imagen
+            const originalOption = relatedQuestion?.options?.find(o => o.id === opt.id)
+            const hadImageBefore = originalOption?.imageUrl && originalOption.imageUrl.trim() !== ''
+            const hasImageNow = opt.imageUrl && opt.imageUrl.trim() !== ''
+            
+            // Si tenía imagen antes pero ahora no, eliminarla del Storage
+            if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id]) {
+              console.log(`🗑️ Eliminando imagen de opción ${opt.id} de pregunta ${i + 1}...`)
+              try {
+                await questionService.deleteImage(originalOption.imageUrl)
+                console.log('✅ Imagen de opción eliminada del Storage')
+              } catch (error) {
+                console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+              }
+              imageUrl = null
+            }
+            
             // Procesar imagen de opción si existe una nueva
             if (editReadingOptionFiles[rq.questionId]?.[opt.id]) {
               console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1}...`)
+              
+              // Si había una imagen anterior, eliminarla
+              if (hadImageBefore) {
+                try {
+                  await questionService.deleteImage(originalOption.imageUrl)
+                  console.log('✅ Imagen anterior eliminada del Storage')
+                } catch (error) {
+                  console.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
+                }
+              }
+              
               try {
                 const storagePromise = questionService.uploadImage(
                   editReadingOptionFiles[rq.questionId][opt.id]!, 
@@ -3969,9 +4090,37 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               const rqOptionsPromises = rq.options.map(async (opt) => {
                 let imageUrl = opt.imageUrl || null
                 
+                // Buscar la opción original para detectar si se eliminó una imagen
+                const originalOption = relatedQuestion?.options?.find(o => o.id === opt.id)
+                const hadImageBefore = originalOption?.imageUrl && originalOption.imageUrl.trim() !== ''
+                const hasImageNow = opt.imageUrl && opt.imageUrl.trim() !== ''
+                
+                // Si tenía imagen antes pero ahora no, eliminarla del Storage
+                if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id]) {
+                  console.log(`🗑️ Eliminando imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
+                  try {
+                    await questionService.deleteImage(originalOption.imageUrl)
+                    console.log('✅ Imagen de opción eliminada del Storage')
+                  } catch (error) {
+                    console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+                  }
+                  imageUrl = null
+                }
+                
                 // Procesar imagen de opción si existe una nueva
                 if (editReadingOptionFiles[rq.questionId]?.[opt.id]) {
                   console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
+                  
+                  // Si había una imagen anterior, eliminarla
+                  if (hadImageBefore) {
+                    try {
+                      await questionService.deleteImage(originalOption.imageUrl)
+                      console.log('✅ Imagen anterior eliminada del Storage')
+                    } catch (error) {
+                      console.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
+                    }
+                  }
+                  
                   try {
                     const storagePromise = questionService.uploadImage(
                       editReadingOptionFiles[rq.questionId][opt.id]!, 
@@ -6671,10 +6820,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   </Button>
                                 )}
                               </div>
-                              {readingOptionImagePreviews[rq.id]?.[opt.id] && (
+                              {(readingOptionImagePreviews[rq.id]?.[opt.id] || opt.imageUrl) && (
                                 <div className="relative w-32 h-32 ml-10">
                                   <img 
-                                    src={readingOptionImagePreviews[rq.id][opt.id]!} 
+                                    src={readingOptionImagePreviews[rq.id]?.[opt.id] || opt.imageUrl || ''} 
                                     alt={`Opción ${opt.id}`} 
                                     className="w-full h-full object-cover rounded" 
                                   />
@@ -7072,10 +7221,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   </Button>
                                 )}
                               </div>
-                              {readingOptionImagePreviews[rq.id]?.[opt.id] && (
+                              {(readingOptionImagePreviews[rq.id]?.[opt.id] || opt.imageUrl) && (
                                 <div className="relative w-32 h-32 ml-10">
                                   <img 
-                                    src={readingOptionImagePreviews[rq.id][opt.id]!} 
+                                    src={readingOptionImagePreviews[rq.id]?.[opt.id] || opt.imageUrl || ''} 
                                     alt={`Opción ${opt.id}`} 
                                     className="w-full h-full object-cover rounded" 
                                   />
@@ -7349,10 +7498,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                             )}
                           </div>
                         </div>
-                        {optionImagePreviews[option.id] && (
+                        {(optionImagePreviews[option.id] || option.imageUrl) && (
                           <div className="relative w-32 h-32">
                             <img 
-                              src={optionImagePreviews[option.id]!} 
+                              src={optionImagePreviews[option.id] || option.imageUrl || ''} 
                               alt={`Opción ${option.id}`} 
                               className="w-full h-full object-cover rounded" 
                             />
@@ -9349,10 +9498,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           )}
                         </div>
                       </div>
-                      {optionImagePreviews[option.id] && (
+                      {(optionImagePreviews[option.id] || option.imageUrl) && (
                         <div className="relative w-32 h-32">
                           <img 
-                            src={optionImagePreviews[option.id]!} 
+                            src={optionImagePreviews[option.id] || option.imageUrl || ''} 
                             alt={`Opción ${option.id}`} 
                             className="w-full h-full object-cover rounded" 
                           />

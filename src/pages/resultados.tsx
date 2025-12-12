@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
@@ -968,7 +968,7 @@ export default function EvaluationsTab() {
                           </div>
                         </div>
                       </CardContent>
-                      {/* Justificación de la respuesta */}
+                      {/* Justificación de la respuesta (legacy) */}
                       {selectedQuestion.justification && (
                         <CardContent className="pt-0">
                           <div className={cn("mt-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200')}>
@@ -980,6 +980,100 @@ export default function EvaluationsTab() {
                               className={cn("prose prose-sm max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                               dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(selectedQuestion.justification)) }}
                             />
+                          </div>
+                        </CardContent>
+                      )}
+
+                      {/* Justificación generada por IA */}
+                      {selectedQuestion.aiJustification && (
+                        <CardContent className="pt-0">
+                          <div className={cn("mt-4 pt-4 border-t", theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
+                            <div className={cn("flex items-center gap-2 mb-3", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                              <HelpCircle className={cn("h-5 w-5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
+                              <h4 className={cn("font-semibold text-lg", theme === 'dark' ? 'text-white' : '')}>
+                                Explicación detallada
+                              </h4>
+                            </div>
+
+                            <div className={cn("space-y-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50/50 border-purple-200')}>
+                              {/* Explicación de la respuesta correcta */}
+                              <div>
+                                <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                  ¿Por qué la respuesta correcta es {selectedQuestionDetail.correctAnswer.toUpperCase()}?
+                                </h5>
+                                <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                  {selectedQuestion.aiJustification.correctAnswerExplanation}
+                                </p>
+                              </div>
+
+                              {/* Explicación de la respuesta del estudiante si fue incorrecta */}
+                              {!selectedQuestionDetail.isCorrect && selectedQuestionDetail.userAnswer && (
+                                <div>
+                                  <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                                    <AlertCircle className="h-4 w-4 text-orange-500" />
+                                    ¿Por qué tu respuesta {selectedQuestionDetail.userAnswer.toUpperCase()} no es correcta?
+                                  </h5>
+                                  {(() => {
+                                    const userAnswerExplanation = selectedQuestion.aiJustification.incorrectAnswersExplanation?.find(
+                                      exp => exp.optionId === selectedQuestionDetail.userAnswer
+                                    )
+                                    if (userAnswerExplanation) {
+                                      return (
+                                        <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                          {userAnswerExplanation.explanation}
+                                        </p>
+                                      )
+                                    }
+                                    return (
+                                      <p className={cn("text-sm leading-relaxed italic", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                                        No hay explicación específica disponible para esta opción.
+                                      </p>
+                                    )
+                                  })()}
+                                </div>
+                              )}
+
+                              {/* Explicaciones de todas las respuestas incorrectas (si el estudiante respondió correctamente) */}
+                              {selectedQuestionDetail.isCorrect && selectedQuestion.aiJustification.incorrectAnswersExplanation && selectedQuestion.aiJustification.incorrectAnswersExplanation.length > 0 && (
+                                <div>
+                                  <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                                    <AlertCircle className="h-4 w-4 text-orange-500" />
+                                    ¿Por qué las otras opciones no son correctas?
+                                  </h5>
+                                  <div className="space-y-3">
+                                    {selectedQuestion.aiJustification.incorrectAnswersExplanation.map((explanation, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        className={cn("p-3 rounded border", theme === 'dark' ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white border-gray-200')}
+                                      >
+                                        <span className={cn("font-semibold text-sm", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
+                                          Opción {explanation.optionId}:
+                                        </span>
+                                        <p className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                          {explanation.explanation}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Conceptos clave */}
+                              {selectedQuestion.aiJustification.keyConcepts && selectedQuestion.aiJustification.keyConcepts.length > 0 && (
+                                <div>
+                                  <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                                    <BookOpen className="h-4 w-4 text-blue-500" />
+                                    Conceptos clave para recordar
+                                  </h5>
+                                  <ul className={cn("list-disc list-inside space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                    {selectedQuestion.aiJustification.keyConcepts.map((concept, idx) => (
+                                      <li key={idx} className="text-sm">{concept}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </CardContent>
                       )}
