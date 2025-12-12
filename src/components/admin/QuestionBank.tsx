@@ -354,6 +354,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [selectedMatchingAnswers, setSelectedMatchingAnswers] = useState<{ [key: string]: string }>({}) // Rastrear respuestas seleccionadas: questionId -> optionId
   const matchingDropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({}) // Refs para detectar clics fuera
   const [selectedClozeAnswers, setSelectedClozeAnswers] = useState<{ [key: number]: string }>({}) // Rastrear respuestas seleccionadas por hueco
+  const [selectedStandardAnswers, setSelectedStandardAnswers] = useState<{ [key: string]: string }>({}) // Rastrear respuestas seleccionadas en preguntas estándar: questionId -> optionId
   
   // Estados para Cloze Test
   const [clozeText, setClozeText] = useState<string>('') // Texto con marcadores [1], [2], etc.
@@ -4626,9 +4627,37 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             </div>
           </div>
           <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-              <Eye className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+                <Eye className="h-4 w-4" />
+              </Button>
+              {/* Símbolo de alarma si la justificación de IA tiene problemas */}
+              {(() => {
+                const hasIssues = question.aiJustification && (
+                  (question.aiJustification.confidence < 0.7) ||
+                  (!question.aiJustification.correctAnswerExplanation || question.aiJustification.correctAnswerExplanation.length < 50) ||
+                  (!question.aiJustification.incorrectAnswersExplanation || question.aiJustification.incorrectAnswersExplanation.length === 0) ||
+                  (!question.aiJustification.keyConcepts || question.aiJustification.keyConcepts.length < 2)
+                )
+                if (hasIssues) {
+                  return (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className={cn("flex items-center justify-center h-6 w-6 rounded-full", theme === 'dark' ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-600')}>
+                            <AlertCircle className="h-4 w-4" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>La justificación de IA tiene problemas de calidad</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )
+                }
+                return null
+              })()}
+            </div>
             <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
               <Edit className="h-4 w-4" />
             </Button>
@@ -5479,9 +5508,37 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
+                                      <div className="flex items-center gap-1">
+                                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        {/* Símbolo de alarma si la justificación de IA tiene problemas */}
+                                        {(() => {
+                                          const hasIssues = question.aiJustification && (
+                                            (question.aiJustification.confidence < 0.7) ||
+                                            (!question.aiJustification.correctAnswerExplanation || question.aiJustification.correctAnswerExplanation.length < 50) ||
+                                            (!question.aiJustification.incorrectAnswersExplanation || question.aiJustification.incorrectAnswersExplanation.length === 0) ||
+                                            (!question.aiJustification.keyConcepts || question.aiJustification.keyConcepts.length < 2)
+                                          )
+                                          if (hasIssues) {
+                                            return (
+                                              <TooltipProvider>
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <div className={cn("flex items-center justify-center h-6 w-6 rounded-full", theme === 'dark' ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-600')}>
+                                                      <AlertCircle className="h-4 w-4" />
+                                                    </div>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent>
+                                                    <p>La justificación de IA tiene problemas de calidad</p>
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </TooltipProvider>
+                                            )
+                                          }
+                                          return null
+                                        })()}
+                                      </div>
                                       <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
                                         <Edit className="h-4 w-4" />
                                       </Button>
@@ -5583,9 +5640,37 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  {/* Símbolo de alarma si la justificación de IA tiene problemas */}
+                                  {(() => {
+                                    const hasIssues = question.aiJustification && (
+                                      (question.aiJustification.confidence < 0.7) ||
+                                      (!question.aiJustification.correctAnswerExplanation || question.aiJustification.correctAnswerExplanation.length < 50) ||
+                                      (!question.aiJustification.incorrectAnswersExplanation || question.aiJustification.incorrectAnswersExplanation.length === 0) ||
+                                      (!question.aiJustification.keyConcepts || question.aiJustification.keyConcepts.length < 2)
+                                    )
+                                    if (hasIssues) {
+                                      return (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <div className={cn("flex items-center justify-center h-6 w-6 rounded-full", theme === 'dark' ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-600')}>
+                                                <AlertCircle className="h-4 w-4" />
+                                              </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>La justificación de IA tiene problemas de calidad</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )
+                                    }
+                                    return null
+                                  })()}
+                                </div>
                                 <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -9454,27 +9539,66 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       {relatedQuestions.length > 1 && selectedQuestion.informativeText && (
                         <Card className={cn("mb-6 border-2", theme === 'dark' ? 'border-purple-700 bg-purple-900/30' : 'border-purple-200 bg-purple-50/30')}>
                           <CardHeader>
-                            <CardTitle className={cn("text-lg flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
-                              <BookOpen className={cn("h-5 w-5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
-                              {/* Detectar el tipo de modalidad para mostrar el título correcto */}
+                            <div className="flex items-center justify-between">
+                              <CardTitle className={cn("text-lg flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
+                                <BookOpen className={cn("h-5 w-5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
+                                {/* Detectar el tipo de modalidad para mostrar el título correcto */}
+                                {(() => {
+                                  const isClozeTest = relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
+                                  const isMatchingColumns = relatedQuestions.some(q => 
+                                    q.subjectCode === 'IN' && 
+                                    q.informativeText && 
+                                    typeof q.informativeText === 'string' &&
+                                    (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                     q.informativeText.includes('MATCHING_COLUMNS_'))
+                                  )
+                                  if (isClozeTest) {
+                                    return 'Texto de Cloze Test (Rellenar Huecos)'
+                                  } else if (isMatchingColumns) {
+                                    return 'Texto Compartido'
+                                  } else {
+                                    return 'Texto de Lectura Compartido'
+                                  }
+                                })()}
+                              </CardTitle>
+                              {/* Símbolo de alarma para Cloze Test cuando hay respuesta incorrecta */}
                               {(() => {
                                 const isClozeTest = relatedQuestions.some(q => q.questionText && q.questionText.includes('completar el hueco'))
-                                const isMatchingColumns = relatedQuestions.some(q => 
-                                  q.subjectCode === 'IN' && 
-                                  q.informativeText && 
-                                  typeof q.informativeText === 'string' &&
-                                  (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
-                                   q.informativeText.includes('MATCHING_COLUMNS_'))
-                                )
                                 if (isClozeTest) {
-                                  return 'Texto de Cloze Test (Rellenar Huecos)'
-                                } else if (isMatchingColumns) {
-                                  return 'Texto Compartido'
-                                } else {
-                                  return 'Texto de Lectura Compartido'
+                                  // Verificar si hay algún hueco con respuesta incorrecta
+                                  const hasIncorrectAnswer = relatedQuestions.some(q => {
+                                    const match = q.questionText?.match(/hueco \[(\d+)\]/)
+                                    if (match) {
+                                      const gapNum = parseInt(match[1])
+                                      const selectedAnswer = selectedClozeAnswers[gapNum]
+                                      if (selectedAnswer) {
+                                        const selectedOption = q.options.find(opt => opt.id === selectedAnswer)
+                                        return selectedOption && !selectedOption.isCorrect
+                                      }
+                                    }
+                                    return false
+                                  })
+                                  
+                                  if (hasIncorrectAnswer) {
+                                    return (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <div className={cn("flex items-center justify-center h-8 w-8 rounded-full", theme === 'dark' ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-600')}>
+                                              <AlertCircle className="h-5 w-5" />
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Hay respuestas incorrectas en los huecos</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )
+                                  }
                                 }
+                                return null
                               })()}
-                            </CardTitle>
+                            </div>
                           </CardHeader>
                           <CardContent>
                             <div className="prose prose-lg max-w-none">
@@ -9636,31 +9760,78 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         <Card key={question.id || question.code} className={cn("mb-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
                           <CardHeader>
                             <div className="flex items-center justify-between">
-                              <CardTitle className={cn(
-                                // Reducir tamaño del título para matching/columnas y comprensión de lectura
-                                (() => {
+                              <div className="flex items-center gap-2">
+                                <CardTitle className={cn(
+                                  // Reducir tamaño del título para matching/columnas y comprensión de lectura
+                                  (() => {
+                                    const isMatchingColumns = question.subjectCode === 'IN' && 
+                                      question.informativeText &&
+                                      typeof question.informativeText === 'string' &&
+                                      (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
+                                       question.informativeText.includes('MATCHING_COLUMNS_'))
+                                    
+                                    const isReadingComprehension = !isMatchingColumns &&
+                                      question.subjectCode === 'IN' &&
+                                      question.informativeText &&
+                                      typeof question.informativeText === 'string' &&
+                                      question.informativeText.trim().length > 0 &&
+                                      !question.informativeText.includes('MATCHING_COLUMNS_') &&
+                                      !question.questionText?.includes('completar el hueco')
+                                    
+                                    return (isMatchingColumns || isReadingComprehension) ? "text-sm font-medium" : "text-xl"
+                                  })(),
+                                  theme === 'dark' ? 'text-white' : ''
+                                )}>
+                                  {relatedQuestions.length > 1 
+                                    ? `Pregunta ${index + 1} de ${relatedQuestions.length}` 
+                                    : 'Pregunta 1'}
+                                </CardTitle>
+                                {/* Símbolo de alarma cuando hay respuesta incorrecta seleccionada */}
+                                {(() => {
+                                  const questionKey = question.id || question.code
                                   const isMatchingColumns = question.subjectCode === 'IN' && 
                                     question.informativeText &&
                                     typeof question.informativeText === 'string' &&
                                     (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
                                      question.informativeText.includes('MATCHING_COLUMNS_'))
                                   
-                                  const isReadingComprehension = !isMatchingColumns &&
-                                    question.subjectCode === 'IN' &&
-                                    question.informativeText &&
-                                    typeof question.informativeText === 'string' &&
-                                    question.informativeText.trim().length > 0 &&
-                                    !question.informativeText.includes('MATCHING_COLUMNS_') &&
-                                    !question.questionText?.includes('completar el hueco')
+                                  let selectedAnswer: string | undefined
+                                  let hasIncorrectAnswer = false
                                   
-                                  return (isMatchingColumns || isReadingComprehension) ? "text-sm font-medium" : "text-xl"
-                                })(),
-                                theme === 'dark' ? 'text-white' : ''
-                              )}>
-                                {relatedQuestions.length > 1 
-                                  ? `Pregunta ${index + 1} de ${relatedQuestions.length}` 
-                                  : 'Pregunta 1'}
-                              </CardTitle>
+                                  if (isMatchingColumns) {
+                                    selectedAnswer = selectedMatchingAnswers[questionKey]
+                                    if (selectedAnswer) {
+                                      const selectedOption = question.options.find(opt => opt.id === selectedAnswer)
+                                      hasIncorrectAnswer = selectedOption ? !selectedOption.isCorrect : false
+                                    }
+                                  } else {
+                                    // Pregunta estándar (no Cloze Test, ya que esas no se muestran individualmente)
+                                    selectedAnswer = selectedStandardAnswers[questionKey]
+                                    if (selectedAnswer) {
+                                      const selectedOption = question.options.find(opt => opt.id === selectedAnswer)
+                                      hasIncorrectAnswer = selectedOption ? !selectedOption.isCorrect : false
+                                    }
+                                  }
+                                  
+                                  if (hasIncorrectAnswer) {
+                                    return (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <div className={cn("flex items-center justify-center h-8 w-8 rounded-full", theme === 'dark' ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-600')}>
+                                              <AlertCircle className="h-5 w-5" />
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Respuesta incorrecta seleccionada</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                              </div>
                               <div className="flex items-center gap-2 text-sm">
                                 <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
                                   {question.topic}
@@ -9892,7 +10063,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               </div>
                             ) : (
                               /* Formato estándar para otras preguntas */
-                            <RadioGroup className="space-y-4 mt-6" defaultValue="">
+                            <RadioGroup 
+                              className="space-y-4 mt-6" 
+                              value={selectedStandardAnswers[question.id || question.code] || ''}
+                              onValueChange={(value) => {
+                                const questionKey = question.id || question.code
+                                setSelectedStandardAnswers(prev => ({
+                                  ...prev,
+                                  [questionKey]: value
+                                }))
+                              }}
+                            >
                               {question.options.map((option) => {
                                 // Detectar si es comprensión de lectura para aumentar tamaño
                                 const isReadingComprehension = question.subjectCode === 'IN' &&
@@ -9958,6 +10139,98 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               })}
                             </RadioGroup>
                             )}
+
+                            {/* Sección de Justificación generada por IA - Solo visible para Admin */}
+                            <div className="mt-6 pt-6 border-t">
+                              <div className={cn("flex items-center gap-2 mb-3", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                <HelpCircle className={cn("h-5 w-5", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
+                                <h4 className={cn("font-semibold text-lg", theme === 'dark' ? 'text-white' : '')}>
+                                  Justificación generada por IA
+                                </h4>
+                              </div>
+
+                              {question.aiJustification ? (
+                                <div className={cn("space-y-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50/50 border-purple-200')}>
+                                  {/* Explicación de la respuesta correcta */}
+                                  <div>
+                                    <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                      Explicación de la respuesta correcta
+                                    </h5>
+                                    <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                      {question.aiJustification.correctAnswerExplanation}
+                                    </p>
+                                  </div>
+
+                                  {/* Explicaciones de respuestas incorrectas */}
+                                  {question.aiJustification.incorrectAnswersExplanation && question.aiJustification.incorrectAnswersExplanation.length > 0 && (
+                                    <div>
+                                      <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                                        <AlertCircle className="h-4 w-4 text-orange-500" />
+                                        Explicaciones de respuestas incorrectas
+                                      </h5>
+                                      <div className="space-y-3">
+                                        {question.aiJustification.incorrectAnswersExplanation.map((explanation, idx) => (
+                                          <div 
+                                            key={idx} 
+                                            className={cn("p-3 rounded border", theme === 'dark' ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white border-gray-200')}
+                                          >
+                                            <span className={cn("font-semibold text-sm", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
+                                              Opción {explanation.optionId}:
+                                            </span>
+                                            <p className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                              {explanation.explanation}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Conceptos clave */}
+                                  {question.aiJustification.keyConcepts && question.aiJustification.keyConcepts.length > 0 && (
+                                    <div>
+                                      <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                                        <BookOpen className="h-4 w-4 text-blue-500" />
+                                        Conceptos clave
+                                      </h5>
+                                      <ul className={cn("list-disc list-inside space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                        {question.aiJustification.keyConcepts.map((concept, idx) => (
+                                          <li key={idx} className="text-sm">{concept}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  {/* Metadata */}
+                                  <div className={cn("pt-3 border-t flex items-center justify-between text-xs", theme === 'dark' ? 'border-zinc-700 text-gray-400' : 'border-gray-200 text-gray-500')}>
+                                    <div className="flex items-center gap-4">
+                                      <span>
+                                        Dificultad percibida: <span className="font-semibold">{question.aiJustification.perceivedDifficulty}</span>
+                                      </span>
+                                      <span>
+                                        Confianza: <span className="font-semibold">{(question.aiJustification.confidence * 100).toFixed(0)}%</span>
+                                      </span>
+                                    </div>
+                                    {question.aiJustification.generatedBy && (
+                                      <span>
+                                        Generado por: <span className="font-semibold">{question.aiJustification.generatedBy}</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className={cn("p-4 rounded-lg border text-center", theme === 'dark' ? 'bg-zinc-800/50 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                                  <AlertCircle className={cn("h-8 w-8 mx-auto mb-2", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                                  <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                                    En espera de justificación
+                                  </p>
+                                  <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                                    La justificación será generada automáticamente por la IA
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </CardContent>
                           <CardFooter className="flex justify-between items-center">
                             <div className={cn("flex items-center gap-2 text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>

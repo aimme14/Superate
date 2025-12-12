@@ -39,6 +39,37 @@ export interface QuestionOption {
 }
 
 /**
+ * Interfaz para la explicación de una respuesta incorrecta
+ */
+export interface IncorrectAnswerExplanation {
+  optionId: string;
+  explanation: string;
+}
+
+/**
+ * Justificación generada por IA para una pregunta
+ */
+export interface AIJustification {
+  // Explicación de la respuesta correcta
+  correctAnswerExplanation: string;
+  
+  // Explicaciones de cada respuesta incorrecta
+  incorrectAnswersExplanation: IncorrectAnswerExplanation[];
+  
+  // Conceptos clave que el estudiante debe dominar
+  keyConcepts: string[];
+  
+  // Dificultad percibida por la IA
+  perceivedDifficulty: 'Fácil' | 'Medio' | 'Difícil';
+  
+  // Metadata de generación
+  generatedAt: Date | any; // Puede ser Date o Timestamp de Firestore
+  generatedBy: string; // Nombre del modelo (ej: "gemini-1.5-flash")
+  confidence: number; // 0.0 a 1.0
+  promptVersion?: string; // Versión del prompt utilizado
+}
+
+/**
  * Interfaz para una pregunta completa
  */
 export interface Question {
@@ -57,7 +88,8 @@ export interface Question {
   questionImages?: string[];
   answerType: 'MCQ'; // Multiple Choice Question
   options: QuestionOption[];
-  justification?: string; // Justificación de la respuesta correcta
+  justification?: string; // Justificación de la respuesta correcta (legacy)
+  aiJustification?: AIJustification; // Justificación generada por IA
   createdBy: string; // UID del usuario que creó la pregunta
   createdAt: Date;
   rand?: number; // Número aleatorio para muestreo eficiente
@@ -460,10 +492,21 @@ class QuestionService {
       }
 
       const data = questionSnap.data();
+      
+      // Convertir aiJustification.generatedAt si existe y es Timestamp
+      let aiJustification = data.aiJustification;
+      if (aiJustification && aiJustification.generatedAt && typeof aiJustification.generatedAt.toDate === 'function') {
+        aiJustification = {
+          ...aiJustification,
+          generatedAt: aiJustification.generatedAt.toDate()
+        };
+      }
+      
       const question: Question = {
         ...data,
         id: questionSnap.id,
         createdAt: data.createdAt?.toDate() || new Date(),
+        aiJustification,
       } as Question;
 
       return success(question);
@@ -493,10 +536,21 @@ class QuestionService {
 
       const doc = querySnapshot.docs[0];
       const data = doc.data();
+      
+      // Convertir aiJustification.generatedAt si existe y es Timestamp
+      let aiJustification = data.aiJustification;
+      if (aiJustification && aiJustification.generatedAt && typeof aiJustification.generatedAt.toDate === 'function') {
+        aiJustification = {
+          ...aiJustification,
+          generatedAt: aiJustification.generatedAt.toDate()
+        };
+      }
+      
       const question: Question = {
         ...data,
         id: doc.id,
         createdAt: data.createdAt?.toDate() || new Date(),
+        aiJustification,
       } as Question;
 
       return success(question);
@@ -570,11 +624,25 @@ class QuestionService {
       }
 
       const querySnapshot = await getDocs(q);
-      const questions: Question[] = querySnapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-      } as Question));
+      const questions: Question[] = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        // Convertir aiJustification.generatedAt si existe y es Timestamp
+        let aiJustification = data.aiJustification;
+        if (aiJustification && aiJustification.generatedAt && typeof aiJustification.generatedAt.toDate === 'function') {
+          aiJustification = {
+            ...aiJustification,
+            generatedAt: aiJustification.generatedAt.toDate()
+          };
+        }
+        
+        return {
+          ...data,
+          id: doc.id,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          aiJustification,
+        } as Question;
+      });
 
       // Ordenar por fecha de creación en el cliente
       questions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
