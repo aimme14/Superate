@@ -3268,7 +3268,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const hasImageNow = option.imageUrl && option.imageUrl.trim() !== ''
         
         // Si tenía imagen antes pero ahora no, eliminarla del Storage
-        if (hadImageBefore && !hasImageNow && !optionFiles[option.id]) {
+        if (hadImageBefore && !hasImageNow && !optionFiles[option.id] && originalOption?.imageUrl) {
           console.log(`🗑️ Eliminando imagen de opción ${option.id}...`)
           try {
             await questionService.deleteImage(originalOption.imageUrl)
@@ -3281,7 +3281,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         if (optionFiles[option.id]) {
           // Si había una imagen anterior, eliminarla antes de subir la nueva
-          if (hadImageBefore) {
+          if (hadImageBefore && originalOption?.imageUrl) {
             try {
               await questionService.deleteImage(originalOption.imageUrl)
               console.log('✅ Imagen anterior de opción eliminada del Storage')
@@ -3785,7 +3785,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             const hasImageNow = opt.imageUrl && opt.imageUrl.trim() !== ''
             
             // Si tenía imagen antes pero ahora no, eliminarla del Storage
-            if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id]) {
+            if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id] && originalOption?.imageUrl) {
               console.log(`🗑️ Eliminando imagen de opción ${opt.id} de pregunta ${i + 1}...`)
               try {
                 await questionService.deleteImage(originalOption.imageUrl)
@@ -3801,7 +3801,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1}...`)
               
               // Si había una imagen anterior, eliminarla
-              if (hadImageBefore) {
+              if (hadImageBefore && originalOption?.imageUrl) {
                 try {
                   await questionService.deleteImage(originalOption.imageUrl)
                   console.log('✅ Imagen anterior eliminada del Storage')
@@ -4096,7 +4096,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 const hasImageNow = opt.imageUrl && opt.imageUrl.trim() !== ''
                 
                 // Si tenía imagen antes pero ahora no, eliminarla del Storage
-                if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id]) {
+                if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id] && originalOption?.imageUrl) {
                   console.log(`🗑️ Eliminando imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
                   try {
                     await questionService.deleteImage(originalOption.imageUrl)
@@ -4112,7 +4112,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
                   
                   // Si había una imagen anterior, eliminarla
-                  if (hadImageBefore) {
+                  if (hadImageBefore && originalOption?.imageUrl) {
                     try {
                       await questionService.deleteImage(originalOption.imageUrl)
                       console.log('✅ Imagen anterior eliminada del Storage')
