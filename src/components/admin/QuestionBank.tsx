@@ -544,7 +544,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         setOtherSubjectsReadingImagePreview(null)
         setOtherSubjectsReadingQuestions([])
       } else {
-        // Si cambia a Inglés, resetear modalidad de otras materias
+        // Si cambia a Inglés, también resetear modalidad a estándar
+        setInglesModality('standard_mc')
+        // Limpiar datos de modalidades específicas de inglés para empezar limpio
+        setMatchingQuestions([])
+        setClozeText('')
+        setClozeGaps({})
+        setReadingText('')
+        setReadingImage(null)
+        setReadingImagePreview(null)
+        setReadingQuestions([])
+        // Resetear modalidad de otras materias
         setOtherSubjectsModality('standard_mc')
         setOtherSubjectsReadingText('')
         setOtherSubjectsReadingImage(null)
@@ -898,6 +908,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   }
 
   const resetForm = () => {
+    console.log('🔄 Reseteando formulario completamente...')
     setFormData({
       subject: '',
       subjectCode: '',
@@ -925,6 +936,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setOptionImagePreviews({ A: null, B: null, C: null, D: null })
     // Limpiar estados de modalidades de Inglés
     setInglesModality('standard_mc')
+    console.log('✅ Modalidad de Inglés reseteada a: standard_mc')
     setMatchingQuestions([])
     setExpandedViewOptions(new Set())
     setClozeText('')
@@ -1064,10 +1076,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
       // Validaciones específicas según modalidad de Inglés
       if (formData.subjectCode === 'IN') {
+        console.log('🔍 Validando pregunta de Inglés con modalidad:', inglesModality)
+        
         if (inglesModality === 'matching_columns') {
           // Validar Matching / Columnas (nueva estructura por bloques)
           if (matchingQuestions.length === 0) {
             errors['matchingQuestions'] = true
+            console.error('❌ Error: No hay preguntas de matching agregadas')
           }
           // Validar cada pregunta de matching
           matchingQuestions.forEach((mq, mqIndex) => {
@@ -1089,6 +1104,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           // Validar Cloze Test
           if (!clozeText.trim()) {
             errors['clozeText'] = true
+            console.error('❌ Error: No hay texto de Cloze Test')
           }
           // Validar que todos los huecos tengan opciones y respuesta correcta
           // Extraer texto plano para detectar marcadores
@@ -1146,18 +1162,34 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
         } else {
           // Modalidad estándar (standard_mc)
-          if (!formData.questionText.trim()) {
+          // Extraer texto plano del HTML para validar correctamente
+          let questionTextPlain = ''
+          if (formData.questionText) {
+            try {
+              const tempDiv = document.createElement('div')
+              tempDiv.innerHTML = formData.questionText
+              questionTextPlain = (tempDiv.textContent || tempDiv.innerText || '').trim()
+            } catch (e) {
+              // Si falla, usar el texto directamente
+              questionTextPlain = formData.questionText.trim()
+            }
+          }
+          
+          if (!questionTextPlain) {
             errors['questionText'] = true
+            console.error('❌ Error: El texto de la pregunta está vacío')
           }
           // Validar que todas las opciones tengan contenido
           const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id])
           if (emptyOptions.length > 0) {
             errors['options'] = true
+            console.error('❌ Error: Hay opciones vacías')
           }
           // Validar que haya exactamente una respuesta correcta
           const correctOptions = options.filter(opt => opt.isCorrect)
           if (correctOptions.length !== 1) {
             errors['correctAnswer'] = true
+            console.error(`❌ Error: Debe haber exactamente una respuesta correcta, hay ${correctOptions.length}`)
           }
         }
       } else {
@@ -1187,18 +1219,34 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
         } else {
           // Modalidad estándar (standard_mc) para otras materias
-          if (!formData.questionText.trim()) {
+          // Extraer texto plano del HTML para validar correctamente
+          let questionTextPlain = ''
+          if (formData.questionText) {
+            try {
+              const tempDiv = document.createElement('div')
+              tempDiv.innerHTML = formData.questionText
+              questionTextPlain = (tempDiv.textContent || tempDiv.innerText || '').trim()
+            } catch (e) {
+              // Si falla, usar el texto directamente
+              questionTextPlain = formData.questionText.trim()
+            }
+          }
+          
+          if (!questionTextPlain) {
             errors['questionText'] = true
+            console.error('❌ Error: El texto de la pregunta está vacío')
           }
           // Validar que todas las opciones tengan contenido
           const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id])
           if (emptyOptions.length > 0) {
             errors['options'] = true
+            console.error('❌ Error: Hay opciones vacías')
           }
           // Validar que haya exactamente una respuesta correcta
           const correctOptions = options.filter(opt => opt.isCorrect)
           if (correctOptions.length !== 1) {
             errors['correctAnswer'] = true
+            console.error(`❌ Error: Debe haber exactamente una respuesta correcta, hay ${correctOptions.length}`)
           }
         }
       }
@@ -1211,7 +1259,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         if (errors['subject']) errorMessages.push('Materia')
         if (errors['topic']) errorMessages.push('Tema')
         if (errors['questionText']) errorMessages.push('Texto de la Pregunta')
-        if (errors['matchingQuestions']) errorMessages.push('Preguntas de Matching (debe agregar al menos una)')
+        if (errors['matchingQuestions']) {
+          errorMessages.push('Preguntas de Matching (debe agregar al menos una)')
+          // Mensaje adicional si está en modo matching pero no hay preguntas
+          if (formData.subjectCode === 'IN' && inglesModality === 'matching_columns') {
+            notifyError({ 
+              title: 'Modalidad Incorrecta', 
+              message: 'Está en modo "Matching / Columnas" pero no hay preguntas de matching. Si desea crear una pregunta estándar, cambie la modalidad a "Opción Múltiple Estándar".' 
+            })
+            return
+          }
+        }
         
         // Mensajes específicos para preguntas de matching
         matchingQuestions.forEach((_, mqIndex) => {
@@ -1226,9 +1284,29 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
         })
         
-        if (errors['clozeText']) errorMessages.push('Texto a Completar (Cloze)')
+        if (errors['clozeText']) {
+          errorMessages.push('Texto a Completar (Cloze)')
+          // Mensaje adicional si está en modo cloze test pero no hay texto
+          if (formData.subjectCode === 'IN' && inglesModality === 'cloze_test') {
+            notifyError({ 
+              title: 'Modalidad Incorrecta', 
+              message: 'Está en modo "Cloze Test / Rellenar Huecos" pero no hay texto de cloze. Si desea crear una pregunta estándar, cambie la modalidad a "Opción Múltiple Estándar".' 
+            })
+            return
+          }
+        }
         if (errors['readingText']) errorMessages.push('Texto de Lectura')
-        if (errors['readingQuestions']) errorMessages.push('Preguntas de Lectura (debe agregar al menos una)')
+        if (errors['readingQuestions']) {
+          errorMessages.push('Preguntas de Lectura (debe agregar al menos una)')
+          // Mensaje adicional si está en modo reading comprehension pero no hay preguntas
+          if (formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') {
+            notifyError({ 
+              title: 'Modalidad Incorrecta', 
+              message: 'Está en modo "Comprensión de Lectura Corta" pero no hay preguntas de lectura. Si desea crear una pregunta estándar, cambie la modalidad a "Opción Múltiple Estándar".' 
+            })
+            return
+          }
+        }
         if (errors['otherSubjectsReadingText']) errorMessages.push('Texto de Lectura')
         if (errors['otherSubjectsReadingQuestions']) errorMessages.push('Preguntas de Lectura (debe agregar al menos una)')
         if (errors['options']) errorMessages.push('Opciones de Respuesta')
@@ -1286,8 +1364,38 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         displayName: currentUser.displayName
       })
 
+      // Validación preventiva: verificar consistencia entre modalidad y datos ANTES de procesar imágenes
+      if (formData.subjectCode === 'IN') {
+        console.log('🔍 Verificando consistencia de modalidad de Inglés:', inglesModality)
+        
+        if (inglesModality === 'matching_columns' && matchingQuestions.length === 0) {
+          notifyError({ 
+            title: 'Modalidad Incorrecta', 
+            message: 'Ha seleccionado "Matching / Columnas" pero no ha agregado preguntas de matching. Por favor, cambie la modalidad a "Opción Múltiple Estándar" o agregue preguntas de matching.' 
+          })
+          return
+        }
+        
+        if (inglesModality === 'cloze_test' && !clozeText.trim()) {
+          notifyError({ 
+            title: 'Modalidad Incorrecta', 
+            message: 'Ha seleccionado "Cloze Test / Rellenar Huecos" pero no ha ingresado texto. Por favor, cambie la modalidad a "Opción Múltiple Estándar" o ingrese el texto con huecos.' 
+          })
+          return
+        }
+        
+        if (inglesModality === 'reading_comprehension' && readingQuestions.length === 0) {
+          notifyError({ 
+            title: 'Modalidad Incorrecta', 
+            message: 'Ha seleccionado "Comprensión de Lectura Corta" pero no ha agregado preguntas. Por favor, cambie la modalidad a "Opción Múltiple Estándar" o agregue preguntas de lectura.' 
+          })
+          return
+        }
+      }
+
       setIsLoading(true)
       console.log('🚀 Iniciando proceso de creación de pregunta...')
+      console.log('📋 Modalidad actual:', formData.subjectCode === 'IN' ? `Inglés - ${inglesModality}` : formData.subject)
 
       // Mostrar mensaje de progreso
       notifySuccess({ 
@@ -2097,80 +2205,137 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       } else {
         // Crear pregunta estándar (modalidad normal o no es Inglés)
-        console.log('📝 Preparando datos de la pregunta...')
-        const questionData: any = {
-          ...formData,
-          answerType: 'MCQ' as const,
-          options: finalOptions,
-        }
+        console.log('📝 Preparando datos de la pregunta estándar...')
+        console.log('📋 Materia:', formData.subjectCode, formData.subject)
+        console.log('📋 Modalidad:', formData.subjectCode === 'IN' ? inglesModality : otherSubjectsModality)
+        console.log('📋 Tema:', formData.topicCode, formData.topic)
+        console.log('📋 Grado:', formData.grade, 'Nivel:', formData.levelCode)
+        console.log('📋 Opciones finales:', finalOptions.length)
+        
+        try {
+          // Preparar datos base de la pregunta
+          const questionData: any = {
+            subject: formData.subject,
+            subjectCode: formData.subjectCode,
+            topic: formData.topic,
+            topicCode: formData.topicCode,
+            grade: formData.grade,
+            level: formData.level,
+            levelCode: formData.levelCode,
+            questionText: formData.questionText,
+            answerType: 'MCQ' as const,
+            options: finalOptions,
+          }
 
-        // Solo agregar campos de imágenes si tienen contenido (evitar undefined)
-        if (informativeImageUrls.length > 0) {
-          questionData.informativeImages = informativeImageUrls
-        }
-        if (questionImageUrls.length > 0) {
-          questionData.questionImages = questionImageUrls
-        }
+          // Solo agregar informativeText si tiene contenido válido (no vacío ni undefined)
+          if (formData.informativeText && formData.informativeText.trim()) {
+            questionData.informativeText = formData.informativeText.trim()
+          }
 
-        console.log('📝 Datos de la pregunta preparados:', questionData)
-        console.log('🚀 Llamando a questionService.createQuestion...')
-        
-        // Mostrar progreso
-        notifySuccess({ 
-          title: 'Creando pregunta', 
-          message: 'Guardando en la base de datos...' 
-        })
-        
-        // Agregar timeout para evitar que se cuelgue
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (20 segundos)')), 20000)
-        })
-        
-        const createPromise = questionService.createQuestion(questionData, currentUser.uid)
-        
-        const result = await Promise.race([createPromise, timeoutPromise]) as any
-        
-        console.log('📝 Resultado de createQuestion:', result)
+          // Solo agregar campos de imágenes si tienen contenido (evitar undefined)
+          if (informativeImageUrls.length > 0) {
+            questionData.informativeImages = informativeImageUrls
+          }
+          if (questionImageUrls.length > 0) {
+            questionData.questionImages = questionImageUrls
+          }
 
-        if (result.success) {
+          console.log('📝 Datos de la pregunta preparados:', {
+            subjectCode: questionData.subjectCode,
+            topicCode: questionData.topicCode,
+            grade: questionData.grade,
+            levelCode: questionData.levelCode,
+            questionTextLength: questionData.questionText?.length || 0,
+            optionsCount: questionData.options?.length || 0,
+            hasInformativeImages: !!questionData.informativeImages,
+            hasQuestionImages: !!questionData.questionImages
+          })
+          console.log('🚀 Llamando a questionService.createQuestion...')
+          
+          // Mostrar progreso
           notifySuccess({ 
-            title: 'Éxito', 
-            message: `Pregunta creada con código: ${result.data.code}` 
+            title: 'Creando pregunta', 
+            message: 'Guardando en la base de datos...' 
           })
-          resetForm()
-          setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
-        } else {
-          notifyError({ 
-            title: 'Error', 
-            message: result.error || 'No se pudo crear la pregunta' 
+          
+          // Agregar timeout para evitar que se cuelgue
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (20 segundos)')), 20000)
           })
+          
+          const createPromise = questionService.createQuestion(questionData, currentUser.uid)
+          
+          const result = await Promise.race([createPromise, timeoutPromise]) as any
+          
+          console.log('📝 Resultado de createQuestion:', result)
+
+          if (result && result.success) {
+            notifySuccess({ 
+              title: 'Éxito', 
+              message: `Pregunta creada con código: ${result.data.code}` 
+            })
+            resetForm()
+            setIsCreateDialogOpen(false)
+            loadQuestions()
+            loadStats()
+          } else {
+            const errorMsg = result?.error || result?.message || 'No se pudo crear la pregunta'
+            console.error('❌ Error en createQuestion:', errorMsg)
+            notifyError({ 
+              title: 'Error', 
+              message: errorMsg
+            })
+          }
+        } catch (error) {
+          console.error('❌ Error al preparar o crear pregunta estándar:', error)
+          throw error // Re-lanzar para que lo capture el catch externo
         }
       }
     } catch (error) {
       console.error('❌ Error al crear pregunta:', error)
+      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No disponible')
       
       let errorMessage = 'Error al crear la pregunta'
       if (error instanceof Error) {
+        console.error('❌ Error message:', error.message)
+        console.error('❌ Error name:', error.name)
+        
         if (error.message.includes('Timeout')) {
           errorMessage = 'La operación tardó demasiado. Verifique su conexión y la configuración de Firebase.'
-        } else if (error.message.includes('Permission')) {
+        } else if (error.message.includes('Permission') || error.message.includes('permission')) {
           errorMessage = 'No tiene permisos para crear preguntas. Verifique su rol de administrador.'
-        } else if (error.message.includes('Storage')) {
+        } else if (error.message.includes('Storage') || error.message.includes('storage')) {
           errorMessage = 'Error con el almacenamiento de imágenes. Verifique la configuración de Firebase Storage.'
+        } else if (error.message.includes('Network') || error.message.includes('network')) {
+          errorMessage = 'Error de conexión. Verifique su conexión a internet e intente nuevamente.'
         } else {
           errorMessage = `Error: ${error.message}`
         }
+      } else {
+        console.error('❌ Error desconocido:', error)
+        errorMessage = 'Error desconocido al crear la pregunta. Por favor, verifique los datos e intente nuevamente.'
       }
       
-      notifyError({ 
-        title: 'Error al crear pregunta', 
-        message: errorMessage 
-      })
+      try {
+        notifyError({ 
+          title: 'Error al crear pregunta', 
+          message: errorMessage 
+        })
+      } catch (notificationError) {
+        console.error('❌ Error al mostrar notificación:', notificationError)
+        // Si falla la notificación, al menos loguearlo
+        alert(`Error: ${errorMessage}`)
+      }
     } finally {
-      setIsLoading(false)
-      console.log('🏁 Proceso de creación finalizado')
+      // Asegurar que siempre se restaure el estado de loading
+      try {
+        setIsLoading(false)
+        console.log('🏁 Proceso de creación finalizado')
+      } catch (finallyError) {
+        console.error('❌ Error en finally block:', finallyError)
+        // Si todo falla, al menos intentar restaurar el estado manualmente
+        setTimeout(() => setIsLoading(false), 100)
+      }
     }
   }
 
@@ -5046,7 +5211,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <div>No autenticado</div>
             )}
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+            setIsCreateDialogOpen(open)
+            // Cuando se abre el diálogo, resetear el formulario completamente
+            if (open) {
+              console.log('🔄 Abriendo diálogo de creación - Reseteando formulario...')
+              resetForm()
+            }
+          }}>
             <DialogTrigger asChild>
               <Button 
                 className="bg-black text-white hover:bg-gray-800"
@@ -5345,7 +5517,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                       : 'Intenta cambiar los filtros de búsqueda'}
                   </p>
                   {questions.length === 0 && (
-                    <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-black text-white hover:bg-gray-800">
+                    <Button onClick={() => {
+                      resetForm()
+                      setIsCreateDialogOpen(true)
+                    }} className="bg-black text-white hover:bg-gray-800">
                       <Plus className="h-4 w-4 mr-2" />
                       Crear Primera Pregunta
                     </Button>
@@ -5842,7 +6017,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       </Card>
 
       {/* Dialog para crear pregunta - continuará en la siguiente parte... */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+        setIsCreateDialogOpen(open)
+        // Cuando se abre el diálogo, resetear el formulario completamente
+        if (open) {
+          console.log('🔄 Abriendo diálogo de creación - Reseteando formulario...')
+          resetForm()
+        }
+      }}>
         <DialogContent className={cn("max-w-4xl max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <DialogHeader>
             <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Crear Nueva Pregunta</DialogTitle>
@@ -5953,30 +6135,70 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             {/* Campo de Modalidad de Inglés - Solo visible cuando materia es Inglés */}
             {formData.subjectCode === 'IN' && (
               <div className="space-y-2">
-                <Label htmlFor="modalidad_ingles" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  Modalidad de Pregunta Específica *
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="inline-block h-4 w-4 ml-2 text-gray-400 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600' : '')}>
-                        <p className="max-w-xs">Selecciona el tipo de pregunta que deseas crear para Inglés</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </Label>
-                <Select value={inglesModality} onValueChange={(value: any) => setInglesModality(value)}>
-                  <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="modalidad_ingles" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
+                    Modalidad de Pregunta Específica *
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="inline-block h-4 w-4 ml-2 text-gray-400 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600' : '')}>
+                          <p className="max-w-xs">Selecciona el tipo de pregunta que deseas crear para Inglés</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </Label>
+                  <Badge 
+                    variant={inglesModality === 'standard_mc' ? 'default' : 'secondary'} 
+                    className={cn(
+                      'text-xs',
+                      inglesModality === 'standard_mc' 
+                        ? 'bg-green-500 hover:bg-green-600' 
+                        : 'bg-orange-500 hover:bg-orange-600 text-white'
+                    )}
+                  >
+                    {inglesModality === 'standard_mc' ? 'Estándar' : 'Especial'}
+                  </Badge>
+                </div>
+                <Select value={inglesModality} onValueChange={(value: any) => {
+                  setInglesModality(value)
+                  if (value !== 'standard_mc') {
+                    console.log('⚠️ Cambiando a modalidad especial:', value)
+                  }
+                }}>
+                  <SelectTrigger className={cn(
+                    theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '',
+                    inglesModality !== 'standard_mc' ? 'border-orange-500 border-2' : ''
+                  )}>
                     <SelectValue placeholder="Seleccionar modalidad" />
                   </SelectTrigger>
                   <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                    <SelectItem value="standard_mc">Opción Múltiple Estándar</SelectItem>
+                    <SelectItem value="standard_mc">✓ Opción Múltiple Estándar (Recomendado)</SelectItem>
                     <SelectItem value="matching_columns">Matching / Columnas</SelectItem>
                     <SelectItem value="cloze_test">Cloze Test / Rellenar Huecos</SelectItem>
                     <SelectItem value="reading_comprehension">Comprensión de Lectura Corta</SelectItem>
                   </SelectContent>
                 </Select>
+                {inglesModality !== 'standard_mc' && (
+                  <div className={cn(
+                    'flex items-start gap-2 p-3 rounded-md border',
+                    theme === 'dark' 
+                      ? 'bg-orange-900/20 border-orange-700 text-orange-200' 
+                      : 'bg-orange-50 border-orange-300 text-orange-800'
+                  )}>
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-semibold mb-1">Modalidad Especial Seleccionada</p>
+                      <p>
+                        {inglesModality === 'matching_columns' && 'Debe agregar preguntas de matching usando el botón "Agregar Pregunta de Matching".'}
+                        {inglesModality === 'cloze_test' && 'Debe ingresar un texto con huecos marcados como [1], [2], etc.'}
+                        {inglesModality === 'reading_comprehension' && 'Debe agregar un texto de lectura y preguntas de comprensión.'}
+                      </p>
+                      <p className="mt-1 italic">Si desea crear una pregunta estándar, seleccione "Opción Múltiple Estándar".</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -8839,18 +9061,24 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               <>
                 {/* Texto Compartido */}
                 <div className="space-y-2">
-                  <Label htmlFor="edit-informativeText">Texto Compartido (opcional)</Label>
+                  <Label htmlFor="edit-informativeText" className={cn(theme === 'dark' ? 'text-white' : '')}>
+                    Texto Compartido (opcional)
+                  </Label>
                   <RichTextEditor
                     ref={editInformativeTextEditorRef}
                     value={formData.informativeText}
                     onChange={(html) => setFormData({ ...formData, informativeText: html })}
                     placeholder="Texto compartido para todas las preguntas..."
+                    theme={theme}
                   />
                 </div>
 
                 {/* Preguntas de Matching / Columnas */}
                 <div className="space-y-2">
-                  <Label className={fieldErrors['matchingQuestions'] ? 'text-red-600' : ''}>
+                  <Label className={cn(
+                    fieldErrors['matchingQuestions'] ? 'text-red-600' : '',
+                    theme === 'dark' && !fieldErrors['matchingQuestions'] ? 'text-white' : ''
+                  )}>
                     Preguntas de Matching / Columnas *
                     {fieldErrors['matchingQuestions'] && <span className="ml-2 text-red-600">⚠️ Debe agregar al menos una pregunta</span>}
                   </Label>
@@ -8861,17 +9089,30 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     const hasAnyError = hasTextError || hasOptionsError || hasAnswerError
                     
                     return (
-                      <div key={mq.id} className={`border-2 rounded-lg p-4 space-y-3 ${hasAnyError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                      <div key={mq.id} className={cn(
+                        "border-2 rounded-lg p-4 space-y-3",
+                        hasAnyError 
+                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20 dark:border-red-600' 
+                          : theme === 'dark' 
+                            ? 'border-zinc-700 bg-zinc-800' 
+                            : 'border-gray-200'
+                      )}>
                         <div className="flex items-center justify-between">
-                          <Label className={hasAnyError ? 'text-red-600' : ''}>
+                          <Label className={cn(
+                            hasAnyError ? 'text-red-600 dark:text-red-400' : '',
+                            theme === 'dark' && !hasAnyError ? 'text-white' : ''
+                          )}>
                             Pregunta {mqIndex + 1}
-                            {hasAnyError && <span className="ml-2 text-red-600 text-xs">⚠️ Campos incompletos</span>}
+                            {hasAnyError && <span className="ml-2 text-red-600 dark:text-red-400 text-xs">⚠️ Campos incompletos</span>}
                           </Label>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0"
+                            className={cn(
+                              "h-7 w-7 p-0",
+                              theme === 'dark' ? 'text-white hover:bg-zinc-700' : ''
+                            )}
                             onClick={() => setMatchingQuestions(matchingQuestions.filter((_, i) => i !== mqIndex))}
                           >
                             <X className="h-4 w-4" />
@@ -8894,11 +9135,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               }
                             }}
                             placeholder="Escribe la pregunta aquí..."
+                            theme={theme}
                           />
                         </div>
                         {/* Campo para imagen de la pregunta */}
                         <div className="space-y-2">
-                          <Label>Imagen de la Pregunta (Opcional)</Label>
+                          <Label className={cn(theme === 'dark' ? 'text-white' : '')}>
+                            Imagen de la Pregunta (Opcional)
+                          </Label>
                           <div className="flex items-center gap-4">
                             <div className="flex-1">
                               <Input
@@ -8934,7 +9178,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     reader.readAsDataURL(file)
                                   }
                                 }}
-                                className="cursor-pointer"
+                                className={cn(
+                                  "cursor-pointer",
+                                  theme === 'dark' ? 'text-white file:text-white file:bg-zinc-700 file:border-zinc-600' : ''
+                                )}
                               />
                             </div>
                             {mq.questionImagePreview && (
@@ -8993,9 +9240,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         </div>
                         <div className="space-y-2">
                           <div className="flex items-center">
-                            <Label className={hasOptionsError || hasAnswerError ? 'text-red-600' : ''}>
+                            <Label className={cn(
+                              hasOptionsError || hasAnswerError ? 'text-red-600 dark:text-red-400' : '',
+                              theme === 'dark' && !hasOptionsError && !hasAnswerError ? 'text-white' : ''
+                            )}>
                               Opciones de Respuesta *
-                              {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
+                              {(hasOptionsError || hasAnswerError) && <span className="ml-2 text-red-600 dark:text-red-400 text-xs">⚠️ Complete todas las opciones y marque la correcta</span>}
                             </Label>
                           </div>
                           {mq.options.map((opt) => (
@@ -9020,9 +9270,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     })
                                   }
                                 }}
-                                className="w-4 h-4"
+                                className={cn(
+                                  "w-4 h-4",
+                                  theme === 'dark' ? 'accent-purple-500' : ''
+                                )}
                               />
-                              <Label className="font-medium w-6">{opt.id}:</Label>
+                              <Label className={cn(
+                                "font-medium w-6",
+                                theme === 'dark' ? 'text-white' : ''
+                              )}>
+                                {opt.id}:
+                              </Label>
                               <Input
                                 value={opt.text || ''}
                                 onChange={(e) => {
@@ -9041,7 +9299,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   }
                                 }}
                                 placeholder={`Opción ${opt.id}`}
-                                className={`flex-1 ${hasOptionsError && !opt.text?.trim() ? 'border-red-500' : ''}`}
+                                className={cn(
+                                  "flex-1",
+                                  hasOptionsError && !opt.text?.trim() ? 'border-red-500 dark:border-red-600' : '',
+                                  theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 placeholder:text-zinc-400' : ''
+                                )}
                               />
                               {mq.options.length > 2 && (
                                 <Button
@@ -9053,7 +9315,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                     updated[mqIndex].options = updated[mqIndex].options.filter(o => o.id !== opt.id)
                                     setMatchingQuestions(updated)
                                   }}
-                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  className={cn(
+                                    "h-8 w-8 p-0",
+                                    theme === 'dark' 
+                                      ? 'text-red-400 hover:text-red-300 hover:bg-red-900/30' 
+                                      : 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                                  )}
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
@@ -9062,7 +9329,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                           ))}
                         </div>
                         {hasAnswerError && (
-                          <p className="text-xs text-red-600">⚠️ Debe marcar exactamente una opción como correcta</p>
+                          <p className={cn(
+                            "text-xs",
+                            theme === 'dark' ? 'text-red-400' : 'text-red-600'
+                          )}>
+                            ⚠️ Debe marcar exactamente una opción como correcta
+                          </p>
                         )}
                       </div>
                     )
@@ -9070,7 +9342,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full mt-4"
+                    className={cn(
+                      "w-full mt-4",
+                      theme === 'dark' 
+                        ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600 hover:text-white hover:border-zinc-500' 
+                        : ''
+                    )}
                     onClick={() => {
                       const newId = `mq-edit-${matchingQuestions.length + 1}-${Date.now()}`
                       // Crear opciones A-H (8 opciones iniciales)

@@ -435,7 +435,8 @@ class QuestionService {
       // Crear el documento de la pregunta
       const questionRef = doc(collection(db, 'superate', 'auth', 'questions'));
       
-      const question: Question = {
+      // Construir el objeto question solo con campos válidos (no undefined)
+      const question: any = {
         id: questionRef.id,
         code: codeResult.data,
         subject: questionData.subject,
@@ -445,16 +446,24 @@ class QuestionService {
         grade: questionData.grade,
         level: questionData.level,
         levelCode: questionData.levelCode,
-        informativeText: questionData.informativeText,
-        informativeImages: questionData.informativeImages,
         questionText: questionData.questionText,
-        questionImages: questionData.questionImages,
         answerType: questionData.answerType,
         options: questionData.options,
         createdBy: userId,
         createdAt: new Date(),
         rand: Math.random(), // Para muestreo aleatorio eficiente
       };
+
+      // Solo agregar campos opcionales si tienen valores válidos
+      if (questionData.informativeText !== undefined && questionData.informativeText !== null && questionData.informativeText.trim() !== '') {
+        question.informativeText = questionData.informativeText.trim();
+      }
+      if (questionData.informativeImages !== undefined && questionData.informativeImages !== null && questionData.informativeImages.length > 0) {
+        question.informativeImages = questionData.informativeImages;
+      }
+      if (questionData.questionImages !== undefined && questionData.questionImages !== null && questionData.questionImages.length > 0) {
+        question.questionImages = questionData.questionImages;
+      }
 
       // Preparar datos para Firestore (sin campos undefined)
       const firestoreData = Object.fromEntries(
