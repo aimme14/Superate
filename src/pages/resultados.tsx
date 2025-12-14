@@ -1055,16 +1055,10 @@ export default function EvaluationsTab() {
                                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                                   ¿Por qué la respuesta correcta es {selectedQuestionDetail.correctAnswer.toUpperCase()}?
                                 </h5>
-<<<<<<< HEAD
-                                <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                  {selectedQuestion.aiJustification.correctAnswerExplanation}
-                                </p>
-=======
                                 <MathText 
                                   text={selectedQuestion.aiJustification.correctAnswerExplanation}
                                   className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                                 />
->>>>>>> 6b03eae (IA(justificaciones). version mejorada)
                               </div>
 
                               {/* Explicación de la respuesta del estudiante si fue incorrecta */}
@@ -1080,16 +1074,10 @@ export default function EvaluationsTab() {
                                     )
                                     if (userAnswerExplanation) {
                                       return (
-<<<<<<< HEAD
-                                        <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                          {userAnswerExplanation.explanation}
-                                        </p>
-=======
                                         <MathText 
                                           text={userAnswerExplanation.explanation}
                                           className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                                         />
->>>>>>> 6b03eae (IA(justificaciones). version mejorada)
                                       )
                                     }
                                     return (
