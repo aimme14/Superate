@@ -6,7 +6,6 @@ import { normalizeError } from '@/errors/handler';
 import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/services/db';
-import { getAllPhases } from '@/utils/firestoreHelpers';
 
 /**
  * Configuración de cuestionarios por materia y fase
