@@ -146,12 +146,12 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
     let processedText = text
     
     // Convertir fórmulas en bloque $$...$$
-    processedText = processedText.replace(/\$\$([^$]+)\$\$/g, (match, latex) => {
+    processedText = processedText.replace(/\$\$([^$]+)\$\$/g, (_match, latex) => {
       return `<span class="katex-formula" data-latex="${latex.trim()}" data-display="true"></span>`
     })
     
     // Convertir fórmulas inline $...$
-    processedText = processedText.replace(/\$([^$]+)\$/g, (match, latex) => {
+    processedText = processedText.replace(/\$([^$]+)\$/g, (_match, latex) => {
       return `<span class="katex-formula" data-latex="${latex.trim()}"></span>`
     })
     
@@ -529,6 +529,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       filtered = filtered.filter(q => {
         if (!q.aiJustification) return false
         
+        const aiJustification = q.aiJustification
+        
         // Obtener la opción marcada como correcta en la pregunta
         const correctOption = q.options.find(opt => opt.isCorrect)
         if (!correctOption) return false
@@ -538,23 +540,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         // Verificar inconsistencias:
         // 1. La opción correcta aparece en las explicaciones de opciones incorrectas
-        const correctOptionInIncorrect = q.aiJustification.incorrectAnswersExplanation?.some(
+        const correctOptionInIncorrect = aiJustification.incorrectAnswersExplanation?.some(
           exp => exp.optionId === correctOption.id
         )
         
         // 2. El número de explicaciones incorrectas no coincide con el número real de opciones incorrectas
-        const incorrectCountMismatch = q.aiJustification.incorrectAnswersExplanation?.length !== incorrectOptions.length
+        const incorrectCountMismatch = aiJustification.incorrectAnswersExplanation?.length !== incorrectOptions.length
         
         // 3. Confianza muy baja (menor a 0.7)
-        const lowConfidence = q.aiJustification.confidence < 0.7
+        const lowConfidence = aiJustification.confidence < 0.7
         
         // 4. Explicación de respuesta correcta muy corta o faltante
-        const shortExplanation = !q.aiJustification.correctAnswerExplanation || 
-                                 q.aiJustification.correctAnswerExplanation.length < 50
+        const shortExplanation = !aiJustification.correctAnswerExplanation || 
+                                 aiJustification.correctAnswerExplanation.length < 50
         
         // 5. Falta alguna explicación de opción incorrecta
         const missingIncorrectExplanation = incorrectOptions.some(opt => 
-          !q.aiJustification.incorrectAnswersExplanation?.some(exp => exp.optionId === opt.id)
+          !aiJustification.incorrectAnswersExplanation?.some(exp => exp.optionId === opt.id)
         )
         
         return correctOptionInIncorrect || incorrectCountMismatch || lowConfidence || shortExplanation || missingIncorrectExplanation

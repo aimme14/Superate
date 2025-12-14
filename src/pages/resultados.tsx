@@ -85,12 +85,12 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
     let processedText = text
     
     // Convertir fórmulas en bloque $$...$$
-    processedText = processedText.replace(/\$\$([^$]+)\$\$/g, (match, latex) => {
+    processedText = processedText.replace(/\$\$([^$]+)\$\$/g, (_match, latex) => {
       return `<span class="katex-formula" data-latex="${latex.trim()}" data-display="true"></span>`
     })
     
     // Convertir fórmulas inline $...$
-    processedText = processedText.replace(/\$([^$]+)\$/g, (match, latex) => {
+    processedText = processedText.replace(/\$([^$]+)\$/g, (_match, latex) => {
       return `<span class="katex-formula" data-latex="${latex.trim()}"></span>`
     })
     

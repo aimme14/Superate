@@ -6,7 +6,7 @@ import { normalizeError } from '@/errors/handler';
 import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/services/db';
-import { getAllPhases, getPhaseType } from '@/utils/firestoreHelpers';
+import { getAllPhases } from '@/utils/firestoreHelpers';
 
 /**
  * Configuración de cuestionarios por materia y fase
@@ -229,7 +229,6 @@ class QuizGeneratorService {
     
     try {
       const db = getFirestore(firebaseApp);
-      const phases = getAllPhases();
       
       // Determinar qué fases anteriores revisar
       const phasesToCheck: string[] = [];
