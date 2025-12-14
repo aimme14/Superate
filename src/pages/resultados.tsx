@@ -1117,16 +1117,10 @@ export default function EvaluationsTab() {
                                         <span className={cn("font-semibold text-sm", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
                                           Opción {explanation.optionId}:
                                         </span>
-<<<<<<< HEAD
-                                        <p className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                          {explanation.explanation}
-                                        </p>
-=======
                                         <MathText 
                                           text={explanation.explanation}
                                           className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                                         />
->>>>>>> 6b03eae (IA(justificaciones). version mejorada)
                                       </div>
                                     ))}
                                   </div>
