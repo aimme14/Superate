@@ -4,6 +4,9 @@ import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
 import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/services/db';
+import { getAllPhases, getPhaseType } from '@/utils/firestoreHelpers';
 
 /**
  * Configuración de cuestionarios por materia y fase
@@ -215,6 +218,76 @@ class QuizGeneratorService {
   }
 
   /**
+   * Obtiene todas las preguntas ya respondidas por el estudiante en fases anteriores
+   */
+  private async getAnsweredQuestions(
+    studentId: string,
+    subject: string,
+    currentPhase: 'first' | 'second' | 'third'
+  ): Promise<Set<string>> {
+    const answeredQuestionIds = new Set<string>();
+    
+    try {
+      const db = getFirestore(firebaseApp);
+      const phases = getAllPhases();
+      
+      // Determinar qué fases anteriores revisar
+      const phasesToCheck: string[] = [];
+      if (currentPhase === 'second') {
+        // Fase 2: excluir preguntas de fase 1
+        phasesToCheck.push('fase I');
+      } else if (currentPhase === 'third') {
+        // Fase 3: excluir preguntas de fase 1 y fase 2
+        phasesToCheck.push('fase I', 'Fase II', 'fase II'); // Incluir ambas variantes de fase 2
+      }
+      
+      // Obtener resultados de las fases anteriores
+      for (const phaseName of phasesToCheck) {
+        try {
+          const phaseRef = collection(db, "results", studentId, phaseName);
+          const phaseSnap = await getDocs(phaseRef);
+          
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data();
+            
+            // Verificar que sea de la misma materia
+            if (examData.subject && examData.subject.trim().toLowerCase() === subject.trim().toLowerCase()) {
+              // Extraer IDs de preguntas de questionDetails
+              if (examData.questionDetails && Array.isArray(examData.questionDetails)) {
+                examData.questionDetails.forEach((detail: any) => {
+                  if (detail.questionId) {
+                    answeredQuestionIds.add(detail.questionId);
+                  }
+                  if (detail.questionCode) {
+                    answeredQuestionIds.add(detail.questionCode);
+                  }
+                });
+              }
+              
+              // También verificar en answers (estructura antigua)
+              if (examData.answers && typeof examData.answers === 'object') {
+                Object.keys(examData.answers).forEach(questionId => {
+                  answeredQuestionIds.add(questionId);
+                });
+              }
+            }
+          });
+        } catch (error) {
+          console.warn(`⚠️ Error obteniendo resultados de ${phaseName}:`, error);
+          // Continuar con otras fases aunque una falle
+        }
+      }
+      
+      console.log(`📋 Preguntas ya respondidas en fases anteriores para ${subject}: ${answeredQuestionIds.size}`);
+    } catch (error) {
+      console.error('❌ Error obteniendo preguntas respondidas:', error);
+      // Retornar set vacío si hay error, para no bloquear la generación
+    }
+    
+    return answeredQuestionIds;
+  }
+
+  /**
    * Genera un cuestionario dinámico basado en la materia y fase
    */
   async generateQuiz(
@@ -232,16 +305,23 @@ class QuizGeneratorService {
         return failure(new ErrorAPI({ message: `No se encontró configuración para ${subject} - ${phase}` }));
       }
 
+      // Obtener preguntas ya respondidas en fases anteriores (solo si hay studentId y no es fase 1)
+      let answeredQuestionIds = new Set<string>();
+      if (studentId && phase !== 'first') {
+        answeredQuestionIds = await this.getAnsweredQuestions(studentId, subject, phase);
+        console.log(`🚫 Excluyendo ${answeredQuestionIds.size} preguntas ya respondidas en fases anteriores`);
+      }
+
       // Para Fase 2, usar distribución personalizada si hay studentId
       if (phase === 'second' && studentId && subject !== 'Inglés') {
         console.log(`📊 Generando cuestionario personalizado Fase 2 para ${studentId}`);
-        return await this.generatePersonalizedPhase2Quiz(subject, config, grade, studentId);
+        return await this.generatePersonalizedPhase2Quiz(subject, config, grade, studentId, answeredQuestionIds);
       }
 
       // Lógica especial para Inglés: preguntas agrupadas por tema
       if (subject === 'Inglés') {
         console.log(`🇬🇧 Aplicando lógica especial para Inglés con preguntas agrupadas`);
-        const englishResult = await this.getEnglishGroupedQuestions(subject, config, grade, phase);
+        const englishResult = await this.getEnglishGroupedQuestions(subject, config, grade, phase, answeredQuestionIds);
         if (!englishResult.success) {
           return failure(englishResult.error);
         }
@@ -276,10 +356,10 @@ class QuizGeneratorService {
 
       if (subjectRule) {
         console.log(`🧠 Aplicando reglas por tópico para ${subject}`);
-        const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule);
+        const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule, answeredQuestionIds);
         if (!topicResult.success) {
           console.warn('⚠️ No se pudieron aplicar reglas por tópico, usando búsqueda general', topicResult.error);
-          const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+          const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds);
           if (!generalResult.success) {
             return failure(generalResult.error);
           }
@@ -288,7 +368,7 @@ class QuizGeneratorService {
           questions = topicResult.data;
         }
       } else {
-        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds);
         if (!generalResult.success) {
           return failure(generalResult.error);
         }
@@ -334,7 +414,8 @@ class QuizGeneratorService {
     subject: string,
     _config: Partial<QuizConfig>,
     grade: string | undefined,
-    expectedCount: number
+    expectedCount: number,
+    excludeQuestionIds: Set<string> = new Set()
   ): Promise<Result<Question[]>> {
     const gradeValues = this.getGradeSearchValues(grade);
     const subjectCode = this.getSubjectCode(subject);
@@ -356,7 +437,7 @@ class QuizGeneratorService {
       }
     ];
 
-    const questions = await this.fetchQuestionsWithFallback(attempts, expectedCount);
+    const questions = await this.fetchQuestionsWithFallback(attempts, expectedCount, excludeQuestionIds);
 
     if (questions.length === 0) {
       return failure(new ErrorAPI({
@@ -371,7 +452,8 @@ class QuizGeneratorService {
     subject: string,
     config: Partial<QuizConfig>,
     grade: string | undefined,
-    rule: SubjectTopicRule
+    rule: SubjectTopicRule,
+    excludeQuestionIds: Set<string> = new Set()
   ): Promise<Result<Question[]>> {
     const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
     if (!subjectConfig) {
@@ -424,7 +506,7 @@ class QuizGeneratorService {
       ];
 
       console.log(`🧩 Buscando preguntas para tópico ${topic.name} (${subject}) con ${attempts.length} intentos`);
-      const topicQuestions = await this.fetchQuestionsWithFallback(attempts, rule.perTopicTarget);
+      const topicQuestions = await this.fetchQuestionsWithFallback(attempts, rule.perTopicTarget, excludeQuestionIds);
       topicQuestionMap[topic.code] = topicQuestions;
       console.log(`✅ ${topicQuestions.length} preguntas almacenadas para ${topic.name}`);
     }
@@ -440,7 +522,7 @@ class QuizGeneratorService {
       const missing = rule.totalQuestions - questions.length;
       console.warn(`⚠️ Faltan ${missing} preguntas para ${subject}, intentando completar con selección general`);
 
-      const fallbackResult = await this.getGeneralQuestions(subject, config, grade, missing);
+      const fallbackResult = await this.getGeneralQuestions(subject, config, grade, missing, excludeQuestionIds);
       if (fallbackResult.success && fallbackResult.data.length > 0) {
         const existingIds = new Set(questions.map(q => q.id || q.code));
         const extras = fallbackResult.data.filter(q => !existingIds.has(q.id || q.code));
@@ -463,7 +545,8 @@ class QuizGeneratorService {
     subject: string,
     config: Partial<QuizConfig>,
     grade: string | undefined,
-    phase: 'first' | 'second' | 'third'
+    phase: 'first' | 'second' | 'third',
+    excludeQuestionIds: Set<string> = new Set()
   ): Promise<Result<Question[]>> {
     console.log(`🇬🇧 Generando cuestionario de Inglés con preguntas agrupadas por tema`);
     
@@ -521,13 +604,14 @@ class QuizGeneratorService {
       ];
 
       // Obtener todas las preguntas del tema
-      const allQuestions = await this.fetchQuestionsWithFallback(attempts, 100);
+      const allQuestions = await this.fetchQuestionsWithFallback(attempts, 100, excludeQuestionIds);
       
-      // Filtrar solo preguntas agrupadas (que tienen informativeText)
+      // Filtrar solo preguntas agrupadas (que tienen informativeText) y que no hayan sido respondidas
       const groupedQuestions = allQuestions.filter(q => 
         q.subjectCode === 'IN' && 
         q.informativeText && 
-        q.informativeText.trim() !== ''
+        q.informativeText.trim() !== '' &&
+        !excludeQuestionIds.has(q.id || q.code)
       );
 
       // Agrupar preguntas por su informativeText (grupos de preguntas relacionadas)
@@ -823,23 +907,30 @@ class QuizGeneratorService {
 
   private async fetchQuestionsWithFallback(
     attempts: QuestionFilters[],
-    expectedCount: number
+    expectedCount: number,
+    excludeQuestionIds: Set<string> = new Set()
   ): Promise<Question[]> {
     const collected = new Map<string, Question>();
 
     for (const [index, filters] of attempts.entries()) {
-      const result = await questionService.getRandomQuestions(filters, expectedCount);
+      const result = await questionService.getRandomQuestions(filters, expectedCount * 2); // Obtener más para tener opciones después de filtrar
       if (!result.success) {
         console.warn(`⚠️ Intento ${index + 1} fallido con filtros`, filters, result.error);
         continue;
       }
 
-      const deduped = this.dedupeQuestions(result.data);
-      console.log(`🔎 Intento ${index + 1}: ${deduped.length} preguntas obtenidas con filtros`, filters);
+      // Filtrar preguntas ya respondidas
+      const filtered = result.data.filter(q => {
+        const key = q.id || q.code;
+        return !excludeQuestionIds.has(key);
+      });
+
+      const deduped = this.dedupeQuestions(filtered);
+      console.log(`🔎 Intento ${index + 1}: ${deduped.length} preguntas obtenidas (${result.data.length} totales, ${result.data.length - filtered.length} excluidas) con filtros`, filters);
 
       for (const question of deduped) {
         const key = question.id || question.code;
-        if (!collected.has(key)) {
+        if (!collected.has(key) && !excludeQuestionIds.has(key)) {
           collected.set(key, question);
         }
         if (collected.size >= expectedCount) {
@@ -1013,7 +1104,8 @@ class QuizGeneratorService {
     subject: string,
     config: Partial<QuizConfig>,
     grade: string | undefined,
-    studentId: string
+    studentId: string,
+    excludeQuestionIds: Set<string> = new Set()
   ): Promise<Result<GeneratedQuiz>> {
     try {
       // Obtener distribución personalizada
@@ -1039,7 +1131,8 @@ class QuizGeneratorService {
         distribution.primaryWeakness,
         distribution.primaryWeaknessCount,
         grade,
-        config.level || 'Medio'
+        config.level || 'Medio',
+        excludeQuestionIds
       );
       questions.push(...primaryWeaknessQuestions);
 
@@ -1059,7 +1152,8 @@ class QuizGeneratorService {
               topic,
               questionsForThisTopic,
               grade,
-              config.level || 'Medio'
+              config.level || 'Medio',
+              excludeQuestionIds
             );
             questions.push(...topicQuestions);
           }
@@ -1068,7 +1162,7 @@ class QuizGeneratorService {
         // Caso edge: solo hay 1 tema (la debilidad principal)
         // En este caso, usar distribución estándar
         console.warn(`⚠️ Solo hay 1 tema en ${subject}, usando distribución estándar`);
-        return this.generateStandardPhase2Quiz(subject, config, grade);
+        return this.generateStandardPhase2Quiz(subject, config, grade, excludeQuestionIds);
       }
 
       // Mezclar preguntas
@@ -1108,7 +1202,8 @@ class QuizGeneratorService {
   private async generateStandardPhase2Quiz(
     subject: string,
     config: Partial<QuizConfig>,
-    grade: string | undefined
+    grade: string | undefined,
+    excludeQuestionIds: Set<string> = new Set()
   ): Promise<Result<GeneratedQuiz>> {
     const subjectRule = SUBJECT_TOPIC_RULES[subject];
     const expectedCount = subjectRule?.totalQuestions || config.questionCount || 15;
@@ -1116,17 +1211,17 @@ class QuizGeneratorService {
     let questions: Question[] = [];
 
     if (subjectRule) {
-      const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule);
+      const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule, excludeQuestionIds);
       if (topicResult.success) {
         questions = topicResult.data;
       } else {
-        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, excludeQuestionIds);
         if (generalResult.success) {
           questions = generalResult.data;
         }
       }
     } else {
-      const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount);
+      const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, excludeQuestionIds);
       if (generalResult.success) {
         questions = generalResult.data;
       }
@@ -1158,7 +1253,8 @@ class QuizGeneratorService {
     topic: string,
     count: number,
     grade: string | undefined,
-    level: string
+    level: string,
+    excludeQuestionIds: Set<string> = new Set()
   ): Promise<Question[]> {
     const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
     if (!subjectConfig) {
@@ -1199,7 +1295,7 @@ class QuizGeneratorService {
       }
     ];
 
-    const questions = await this.fetchQuestionsWithFallback(attempts, count);
+    const questions = await this.fetchQuestionsWithFallback(attempts, count, excludeQuestionIds);
     return questions;
   }
 
