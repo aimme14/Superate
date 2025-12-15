@@ -566,6 +566,8 @@ const ExamWithFirebase = () => {
   // Función para cambiar de grupo (para inglés)
   // Función para cambiar de grupo (para inglés)
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
+  // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const changeGroup = (_newGroupIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de grupo cuando se usa el botón "Siguiente"
@@ -1588,12 +1590,16 @@ const ExamWithFirebase = () => {
     // Para inglés, navegar entre grupos
     if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
       if (currentGroupIndex > 0) {
-        changeGroup(currentGroupIndex - 1);
+        const prevGroupIndex = currentGroupIndex - 1;
+        // Usar la función interna para cambiar de grupo (no bloqueada)
+        internalChangeGroup(prevGroupIndex);
       }
     } else {
       // Para otras materias, navegar entre preguntas individuales
       if (currentQuestion > 0) {
-        changeQuestion(currentQuestion - 1);
+        const prevIndex = currentQuestion - 1;
+        // Usar la función interna para cambiar de pregunta (no bloqueada)
+        internalChangeQuestion(prevIndex);
       }
     }
   }
