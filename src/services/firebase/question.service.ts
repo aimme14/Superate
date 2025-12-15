@@ -647,7 +647,7 @@ class QuestionService {
         
         return {
           ...data,
-          id: doc.id,
+        id: doc.id,
           createdAt: data.createdAt?.toDate() || new Date(),
           aiJustification,
         } as Question;

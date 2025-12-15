@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/ui/select"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -159,6 +159,7 @@ const ExamWithFirebase = () => {
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
   const [questionGroups, setQuestionGroups] = useState<Question[][]>([]); // Grupos de preguntas agrupadas
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0); // Índice del grupo actual
   
@@ -511,7 +512,56 @@ const ExamWithFirebase = () => {
   };
 
   // Función para cambiar de pregunta con seguimiento de tiempo
+  // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
   const changeQuestion = (newQuestionIndex: number) => {
+    if (!quizData) return;
+
+    // BLOQUEAR TODA navegación desde los botones de navegación
+    // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
+    // Los botones de navegación son SOLO marcadores visuales
+    return;
+    
+    // Finalizar tiempo de las preguntas del grupo actual
+    if (quizData.subject === 'Inglés' && questionGroups.length > 0 && questionGroups[currentGroupIndex]) {
+      questionGroups[currentGroupIndex].forEach(q => {
+        const questionId = q.id || '';
+        if (questionId) finalizeQuestionTime(questionId);
+      });
+    } else {
+      const currentQuestionId = quizData.questions[currentQuestion].id || '';
+      finalizeQuestionTime(currentQuestionId);
+    }
+
+    // Cambiar a la nueva pregunta
+    setCurrentQuestion(newQuestionIndex);
+    
+    // Para inglés, actualizar el índice del grupo
+    if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
+            // Encontrar a qué grupo pertenece esta pregunta
+            let foundGroupIndex = 0;
+            let accumulated = 0;
+            for (let i = 0; i < questionGroups.length; i++) {
+              if (newQuestionIndex < accumulated + questionGroups[i].length) {
+                foundGroupIndex = i;
+                break;
+              }
+              accumulated += questionGroups[i].length;
+            }
+            setCurrentGroupIndex(foundGroupIndex);
+            
+            // Inicializar tiempo de la primera pregunta del nuevo grupo
+            if (questionGroups.length > 0 && questionGroups[foundGroupIndex]) {
+              const firstQuestionId = questionGroups[foundGroupIndex][0].id || '';
+              if (firstQuestionId) initializeQuestionTime(firstQuestionId);
+            }
+    } else {
+      const newQuestionId = quizData.questions[newQuestionIndex].id || '';
+      initializeQuestionTime(newQuestionId);
+    }
+  };
+
+  // Función interna para cambiar de pregunta (solo usada por nextQuestion y changeGroup)
+  const internalChangeQuestion = (newQuestionIndex: number) => {
     if (!quizData) return;
     
     // Finalizar tiempo de las preguntas del grupo actual
@@ -554,8 +604,15 @@ const ExamWithFirebase = () => {
   };
   
   // Función para cambiar de grupo (para inglés)
+  // Función para cambiar de grupo (para inglés)
+  // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
   const changeGroup = (newGroupIndex: number) => {
     if (!quizData || questionGroups.length === 0) return;
+
+    // BLOQUEAR TODA navegación desde los botones de navegación
+    // Solo permitir cambiar de grupo cuando se usa el botón "Siguiente"
+    // Los botones de navegación son SOLO marcadores visuales
+    return;
     
     // Finalizar tiempo del grupo actual
     questionGroups[currentGroupIndex].forEach(q => {
@@ -590,7 +647,8 @@ const ExamWithFirebase = () => {
     if (examState === 'active' && examStartTime === 0 && quizData && quizData.questions.length > 0) {
       const now = Date.now();
       setExamStartTime(now);
-      // Inicializar la primera pregunta
+      // Inicializar la primera pregunta y marcar como alcanzada
+      setMaxReachedQuestion(0);
       const firstQuestionId = quizData.questions[0].id || '';
       if (firstQuestionId) {
         initializeQuestionTime(firstQuestionId);
@@ -770,29 +828,62 @@ const ExamWithFirebase = () => {
       if (isProcessingTabChange) return;
       isProcessingTabChange = true;
 
-        setTabChangeCount(prev => {
-          const newCount = prev + 1;
-          
-        // Si es el segundo cambio o más, finalizar inmediatamente sin mostrar modal
-          if (newCount >= 2) {
+      setTabChangeCount(prev => {
+        const newCount = prev + 1;
+        
+        // Si es la segunda vez (newCount === 2), finalizar examen automáticamente
+        if (newCount === 2) {
           // Cerrar cualquier modal abierto
           setShowTabChangeWarning(false);
           setShowFullscreenExit(false);
           
           // Finalizar el examen inmediatamente
-          // Llamar a handleSubmit antes de establecer examLocked
-            setTimeout(() => {
-            if (handleSubmitRef.current) {
-              handleSubmitRef.current(false, true);
-            }
-          }, 50);
-        } else {
-          // Si es el primer cambio, mostrar advertencia
-          setShowTabChangeWarning(true);
-          }
+          // IMPORTANTE: No establecer examLocked aquí, dejar que handleSubmit lo haga
+          // porque handleSubmit verifica examLocked al inicio y retorna si ya está bloqueado
           
-          return newCount;
-        });
+          // Intentar múltiples veces para asegurar que la referencia esté disponible
+          const attemptFinalize = (attempts = 0) => {
+            if (handleSubmitRef.current) {
+              // Llamar a handleSubmit que internamente establecerá examLocked
+              handleSubmitRef.current(false, true).catch(error => {
+                console.error('Error al finalizar examen por cambio de pestaña:', error);
+                // Si falla, establecer estados manualmente como fallback
+                setExamLocked(true);
+                setExamState('completed');
+              });
+            } else if (attempts < 5) {
+              // Si la referencia no está disponible, intentar de nuevo después de un breve delay
+              setTimeout(() => attemptFinalize(attempts + 1), 100);
+            } else {
+              // Si después de varios intentos la referencia no está disponible, forzar la finalización
+              console.error('handleSubmitRef no disponible después de varios intentos, finalizando manualmente');
+              // Establecer estados y guardar directamente
+              setExamLocked(true);
+              setShowTabChangeWarning(false);
+              setShowFullscreenExit(false);
+              
+              // Guardar y finalizar directamente
+              saveToFirebase(false, true).then(() => {
+                setExamState('completed');
+                if (isFullscreen) {
+                  exitFullscreen();
+                }
+              }).catch(error => {
+                console.error('Error al finalizar examen manualmente:', error);
+                setExamState('completed');
+              });
+            }
+          };
+          
+          // Iniciar el intento de finalización
+          setTimeout(() => attemptFinalize(), 50);
+        } else if (newCount === 1) {
+          // Primera vez: mostrar advertencia
+          setShowTabChangeWarning(true);
+        }
+        
+        return newCount;
+      });
 
       // Resetear el flag después de un breve delay
       setTimeout(() => {
@@ -801,8 +892,22 @@ const ExamWithFirebase = () => {
     };
 
     const handleVisibilityChange = () => {
-      if (document.hidden && !examLocked) {
-        handleTabChange();
+      if (!examLocked) {
+        if (document.hidden) {
+          // Cuando se oculta la pestaña, incrementar contador
+          handleTabChange();
+        } else {
+          // Cuando vuelve a la pestaña, verificar si debe mostrarse el modal
+          // Usar una verificación con el estado actual
+          setTimeout(() => {
+            setTabChangeCount(currentCount => {
+              if (currentCount === 1) {
+                setShowTabChangeWarning(true);
+              }
+              return currentCount;
+            });
+          }, 100);
+        }
       }
     };
 
@@ -929,6 +1034,9 @@ const ExamWithFirebase = () => {
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
+    // Restablecer contador de intentos de fraude al iniciar el examen
+    setTabChangeCount(0);
+    setShowTabChangeWarning(false);
     const entered = await enterFullscreen()
     setExamState('active')
     if (!entered) {
@@ -1199,7 +1307,7 @@ const ExamWithFirebase = () => {
             <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Control de Pestañas</AlertTitle>
             <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
-              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 2 intentos, el examen se finalizará automáticamente.
+              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Si lo vuelves a hacer, el examen se finalizará automáticamente.
             </AlertDescription>
           </Alert>
           <Alert className={cn(appTheme === 'dark' ? 'border-purple-800 bg-purple-900/30' : 'border-purple-200 bg-purple-50')}>
@@ -1278,17 +1386,14 @@ const ExamWithFirebase = () => {
         </CardHeader>
         <CardContent className="text-center">
           <div className={cn("rounded-lg p-4 mb-4", appTheme === 'dark' ? 'bg-orange-900/30' : 'bg-orange-50')}>
-            <div className={cn("text-sm mb-1", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>Intentos restantes</div>
-              <div className={cn("text-2xl font-bold", appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>{remainingAttempts}</div>
+            <div className={cn("text-sm mb-1", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>Intento de fraude detectado</div>
+              <div className={cn("text-2xl font-bold", appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>{tabChangeCount}</div>
           </div>
           <p className={cn("mb-2", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
           </p>
           <p className={cn("text-sm font-medium", appTheme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-              {remainingAttempts === 1
-              ? "¡Último aviso! El próximo cambio finalizará el examen automáticamente."
-                : `Después de ${remainingAttempts} intentos más, el examen se finalizará automáticamente.`
-            }
+            ⚠️ Esta es tu primera advertencia. Si cambias de pestaña una segunda vez, el examen se finalizará automáticamente.
           </p>
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
@@ -1440,7 +1545,7 @@ const ExamWithFirebase = () => {
   }, [examState, timeLeft, examLocked])
 
   // Función para manejar el envío del examen
-  const handleSubmit = async (timeExpired = false, lockedByTabChange = false) => {
+  const handleSubmit = useCallback(async (timeExpired = false, lockedByTabChange = false) => {
     if (examLocked || examState !== 'active') return
 
     setExamLocked(true)
@@ -1460,10 +1565,12 @@ const ExamWithFirebase = () => {
       console.error('Error guardando examen:', error)
       // Aquí podrías mostrar un mensaje de error al usuario
     }
-  }
+  }, [examLocked, examState, isFullscreen])
   
   // Actualizar la referencia a handleSubmit
-  handleSubmitRef.current = handleSubmit;
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  }, [handleSubmit]);
 
   // Función para manejar el cambio de respuesta
   const handleAnswerChange = (questionId: string, answer: string) => {
@@ -1486,12 +1593,29 @@ const ExamWithFirebase = () => {
     // Para inglés, navegar entre grupos
     if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
       if (currentGroupIndex < questionGroups.length - 1) {
-        changeGroup(currentGroupIndex + 1);
+        const nextGroupIndex = currentGroupIndex + 1;
+        // Calcular el índice de pregunta correspondiente
+        let nextQuestionIndex = 0;
+        for (let i = 0; i < nextGroupIndex; i++) {
+          nextQuestionIndex += questionGroups[i].length;
+        }
+        // Actualizar maxReachedQuestion
+        if (nextQuestionIndex > maxReachedQuestion) {
+          setMaxReachedQuestion(nextQuestionIndex);
+        }
+        // Usar la función interna para cambiar de grupo (no bloqueada)
+        internalChangeGroup(nextGroupIndex);
       }
     } else {
       // Para otras materias, navegar entre preguntas individuales
       if (currentQuestion < quizData.questions.length - 1) {
-        changeQuestion(currentQuestion + 1);
+        const nextIndex = currentQuestion + 1;
+        // Actualizar maxReachedQuestion cuando se avanza con el botón siguiente
+        if (nextIndex > maxReachedQuestion) {
+          setMaxReachedQuestion(nextIndex);
+        }
+        // Usar la función interna para cambiar de pregunta (no bloqueada)
+        internalChangeQuestion(nextIndex);
       }
     }
   }
@@ -1734,11 +1858,11 @@ const ExamWithFirebase = () => {
                   <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
                 </div>
                 {/* Advertencias de cambio de pestaña */}
-                {tabChangeCount > 0 && (
+                {tabChangeCount === 1 && (
                   <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
                     <AlertCircle className="h-4 w-4 text-orange-500" />
                     <span className="text-sm font-medium text-orange-700">
-                      {2 - tabChangeCount} intentos restantes
+                      1 intento de fraude detectado
                     </span>
                   </div>
                 )}
@@ -2254,9 +2378,14 @@ const ExamWithFirebase = () => {
                   return (
                     <button
                       key={groupIndex}
-                      onClick={() => changeGroup(groupIndex)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // BLOQUEAR TODOS los clics - los botones son SOLO marcadores visuales
+                        return false;
+                      }}
                       className={cn(
-                        "w-full p-3 rounded-md flex flex-col items-start text-xs font-semibold transition-all duration-200 hover:scale-[1.02] border-2",
+                        "w-full p-3 rounded-md flex flex-col items-start text-xs font-semibold transition-all duration-200 cursor-not-allowed border-2",
                         isCurrent
                           ? allAnswered
                             ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1 border-purple-400"
@@ -2271,7 +2400,12 @@ const ExamWithFirebase = () => {
                           ? "bg-zinc-700 text-gray-300 border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" 
                           : "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200 hover:border-purple-300"
                       )}
-                      title={`Grupo ${groupIndex + 1} (${group.length} pregunta${group.length > 1 ? 's' : ''})${allAnswered ? " - Completado" : someAnswered ? " - Parcialmente respondido" : " - Sin responder"}`}
+                      title={`Grupo ${groupIndex + 1} (${group.length} pregunta${group.length > 1 ? 's' : ''})${allAnswered ? " - Completado" : someAnswered ? " - Parcialmente respondido" : " - Sin responder"} - Solo marcador visual`}
+                      onMouseDown={(e) => {
+                        // Prevenir cualquier acción - los botones son solo marcadores visuales
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
                     >
                       <div className="flex items-center justify-between w-full mb-1">
                         <span className="font-bold">Grupo {groupIndex + 1}</span>
@@ -2292,12 +2426,20 @@ const ExamWithFirebase = () => {
                   const questionId = q.id || ''
                   const isAnswered = answers[questionId];
                   const isCurrent = currentQuestion === index;
+                  // TODOS los botones están bloqueados - solo son marcadores visuales
+                  // No se puede navegar desde los botones, solo desde el botón "Siguiente"
+                  
                   return (
                     <button
                       key={q.id}
-                      onClick={() => changeQuestion(index)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // BLOQUEAR TODOS los clics - los botones son SOLO marcadores visuales
+                        return false;
+                      }}
                       className={cn(
-                        "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110",
+                        "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 cursor-not-allowed",
                         isCurrent
                           ? isAnswered
                             ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
@@ -2306,7 +2448,12 @@ const ExamWithFirebase = () => {
                           ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
                           : (appTheme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300")
                       )}
-                      title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
+                      title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"} - Solo marcador visual`}
+                      onMouseDown={(e) => {
+                        // Prevenir cualquier acción - los botones son solo marcadores visuales
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
                     >
                       {index + 1}
                       {isAnswered && !isCurrent && (

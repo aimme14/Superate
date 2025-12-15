@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,59 @@ const renderMathInHtml = (html: string): string => {
   }
   
   return tempDiv.innerHTML
+}
+
+// Componente para renderizar texto con fórmulas matemáticas
+const MathText = ({ text, className = '' }: { text: string; className?: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+  
+  useEffect(() => {
+    if (!containerRef.current || !text) return
+    
+    // Primero, detectar y convertir fórmulas LaTeX en formato `$...$` o `$$...$$`
+    let processedText = text
+    
+    // Convertir fórmulas en bloque $$...$$
+    processedText = processedText.replace(/\$\$([^$]+)\$\$/g, (_match, latex) => {
+      return `<span class="katex-formula" data-latex="${latex.trim()}" data-display="true"></span>`
+    })
+    
+    // Convertir fórmulas inline $...$
+    processedText = processedText.replace(/\$([^$]+)\$/g, (_match, latex) => {
+      return `<span class="katex-formula" data-latex="${latex.trim()}"></span>`
+    })
+    
+    // Procesar el texto para renderizar fórmulas existentes
+    const processedHtml = renderMathInHtml(processedText)
+    containerRef.current.innerHTML = processedHtml
+    
+    // Renderizar todas las fórmulas con KaTeX
+    const mathElements = containerRef.current.querySelectorAll('[data-latex]')
+    mathElements.forEach((el) => {
+      const latex = el.getAttribute('data-latex')
+      if (latex && !el.querySelector('.katex')) {
+        import('katex').then((katexModule) => {
+          const katex = katexModule.default
+          const isDisplay = el.getAttribute('data-display') === 'true'
+          try {
+            katex.render(latex, el as HTMLElement, {
+              throwOnError: false,
+              displayMode: isDisplay,
+              strict: false,
+            })
+            el.classList.add('katex-formula')
+          } catch (error) {
+            console.error('Error renderizando fórmula:', error)
+            el.textContent = latex
+          }
+        }).catch(() => {
+          console.warn('No se pudo cargar KaTeX')
+        })
+      }
+    })
+  }, [text])
+  
+  return <div ref={containerRef} className={className} />
 }
 
 interface ExamScore {
@@ -1002,9 +1055,10 @@ export default function EvaluationsTab() {
                                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                                   ¿Por qué la respuesta correcta es {selectedQuestionDetail.correctAnswer.toUpperCase()}?
                                 </h5>
-                                <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                  {selectedQuestion.aiJustification.correctAnswerExplanation}
-                                </p>
+                                <MathText 
+                                  text={selectedQuestion.aiJustification.correctAnswerExplanation}
+                                  className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                                />
                               </div>
 
                               {/* Explicación de la respuesta del estudiante si fue incorrecta */}
@@ -1020,9 +1074,10 @@ export default function EvaluationsTab() {
                                     )
                                     if (userAnswerExplanation) {
                                       return (
-                                        <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                          {userAnswerExplanation.explanation}
-                                        </p>
+                                        <MathText 
+                                          text={userAnswerExplanation.explanation}
+                                          className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                                        />
                                       )
                                     }
                                     return (
@@ -1050,9 +1105,10 @@ export default function EvaluationsTab() {
                                         <span className={cn("font-semibold text-sm", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
                                           Opción {explanation.optionId}:
                                         </span>
-                                        <p className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                          {explanation.explanation}
-                                        </p>
+                                        <MathText 
+                                          text={explanation.explanation}
+                                          className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                                        />
                                       </div>
                                     ))}
                                   </div>

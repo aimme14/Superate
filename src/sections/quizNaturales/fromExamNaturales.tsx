@@ -172,6 +172,7 @@ const ExamWithFirebase = () => {
   const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
   const [showWarning, setShowWarning] = useState(false)
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -233,7 +234,27 @@ const ExamWithFirebase = () => {
   };
 
   // Función para cambiar de pregunta con seguimiento de tiempo
+  // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
   const changeQuestion = (newQuestionIndex: number) => {
+    // BLOQUEAR TODA navegación desde los botones de navegación
+    // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
+    // Los botones de navegación son SOLO marcadores visuales
+    return;
+
+    // Finalizar tiempo de la pregunta actual
+    const currentQuestionId = examData.questions[currentQuestion].id;
+    finalizeQuestionTime(currentQuestionId);
+
+    // Cambiar a la nueva pregunta
+    setCurrentQuestion(newQuestionIndex);
+
+    // Inicializar tiempo de la nueva pregunta
+    const newQuestionId = examData.questions[newQuestionIndex].id;
+    initializeQuestionTime(newQuestionId);
+  };
+
+  // Función interna para cambiar de pregunta (solo usada por nextQuestion)
+  const internalChangeQuestion = (newQuestionIndex: number) => {
     // Finalizar tiempo de la pregunta actual
     const currentQuestionId = examData.questions[currentQuestion].id;
     finalizeQuestionTime(currentQuestionId);
@@ -280,7 +301,8 @@ const ExamWithFirebase = () => {
     if (examState === 'active' && examStartTime === 0) {
       const now = Date.now();
       setExamStartTime(now);
-      // Inicializar la primera pregunta
+      // Inicializar la primera pregunta y marcar como alcanzada
+      setMaxReachedQuestion(0);
       initializeQuestionTime(examData.questions[0].id);
     }
   }, [examState]);
@@ -428,34 +450,63 @@ const ExamWithFirebase = () => {
 
   // Detectar cambios de pestaña y pérdida de foco
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (examState === 'active' && document.hidden) {
-        setTabChangeCount(prev => prev + 1);
-        setShowTabChangeWarning(true);
+    if (examState !== 'active' || examLocked) return;
 
-        if (tabChangeCount >= 2) {
+    // Flag para evitar procesamiento duplicado
+    let isProcessingTabChange = false;
+
+    const handleTabChange = () => {
+      // Evitar procesamiento duplicado
+      if (isProcessingTabChange) return;
+      isProcessingTabChange = true;
+
+      setTabChangeCount(prev => {
+        const newCount = prev + 1;
+        
+        // Si es la segunda vez (newCount === 2), finalizar examen automáticamente
+        if (newCount === 2) {
+          // Cerrar cualquier modal abierto
+          setShowTabChangeWarning(false);
+          setShowFullscreenExit(false);
+          
+          // Finalizar el examen inmediatamente
           setExamLocked(true);
-          handleSubmit(true, true);
+          setTimeout(() => {
+            handleSubmit(true, true);
+          }, 50);
+        } else if (newCount === 1) {
+          // Primera vez: mostrar advertencia
+          setShowTabChangeWarning(true);
         }
+        
+        return newCount;
+      });
+
+      // Resetear el flag después de un breve delay
+      setTimeout(() => {
+        isProcessingTabChange = false;
+      }, 500);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && !examLocked) {
+        handleTabChange();
       }
     };
 
     const handleWindowBlur = () => {
-      if (examState === 'active') {
-        setTabChangeCount(prev => prev + 1);
-        setShowTabChangeWarning(true);
-
-        if (tabChangeCount >= 2) {
-          setExamLocked(true);
-          handleSubmit(true, true);
-        }
+      // Solo procesar si realmente cambió de pestaña (verificado por visibilitychange)
+      if (!examLocked && document.hidden) {
+        setTimeout(() => {
+          if (document.hidden && !examLocked) {
+            handleTabChange();
+          }
+        }, 100);
       }
     };
 
     const handleWindowFocus = () => {
-      if (examState === 'active' && showTabChangeWarning && !examLocked) {
-        // El aviso se mantiene visible
-      }
+      // El aviso se mantiene visible si hay una advertencia activa
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -467,7 +518,7 @@ const ExamWithFirebase = () => {
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [examState, tabChangeCount, showTabChangeWarning, examLocked]);
+  }, [examState, examLocked]);
 
   // Detectar cambios de pantalla completa
   useEffect(() => {
@@ -560,6 +611,9 @@ const ExamWithFirebase = () => {
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
+    // Restablecer contador de intentos de fraude al iniciar el examen
+    setTabChangeCount(0);
+    setShowTabChangeWarning(false);
     const entered = await enterFullscreen()
     setExamState('active')
     if (!entered) {
@@ -863,8 +917,8 @@ const ExamWithFirebase = () => {
         </CardHeader>
         <CardContent className="text-center">
           <div className="bg-orange-50 rounded-lg p-4 mb-4">
-            <div className="text-sm text-orange-600 mb-1">Intentos restantes</div>
-            <div className="text-2xl font-bold text-orange-800">{2 - tabChangeCount}</div>
+            <div className="text-sm text-orange-600 mb-1">Intento de fraude detectado</div>
+            <div className="text-2xl font-bold text-orange-800">{tabChangeCount}</div>
           </div>
           <p className="text-gray-700 mb-2">
             Has cambiado de pestaña o perdido el foco de la ventana del examen.
@@ -946,7 +1000,7 @@ const ExamWithFirebase = () => {
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <AlertTitle className="text-orange-800">Advertencia</AlertTitle>
                   <AlertDescription className="text-orange-700">
-                    Has salido de pantalla completa y cambiado de pestaña. Si lo vuelves a hacer, el examen se tomará por finalizado.
+                    Has salido de pantalla completa y cambiado de pestaña. ⚠️ Esta es tu primera advertencia. Si lo vuelves a hacer una segunda vez, el examen se finalizará automáticamente.
                   </AlertDescription>
                 </Alert>
                 <p className="text-gray-700">
@@ -1019,7 +1073,13 @@ const ExamWithFirebase = () => {
   // Función para ir a la siguiente pregunta
   const nextQuestion = () => {
     if (currentQuestion < examData.questions.length - 1) {
-      changeQuestion(currentQuestion + 1)
+      const nextIndex = currentQuestion + 1;
+      // Actualizar maxReachedQuestion cuando se avanza con el botón siguiente
+      if (nextIndex > maxReachedQuestion) {
+        setMaxReachedQuestion(nextIndex);
+      }
+      // Usar la función interna para cambiar de pregunta (no bloqueada)
+      internalChangeQuestion(nextIndex);
     }
   }
 
@@ -1171,11 +1231,11 @@ const ExamWithFirebase = () => {
                   <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
                 </div>
                 {/* Advertencias de cambio de pestaña */}
-                {tabChangeCount > 0 && (
+                {tabChangeCount === 1 && (
                   <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
                     <AlertCircle className="h-4 w-4 text-orange-500" />
                     <span className="text-sm font-medium text-orange-700">
-                      {2 - tabChangeCount} intentos restantes
+                      1 intento de fraude detectado
                     </span>
                   </div>
                 )}
@@ -1258,11 +1318,24 @@ const ExamWithFirebase = () => {
               {examData.questions.map((q, index) => {
                 const isAnswered = answers[q.id];
                 const isCurrent = currentQuestion === index;
+                const isReachable = index <= maxReachedQuestion + 1; // Preguntas alcanzadas + siguiente disponible
+                const isLocked = index > maxReachedQuestion + 1; // Preguntas futuras bloqueadas
+                
                 return (
                   <button
                     key={q.id}
-                    onClick={() => changeQuestion(index)}
-                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110 ${
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (!isLocked && isReachable) {
+                        changeQuestion(index);
+                      }
+                    }}
+                    disabled={isLocked}
+                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 ${
+                      isLocked 
+                        ? "opacity-50 cursor-not-allowed bg-gray-300 text-gray-400 border border-gray-300"
+                        : "hover:scale-110"
+                    } ${
                       isCurrent
                         ? isAnswered
                           ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
@@ -1271,7 +1344,12 @@ const ExamWithFirebase = () => {
                         ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
                         : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300"
                     }`}
-                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
+                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"} - Solo marcador visual`}
+                    onMouseDown={(e) => {
+                      // Prevenir cualquier acción - los botones son solo marcadores visuales
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
                   >
                     {index + 1}
                     {isAnswered && !isCurrent && (

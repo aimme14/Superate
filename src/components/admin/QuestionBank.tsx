@@ -132,40 +132,55 @@ const renderMathInHtml = (html: string): string => {
     })
   } catch {}
   
-  // Buscar todos los elementos con data-latex que necesitan renderizado
-  const mathElements = tempDiv.querySelectorAll('[data-latex]')
+  return tempDiv.innerHTML
+}
+
+// Componente para renderizar texto con fórmulas matemáticas
+const MathText = ({ text, className = '' }: { text: string; className?: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null)
   
-  mathElements.forEach((el) => {
-    const latex = el.getAttribute('data-latex')
-    if (latex) {
-      // Verificar si ya está renderizado
-      const hasKaTeX = el.querySelector('.katex') !== null
-      
-      // Si no está renderizado, renderizarlo
-      if (!hasKaTeX) {
+  useEffect(() => {
+    if (!containerRef.current || !text) return
+    
+    // Primero, detectar y convertir fórmulas LaTeX en formato `$...$` o `$$...$$`
+    let processedText = text
+    
+    // Convertir fórmulas en bloque $$...$$
+    processedText = processedText.replace(/\$\$([^$]+)\$\$/g, (_match, latex) => {
+      return `<span class="katex-formula" data-latex="${latex.trim()}" data-display="true"></span>`
+    })
+    
+    // Convertir fórmulas inline $...$
+    processedText = processedText.replace(/\$([^$]+)\$/g, (_match, latex) => {
+      return `<span class="katex-formula" data-latex="${latex.trim()}"></span>`
+    })
+    
+    // Procesar el texto para renderizar fórmulas existentes
+    const processedHtml = renderMathInHtml(processedText)
+    containerRef.current.innerHTML = processedHtml
+    
+    // Renderizar todas las fórmulas con KaTeX
+    const mathElements = containerRef.current.querySelectorAll('[data-latex]')
+    mathElements.forEach((el) => {
+      const latex = el.getAttribute('data-latex')
+      if (latex && !el.querySelector('.katex')) {
+        const isDisplay = el.getAttribute('data-display') === 'true'
         try {
-          const isDisplay = el.classList.contains('katex-display') || el.tagName === 'DIV'
-          const rendered = katex.renderToString(latex, {
+          katex.render(latex, el as HTMLElement, {
             throwOnError: false,
             displayMode: isDisplay,
             strict: false,
           })
-          
-          if (rendered && rendered.trim() !== '' && rendered.includes('katex')) {
-            el.innerHTML = rendered
-            el.classList.add('katex-formula')
-            if (isDisplay) {
-              el.classList.add('katex-display')
-            }
-          }
+          el.classList.add('katex-formula')
         } catch (error) {
           console.error('Error renderizando fórmula:', error)
+          el.textContent = latex
         }
       }
-    }
-  })
+    })
+  }, [text])
   
-  return tempDiv.innerHTML
+  return <div ref={containerRef} className={className} />
 }
 
 export default function QuestionBank({ theme }: QuestionBankProps) {
@@ -228,6 +243,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [filterTopic, setFilterTopic] = useState<string>('all')
   const [filterGrade, setFilterGrade] = useState<string>('all')
   const [filterLevel, setFilterLevel] = useState<string>('all')
+  const [filterAIInconsistency, setFilterAIInconsistency] = useState<boolean>(false)
   const [searchTerm, setSearchTerm] = useState('')
   
   // Vista de organización
@@ -423,7 +439,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   // Aplicar filtros
   useEffect(() => {
     applyFilters()
-  }, [questions, filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
+  }, [questions, filterSubject, filterTopic, filterGrade, filterLevel, filterAIInconsistency, searchTerm])
 
   // Cerrar dropdowns de matching al hacer clic fuera
   useEffect(() => {
@@ -453,7 +469,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   // Limpiar selección cuando cambien los filtros
   useEffect(() => {
     setSelectedQuestionIds(new Set())
-  }, [filterSubject, filterTopic, filterGrade, filterLevel, searchTerm])
+  }, [filterSubject, filterTopic, filterGrade, filterLevel, filterAIInconsistency, searchTerm])
 
   const loadQuestions = async () => {
     setIsLoading(true)
@@ -506,6 +522,45 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     // Filtro por nivel
     if (filterLevel !== 'all') {
       filtered = filtered.filter(q => q.levelCode === filterLevel)
+    }
+
+    // Filtro por inconsistencias con IA
+    if (filterAIInconsistency) {
+      filtered = filtered.filter(q => {
+        if (!q.aiJustification) return false
+        
+        const aiJustification = q.aiJustification
+        
+        // Obtener la opción marcada como correcta en la pregunta
+        const correctOption = q.options.find(opt => opt.isCorrect)
+        if (!correctOption) return false
+        
+        // Obtener todas las opciones incorrectas según la pregunta
+        const incorrectOptions = q.options.filter(opt => !opt.isCorrect)
+        
+        // Verificar inconsistencias:
+        // 1. La opción correcta aparece en las explicaciones de opciones incorrectas
+        const correctOptionInIncorrect = aiJustification.incorrectAnswersExplanation?.some(
+          exp => exp.optionId === correctOption.id
+        )
+        
+        // 2. El número de explicaciones incorrectas no coincide con el número real de opciones incorrectas
+        const incorrectCountMismatch = aiJustification.incorrectAnswersExplanation?.length !== incorrectOptions.length
+        
+        // 3. Confianza muy baja (menor a 0.7)
+        const lowConfidence = aiJustification.confidence < 0.7
+        
+        // 4. Explicación de respuesta correcta muy corta o faltante
+        const shortExplanation = !aiJustification.correctAnswerExplanation || 
+                                 aiJustification.correctAnswerExplanation.length < 50
+        
+        // 5. Falta alguna explicación de opción incorrecta
+        const missingIncorrectExplanation = incorrectOptions.some(opt => 
+          !aiJustification.incorrectAnswersExplanation?.some(exp => exp.optionId === opt.id)
+        )
+        
+        return correctOptionInIncorrect || incorrectCountMismatch || lowConfidence || shortExplanation || missingIncorrectExplanation
+      })
     }
 
     // Filtro por búsqueda de texto
@@ -5319,7 +5374,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -5385,6 +5440,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Filtro de inconsistencias con IA */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="filter-ai-inconsistency"
+                checked={filterAIInconsistency}
+                onCheckedChange={(checked) => setFilterAIInconsistency(checked === true)}
+                className={cn(theme === 'dark' ? 'border-zinc-600' : '')}
+              />
+              <Label 
+                htmlFor="filter-ai-inconsistency" 
+                className={cn("text-sm cursor-pointer flex items-center gap-2", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+              >
+                <AlertCircle className={cn("h-4 w-4", filterAIInconsistency ? 'text-orange-500' : 'text-gray-400')} />
+                Inconsistencias con IA
+              </Label>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 mt-4">
@@ -5396,6 +5468,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 setFilterTopic('all')
                 setFilterGrade('all')
                 setFilterLevel('all')
+                setFilterAIInconsistency(false)
                 setSearchTerm('')
               }}
             >
@@ -10583,9 +10656,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                                       Explicación de la respuesta correcta
                                     </h5>
-                                    <p className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                      {question.aiJustification.correctAnswerExplanation}
-                                    </p>
+                                    <MathText 
+                                      text={question.aiJustification.correctAnswerExplanation}
+                                      className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                                    />
                                   </div>
 
                                   {/* Explicaciones de respuestas incorrectas */}
@@ -10604,9 +10678,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                             <span className={cn("font-semibold text-sm", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
                                               Opción {explanation.optionId}:
                                             </span>
-                                            <p className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                              {explanation.explanation}
-                                            </p>
+                                            <MathText 
+                                              text={explanation.explanation}
+                                              className={cn("text-sm mt-1 leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                                            />
                                           </div>
                                         ))}
                                       </div>

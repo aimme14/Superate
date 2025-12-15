@@ -19,6 +19,6 @@ export default {
   // Gemini AI config
   gemini: {
     apiKey: import.meta.env.VITE_GEMINI_API_KEY,
-    model: 'gemini-2.0-flash-exp', // Gemini 3.0 Pro (usando el modelo más reciente disponible)
+    model: 'gemini-2.5-flash', // Gemini 3.0 Pro (usando el modelo más reciente disponible)
   }
 }
