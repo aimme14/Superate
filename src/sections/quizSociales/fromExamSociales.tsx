@@ -234,7 +234,7 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-  const changeQuestion = (newQuestionIndex: number) => {
+  const changeQuestion = (_newQuestionIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales

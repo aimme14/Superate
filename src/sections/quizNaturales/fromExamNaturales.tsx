@@ -1334,7 +1334,8 @@ const ExamWithFirebase = () => {
                     className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 ${
                       isLocked 
                         ? "opacity-50 cursor-not-allowed bg-gray-300 text-gray-400 border border-gray-300"
-                        : "hover:scale-110",
+                        : "hover:scale-110"
+                    } ${
                       isCurrent
                         ? isAnswered
                           ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
