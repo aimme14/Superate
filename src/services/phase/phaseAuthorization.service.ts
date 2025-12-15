@@ -354,7 +354,6 @@ class PhaseAuthorizationService {
 
       // 2. Lista canónica de las 7 materias requeridas
       const ALL_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés'];
-      const ALL_SUBJECTS_NORMALIZED = new Set(ALL_SUBJECTS.map(s => s.trim().toLowerCase()));
       
       // 3. Obtener el nombre de la fase para la ruta de Firestore
       const phaseName = getPhaseName(phase);
@@ -401,8 +400,8 @@ class PhaseAuthorizationService {
           
           // Filtrar solo exámenes completados con materia válida
           const completedExams = resultsSnapshot.docs
-            .map(doc => doc.data())
-            .filter(exam => {
+            .map((doc: any) => doc.data())
+            .filter((exam: any) => {
               const isCompleted = exam.completed === true;
               const hasSubject = exam.subject && exam.subject.trim() !== '';
               return isCompleted && hasSubject;
@@ -411,12 +410,12 @@ class PhaseAuthorizationService {
           console.log(`👤 Estudiante ${studentId}:`, {
             totalExamenes: resultsSnapshot.size,
             examenesCompletados: completedExams.length,
-            materias: completedExams.map(e => e.subject)
+            materias: completedExams.map((e: any) => e.subject)
           });
 
           // Normalizar las materias de los exámenes completados
           const completedSubjectsSet = new Set<string>();
-          completedExams.forEach(exam => {
+          completedExams.forEach((exam: any) => {
             const subject = exam.subject;
             if (subject) {
               const normalized = this.normalizeSubjectCode(subject).trim().toLowerCase();
