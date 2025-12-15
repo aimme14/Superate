@@ -42,10 +42,56 @@ class GeminiService {
       const incorrectOptions = data.options.filter(opt => !opt.isCorrect);
       
       // Construir el contenido multimodal (texto + imágenes)
-      const content = await this.buildMultimodalContent(data, correctOption, incorrectOptions);
+      const multimodalContent = await this.buildMultimodalContent(data, correctOption, incorrectOptions);
       
-      // Generar contenido con Gemini (ahora soporta imágenes)
-      const result = await geminiClient.generateContent(content);
+      // Estrategia de generación con fallback: intentar con imágenes primero, luego sin imágenes si falla
+      let result: { text: string; metadata: any };
+      let usedImages = true;
+      let fallbackReason: string | null = null;
+      
+      try {
+        // Intentar primero con imágenes si las hay
+        if (multimodalContent.images.length > 0) {
+          console.log(`📷 Intentando generación CON ${multimodalContent.images.length} imagen(es)...`);
+          result = await geminiClient.generateContent(multimodalContent.text, multimodalContent.images);
+        } else {
+          // No hay imágenes, generar solo con texto
+          result = await geminiClient.generateContent(multimodalContent.text, []);
+          usedImages = false;
+        }
+      } catch (error: any) {
+        // Si falla con imágenes, intentar sin imágenes como fallback
+        if (multimodalContent.images.length > 0) {
+          const errorMessage = error.message || '';
+          const isSafetyError = errorMessage.includes('bloqueada') || 
+                               errorMessage.includes('SAFETY') || 
+                               errorMessage.includes('filtros de seguridad') ||
+                               errorMessage.includes('no tiene partes válidas');
+          
+          if (isSafetyError) {
+            console.warn(`\n⚠️ Error con imágenes detectado (posible bloqueo de seguridad). Intentando SIN imágenes como fallback...`);
+            console.warn(`   Error original: ${errorMessage.substring(0, 200)}`);
+            fallbackReason = `Bloqueo de seguridad con imágenes: ${errorMessage.substring(0, 100)}`;
+            
+            try {
+              // Intentar sin imágenes
+              result = await geminiClient.generateContent(multimodalContent.text, []);
+              usedImages = false;
+              console.log(`✅ Fallback exitoso: Generación completada SIN imágenes`);
+            } catch (fallbackError: any) {
+              // Si también falla sin imágenes, lanzar el error original
+              console.error(`❌ Fallback también falló. Error original: ${errorMessage}`);
+              throw error; // Lanzar el error original
+            }
+          } else {
+            // No es un error de seguridad, lanzar el error original
+            throw error;
+          }
+        } else {
+          // No hay imágenes, lanzar el error directamente
+          throw error;
+        }
+      }
       
       // Extraer y parsear JSON con mejor manejo de errores
       let parsed: any;
@@ -285,6 +331,27 @@ class GeminiService {
         promptVersion: GEMINI_CONFIG.PROMPT_VERSION,
       };
       
+<<<<<<< HEAD
+=======
+      // Agregar información sobre el fallback si se usó
+      if (fallbackReason) {
+        console.warn(`⚠️ Justificación generada con fallback (sin imágenes): ${fallbackReason}`);
+        // Agregar nota en la justificación si el tipo lo permite
+        if (justification.correctAnswerExplanation) {
+          justification.correctAnswerExplanation = 
+            `[Nota: Esta justificación se generó sin análisis visual de imágenes debido a restricciones de seguridad. ` +
+            `La explicación se basa únicamente en el texto de la pregunta.]\n\n${justification.correctAnswerExplanation}`;
+        }
+      }
+      
+      // Log de confirmación
+      if (multimodalContent.images.length > 0 && usedImages) {
+        console.log(`✅ Justificación generada CON análisis visual de ${multimodalContent.images.length} imagen(es)`);
+      } else if (multimodalContent.images.length > 0 && !usedImages) {
+        console.warn(`⚠️ Justificación generada SIN imágenes (fallback aplicado)`);
+      }
+      
+>>>>>>> origin/main
       const processingTime = Date.now() - startTime;
       
       return {
@@ -306,12 +373,103 @@ class GeminiService {
   }
 
   /**
+<<<<<<< HEAD
    * Construye contenido multimodal (texto + imágenes) para Gemini
+=======
+   * Descarga una imagen desde una URL y la convierte a base64
+   * Valida que la imagen sea accesible y tenga un tamaño razonable
+   */
+  private async downloadImageAsBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
+    try {
+      // Validar que la URL sea válida
+      if (!url || typeof url !== 'string' || url.trim() === '') {
+        console.error(`❌ URL de imagen inválida: ${url}`);
+        return null;
+      }
+
+      console.log(`📥 Descargando imagen desde: ${url.substring(0, 100)}${url.length > 100 ? '...' : ''}`);
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; SuperateIA/1.0)',
+        },
+        // Timeout de 30 segundos para descarga
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!response.ok) {
+        console.error(`❌ Error HTTP descargando imagen ${url}: ${response.status} ${response.statusText}`);
+        return null;
+      }
+
+      const contentType = response.headers.get('content-type');
+      console.log(`   Content-Type recibido: ${contentType}`);
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Validar tamaño (máximo 20MB para base64, que es ~15MB de imagen)
+      const maxSize = 20 * 1024 * 1024; // 20MB
+      if (buffer.length > maxSize) {
+        console.error(`❌ Imagen demasiado grande: ${(buffer.length / 1024 / 1024).toFixed(2)}MB (máximo: ${maxSize / 1024 / 1024}MB)`);
+        return null;
+      }
+
+      const base64 = buffer.toString('base64');
+      
+      // Validar que el base64 no esté vacío
+      if (!base64 || base64.length === 0) {
+        console.error(`❌ Error: base64 vacío después de conversión`);
+        return null;
+      }
+
+      // Determinar el tipo MIME desde el Content-Type o la extensión de la URL
+      let mimeType = contentType || 'image/jpeg';
+      
+      // Validar y normalizar el tipo MIME
+      if (!mimeType.startsWith('image/')) {
+        // Intentar inferir desde la URL
+        const urlLower = url.toLowerCase();
+        if (urlLower.includes('.png')) mimeType = 'image/png';
+        else if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) mimeType = 'image/jpeg';
+        else if (urlLower.includes('.webp')) mimeType = 'image/webp';
+        else if (urlLower.includes('.gif')) mimeType = 'image/gif';
+        else {
+          console.warn(`⚠️ Tipo MIME no reconocido (${contentType}), usando image/jpeg como default`);
+          mimeType = 'image/jpeg'; // Default
+        }
+      }
+
+      const sizeKB = (buffer.length / 1024).toFixed(2);
+      const base64SizeKB = (base64.length / 1024).toFixed(2);
+      console.log(`✅ Imagen descargada exitosamente:`);
+      console.log(`   - Tamaño original: ${sizeKB} KB`);
+      console.log(`   - Tamaño base64: ${base64SizeKB} KB`);
+      console.log(`   - Tipo MIME: ${mimeType}`);
+      console.log(`   - Base64 válido: ${base64.substring(0, 50)}... (${base64.length} caracteres)`);
+      
+      return { mimeType, data: base64 };
+    } catch (error: any) {
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        console.error(`❌ Timeout descargando imagen ${url} (30s)`);
+      } else {
+        console.error(`❌ Error descargando imagen ${url}:`, error.message);
+        console.error(`   Stack:`, error.stack);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Construye contenido multimodal (texto + imágenes) para Gemini
+   * Ahora descarga las imágenes y las convierte a base64 para análisis visual real
+>>>>>>> origin/main
    */
   private async buildMultimodalContent(
     data: QuestionGenerationData,
     correctOption: QuestionOption,
     incorrectOptions: QuestionOption[]
+<<<<<<< HEAD
   ): Promise<string> {
     // Recopilar todas las URLs de imágenes
     const imageUrls: Array<{ url: string; context: string }> = [];
@@ -378,11 +536,223 @@ URL: ${img.url}
 `).join('\n')}
 
 **INSTRUCCIÓN CRÍTICA:** Accede a cada URL, analiza las imágenes y usa la información visual en tus explicaciones. Describe específicamente qué observas en cada imagen y cómo se relaciona con la pregunta y las opciones.
+=======
+  ): Promise<{ text: string; images: Array<{ mimeType: string; data: string; context: string }> }> {
+    console.log(`\n🔍 RECOPILANDO URLs DE IMÁGENES:`);
+    
+    // Recopilar todas las URLs de imágenes con su contexto
+    const imageUrls: Array<{ url: string; context: string }> = [];
+    
+    // Imágenes informativas
+    if (data.informativeImages && Array.isArray(data.informativeImages) && data.informativeImages.length > 0) {
+      console.log(`   📷 Imágenes informativas encontradas: ${data.informativeImages.length}`);
+      data.informativeImages.forEach((url, index) => {
+        if (url && typeof url === 'string' && url.trim() !== '') {
+          imageUrls.push({ 
+            url: url.trim(), 
+            context: `Imagen informativa ${index + 1} (contexto de la pregunta)` 
+          });
+          console.log(`      ✓ ${index + 1}. ${url.substring(0, 80)}${url.length > 80 ? '...' : ''}`);
+        } else {
+          console.warn(`      ⚠️ Imagen informativa ${index + 1} tiene URL inválida: ${url}`);
+        }
+      });
+    } else {
+      console.log(`   📷 Imágenes informativas: 0`);
+    }
+    
+    // Imágenes en la pregunta
+    if (data.questionImages && Array.isArray(data.questionImages) && data.questionImages.length > 0) {
+      console.log(`   📷 Imágenes de pregunta encontradas: ${data.questionImages.length}`);
+      data.questionImages.forEach((url, index) => {
+        if (url && typeof url === 'string' && url.trim() !== '') {
+          imageUrls.push({ 
+            url: url.trim(), 
+            context: `Imagen de la pregunta ${index + 1}` 
+          });
+          console.log(`      ✓ ${index + 1}. ${url.substring(0, 80)}${url.length > 80 ? '...' : ''}`);
+        } else {
+          console.warn(`      ⚠️ Imagen de pregunta ${index + 1} tiene URL inválida: ${url}`);
+        }
+      });
+    } else {
+      console.log(`   📷 Imágenes de pregunta: 0`);
+    }
+    
+    // Imágenes en las opciones
+    console.log(`   📷 Revisando imágenes en ${data.options.length} opciones...`);
+    let optionImagesFound = 0;
+    data.options.forEach((opt, optIndex) => {
+      if (opt.imageUrl && typeof opt.imageUrl === 'string' && opt.imageUrl.trim() !== '') {
+        optionImagesFound++;
+        imageUrls.push({ 
+          url: opt.imageUrl.trim(), 
+          context: `Imagen de la opción ${opt.id || optIndex + 1}` 
+        });
+        console.log(`      ✓ Opción ${opt.id || optIndex + 1}: ${opt.imageUrl.substring(0, 80)}${opt.imageUrl.length > 80 ? '...' : ''}`);
+      }
+    });
+    console.log(`   📷 Imágenes en opciones encontradas: ${optionImagesFound}`);
+    
+    console.log(`\n📊 RESUMEN DE RECOPILACIÓN:`);
+    console.log(`   Total de URLs de imágenes encontradas: ${imageUrls.length}`);
+    if (imageUrls.length > 0) {
+      console.log(`   ✅ Las imágenes SERÁN descargadas y enviadas a Gemini\n`);
+    } else {
+      console.log(`   ℹ️ No hay imágenes - se enviará solo texto a Gemini\n`);
+    }
+    
+    // Construir el prompt base
+    const promptText = this.buildJustificationPrompt(
+      data, 
+      correctOption, 
+      incorrectOptions, 
+      imageUrls.length > 0,
+      imageUrls
+    );
+    
+    // Si no hay imágenes, devolver solo texto
+    if (imageUrls.length === 0) {
+      return { text: promptText, images: [] };
+    }
+    
+    // Hay imágenes: descargarlas y convertirlas a base64
+    console.log(`\n📷 ===== PROCESAMIENTO DE IMÁGENES =====`);
+    console.log(`📷 Total de imágenes detectadas: ${imageUrls.length}`);
+    imageUrls.forEach((img, idx) => {
+      console.log(`   ${idx + 1}. ${img.context}`);
+      console.log(`      URL: ${img.url}`);
+    });
+    console.log(`📷 Iniciando descarga y conversión a base64...\n`);
+    
+    const images: Array<{ mimeType: string; data: string; context: string }> = [];
+    let downloadErrors = 0;
+    
+    for (let i = 0; i < imageUrls.length; i++) {
+      const imageUrl = imageUrls[i];
+      console.log(`\n[${i + 1}/${imageUrls.length}] Procesando: ${imageUrl.context}`);
+      const imageData = await this.downloadImageAsBase64(imageUrl.url);
+      if (imageData) {
+        // Validar que el base64 no esté vacío antes de agregar
+        if (imageData.data && imageData.data.length > 0) {
+          images.push({
+            mimeType: imageData.mimeType,
+            data: imageData.data,
+            context: imageUrl.context,
+          });
+          console.log(`✅ [${i + 1}/${imageUrls.length}] Imagen procesada exitosamente: ${imageUrl.context}`);
+        } else {
+          console.error(`❌ [${i + 1}/${imageUrls.length}] Base64 vacío para: ${imageUrl.context}`);
+          downloadErrors++;
+        }
+      } else {
+        console.error(`❌ [${i + 1}/${imageUrls.length}] FALLÓ descarga: ${imageUrl.context}`);
+        console.error(`   URL: ${imageUrl.url}`);
+        downloadErrors++;
+      }
+    }
+    
+    console.log(`\n📊 RESUMEN DE DESCARGAS:`);
+    console.log(`   ✅ Exitosas: ${images.length}/${imageUrls.length}`);
+    console.log(`   ❌ Fallidas: ${downloadErrors}/${imageUrls.length}`);
+    
+    // Validación adicional de imágenes antes de enviarlas
+    if (images.length > 0) {
+      console.log(`\n🔍 VALIDACIÓN FINAL DE IMÁGENES ANTES DE ENVIAR:`);
+      let validImagesCount = 0;
+      const imagesToSend: Array<{ mimeType: string; data: string; context: string }> = [];
+      
+      for (const img of images) {
+        // Validar tamaño (máximo 20MB en base64)
+        const base64SizeMB = img.data.length / 1024 / 1024;
+        if (base64SizeMB > 20) {
+          console.warn(`   ⚠️ Imagen ${img.context} demasiado grande (${base64SizeMB.toFixed(2)}MB) - OMITIENDO`);
+          continue;
+        }
+        
+        // Validar que el base64 sea válido
+        try {
+          Buffer.from(img.data, 'base64');
+        } catch (e) {
+          console.warn(`   ⚠️ Imagen ${img.context} tiene base64 inválido - OMITIENDO`);
+          continue;
+        }
+        
+        // Validar MIME type
+        if (!img.mimeType || !img.mimeType.startsWith('image/')) {
+          console.warn(`   ⚠️ Imagen ${img.context} tiene MIME type inválido (${img.mimeType}) - OMITIENDO`);
+          continue;
+        }
+        
+        validImagesCount++;
+        imagesToSend.push(img);
+        console.log(`   ✅ ${img.context}: Válida (${base64SizeMB.toFixed(2)}MB, ${img.mimeType})`);
+      }
+      
+      if (validImagesCount === 0) {
+        console.error(`\n❌ ERROR: Ninguna imagen pasó la validación final.`);
+        console.error(`   Continuando con solo texto.\n`);
+        return { text: promptText, images: [] };
+      }
+      
+      if (validImagesCount < images.length) {
+        console.warn(`\n⚠️ ADVERTENCIA: ${images.length - validImagesCount} imagen(es) fueron rechazadas en la validación final.`);
+        console.warn(`   Solo ${validImagesCount} imagen(es) válida(s) serán enviadas a Gemini.\n`);
+        return { text: promptText, images: imagesToSend };
+      }
+      
+      console.log(`   ✅ Todas las ${validImagesCount} imagen(es) pasaron la validación\n`);
+      return { text: promptText, images: imagesToSend };
+    }
+    
+    if (images.length === 0) {
+      console.error(`\n❌ ERROR CRÍTICO: No se pudieron descargar NINGUNA imagen.`);
+      console.error(`   Esto significa que Gemini NO podrá analizar las imágenes visualmente.`);
+      console.error(`   Continuando con solo texto, pero el análisis será limitado.\n`);
+      return { text: promptText, images: [] };
+    }
+    
+    if (downloadErrors > 0) {
+      console.warn(`\n⚠️ ADVERTENCIA: ${downloadErrors} imagen(es) no se pudieron descargar.`);
+      console.warn(`   Solo ${images.length} imagen(es) estarán disponibles para análisis visual.\n`);
+    }
+    
+    // Calcular tamaño total de las imágenes en base64
+    const totalBase64Size = images.reduce((sum, img) => sum + img.data.length, 0);
+    const totalSizeKB = (totalBase64Size / 1024).toFixed(2);
+    const totalSizeMB = (totalBase64Size / 1024 / 1024).toFixed(2);
+    
+    console.log(`✅ PREPARACIÓN COMPLETA:`);
+    console.log(`   📷 Imágenes listas para envío: ${images.length}`);
+    console.log(`   📦 Tamaño total base64: ${totalSizeKB} KB (${totalSizeMB} MB)`);
+    console.log(`   🚀 Listas para análisis visual por Gemini\n`);
+    
+    // Agregar instrucciones mejoradas al prompt sobre las imágenes que se enviarán
+    const enhancedPrompt = promptText + `\n\n═══════════════════════════════════════════════════════════════
+🖼️ ANÁLISIS VISUAL REQUERIDO
+═══════════════════════════════════════════════════════════════
+
+Esta pregunta contiene ${images.length} imagen(es) que se incluyen en este mensaje como contenido visual.
+
+**INSTRUCCIONES CRÍTICAS PARA EL ANÁLISIS:**
+1. Analiza CADA imagen visualmente con atención detallada
+2. Describe específicamente qué observas en cada imagen (elementos, texto, gráficos, diagramas, etc.)
+3. Relaciona el contenido visual con la pregunta y las opciones de respuesta
+4. Usa la información visual para fundamentar tus explicaciones de por qué cada opción es correcta o incorrecta
+5. Si hay texto en las imágenes, léelo y úsalo en tu análisis
+6. Si hay gráficos o diagramas, analiza su estructura y significado
+
+Las imágenes están etiquetadas con su contexto. Asegúrate de referenciar cada imagen por su contexto en tus explicaciones.
+>>>>>>> origin/main
 
 ═══════════════════════════════════════════════════════════════
 `;
     
+<<<<<<< HEAD
     return promptWithImages + imagesSection;
+=======
+    return { text: enhancedPrompt, images };
+>>>>>>> origin/main
   }
 
   /**
@@ -425,7 +795,11 @@ ${imageUrls.map((img, i) => `${i + 1}. **${img.context}**
 ❌ NO asumas que el estudiante ve lo mismo que tú sin guiarlo`
       : '';
     
+<<<<<<< HEAD
     return `Eres el **Dr. Educativo**, un pedagogo experto con 20 años de experiencia en ${data.subject}, especializado en diseño de evaluaciones y análisis de aprendizaje. Tu misión es ayudar a estudiantes a comprender profundamente los conceptos, no solo memorizar respuestas.
+=======
+    return `Eres el **Dr. Educativo**, un pedagogo experto con 20 años de experiencia en ${data.subject}, especializado en diseño de evaluaciones y análisis de aprendizaje. Tu misión es ayudar a estudiantes a comprender profundamente los conceptos y entender el porqué de las respuestas.
+>>>>>>> origin/main
 
 ═══════════════════════════════════════════════════════════════
 📋 INFORMACIÓN DE LA EVALUACIÓN
@@ -562,7 +936,14 @@ Identifica conceptos fundamentales (máximo 8 palabras cada uno).
 
 ✅ **SÍ HAZLO:**
 - Responde SOLO con JSON válido
+<<<<<<< HEAD
 - Usa lenguaje natural y accesible para nivel ${data.level}
+=======
+- Usa lenguaje natural y accesible para nivel
+- **Para fórmulas matemáticas**: Usa formato LaTeX dentro de etiquetas \`$...$\` para fórmulas inline o \`$$...$$\` para fórmulas en bloque
+  Ejemplo: "La expresión \`$P(t) = 2^{t+2} \cdot \frac{5}{8}t$\` representa..."
+  Ejemplo: "Aplicando \`$\frac{a}{b} = c$\` obtenemos..." ${data.level}
+>>>>>>> origin/main
 - Sé específico y concreto en cada explicación
 - Enfócate en el APRENDIZAJE, no solo en la respuesta
 - Conecta con conocimientos previos del estudiante
