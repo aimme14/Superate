@@ -39,8 +39,18 @@ export async function processExamResults(
     const studentData = userResult.data;
     const gradeId = studentData.gradeId || studentData.grade;
 
+    console.log(`👤 Datos del estudiante:`, {
+      userId,
+      gradeId: `"${gradeId}"`,
+      institutionId: studentData.institutionId,
+      campusId: studentData.campusId,
+      tieneGradeId: !!studentData.gradeId,
+      tieneGrade: !!studentData.grade
+    });
+
     if (!gradeId) {
       console.error('❌ No se encontró gradeId para el estudiante');
+      console.error('Datos del estudiante:', studentData);
       return { success: false, error: 'No se encontró información de grado' };
     }
 

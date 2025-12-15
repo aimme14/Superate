@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,11 +14,12 @@ import {
   GraduationCap,
   Loader2,
   AlertCircle,
-  Clock,
   Building2,
   MapPin,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RefreshCw,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotification } from '@/hooks/ui/useNotification';
@@ -76,6 +77,7 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
   const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PhaseType | null>(null);
   const [selectedGradeInfo, setSelectedGradeInfo] = useState<{ id: string; name: string; institutionId?: string; campusId?: string } | null>(null);
+  const isLoadingRef = useRef(false);
 
   const { options: campuses = [] } = useCampusOptions(selectedInstitution !== 'all' ? selectedInstitution : '');
 
@@ -88,19 +90,12 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
     });
   }, [allGrades, selectedInstitution, selectedCampus]);
 
-  // Cargar estados de fases para todos los grados filtrados
-  useEffect(() => {
-    if (filteredGrades.length > 0) {
-      loadAllGradesStatus();
-    } else {
-      setGradesStatus([]);
-    }
-  }, [filteredGrades.length, selectedInstitution, selectedCampus]);
-
-  const loadAllGradesStatus = async () => {
-    if (filteredGrades.length === 0) return;
+  const loadAllGradesStatus = useCallback(async () => {
+    if (filteredGrades.length === 0 || isLoadingRef.current) return;
     
+    isLoadingRef.current = true;
     setIsLoading(true);
+    
     try {
       const statusPromises = filteredGrades.map(async (grade) => {
         // Obtener autorizaciones del grado
@@ -162,8 +157,20 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
       });
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
-  };
+  }, [filteredGrades, notifyError]);
+
+  // Cargar estados de fases para todos los grados filtrados
+  useEffect(() => {
+    if (filteredGrades.length > 0) {
+      loadAllGradesStatus();
+    } else {
+      setGradesStatus([]);
+    }
+    // Solo se ejecuta cuando cambian los filtros, NO cuando cambia loadAllGradesStatus
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredGrades.length, selectedInstitution, selectedCampus]);
 
   const handleAuthorize = async () => {
     if (!selectedPhase || !selectedGradeInfo || !user?.uid) return;
@@ -388,12 +395,77 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
     <div className="space-y-6">
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
-          <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            <Lock className="h-5 w-5 text-blue-500" />
-            Autorización de Fases Evaluativas
-          </CardTitle>
-          <CardDescription>
-            Gestiona la autorización de fases evaluativas por grado. Las fases deben autorizarse en orden y solo cuando todos los estudiantes del grado hayan completado la fase anterior.
+          <div className="flex items-center justify-between">
+            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <Lock className="h-5 w-5 text-blue-500" />
+              Autorización de Fases Evaluativas
+            </CardTitle>
+            {/* Botón de refrescar */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadAllGradesStatus()}
+              disabled={isLoading}
+              className={cn(
+                'flex items-center gap-2',
+                theme === 'dark' 
+                  ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700' 
+                  : 'bg-white hover:bg-gray-50'
+              )}
+              title="Actualizar datos"
+            >
+              <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+              Actualizar
+            </Button>
+          </div>
+          <CardDescription className="space-y-2">
+            <p>
+              Gestiona la autorización de fases evaluativas por grado. Las fases deben autorizarse en orden y solo cuando todos los estudiantes del grado hayan completado la fase anterior.
+            </p>
+            {/* Leyenda de contadores */}
+            <div className={cn(
+              'flex flex-wrap items-center gap-4 p-3 rounded-lg border mt-3',
+              theme === 'dark' 
+                ? 'bg-zinc-800/50 border-zinc-700' 
+                : 'bg-gray-50 border-gray-200'
+            )}>
+              <span className={cn(
+                'text-xs font-semibold uppercase tracking-wide',
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              )}>
+                Leyenda:
+              </span>
+              
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                <span className={cn(
+                  'text-xs',
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                )}>
+                  <strong className={cn(theme === 'dark' ? 'text-green-400' : 'text-green-700')}>Presentados:</strong> Completaron todos los cuestionarios
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+                <span className={cn(
+                  'text-xs',
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                )}>
+                  <strong className={cn(theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700')}>En proceso:</strong> Presentando o por presentar
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <span className={cn(
+                  'text-xs',
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                )}>
+                  <strong className={cn(theme === 'dark' ? 'text-blue-400' : 'text-blue-700')}>Total:</strong> Total de estudiantes del curso
+                </span>
+              </div>
+            </div>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -618,21 +690,63 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
                                 <span>{gradeStatus.campusName}</span>
                               </div>
                             </div>
-                            {/* Información compacta de estudiantes */}
-                            <div className="flex items-center gap-2 mt-1.5 text-[10px]">
-                              <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                                <CheckCircle2 className="h-2.5 w-2.5" />
-                                <span className="font-medium">{studentSummary.completed}</span>
+                            {/* Contadores compactos solo con iconos */}
+                            <div className="flex items-center gap-2 mt-2">
+                              {/* Presentados */}
+                              <div 
+                                className={cn(
+                                  'flex items-center gap-1 px-1.5 py-0.5 rounded',
+                                  theme === 'dark' 
+                                    ? 'bg-green-950/40' 
+                                    : 'bg-green-100'
+                                )}
+                                title={`Presentados: ${studentSummary.completed} estudiantes completaron todos los cuestionarios`}
+                              >
+                                <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                <span className={cn(
+                                  'text-xs font-bold',
+                                  theme === 'dark' ? 'text-green-300' : 'text-green-700'
+                                )}>
+                                  {studentSummary.completed}
+                                </span>
                               </div>
-                              <span className="text-gray-400 dark:text-gray-500">·</span>
-                              <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
-                                <Clock className="h-2.5 w-2.5" />
-                                <span className="font-medium">{studentSummary.inProgress}</span>
+                              
+                              {/* En Proceso */}
+                              <div 
+                                className={cn(
+                                  'flex items-center gap-1 px-1.5 py-0.5 rounded',
+                                  theme === 'dark' 
+                                    ? 'bg-yellow-950/40' 
+                                    : 'bg-yellow-100'
+                                )}
+                                title={`En proceso: ${studentSummary.inProgress} estudiantes presentando o por presentar`}
+                              >
+                                <Clock className="h-3 w-3 text-yellow-600 dark:text-yellow-400" />
+                                <span className={cn(
+                                  'text-xs font-bold',
+                                  theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'
+                                )}>
+                                  {studentSummary.inProgress}
+                                </span>
                               </div>
-                              <span className="text-gray-400 dark:text-gray-500">·</span>
-                              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                                <Users className="h-2.5 w-2.5" />
-                                <span>{studentSummary.total}</span>
+                              
+                              {/* Total */}
+                              <div 
+                                className={cn(
+                                  'flex items-center gap-1 px-1.5 py-0.5 rounded',
+                                  theme === 'dark' 
+                                    ? 'bg-blue-950/40' 
+                                    : 'bg-blue-100'
+                                )}
+                                title={`Total: ${studentSummary.total} estudiantes del curso`}
+                              >
+                                <Users className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                                <span className={cn(
+                                  'text-xs font-bold',
+                                  theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
+                                )}>
+                                  {studentSummary.total}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -727,19 +841,82 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
                               </div>
 
                               {isAuthorized && completion && (
-                                <div className="mt-2 space-y-1">
-                                  <div className="flex items-center justify-between text-xs">
-                                    <span className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                      Progreso
-                                    </span>
-                                    <span className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                      {completion.completedStudents}/{completion.totalStudents}
-                                    </span>
+                                <div className="mt-3 space-y-2">
+                                  {/* Contadores compactos por fase */}
+                                  <div className="flex items-center gap-1.5">
+                                    {/* Presentados (Completados) */}
+                                    <div 
+                                      className={cn(
+                                        'flex items-center gap-1 px-1.5 py-1 rounded',
+                                        theme === 'dark' 
+                                          ? 'bg-green-950/40' 
+                                          : 'bg-green-100'
+                                      )}
+                                      title="Presentados: Completaron todos los cuestionarios"
+                                    >
+                                      <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                      <span className={cn(
+                                        'text-xs font-bold',
+                                        theme === 'dark' ? 'text-green-300' : 'text-green-700'
+                                      )}>
+                                        {completion.completedStudents}
+                                      </span>
+                                    </div>
+
+                                    {/* En Proceso */}
+                                    <div 
+                                      className={cn(
+                                        'flex items-center gap-1 px-1.5 py-1 rounded',
+                                        theme === 'dark' 
+                                          ? 'bg-yellow-950/40' 
+                                          : 'bg-yellow-100'
+                                      )}
+                                      title="En proceso: Presentando o por presentar"
+                                    >
+                                      <Clock className="h-3 w-3 text-yellow-600 dark:text-yellow-400" />
+                                      <span className={cn(
+                                        'text-xs font-bold',
+                                        theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'
+                                      )}>
+                                        {completion.inProgressStudents}
+                                      </span>
+                                    </div>
+
+                                    {/* Total de Estudiantes */}
+                                    <div 
+                                      className={cn(
+                                        'flex items-center gap-1 px-1.5 py-1 rounded',
+                                        theme === 'dark' 
+                                          ? 'bg-blue-950/40' 
+                                          : 'bg-blue-100'
+                                      )}
+                                      title="Total de estudiantes del curso"
+                                    >
+                                      <Users className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                                      <span className={cn(
+                                        'text-xs font-bold',
+                                        theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
+                                      )}>
+                                        {completion.totalStudents}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <Progress 
-                                    value={completion.completionPercentage} 
-                                    className="h-1.5"
-                                  />
+
+                                  {/* Barra de progreso */}
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                        Progreso
+                                      </span>
+                                      <span className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                        {completion.completionPercentage.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                    <Progress 
+                                      value={completion.completionPercentage} 
+                                      className="h-2"
+                                    />
+                                  </div>
                                 </div>
                               )}
 
