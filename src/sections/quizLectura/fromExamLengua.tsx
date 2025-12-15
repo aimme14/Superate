@@ -357,9 +357,19 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
+<<<<<<< HEAD
+<<<<<<< HEAD
   // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const changeQuestion = (_newQuestionIndex: number) => {
+=======
+  const changeQuestion = (newQuestionIndex: number) => {
+    if (!quizData) return;
+
+>>>>>>> parent of 4dd6bcd (nn)
+=======
+  const changeQuestion = (_newQuestionIndex: number) => {
+>>>>>>> origin/main
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
