@@ -632,6 +632,18 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     }
   };
 
+  // Continuar examen después de advertencia de cambio de pestaña
+  const continueExam = () => {
+    setShowTabChangeWarning(false)
+  }
+
+  // Finalizar examen por cambio de pestaña
+  const finishExamByTabChange = async () => {
+    setShowTabChangeWarning(false)
+    setExamLocked(true)
+    await handleSubmit(true, true)
+  }
+
   // Detectar cambios de pantalla completa - PRINCIPAL
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -1607,6 +1619,61 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     )
   }
 
+  // Modal de advertencia de cambio de pestaña
+  const TabChangeWarningModal = () => {
+    // No mostrar el modal si el examen está bloqueado o ya se alcanzó el límite
+    if (examLocked || tabChangeCount >= 2) {
+      return null;
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <Card className={cn("w-full max-w-md mx-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", theme === 'dark' ? 'bg-orange-900/50' : 'bg-orange-100')}>
+                <AlertCircle className={cn("h-8 w-8", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')} />
+              </div>
+            </div>
+            <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-orange-400' : 'text-orange-800')}>¡Advertencia!</CardTitle>
+            <CardDescription className={cn("text-base", theme === 'dark' ? 'text-gray-400' : '')}>
+              Cambio de pestaña detectado
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <div className={cn("rounded-lg p-4 mb-4", theme === 'dark' ? 'bg-orange-900/30' : 'bg-orange-50')}>
+              <div className={cn("text-sm mb-1", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>Intento de fraude detectado</div>
+              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>{tabChangeCount}</div>
+            </div>
+            <p className={cn("mb-2", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+              Has cambiado de pestaña o perdido el foco de la ventana del examen.
+            </p>
+            <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+              ⚠️ Esta es tu primera advertencia. Si cambias de pestaña una segunda vez, el examen se finalizará automáticamente.
+            </p>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-3">
+            <Button
+              onClick={continueExam}
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Continuar Examen
+            </Button>
+            <Button
+              onClick={finishExamByTabChange}
+              variant="outline"
+              className={cn("w-full border-red-300 text-red-600 hover:bg-red-50", theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Finalizar Examen
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
   // Modal de confirmación de envío
   const SubmitWarningModal = () => {
     const score = calculateScore()
@@ -1732,6 +1799,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       )}
 
       {/* Modales - siempre al final para que estén encima de todo */}
+      {showTabChangeWarning && !examLocked && tabChangeCount < 2 && <TabChangeWarningModal />}
       {showWarning && <SubmitWarningModal />}
       {showFullscreenExit && <FullscreenExitModal />}
     </div>
