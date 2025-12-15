@@ -331,6 +331,8 @@ class GeminiService {
         promptVersion: GEMINI_CONFIG.PROMPT_VERSION,
       };
       
+<<<<<<< HEAD
+=======
       // Agregar información sobre el fallback si se usó
       if (fallbackReason) {
         console.warn(`⚠️ Justificación generada con fallback (sin imágenes): ${fallbackReason}`);
@@ -349,6 +351,7 @@ class GeminiService {
         console.warn(`⚠️ Justificación generada SIN imágenes (fallback aplicado)`);
       }
       
+>>>>>>> origin/main
       const processingTime = Date.now() - startTime;
       
       return {
@@ -370,6 +373,9 @@ class GeminiService {
   }
 
   /**
+<<<<<<< HEAD
+   * Construye contenido multimodal (texto + imágenes) para Gemini
+=======
    * Descarga una imagen desde una URL y la convierte a base64
    * Valida que la imagen sea accesible y tenga un tamaño razonable
    */
@@ -457,11 +463,80 @@ class GeminiService {
   /**
    * Construye contenido multimodal (texto + imágenes) para Gemini
    * Ahora descarga las imágenes y las convierte a base64 para análisis visual real
+>>>>>>> origin/main
    */
   private async buildMultimodalContent(
     data: QuestionGenerationData,
     correctOption: QuestionOption,
     incorrectOptions: QuestionOption[]
+<<<<<<< HEAD
+  ): Promise<string> {
+    // Recopilar todas las URLs de imágenes
+    const imageUrls: Array<{ url: string; context: string }> = [];
+    
+    // Imágenes informativas
+    if (data.informativeImages && data.informativeImages.length > 0) {
+      data.informativeImages.forEach((url, index) => {
+        imageUrls.push({ 
+          url, 
+          context: `Imagen informativa ${index + 1} (contexto de la pregunta)` 
+        });
+      });
+    }
+    
+    // Imágenes en la pregunta
+    if (data.questionImages && data.questionImages.length > 0) {
+      data.questionImages.forEach((url, index) => {
+        imageUrls.push({ 
+          url, 
+          context: `Imagen de la pregunta ${index + 1}` 
+        });
+      });
+    }
+    
+    // Imágenes en las opciones
+    data.options.forEach(opt => {
+      if (opt.imageUrl) {
+        imageUrls.push({ 
+          url: opt.imageUrl, 
+          context: `Imagen de la opción ${opt.id}` 
+        });
+      }
+    });
+    
+    // Si no hay imágenes, solo devolver el prompt de texto
+    if (imageUrls.length === 0) {
+      return this.buildJustificationPrompt(data, correctOption, incorrectOptions, false);
+    }
+    
+    // Hay imágenes: construir prompt con instrucciones para análisis visual
+    console.log(`📷 Detectadas ${imageUrls.length} imágenes en la pregunta`);
+    console.log(`   URLs de imágenes:`);
+    imageUrls.forEach(img => {
+      console.log(`   - ${img.context}: ${img.url}`);
+    });
+    
+    // Construir el prompt con indicaciones de imágenes
+    const promptWithImages = this.buildJustificationPrompt(
+      data, 
+      correctOption, 
+      incorrectOptions, 
+      true,
+      imageUrls
+    );
+    
+    // Incluir las URLs de las imágenes al final del prompt
+    // Gemini 2.5 Flash puede acceder a URLs públicas de Firebase Storage
+    const imagesSection = `\n\n═══════════════════════════════════════════════════════════════
+🖼️ IMÁGENES PARA ANALIZAR
+═══════════════════════════════════════════════════════════════
+
+${imageUrls.map((img, i) => `**${i + 1}. ${img.context}**
+URL: ${img.url}
+`).join('\n')}
+
+**INSTRUCCIÓN CRÍTICA:** Accede a cada URL, analiza las imágenes y usa la información visual en tus explicaciones. Describe específicamente qué observas en cada imagen y cómo se relaciona con la pregunta y las opciones.
+=======
   ): Promise<{ text: string; images: Array<{ mimeType: string; data: string; context: string }> }> {
     console.log(`\n🔍 RECOPILANDO URLs DE IMÁGENES:`);
     
@@ -668,11 +743,16 @@ Esta pregunta contiene ${images.length} imagen(es) que se incluyen en este mensa
 6. Si hay gráficos o diagramas, analiza su estructura y significado
 
 Las imágenes están etiquetadas con su contexto. Asegúrate de referenciar cada imagen por su contexto en tus explicaciones.
+>>>>>>> origin/main
 
 ═══════════════════════════════════════════════════════════════
 `;
     
+<<<<<<< HEAD
+    return promptWithImages + imagesSection;
+=======
     return { text: enhancedPrompt, images };
+>>>>>>> origin/main
   }
 
   /**
@@ -715,7 +795,11 @@ ${imageUrls.map((img, i) => `${i + 1}. **${img.context}**
 ❌ NO asumas que el estudiante ve lo mismo que tú sin guiarlo`
       : '';
     
+<<<<<<< HEAD
+    return `Eres el **Dr. Educativo**, un pedagogo experto con 20 años de experiencia en ${data.subject}, especializado en diseño de evaluaciones y análisis de aprendizaje. Tu misión es ayudar a estudiantes a comprender profundamente los conceptos, no solo memorizar respuestas.
+=======
     return `Eres el **Dr. Educativo**, un pedagogo experto con 20 años de experiencia en ${data.subject}, especializado en diseño de evaluaciones y análisis de aprendizaje. Tu misión es ayudar a estudiantes a comprender profundamente los conceptos y entender el porqué de las respuestas.
+>>>>>>> origin/main
 
 ═══════════════════════════════════════════════════════════════
 📋 INFORMACIÓN DE LA EVALUACIÓN
@@ -852,10 +936,14 @@ Identifica conceptos fundamentales (máximo 8 palabras cada uno).
 
 ✅ **SÍ HAZLO:**
 - Responde SOLO con JSON válido
+<<<<<<< HEAD
+- Usa lenguaje natural y accesible para nivel ${data.level}
+=======
 - Usa lenguaje natural y accesible para nivel
 - **Para fórmulas matemáticas**: Usa formato LaTeX dentro de etiquetas \`$...$\` para fórmulas inline o \`$$...$$\` para fórmulas en bloque
   Ejemplo: "La expresión \`$P(t) = 2^{t+2} \cdot \frac{5}{8}t$\` representa..."
   Ejemplo: "Aplicando \`$\frac{a}{b} = c$\` obtenemos..." ${data.level}
+>>>>>>> origin/main
 - Sé específico y concreto en cada explicación
 - Enfócate en el APRENDIZAJE, no solo en la respuesta
 - Conecta con conocimientos previos del estudiante

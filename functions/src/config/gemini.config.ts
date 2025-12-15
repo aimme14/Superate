@@ -196,13 +196,19 @@ class GeminiClient {
    * Genera contenido con Gemini vía Vertex AI
    * 
    * @param prompt - El prompt para generar contenido
+<<<<<<< HEAD
+=======
    * @param images - Array opcional de imágenes en formato base64 con su tipo MIME y contexto
+>>>>>>> origin/main
    * @param options - Opciones adicionales
    * @returns El texto generado
    */
   async generateContent(
     prompt: string,
+<<<<<<< HEAD
+=======
     images: Array<{ mimeType: string; data: string; context: string }> = [],
+>>>>>>> origin/main
     options: {
       retries?: number;
       timeout?: number;
@@ -212,6 +218,18 @@ class GeminiClient {
     await this.ensureInitialized();
 
     const maxRetries = options.retries ?? GEMINI_CONFIG.MAX_RETRIES;
+<<<<<<< HEAD
+    
+    // Detectar número de imágenes en el prompt
+    const imageMatches = prompt.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g);
+    const imageCount = imageMatches ? imageMatches.length : 0;
+    
+    // Determinar timeout base según número de imágenes
+    let baseTimeout: number = GEMINI_CONFIG.REQUEST_TIMEOUT_MS;
+    if (imageCount > 4) {
+      baseTimeout = GEMINI_CONFIG.REQUEST_TIMEOUT_MULTIPLE_IMAGES_MS;
+      console.log(`📷 Detectadas ${imageCount} imágenes. Usando timeout extendido de ${(baseTimeout / 60000).toFixed(1)} minutos`);
+=======
     const imageCount = images.length;
     
     // Determinar timeout base según número de imágenes
@@ -224,6 +242,7 @@ class GeminiClient {
         baseTimeout = Math.floor(GEMINI_CONFIG.REQUEST_TIMEOUT_MS * 1.5);
       }
       console.log(`📷 Procesando ${imageCount} imagen(es) con timeout de ${(baseTimeout / 60000).toFixed(1)} minutos`);
+>>>>>>> origin/main
     }
     
     // Si se especifica un timeout en opciones, usarlo como base
@@ -250,15 +269,26 @@ class GeminiClient {
         
         console.log(`🤖 Generando contenido con Gemini Vertex AI (intento ${attempt}/${maxRetries})...`);
         if (imageCount > 0) {
+<<<<<<< HEAD
+          console.log(`   📷 Procesando ${imageCount} imágenes con timeout de ${(currentTimeout / 60000).toFixed(1)} minutos`);
+=======
           console.log(`   📷 Analizando ${imageCount} imagen(es) visualmente con Gemini`);
           images.forEach((img, idx) => {
             console.log(`      ${idx + 1}. ${img.context} (${img.mimeType}, ${(Buffer.from(img.data, 'base64').length / 1024).toFixed(2)}KB)`);
           });
+>>>>>>> origin/main
         }
         
         // Asegurar credenciales antes de cada llamada
         process.env.GOOGLE_APPLICATION_CREDENTIALS = this.vertexKeyPath;
         
+<<<<<<< HEAD
+        // Vertex AI usa generateContent similar pero con estructura diferente
+        const request = {
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        };
+        
+=======
         // Construir las partes del contenido: imágenes primero, luego texto
         // Según la documentación de Gemini, es mejor poner las imágenes antes del texto
         console.log(`\n🔧 CONSTRUYENDO REQUEST PARA VERTEX AI:`);
@@ -371,6 +401,7 @@ class GeminiClient {
           console.log(`\n📤 ENVIANDO REQUEST A VERTEX AI GEMINI (solo texto, sin imágenes)\n`);
         }
         
+>>>>>>> origin/main
         const resultPromise = this.model!.generateContent(request);
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Timeout al generar contenido')), currentTimeout);
@@ -384,6 +415,8 @@ class GeminiClient {
         
         // Extraer texto de la respuesta de Vertex AI
         const response = result.response;
+<<<<<<< HEAD
+=======
         
         // Validar que la respuesta tenga la estructura esperada
         if (!response || !response.candidates || response.candidates.length === 0) {
@@ -394,12 +427,16 @@ class GeminiClient {
           throw new Error('Respuesta de Gemini no tiene partes válidas');
         }
         
+>>>>>>> origin/main
         const text = response.candidates[0].content.parts[0].text;
         
         if (!text || text.trim() === '') {
           throw new Error('Respuesta vacía de Gemini');
         }
         
+<<<<<<< HEAD
+        console.log(`✅ Contenido generado exitosamente (${text.length} caracteres)`);
+=======
         // Log de confirmación de recepción
         if (imageCount > 0) {
           console.log(`\n📨 CONFIRMACIÓN DE RECEPCIÓN POR GEMINI:`);
@@ -473,6 +510,7 @@ class GeminiClient {
           hasVisualReferences: false,
           visualKeywordsFound: 0,
         };
+>>>>>>> origin/main
         
         return {
           text,
@@ -482,10 +520,13 @@ class GeminiClient {
             region: GEMINI_CONFIG.REGION,
             promptVersion: GEMINI_CONFIG.PROMPT_VERSION,
             attempt,
+<<<<<<< HEAD
+=======
             imagesProcessed: imageCount,
             imagesAnalyzed: visualMeta.imagesAnalyzed,
             hasVisualReferences: visualMeta.hasVisualReferences,
             visualKeywordsFound: visualMeta.visualKeywordsFound,
+>>>>>>> origin/main
             timestamp: new Date(),
           },
         };
@@ -517,7 +558,11 @@ class GeminiClient {
             const nextTimeout = attempt === 1 
               ? Math.floor(baseTimeout * 1.5) 
               : baseTimeout * 2;
+<<<<<<< HEAD
+            console.log(`⚠️ Timeout detectado en intento ${attempt}. El prompt puede ser muy largo (${imageCount} imágenes).`);
+=======
             console.log(`⚠️ Timeout detectado en intento ${attempt}. El prompt puede ser muy largo${imageCount > 0 ? ` o hay ${imageCount} imagen(es) que procesar` : ''}.`);
+>>>>>>> origin/main
             console.log(`   El siguiente intento usará timeout de ${(nextTimeout / 60000).toFixed(1)} minutos. Esperando ${(delayTime / 1000).toFixed(1)}s...`);
           } else {
             console.log(`⏳ Reintentando en ${(delayTime / 1000).toFixed(1)}s...`);

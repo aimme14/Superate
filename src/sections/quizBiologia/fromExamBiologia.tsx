@@ -324,7 +324,6 @@ const ExamWithFirebase = () => {
   };
 
   // Función para cambiar de pregunta con seguimiento de tiempo
-  // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
   // Nota: Esta función se mantiene por diseño pero no se usa activamente (navegación bloqueada)
   // @ts-expect-error - Función mantenida para referencia pero no utilizada activamente
@@ -340,14 +339,14 @@ const ExamWithFirebase = () => {
     if (!quizData) return;
 
     // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
+    const currentQuestionId = quizData.questions[currentQuestion]?.id || quizData.questions[currentQuestion]?.code;
     finalizeQuestionTime(currentQuestionId);
 
     // Cambiar a la nueva pregunta
     setCurrentQuestion(newQuestionIndex);
 
     // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = quizData.questions[newQuestionIndex].id || quizData.questions[newQuestionIndex].code;
+    const newQuestionId = quizData.questions[newQuestionIndex]?.id || quizData.questions[newQuestionIndex]?.code;
     initializeQuestionTime(newQuestionId);
   };
 

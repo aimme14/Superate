@@ -333,8 +333,6 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             theme={theme} 
             stats={stats} 
             currentRector={currentRector}
-            coordinators={coordinators || []}
-            teachers={teachers || []}
           />
         </TabsContent>
 

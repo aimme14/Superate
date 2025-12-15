@@ -723,7 +723,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         // Si es la segunda vez (newCount === 2), finalizar examen automáticamente
         if (newCount === 2) {
           // Cerrar cualquier modal abierto
-          setShowTabChangeWarning(false);
+          // setShowTabChangeWarning(false); // Comentado - función no definida
           setShowFullscreenExit(false);
           
           // Finalizar el examen inmediatamente
@@ -733,7 +733,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           }, 50);
         } else if (newCount === 1) {
           // Primera vez: mostrar advertencia
-          setShowTabChangeWarning(true);
+          // setShowTabChangeWarning(true); // Comentado - función no definida
         }
         
         return newCount;
@@ -780,7 +780,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const startExam = async () => {
     // Restablecer contador de intentos de fraude al iniciar el examen
     setTabChangeCount(0);
-    setShowTabChangeWarning(false);
+    // setShowTabChangeWarning(false); // Comentado - función no definida
     const entered = await enterFullscreen()
     setExamState('active')
     if (!entered) {

@@ -118,17 +118,48 @@ const stripHtmlTags = (html: string): string => {
   return text
 }
 
-// Función para mapear el grado del usuario al código que usa el banco de preguntas
-const mapGradeToCode = (gradeName: string): string => {
-  const gradeMap: { [key: string]: string } = {
-    '6°1': '6', '6°2': '6', '6°3': '6',
-    '7°1': '7', '7°2': '7', '7°3': '7',
-    '8°1': '8', '8°2': '8', '8°3': '8',
-    '9°1': '9', '9°2': '9', '9°3': '9',
-    '10°1': '0', '10°2': '0', '10°3': '0',
-    '11°1': '1', '11°2': '1', '11°3': '1'
+// Función para mapear el nombre del grado al código que usa el banco de preguntas
+const mapGradeToCode = (gradeName: string | undefined): string | undefined => {
+  if (!gradeName) return undefined;
+  
+  const gradeMap: Record<string, string> = {
+    '6°': '6',
+    '6°1': '6',
+    '6°2': '6',
+    '6°3': '6',
+    '7°': '7',
+    '7°1': '7',
+    '7°2': '7',
+    '7°3': '7',
+    '8°': '8',
+    '8°1': '8',
+    '8°2': '8',
+    '8°3': '8',
+    '9°': '9',
+    '9°1': '9',
+    '9°2': '9',
+    '9°3': '9',
+    '10°': '0',
+    '10°1': '0',
+    '10°2': '0',
+    '10°3': '0',
+    '11°': '1',
+    '11°1': '1',
+    '11°2': '1',
+    '11°3': '1',
+    'Sexto': '6',
+    'Séptimo': '7',
+    'Octavo': '8',
+    'Noveno': '9',
+    'Décimo': '0',
+    'Undécimo': '1',
+    // Agregar más variaciones posibles
+    '11': '1',
+    '11°1°': '1',
+    '11°1°1': '1'
   };
-  return gradeMap[gradeName] || '1'; // Default a undécimo si no se encuentra
+  
+  return gradeMap[gradeName] || undefined;
 };
 
 // Configuración del examen de Inglés
@@ -513,6 +544,8 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
+  // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const changeQuestion = (_newQuestionIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
@@ -558,14 +591,17 @@ const ExamWithFirebase = () => {
               if (firstQuestionId) initializeQuestionTime(firstQuestionId);
             }
     } else {
-      const newQuestionId = quizData.questions[newQuestionIndex].id || '';
-      initializeQuestionTime(newQuestionId);
+      if (quizData) {
+        const newQuestionId = quizData.questions[newQuestionIndex].id || '';
+        initializeQuestionTime(newQuestionId);
+      }
     }
   };
-  
-  // Función para cambiar de grupo (para inglés)
+
   // Función para cambiar de grupo (para inglés)
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
+  // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const changeGroup = (_newGroupIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de grupo cuando se usa el botón "Siguiente"
@@ -573,7 +609,7 @@ const ExamWithFirebase = () => {
     return;
   };
 
-  // Función interna para cambiar de grupo (solo usada por nextQuestion)
+  // Función interna para cambiar de grupo (solo usada por nextQuestion, no bloqueada)
   const internalChangeGroup = (newGroupIndex: number) => {
     if (!quizData || questionGroups.length === 0) return;
     
@@ -1588,12 +1624,16 @@ const ExamWithFirebase = () => {
     // Para inglés, navegar entre grupos
     if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
       if (currentGroupIndex > 0) {
-        changeGroup(currentGroupIndex - 1);
+        const prevGroupIndex = currentGroupIndex - 1;
+        // Usar la función interna para cambiar de grupo (no bloqueada)
+        internalChangeGroup(prevGroupIndex);
       }
     } else {
       // Para otras materias, navegar entre preguntas individuales
       if (currentQuestion > 0) {
-        changeQuestion(currentQuestion - 1);
+        const prevIndex = currentQuestion - 1;
+        // Usar la función interna para cambiar de pregunta (no bloqueada)
+        internalChangeQuestion(prevIndex);
       }
     }
   }
