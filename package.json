@@ -9,7 +9,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "init-db": "tsx src/scripts/runInitialization.ts",
-    "setup-storage": "node setup-firebase-storage.js"
+    "setup-storage": "node setup-firebase-storage.js",
+    "diagnose-phase": "tsx src/scripts/diagnosePhaseProgress.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
