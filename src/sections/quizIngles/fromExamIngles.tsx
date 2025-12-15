@@ -569,24 +569,13 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de grupo (para inglés)
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-<<<<<<< HEAD
-<<<<<<< HEAD
   // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const changeGroup = (_newGroupIndex: number) => {
-=======
-  const changeGroup = (newGroupIndex: number) => {
-    if (!quizData || questionGroups.length === 0) return;
-
->>>>>>> parent of 4dd6bcd (nn)
-=======
-  const changeGroup = (_newGroupIndex: number) => {
->>>>>>> origin/main
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de grupo cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
     return;
-<<<<<<< HEAD
   };
 
   // Función interna para cambiar de grupo (solo usada por nextQuestion, no bloqueada)
