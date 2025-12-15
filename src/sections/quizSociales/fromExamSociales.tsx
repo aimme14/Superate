@@ -239,17 +239,6 @@ const ExamWithFirebase = () => {
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
     return;
-
-    // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = examData.questions[currentQuestion].id;
-    finalizeQuestionTime(currentQuestionId);
-
-    // Cambiar a la nueva pregunta
-    setCurrentQuestion(newQuestionIndex);
-
-    // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = examData.questions[newQuestionIndex].id;
-    initializeQuestionTime(newQuestionId);
   };
 
   // Función interna para cambiar de pregunta (solo usada por nextQuestion)
