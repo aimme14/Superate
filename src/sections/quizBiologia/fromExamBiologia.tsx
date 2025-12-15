@@ -347,14 +347,14 @@ const ExamWithFirebase = () => {
     if (!quizData) return;
 
     // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
+    const currentQuestionId = quizData.questions[currentQuestion]?.id || quizData.questions[currentQuestion]?.code;
     finalizeQuestionTime(currentQuestionId);
 
     // Cambiar a la nueva pregunta
     setCurrentQuestion(newQuestionIndex);
 
     // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = quizData.questions[newQuestionIndex].id || quizData.questions[newQuestionIndex].code;
+    const newQuestionId = quizData.questions[newQuestionIndex]?.id || quizData.questions[newQuestionIndex]?.code;
     initializeQuestionTime(newQuestionId);
   };
 

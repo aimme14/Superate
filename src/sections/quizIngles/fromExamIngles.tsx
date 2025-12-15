@@ -513,40 +513,13 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-<<<<<<< HEAD
   // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-=======
->>>>>>> 4dd6bcd515f75eafb26b10a862d22c2cdb21aa7e
   const changeQuestion = (_newQuestionIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
     return;
-<<<<<<< HEAD
-    
-    // Código comentado - no se ejecuta debido al return anterior
-    // if (!quizData) return;
-    // if (quizData.subject === 'Inglés' && questionGroups.length > 0 && questionGroups[currentGroupIndex]) {
-    //   questionGroups[currentGroupIndex].forEach(q => {
-    //     const questionId = q.id || '';
-    //     if (questionId) finalizeQuestionTime(questionId);
-    //   });
-    // } else {
-    //   const currentQuestionId = quizData.questions[currentQuestion].id || '';
-    //   finalizeQuestionTime(currentQuestionId);
-    // }
-    // setCurrentQuestion(_newQuestionIndex);
-    // if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
-    //   // ... código para actualizar grupo
-    // } else {
-    //   if (quizData) {
-    //     const newQuestionId = quizData.questions[_newQuestionIndex].id || '';
-    //     initializeQuestionTime(newQuestionId);
-    //   }
-    // }
-=======
->>>>>>> 4dd6bcd515f75eafb26b10a862d22c2cdb21aa7e
   };
 
   // Función interna para cambiar de pregunta (solo usada por nextQuestion y changeGroup)
@@ -594,32 +567,6 @@ const ExamWithFirebase = () => {
     }
   };
 
-  // Función interna para cambiar de grupo (solo usada por nextQuestion, no bloqueada)
-  const internalChangeGroup = (newGroupIndex: number) => {
-    if (!quizData || questionGroups.length === 0) return;
-    
-    // Finalizar tiempo del grupo actual
-    questionGroups[currentGroupIndex].forEach(q => {
-      const questionId = q.id || '';
-      if (questionId) finalizeQuestionTime(questionId);
-    });
-    
-    // Cambiar al nuevo grupo
-    setCurrentGroupIndex(newGroupIndex);
-    
-    // Calcular el índice de la primera pregunta del grupo
-    let questionIndex = 0;
-    for (let i = 0; i < newGroupIndex; i++) {
-      questionIndex += questionGroups[i].length;
-    }
-    setCurrentQuestion(questionIndex);
-    
-    // Inicializar tiempo de la primera pregunta del nuevo grupo
-    const firstQuestionId = questionGroups[newGroupIndex][0].id || '';
-    if (firstQuestionId) initializeQuestionTime(firstQuestionId);
-  };
-  
-  // Función para cambiar de grupo (para inglés)
   // Función para cambiar de grupo (para inglés)
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
   const changeGroup = (_newGroupIndex: number) => {
@@ -629,7 +576,7 @@ const ExamWithFirebase = () => {
     return;
   };
 
-  // Función interna para cambiar de grupo (solo usada por nextQuestion)
+  // Función interna para cambiar de grupo (solo usada por nextQuestion, no bloqueada)
   const internalChangeGroup = (newGroupIndex: number) => {
     if (!quizData || questionGroups.length === 0) return;
     
