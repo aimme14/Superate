@@ -160,6 +160,7 @@ const ExamWithFirebase = () => {
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
   const [showWarning, setShowWarning] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
@@ -604,7 +605,29 @@ const ExamWithFirebase = () => {
   };
 
   // Función para cambiar de pregunta con seguimiento de tiempo
+  // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
   const changeQuestion = (newQuestionIndex: number) => {
+    if (!quizData) return;
+
+    // BLOQUEAR TODA navegación desde los botones de navegación
+    // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
+    // Los botones de navegación son SOLO marcadores visuales
+    return;
+
+    // Finalizar tiempo de la pregunta actual
+    const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
+    finalizeQuestionTime(currentQuestionId);
+
+    // Cambiar a la nueva pregunta
+    setCurrentQuestion(newQuestionIndex);
+
+    // Inicializar tiempo de la nueva pregunta
+    const newQuestionId = quizData.questions[newQuestionIndex].id || quizData.questions[newQuestionIndex].code;
+    initializeQuestionTime(newQuestionId);
+  };
+
+  // Función interna para cambiar de pregunta (solo usada por nextQuestion)
+  const internalChangeQuestion = (newQuestionIndex: number) => {
     if (!quizData) return;
 
     // Finalizar tiempo de la pregunta actual
@@ -631,7 +654,8 @@ const ExamWithFirebase = () => {
     if (examState === 'active' && examStartTime === 0 && quizData) {
       const now = Date.now();
       setExamStartTime(now);
-      // Inicializar la primera pregunta
+      // Inicializar la primera pregunta y marcar como alcanzada
+      setMaxReachedQuestion(0);
       const firstQuestionId = quizData.questions[0].id || quizData.questions[0].code;
       initializeQuestionTime(firstQuestionId);
     }
@@ -781,35 +805,156 @@ const ExamWithFirebase = () => {
 
   // Detectar cambios de pestaña y pérdida de foco
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (examState === 'active' && document.hidden) {
-        setTabChangeCount(prev => prev + 1);
-        setShowTabChangeWarning(true);
+    if (examState !== 'active' || examLocked) return;
 
-        if (tabChangeCount >= 2) {
+    // Flag para evitar procesamiento duplicado
+    let isProcessingTabChange = false;
+    let lastVisibilityState = !document.hidden;
+    let blurTimeout: NodeJS.Timeout | null = null;
+    let lastFocusTime = Date.now();
+    let visibilityCheckInterval: NodeJS.Timeout | null = null;
+
+    const handleTabChange = () => {
+      // Evitar procesamiento duplicado
+      if (isProcessingTabChange) return;
+      isProcessingTabChange = true;
+
+      setTabChangeCount(prev => {
+        const newCount = prev + 1;
+        
+        // Si es la segunda vez (newCount === 2), finalizar examen automáticamente
+        if (newCount === 2) {
+          // Cerrar cualquier modal abierto
+          setShowTabChangeWarning(false);
+          setShowFullscreenExit(false);
+          
+          // Finalizar el examen inmediatamente
           setExamLocked(true);
-          handleSubmit(true, true);
+          setTimeout(() => {
+            handleSubmit(true, true);
+          }, 50);
+        } else if (newCount === 1) {
+          // Primera vez: mostrar advertencia
+          setShowTabChangeWarning(true);
+        }
+        
+        return newCount;
+      });
+
+      // Resetear el flag después de un breve delay
+      setTimeout(() => {
+        isProcessingTabChange = false;
+      }, 500);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!examLocked) {
+        const isHidden = document.hidden;
+        
+        // Si la pestaña se oculta, incrementar contador
+        if (isHidden && !lastVisibilityState) {
+          lastVisibilityState = true;
+          handleTabChange();
+        } else if (!isHidden && lastVisibilityState) {
+          // Cuando vuelve a la pestaña, asegurar que el modal se muestre si corresponde
+          lastVisibilityState = false;
+          setTimeout(() => {
+            setTabChangeCount(currentCount => {
+              if (currentCount === 1 && !showTabChangeWarning && !examLocked) {
+                setShowTabChangeWarning(true);
+              }
+              return currentCount;
+            });
+          }, 100);
         }
       }
     };
 
     const handleWindowBlur = () => {
-      if (examState === 'active') {
-        setTabChangeCount(prev => prev + 1);
-        setShowTabChangeWarning(true);
-
-        if (tabChangeCount >= 2) {
-          setExamLocked(true);
-          handleSubmit(true, true);
-        }
+      lastFocusTime = Date.now();
+      
+      // Limpiar timeout anterior si existe
+      if (blurTimeout) {
+        clearTimeout(blurTimeout);
       }
+      
+      // Verificar si realmente cambió de pestaña (no solo perdió foco dentro de la misma ventana)
+      blurTimeout = setTimeout(() => {
+        if (!examLocked && document.hidden) {
+          // Verificar que realmente cambió de pestaña
+          // Si el documento está oculto, es un cambio de pestaña válido
+          handleTabChange();
+        }
+      }, 200);
     };
 
     const handleWindowFocus = () => {
-      if (examState === 'active' && showTabChangeWarning && !examLocked) {
-        // El aviso se mantiene visible
+      // Limpiar timeout de blur si existe
+      if (blurTimeout) {
+        clearTimeout(blurTimeout);
+        blurTimeout = null;
+      }
+      
+      // Verificar si hubo un cambio de pestaña reciente
+      const timeSinceBlur = Date.now() - lastFocusTime;
+      
+      // Si pasó más de 100ms desde el blur, probablemente hubo un cambio de pestaña
+      if (timeSinceBlur > 100 && !examLocked && !document.hidden) {
+        // Verificar si el contador ya se incrementó (para evitar doble conteo)
+        setTimeout(() => {
+          setTabChangeCount(currentCount => {
+            if (currentCount === 1 && !showTabChangeWarning && !examLocked) {
+              setShowTabChangeWarning(true);
+            }
+            return currentCount;
+          });
+        }, 100);
       }
     };
+
+    // Monitoreo periódico de visibilidad (útil cuando los eventos no se disparan correctamente)
+    const startVisibilityMonitoring = () => {
+      if (visibilityCheckInterval) {
+        clearInterval(visibilityCheckInterval);
+      }
+      
+      visibilityCheckInterval = setInterval(() => {
+        if (!examLocked && examState === 'active') {
+          const currentVisibility = !document.hidden;
+          const isInFullscreen = !!(
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement
+          );
+          
+          // Si está en pantalla completa y el estado de visibilidad cambió, es un cambio de pestaña
+          if (isInFullscreen && currentVisibility !== lastVisibilityState) {
+            if (!currentVisibility && lastVisibilityState) {
+              // Se ocultó (estaba visible, ahora está oculto)
+              lastVisibilityState = false;
+              handleTabChange();
+            } else if (currentVisibility && !lastVisibilityState) {
+              // Volvió a ser visible (estaba oculto, ahora está visible)
+              lastVisibilityState = true;
+              setTimeout(() => {
+                setTabChangeCount(currentCount => {
+                  if (currentCount === 1 && !showTabChangeWarning && !examLocked) {
+                    setShowTabChangeWarning(true);
+                  }
+                  return currentCount;
+                });
+              }, 100);
+            }
+          } else if (!isInFullscreen) {
+            // Si no está en pantalla completa, actualizar el estado sin procesar
+            lastVisibilityState = currentVisibility;
+          }
+        }
+      }, 300); // Verificar cada 300ms
+    };
+
+    // Iniciar monitoreo periódico
+    startVisibilityMonitoring();
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleWindowBlur);
@@ -819,8 +964,14 @@ const ExamWithFirebase = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
+      if (blurTimeout) {
+        clearTimeout(blurTimeout);
+      }
+      if (visibilityCheckInterval) {
+        clearInterval(visibilityCheckInterval);
+      }
     };
-  }, [examState, tabChangeCount, showTabChangeWarning, examLocked]);
+  }, [examState, examLocked, tabChangeCount, showTabChangeWarning]);
 
   // Detectar cambios de pantalla completa
   // Detectar cambios de pantalla completa - PRINCIPAL
@@ -918,8 +1069,22 @@ const ExamWithFirebase = () => {
     };
   }, [examState, examLocked, showFullscreenExit]);
 
+  // Continuar examen después de advertencia de cambio de pestaña
+  const continueExam = () => {
+    setShowTabChangeWarning(false)
+  }
+
+  // Finalizar examen por cambio de pestaña
+  const finishExamByTabChange = async () => {
+    setShowTabChangeWarning(false)
+    await handleSubmit(true, true)
+  }
+
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
+    // Restablecer contador de intentos de fraude al iniciar el examen
+    setTabChangeCount(0);
+    setShowTabChangeWarning(false);
     await enterFullscreen()
     setExamState('active')
   }
@@ -1278,7 +1443,13 @@ const ExamWithFirebase = () => {
   // Función para ir a la siguiente pregunta
   const nextQuestion = () => {
     if (quizData && currentQuestion < quizData.questions.length - 1) {
-      changeQuestion(currentQuestion + 1)
+      const nextIndex = currentQuestion + 1;
+      // Actualizar maxReachedQuestion cuando se avanza con el botón siguiente
+      if (nextIndex > maxReachedQuestion) {
+        setMaxReachedQuestion(nextIndex);
+      }
+      // Usar la función interna para cambiar de pregunta (no bloqueada)
+      internalChangeQuestion(nextIndex);
     }
   }
 
@@ -1390,7 +1561,7 @@ const ExamWithFirebase = () => {
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <AlertTitle className={cn(appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>Advertencia</AlertTitle>
                   <AlertDescription className={cn(appTheme === 'dark' ? 'text-orange-200' : 'text-orange-700')}>
-                    Has salido de pantalla completa y cambiado de pestaña. Si lo vuelves a hacer, el examen se tomará por finalizado.
+                    Has salido de pantalla completa y cambiado de pestaña. ⚠️ Esta es tu primera advertencia. Si lo vuelves a hacer una segunda vez, el examen se finalizará automáticamente.
                   </AlertDescription>
                 </Alert>
                 <p className={cn(appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
@@ -1438,6 +1609,61 @@ const ExamWithFirebase = () => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // Modal de advertencia de cambio de pestaña
+  const TabChangeWarningModal = () => {
+    // No mostrar el modal si el examen está bloqueado o ya se alcanzó el límite
+    if (examLocked || tabChangeCount >= 2) {
+      return null;
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <Card className={cn("w-full max-w-md mx-4", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className={cn("h-16 w-16 rounded-full flex items-center justify-center", appTheme === 'dark' ? 'bg-orange-900/50' : 'bg-orange-100')}>
+                <AlertCircle className={cn("h-8 w-8", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-600')} />
+              </div>
+            </div>
+            <CardTitle className={cn("text-xl", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-800')}>¡Advertencia!</CardTitle>
+            <CardDescription className={cn("text-base", appTheme === 'dark' ? 'text-gray-400' : '')}>
+              Cambio de pestaña detectado
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <div className={cn("rounded-lg p-4 mb-4", appTheme === 'dark' ? 'bg-orange-900/30' : 'bg-orange-50')}>
+              <div className={cn("text-sm mb-1", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>Intento de fraude detectado</div>
+              <div className={cn("text-2xl font-bold", appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>{tabChangeCount}</div>
+            </div>
+            <p className={cn("mb-2", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+              Has cambiado de pestaña o perdido el foco de la ventana del examen.
+            </p>
+            <p className={cn("text-sm font-medium", appTheme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+              ⚠️ Esta es tu primera advertencia. Si cambias de pestaña una segunda vez, el examen se finalizará automáticamente.
+            </p>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-3">
+            <Button
+              onClick={continueExam}
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Continuar Examen
+            </Button>
+            <Button
+              onClick={finishExamByTabChange}
+              variant="outline"
+              className={cn("w-full border-red-300 text-red-600 hover:bg-red-50", appTheme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Finalizar Examen
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
   }
 
   // Pantalla de examen completado
@@ -1569,11 +1795,11 @@ const ExamWithFirebase = () => {
                   <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
                 </div>
                 {/* Advertencias de cambio de pestaña */}
-                {tabChangeCount > 0 && (
+                {tabChangeCount === 1 && (
                   <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", appTheme === 'dark' ? 'bg-orange-900/50 border-orange-700' : 'bg-orange-50 border-orange-200')}>
                     <AlertCircle className="h-4 w-4 text-orange-500" />
                     <span className={cn("text-sm font-medium", appTheme === 'dark' ? 'text-orange-300' : 'text-orange-700')}>
-                      {2 - tabChangeCount} intentos restantes
+                      1 intento de fraude detectado
                     </span>
                   </div>
                 )}
@@ -1788,12 +2014,20 @@ const ExamWithFirebase = () => {
                 const qId = q.id || q.code;
                 const isAnswered = answers[qId];
                 const isCurrent = currentQuestion === index;
+                // TODOS los botones están bloqueados - solo son marcadores visuales
+                // No se puede navegar desde los botones, solo desde el botón "Siguiente"
+                
                 return (
                   <button
                     key={qId}
-                    onClick={() => changeQuestion(index)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // BLOQUEAR TODOS los clics - los botones son SOLO marcadores visuales
+                      return false;
+                    }}
                     className={cn(
-                      "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 hover:scale-110",
+                      "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 cursor-not-allowed",
                       isCurrent
                         ? isAnswered
                           ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
@@ -1802,7 +2036,12 @@ const ExamWithFirebase = () => {
                         ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
                         : (appTheme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300")
                     )}
-                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"}`}
+                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"} - Solo marcador visual`}
+                    onMouseDown={(e) => {
+                      // Prevenir cualquier acción - los botones son solo marcadores visuales
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
                   >
                     {index + 1}
                     {isAnswered && !isCurrent && (
@@ -1986,6 +2225,7 @@ const ExamWithFirebase = () => {
       {/* Modales */}
       {showWarning && <SubmitWarningModal />}
       {showFullscreenExit && <FullscreenExitModal />}
+      {showTabChangeWarning && !examLocked && tabChangeCount < 2 && <TabChangeWarningModal />}
       
       {/* Modal de zoom para imágenes */}
       {zoomedImage && (

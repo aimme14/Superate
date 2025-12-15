@@ -22,7 +22,7 @@ class GeminiService {
       this.genAI = new GoogleGenerativeAI(apiKey);
       // Usar Gemini 2.0 Flash (experimental) - equivalente a Gemini 3.0 Pro
       // También puedes usar 'gemini-1.5-pro' para un modelo más estable
-      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.0-flash-exp';
+      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
       this.model = this.genAI.getGenerativeModel({ model: modelName });
       console.log(`✅ Servicio de Gemini AI inicializado correctamente con modelo: ${modelName}`);
     } catch (error) {
