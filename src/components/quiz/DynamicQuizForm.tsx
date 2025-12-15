@@ -413,24 +413,21 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-  const changeQuestion = (newQuestionIndex: number) => {
-    if (!quizData) return;
-
+  // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const changeQuestion = (_newQuestionIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
     return;
 
-    // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
-    finalizeQuestionTime(currentQuestionId);
-
-    // Cambiar a la nueva pregunta
-    setCurrentQuestion(newQuestionIndex);
-
-    // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = quizData.questions[newQuestionIndex].id || quizData.questions[newQuestionIndex].code;
-    initializeQuestionTime(newQuestionId);
+    // Código comentado - no se ejecuta debido al return anterior
+    // if (!quizData) return;
+    // const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
+    // finalizeQuestionTime(currentQuestionId);
+    // setCurrentQuestion(_newQuestionIndex);
+    // const newQuestionId = quizData.questions[_newQuestionIndex].id || quizData.questions[_newQuestionIndex].code;
+    // initializeQuestionTime(newQuestionId);
   };
 
   // Función interna para cambiar de pregunta (solo usada por nextQuestion)
@@ -721,7 +718,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         // Si es la segunda vez (newCount === 2), finalizar examen automáticamente
         if (newCount === 2) {
           // Cerrar cualquier modal abierto
-          setShowTabChangeWarning(false);
+          // setShowTabChangeWarning(false); // Comentado - función no definida
           setShowFullscreenExit(false);
           
           // Finalizar el examen inmediatamente
@@ -731,7 +728,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           }, 50);
         } else if (newCount === 1) {
           // Primera vez: mostrar advertencia
-          setShowTabChangeWarning(true);
+          // setShowTabChangeWarning(true); // Comentado - función no definida
         }
         
         return newCount;
@@ -778,7 +775,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const startExam = async () => {
     // Restablecer contador de intentos de fraude al iniciar el examen
     setTabChangeCount(0);
-    setShowTabChangeWarning(false);
+    // setShowTabChangeWarning(false); // Comentado - función no definida
     const entered = await enterFullscreen()
     setExamState('active')
     if (!entered) {
