@@ -1,11 +1,11 @@
 import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookOpen, Play, Users, Timer, HelpCircle, Maximize, X, Database, ZoomIn } from "lucide-react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
+import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
+import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { useState, useEffect } from "react"
-import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+import { Progress } from "#/ui/progress"
+import { Button } from "#/ui/button"
+import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
