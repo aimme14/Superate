@@ -796,12 +796,8 @@ const ExamWithFirebase = () => {
   useEffect(() => {
     if (examState !== 'active' || examLocked) return;
 
-    // Flag para evitar procesamiento duplicado
+    // Flag para evitar que ambos eventos incrementen el contador duplicadamente
     let isProcessingTabChange = false;
-    let lastVisibilityState = !document.hidden;
-    let blurTimeout: NodeJS.Timeout | null = null;
-    let lastFocusTime = Date.now();
-    let visibilityCheckInterval: NodeJS.Timeout | null = null;
 
     const handleTabChange = () => {
       // Evitar procesamiento duplicado
@@ -818,9 +814,10 @@ const ExamWithFirebase = () => {
           setShowFullscreenExit(false);
           
           // Finalizar el examen inmediatamente
-          setExamLocked(true);
+          // IMPORTANTE: No establecer examLocked aquí, dejar que handleSubmit lo haga
+          // porque handleSubmit verifica examLocked al inicio y retorna si ya está bloqueado
           setTimeout(() => {
-            handleSubmit(true, true);
+            handleSubmit(false, true);
           }, 50);
         } else if (newCount === 1) {
           // Primera vez: mostrar advertencia
@@ -838,18 +835,15 @@ const ExamWithFirebase = () => {
 
     const handleVisibilityChange = () => {
       if (!examLocked) {
-        const isHidden = document.hidden;
-        
-        // Si la pestaña se oculta, incrementar contador
-        if (isHidden && !lastVisibilityState) {
-          lastVisibilityState = true;
+        if (document.hidden) {
+          // Cuando se oculta la pestaña, incrementar contador
           handleTabChange();
-        } else if (!isHidden && lastVisibilityState) {
-          // Cuando vuelve a la pestaña, asegurar que el modal se muestre si corresponde
-          lastVisibilityState = false;
+        } else {
+          // Cuando vuelve a la pestaña, verificar si debe mostrarse el modal
+          // Usar una verificación con el estado actual
           setTimeout(() => {
             setTabChangeCount(currentCount => {
-              if (currentCount === 1 && !showTabChangeWarning && !examLocked) {
+              if (currentCount === 1) {
                 setShowTabChangeWarning(true);
               }
               return currentCount;
@@ -860,90 +854,23 @@ const ExamWithFirebase = () => {
     };
 
     const handleWindowBlur = () => {
-      lastFocusTime = Date.now();
-      
-      // Limpiar timeout anterior si existe
-      if (blurTimeout) {
-        clearTimeout(blurTimeout);
-      }
-      
-      // Verificar si realmente cambió de pestaña (no solo perdió foco dentro de la misma ventana)
-      blurTimeout = setTimeout(() => {
-        if (!examLocked && document.hidden) {
-          // Verificar que realmente cambió de pestaña
-          // Si el documento está oculto, es un cambio de pestaña válido
-          handleTabChange();
-        }
-      }, 200);
-    };
-
-    const handleWindowFocus = () => {
-      // Limpiar timeout de blur si existe
-      if (blurTimeout) {
-        clearTimeout(blurTimeout);
-        blurTimeout = null;
-      }
-      
-      // Verificar si hubo un cambio de pestaña reciente
-      const timeSinceBlur = Date.now() - lastFocusTime;
-      
-      // Si pasó más de 100ms desde el blur, probablemente hubo un cambio de pestaña
-      if (timeSinceBlur > 100 && !examLocked && !document.hidden) {
-        // Verificar si el contador ya se incrementó (para evitar doble conteo)
+      // Solo procesar si la ventana perdió el foco y no está en pantalla completa
+      // y no está bloqueado
+      if (!examLocked && !document.hidden) {
+        // El blur puede ocurrir sin cambio de pestaña (ej: click en otra ventana)
+        // Por eso verificamos también visibilitychange
+        // Solo procesar si realmente cambió de pestaña
         setTimeout(() => {
-          setTabChangeCount(currentCount => {
-            if (currentCount === 1 && !showTabChangeWarning && !examLocked) {
-              setShowTabChangeWarning(true);
-            }
-            return currentCount;
-          });
+          if (document.hidden && !examLocked) {
+            handleTabChange();
+          }
         }, 100);
       }
     };
 
-    // Monitoreo periódico de visibilidad (útil cuando los eventos no se disparan correctamente)
-    const startVisibilityMonitoring = () => {
-      if (visibilityCheckInterval) {
-        clearInterval(visibilityCheckInterval);
-      }
-      
-      visibilityCheckInterval = setInterval(() => {
-        if (!examLocked && examState === 'active') {
-          const currentVisibility = !document.hidden;
-          const isInFullscreen = !!(
-            document.fullscreenElement ||
-            document.webkitFullscreenElement ||
-            document.msFullscreenElement
-          );
-          
-          // Si está en pantalla completa y el estado de visibilidad cambió, es un cambio de pestaña
-          if (isInFullscreen && currentVisibility !== lastVisibilityState) {
-            if (!currentVisibility && lastVisibilityState) {
-              // Se ocultó (estaba visible, ahora está oculto)
-              lastVisibilityState = false;
-              handleTabChange();
-            } else if (currentVisibility && !lastVisibilityState) {
-              // Volvió a ser visible (estaba oculto, ahora está visible)
-              lastVisibilityState = true;
-              setTimeout(() => {
-                setTabChangeCount(currentCount => {
-                  if (currentCount === 1 && !showTabChangeWarning && !examLocked) {
-                    setShowTabChangeWarning(true);
-                  }
-                  return currentCount;
-                });
-              }, 100);
-            }
-          } else if (!isInFullscreen) {
-            // Si no está en pantalla completa, actualizar el estado sin procesar
-            lastVisibilityState = currentVisibility;
-          }
-        }
-      }, 300); // Verificar cada 300ms
+    const handleWindowFocus = () => {
+      // El aviso se mantiene visible si hay una advertencia activa y el examen no está bloqueado
     };
-
-    // Iniciar monitoreo periódico
-    startVisibilityMonitoring();
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleWindowBlur);
@@ -953,58 +880,38 @@ const ExamWithFirebase = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
-      if (blurTimeout) {
-        clearTimeout(blurTimeout);
-      }
-      if (visibilityCheckInterval) {
-        clearInterval(visibilityCheckInterval);
-      }
     };
-  }, [examState, examLocked, tabChangeCount, showTabChangeWarning]);
+  }, [examState, examLocked]);
 
   // Detectar cambios de pantalla completa
-  // Detectar cambios de pantalla completa - PRINCIPAL
   useEffect(() => {
+    if (examState !== 'active' || examLocked) return;
+
     const handleFullscreenChange = () => {
-      if (examState !== 'active') return;
-      
-      setTimeout(() => {
-        const fullscreenElement =
-          document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.msFullscreenElement;
+      const fullscreenElement =
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement;
 
-        const isCurrentlyFullscreen = !!fullscreenElement;
-        const isHidden = document.hidden;
-        
-        console.log('Fullscreen change:', { isCurrentlyFullscreen, isHidden, examState });
+      const isCurrentlyFullscreen = !!fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
 
-        setIsFullscreen(isCurrentlyFullscreen);
-
-        if (!isCurrentlyFullscreen) {
-          console.log('Salida de pantalla completa detectada durante examen activo');
-          
-          // Verificar si también se cambió de pestaña
-          if (isHidden) {
-            console.log('También se cambió de pestaña');
-            setFullscreenExitWithTabChange(true);
-            setTabChangeCount(prev => {
-              const newCount = prev + 1;
-              if (newCount >= 2) {
-                setExamLocked(true);
-                handleSubmit(false, true);
-              } else {
-                setShowFullscreenExit(true);
-              }
-              return newCount;
-            });
-          } else {
-            console.log('Solo salida de pantalla completa, sin cambio de pestaña');
-            setFullscreenExitWithTabChange(false);
-            setShowFullscreenExit(true);
-          }
+      if (examState === 'active' && !isCurrentlyFullscreen && !examLocked) {
+        // Verificar si también se cambió de pestaña
+        // Si cambió de pestaña, el listener de visibilitychange ya lo manejará
+        // Solo manejar la salida de pantalla completa sin cambio de pestaña
+        if (!document.hidden) {
+          // Solo salió de pantalla completa (sin cambiar de pestaña)
+          setFullscreenExitWithTabChange(false);
+          setShowFullscreenExit(true);
+        } else {
+          // Se salió de pantalla completa Y cambió de pestaña
+          // El listener de visibilitychange manejará el cambio de pestaña
+          // Solo marcamos que fue con cambio de pestaña para el modal
+          setFullscreenExitWithTabChange(true);
+          // No incrementamos tabChangeCount aquí porque ya lo hace visibilitychange
         }
-      }, 150);
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -1016,47 +923,59 @@ const ExamWithFirebase = () => {
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('msfullscreenchange', handleFullscreenChange);
     };
-  }, [examState]);
+  }, [examState, examLocked]);
 
-  // Detectar cambios de pestaña
+  // Detectar tecla Escape como respaldo
   useEffect(() => {
     if (examState !== 'active' || examLocked) return;
-    
-    const handleVisibilityChange = () => {
-      const isHidden = document.hidden;
-      
-      setTimeout(() => {
-        const fullscreenElement =
-          document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.msFullscreenElement;
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && examState === 'active' && !examLocked) {
+        // Verificar si hay un Select abierto - si es así, no interferir
+        const selectContent = document.querySelector('[data-radix-select-content]');
+        const selectTrigger = document.querySelector('[data-radix-select-trigger][data-state="open"]');
         
-        const isCurrentlyFullscreen = !!fullscreenElement;
-        
-        if (!isHidden && !isCurrentlyFullscreen && !showFullscreenExit) {
-          // Volvió a la pestaña sin pantalla completa
-          setFullscreenExitWithTabChange(true);
-          setShowFullscreenExit(true);
-        } else if (isHidden && isCurrentlyFullscreen) {
-          // Solo cambió de pestaña (todavía en fullscreen)
-          setTabChangeCount(prev => {
-            const newCount = prev + 1;
-            setShowTabChangeWarning(true);
-            if (newCount >= 3) {
-              setExamLocked(true);
-              handleSubmit(true, true);
-            }
-            return newCount;
-          });
+        if (selectContent || selectTrigger) {
+          // Hay un Select abierto, no hacer nada para permitir que se cierre normalmente
+          return;
         }
-      }, 150);
+        
+        // Prevenir la salida automática de pantalla completa
+        event.preventDefault();
+        
+        setTimeout(() => {
+          const fullscreenElement =
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement;
+
+          if (!fullscreenElement && !examLocked) {
+            setIsFullscreen(false);
+            
+            // Verificar si también se cambió de pestaña
+            // Si cambió de pestaña, el listener de visibilitychange ya lo manejará
+            if (document.hidden) {
+              setFullscreenExitWithTabChange(true);
+              // No incrementamos tabChangeCount aquí porque ya lo hace visibilitychange
+              // Solo marcamos que hubo salida de fullscreen con cambio de pestaña
+            } else {
+              // Solo se presionó ESC sin cambiar de pestaña
+              setFullscreenExitWithTabChange(false);
+              setShowFullscreenExit(true);
+            }
+          } else if (fullscreenElement && !examLocked) {
+            // Si aún está en pantalla completa pero se presionó Escape, mostrar advertencia
+            setFullscreenExitWithTabChange(false);
+            setShowFullscreenExit(true);
+          }
+        }, 50);
+      }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [examState, examLocked, showFullscreenExit]);
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, [examState, examLocked]);
+
 
   // Continuar examen después de advertencia de cambio de pestaña
   const continueExam = () => {
