@@ -1,0 +1,365 @@
+/**
+ * Configuración de Gemini AI
+ * 
+ * Este archivo configura el cliente de Gemini AI y proporciona
+ * funcionalidades para generar contenido con IA
+ */
+
+// Cargar variables de entorno desde .env
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+import { VertexAI } from '@google-cloud/vertexai';
+import * as path from 'path';
+import * as fs from 'fs';
+
+/**
+ * Configuración de Gemini
+ * Todos los valores se leen desde variables de entorno (.env)
+ */
+export const GEMINI_CONFIG = {
+  PROJECT_ID: process.env.VERTEX_AI_PROJECT_ID || process.env.GEMINI_PROJECT_ID || 'superate-ia',
+  REGION: process.env.VERTEX_AI_REGION || process.env.GEMINI_REGION || 'us-central1',
+  MODEL_NAME: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  VERTEX_AI_CREDENTIALS: process.env.VERTEX_AI_CREDENTIALS || './serviceAccountKey-ia.json',
+  PROMPT_VERSION: '2.5.0',
+  
+  // Límites de rate limiting (valores fijos, no configurables desde .env)
+  MAX_REQUESTS_PER_MINUTE: 10, // Reducido para evitar errores 429
+  DELAY_BETWEEN_REQUESTS_MS: 2000, // Aumentado a 2 segundos entre requests
+  
+  // Timeouts (valores fijos, no configurables desde .env)
+  // 7 minutos para prompts largos con múltiples imágenes (más de 4 imágenes)
+  REQUEST_TIMEOUT_MS: 420000, // Timeout base (7 minutos)
+  REQUEST_TIMEOUT_MULTIPLE_IMAGES_MS: 600000, // 10 minutos para preguntas con más de 4 imágenes
+  
+  // Reintentos (valores fijos, no configurables desde .env)
+  MAX_RETRIES: 3, // 3 intentos: base, +50%, +100%
+  RETRY_DELAY_MS: 8000, // Aumentado a 8 segundos entre reintentos
+} as const;
+
+/**
+ * Configuración de generación de contenido
+ * Optimizado para Gemini 2.5 Flash con Vertex AI
+ */
+const generationConfig = {
+  temperature: 0.8,
+  topP: 0.95,
+  topK: 64,
+  maxOutputTokens: 16384, // Aumentado para permitir respuestas más largas y completas
+};
+
+/**
+ * Cliente de Gemini AI con Vertex AI
+ */
+class GeminiClient {
+  private vertexAI: VertexAI | null = null;
+  private model: any = null;
+  private lastRequestTime: number = 0;
+  private requestCount: number = 0;
+  private requestResetTime: number = Date.now();
+  private vertexKeyPath: string;
+  private serviceAccountKey: any;
+  private originalGoogleCreds: string | undefined;
+
+  constructor() {
+    // Preparar las credenciales pero NO inicializar VertexAI todavía
+    // Leer la ruta desde la configuración (que viene de .env)
+    const credentialsPath = GEMINI_CONFIG.VERTEX_AI_CREDENTIALS;
+    
+    // Validar que sea una ruta de archivo válida (no un hash)
+    if (!credentialsPath || credentialsPath.length > 200 || !credentialsPath.endsWith('.json')) {
+      throw new Error(
+        `VERTEX_AI_CREDENTIALS debe ser una ruta a un archivo JSON. ` +
+        `Valor actual: ${credentialsPath}. ` +
+        `Configura VERTEX_AI_CREDENTIALS=./serviceAccountKey-ia.json en tu archivo .env`
+      );
+    }
+    
+    this.vertexKeyPath = path.resolve(__dirname, '../../', credentialsPath);
+    
+    if (!fs.existsSync(this.vertexKeyPath)) {
+      throw new Error(
+        `No se encontró el archivo de credenciales: ${this.vertexKeyPath}\n` +
+        `Asegúrate de que el archivo existe y que VERTEX_AI_CREDENTIALS en .env apunta a la ruta correcta.`
+      );
+    }
+    
+    this.serviceAccountKey = JSON.parse(fs.readFileSync(this.vertexKeyPath, 'utf8'));
+    this.originalGoogleCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    
+    console.log('✅ Cliente de Gemini (Vertex AI) configurado');
+    console.log(`   Proyecto Vertex AI: ${GEMINI_CONFIG.PROJECT_ID}`);
+    console.log(`   Región: ${GEMINI_CONFIG.REGION}`);
+    console.log(`   Modelo: ${GEMINI_CONFIG.MODEL_NAME}`);
+    console.log(`   Credenciales: ${GEMINI_CONFIG.VERTEX_AI_CREDENTIALS}`);
+    console.log(`   Email de servicio: ${this.serviceAccountKey.client_email}`);
+  }
+
+  /**
+   * Inicializa el cliente de Gemini con Vertex AI
+   * Se llama justo antes de usar para asegurar credenciales correctas
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.vertexAI && this.model) {
+      return; // Ya está inicializado
+    }
+    
+    try {
+      // Inicializar Vertex AI con el proyecto desde .env y credenciales explícitas
+      // Usamos googleAuthOptions para pasar las credenciales directamente
+      // Para modelos Publisher de Gemini, el SDK construye automáticamente la ruta:
+      // projects/{project}/locations/{location}/publishers/google/models/{model}
+      this.vertexAI = new VertexAI({
+        project: GEMINI_CONFIG.PROJECT_ID, // Desde .env
+        location: GEMINI_CONFIG.REGION, // Desde .env
+        googleAuthOptions: {
+          credentials: this.serviceAccountKey, // ⚠️ Pasamos el JSON parseado directamente
+          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+        },
+      });
+
+      // Para modelos Publisher de Gemini, el SDK construye automáticamente la ruta:
+      // projects/{project}/locations/{location}/publishers/google/models/{model}
+      // Solo necesitamos especificar el nombre del modelo sin ruta completa
+      // El SDK reconoce automáticamente que es un modelo Publisher de Google
+      this.model = this.vertexAI.getGenerativeModel({
+        model: GEMINI_CONFIG.MODEL_NAME, // 'gemini-2.5-flash' - el SDK construye la ruta completa
+        generationConfig: generationConfig,
+      });
+      
+      console.log(`   Modelo configurado: ${GEMINI_CONFIG.MODEL_NAME}`);
+      console.log(`   Ruta esperada: projects/${this.serviceAccountKey.project_id}/locations/${GEMINI_CONFIG.REGION}/publishers/google/models/${GEMINI_CONFIG.MODEL_NAME}`);
+      
+      console.log('✅ Vertex AI inicializado con credenciales de superate-ia');
+    } catch (error: any) {
+      console.error('❌ Error al inicializar cliente de Gemini (Vertex AI):', error.message);
+      throw error;
+    }
+  }
+  
+  /**
+   * Restaura las credenciales originales (para Firebase Admin)
+   */
+  private restoreCredentials(): void {
+    if (this.originalGoogleCreds) {
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = this.originalGoogleCreds;
+    }
+  }
+
+  /**
+   * Verifica si el cliente está disponible
+   * Si no está inicializado, intenta inicializarlo
+   */
+  async isAvailable(): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+      return this.model !== null;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Implementa rate limiting
+   */
+  private async applyRateLimiting(): Promise<void> {
+    const now = Date.now();
+    
+    // Resetear contador cada minuto
+    if (now - this.requestResetTime > 60000) {
+      this.requestCount = 0;
+      this.requestResetTime = now;
+    }
+    
+    // Verificar límite de requests por minuto
+    if (this.requestCount >= GEMINI_CONFIG.MAX_REQUESTS_PER_MINUTE) {
+      const waitTime = 60000 - (now - this.requestResetTime);
+      console.log(`⏸️ Rate limit alcanzado. Esperando ${(waitTime / 1000).toFixed(1)}s...`);
+      await this.delay(waitTime);
+      this.requestCount = 0;
+      this.requestResetTime = Date.now();
+    }
+    
+    // Delay entre requests
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    if (timeSinceLastRequest < GEMINI_CONFIG.DELAY_BETWEEN_REQUESTS_MS) {
+      const waitTime = GEMINI_CONFIG.DELAY_BETWEEN_REQUESTS_MS - timeSinceLastRequest;
+      await this.delay(waitTime);
+    }
+    
+    this.lastRequestTime = Date.now();
+    this.requestCount++;
+  }
+
+  /**
+   * Genera contenido con Gemini vía Vertex AI
+   * 
+   * @param prompt - El prompt para generar contenido
+   * @param options - Opciones adicionales
+   * @returns El texto generado
+   */
+  async generateContent(
+    prompt: string,
+    options: {
+      retries?: number;
+      timeout?: number;
+    } = {}
+  ): Promise<{ text: string; metadata: any }> {
+    // Asegurar que VertexAI esté inicializado con las credenciales correctas
+    await this.ensureInitialized();
+
+    const maxRetries = options.retries ?? GEMINI_CONFIG.MAX_RETRIES;
+    
+    // Detectar número de imágenes en el prompt
+    const imageMatches = prompt.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g);
+    const imageCount = imageMatches ? imageMatches.length : 0;
+    
+    // Determinar timeout base según número de imágenes
+    let baseTimeout: number = GEMINI_CONFIG.REQUEST_TIMEOUT_MS;
+    if (imageCount > 4) {
+      baseTimeout = GEMINI_CONFIG.REQUEST_TIMEOUT_MULTIPLE_IMAGES_MS;
+      console.log(`📷 Detectadas ${imageCount} imágenes. Usando timeout extendido de ${(baseTimeout / 60000).toFixed(1)} minutos`);
+    }
+    
+    // Si se especifica un timeout en opciones, usarlo como base
+    if (options.timeout) {
+      baseTimeout = options.timeout;
+    }
+    
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Aplicar rate limiting
+        await this.applyRateLimiting();
+        
+        // Calcular timeout progresivo: intento 1 = base, intento 2 = +50%, intento 3 = +100%
+        let currentTimeout: number = baseTimeout;
+        if (attempt === 2) {
+          currentTimeout = Math.floor(baseTimeout * 1.5); // +50%
+          console.log(`⏱️ Intento 2: Aumentando timeout a ${(currentTimeout / 60000).toFixed(1)} minutos (+50%)`);
+        } else if (attempt === 3) {
+          currentTimeout = baseTimeout * 2; // +100%
+          console.log(`⏱️ Intento 3: Aumentando timeout a ${(currentTimeout / 60000).toFixed(1)} minutos (+100%)`);
+        }
+        
+        console.log(`🤖 Generando contenido con Gemini Vertex AI (intento ${attempt}/${maxRetries})...`);
+        if (imageCount > 0) {
+          console.log(`   📷 Procesando ${imageCount} imágenes con timeout de ${(currentTimeout / 60000).toFixed(1)} minutos`);
+        }
+        
+        // Asegurar credenciales antes de cada llamada
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = this.vertexKeyPath;
+        
+        // Vertex AI usa generateContent similar pero con estructura diferente
+        const request = {
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        };
+        
+        const resultPromise = this.model!.generateContent(request);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout al generar contenido')), currentTimeout);
+        });
+        
+        // Ejecutar con timeout
+        const result = await Promise.race([resultPromise, timeoutPromise]);
+        
+        // Restaurar credenciales después de la llamada
+        this.restoreCredentials();
+        
+        // Extraer texto de la respuesta de Vertex AI
+        const response = result.response;
+        const text = response.candidates[0].content.parts[0].text;
+        
+        if (!text || text.trim() === '') {
+          throw new Error('Respuesta vacía de Gemini');
+        }
+        
+        console.log(`✅ Contenido generado exitosamente (${text.length} caracteres)`);
+        
+        return {
+          text,
+          metadata: {
+            model: GEMINI_CONFIG.MODEL_NAME,
+            project: GEMINI_CONFIG.PROJECT_ID,
+            region: GEMINI_CONFIG.REGION,
+            promptVersion: GEMINI_CONFIG.PROMPT_VERSION,
+            attempt,
+            timestamp: new Date(),
+          },
+        };
+      } catch (error: any) {
+        // Restaurar credenciales en caso de error
+        this.restoreCredentials();
+        
+        lastError = error;
+        console.error(`❌ Error en intento ${attempt}/${maxRetries}:`, error.message);
+        
+        // Si no es el último intento, esperar antes de reintentar
+        if (attempt < maxRetries) {
+          // Detectar tipo de error para ajustar estrategia de reintento
+          const isRateLimitError = error.message?.includes('429') || 
+                                   error.message?.includes('RESOURCE_EXHAUSTED') ||
+                                   error.message?.includes('Too Many Requests');
+          const isTimeoutError = error.message?.includes('Timeout') || 
+                                error.message?.includes('timeout');
+          
+          let delayTime = GEMINI_CONFIG.RETRY_DELAY_MS * attempt;
+          
+          if (isRateLimitError) {
+            // Para errores 429, esperar 45 segundos adicionales (aumentado)
+            delayTime = 45000 + (GEMINI_CONFIG.RETRY_DELAY_MS * attempt);
+            console.log(`⚠️ Error 429 (Rate Limit) detectado. Esperando ${(delayTime / 1000).toFixed(1)}s antes de reintentar...`);
+          } else if (isTimeoutError) {
+            // Para timeouts, esperar un poco más pero no tanto como 429
+            delayTime = 15000 + (GEMINI_CONFIG.RETRY_DELAY_MS * attempt);
+            const nextTimeout = attempt === 1 
+              ? Math.floor(baseTimeout * 1.5) 
+              : baseTimeout * 2;
+            console.log(`⚠️ Timeout detectado en intento ${attempt}. El prompt puede ser muy largo (${imageCount} imágenes).`);
+            console.log(`   El siguiente intento usará timeout de ${(nextTimeout / 60000).toFixed(1)} minutos. Esperando ${(delayTime / 1000).toFixed(1)}s...`);
+          } else {
+            console.log(`⏳ Reintentando en ${(delayTime / 1000).toFixed(1)}s...`);
+          }
+          
+          await this.delay(delayTime);
+        }
+      }
+    }
+    
+    // Si llegamos aquí, todos los intentos fallaron
+    throw new Error(
+      `Error después de ${maxRetries} intentos: ${lastError?.message || 'Error desconocido'}`
+    );
+  }
+
+  /**
+   * Utilidad: delay
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Obtiene información del cliente
+   */
+  getInfo() {
+    return {
+      isAvailable: this.isAvailable(),
+      type: 'Vertex AI',
+      project: GEMINI_CONFIG.PROJECT_ID,
+      region: GEMINI_CONFIG.REGION,
+      model: GEMINI_CONFIG.MODEL_NAME,
+      promptVersion: GEMINI_CONFIG.PROMPT_VERSION,
+      requestCount: this.requestCount,
+      lastRequestTime: this.lastRequestTime,
+    };
+  }
+}
+
+// Exportar instancia singleton
+export const geminiClient = new GeminiClient();
+
+export default geminiClient;
+

@@ -513,13 +513,17 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
+<<<<<<< HEAD
   // @ts-ignore - Función intencionalmente no usada (bloqueada para navegación)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+=======
+>>>>>>> 4dd6bcd515f75eafb26b10a862d22c2cdb21aa7e
   const changeQuestion = (_newQuestionIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
     return;
+<<<<<<< HEAD
     
     // Código comentado - no se ejecuta debido al return anterior
     // if (!quizData) return;
@@ -541,6 +545,8 @@ const ExamWithFirebase = () => {
     //     initializeQuestionTime(newQuestionId);
     //   }
     // }
+=======
+>>>>>>> 4dd6bcd515f75eafb26b10a862d22c2cdb21aa7e
   };
 
   // Función interna para cambiar de pregunta (solo usada por nextQuestion y changeGroup)
@@ -616,13 +622,16 @@ const ExamWithFirebase = () => {
   // Función para cambiar de grupo (para inglés)
   // Función para cambiar de grupo (para inglés)
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-  const changeGroup = (newGroupIndex: number) => {
-    if (!quizData || questionGroups.length === 0) return;
-
+  const changeGroup = (_newGroupIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de grupo cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
     return;
+  };
+
+  // Función interna para cambiar de grupo (solo usada por nextQuestion)
+  const internalChangeGroup = (newGroupIndex: number) => {
+    if (!quizData || questionGroups.length === 0) return;
     
     // Finalizar tiempo del grupo actual
     questionGroups[currentGroupIndex].forEach(q => {
