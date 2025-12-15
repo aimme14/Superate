@@ -1,0 +1,43 @@
+{
+  "name": "superate-functions",
+  "version": "2.0.0",
+  "description": "Cloud Functions para el sistema de justificaciones con IA de Supérate",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "generate-justifications": "npm run build && node lib/scripts/generateJustifications.js",
+    "view-justifications": "npm run build && node lib/scripts/viewJustifications.js",
+    "test": "echo \"No tests configured yet\" && exit 0",
+    "lint": "eslint --ext .ts src/",
+    "lint:fix": "eslint --ext .ts src/ --fix"
+  },
+  "dependencies": {
+    "@google-cloud/vertexai": "^1.10.0",
+    "dotenv": "^17.2.3",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^4.5.0",
+    "google-auth-library": "^10.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.29.0",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.3.3"
+  },
+  "private": true,
+  "author": "Supérate Team",
+  "license": "UNLICENSED"
+}
