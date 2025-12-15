@@ -357,6 +357,8 @@ const ExamWithFirebase = () => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
+  // Nota: Esta función se mantiene por diseño pero no se usa activamente (navegación bloqueada)
+  // @ts-expect-error - Función mantenida para referencia pero no utilizada activamente
   const changeQuestion = (_newQuestionIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
