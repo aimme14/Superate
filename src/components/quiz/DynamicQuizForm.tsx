@@ -151,6 +151,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
   const [showWarning, setShowWarning] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
   const [examLocked, setExamLocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -413,24 +414,13 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
   // Función para cambiar de pregunta con seguimiento de tiempo
   // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-  const changeQuestion = (newQuestionIndex: number) => {
-    if (!quizData) return;
-
+  // Nota: Esta función se mantiene por diseño pero no se usa activamente (navegación bloqueada)
+  // @ts-expect-error - Función mantenida para referencia pero no utilizada activamente
+  const changeQuestion = (_newQuestionIndex: number) => {
     // BLOQUEAR TODA navegación desde los botones de navegación
     // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
     // Los botones de navegación son SOLO marcadores visuales
     return;
-
-    // Finalizar tiempo de la pregunta actual
-    const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
-    finalizeQuestionTime(currentQuestionId);
-
-    // Cambiar a la nueva pregunta
-    setCurrentQuestion(newQuestionIndex);
-
-    // Inicializar tiempo de la nueva pregunta
-    const newQuestionId = quizData.questions[newQuestionIndex].id || quizData.questions[newQuestionIndex].code;
-    initializeQuestionTime(newQuestionId);
   };
 
   // Función interna para cambiar de pregunta (solo usada por nextQuestion)
