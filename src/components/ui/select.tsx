@@ -24,11 +24,11 @@ const SelectTrigger = React.forwardRef<
     className={cn(
       "group flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground",
       "transition-all duration-200 ease-in-out",
-      "hover:border-teal-400/50 hover:shadow-md hover:shadow-teal-200/20 hover:scale-[1.01]",
+      "hover:border-teal-400/50 hover:shadow-md hover:shadow-teal-200/20",
       "focus:outline-none focus:ring-2 focus:ring-teal-400/50 focus:border-teal-400",
       "dark:hover:border-teal-500/50 dark:hover:shadow-teal-500/10",
       "dark:focus:ring-teal-500/50 dark:focus:border-teal-500",
-      "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-sm",
+      "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm",
       "[&>span]:line-clamp-1",
       className
     )}
@@ -136,15 +136,15 @@ const SelectItem = React.forwardRef<
     className={cn(
       "relative flex w-full cursor-pointer select-none items-center rounded-md py-2.5 pl-3 pr-9 text-sm outline-none transition-all duration-200 ease-in-out",
       // Light mode hover and focus
-      "hover:bg-gradient-to-r hover:from-teal-50/80 hover:via-blue-50/80 hover:to-cyan-50/80 hover:shadow-md hover:shadow-teal-200/30 hover:scale-[1.02] hover:-translate-y-0.5 hover:border-l-2 hover:border-teal-400",
-      "focus:bg-gradient-to-r focus:from-teal-100/90 focus:via-blue-100/90 focus:to-cyan-100/90 focus:shadow-lg focus:shadow-teal-300/40 focus:scale-[1.02] focus:border-l-2 focus:border-teal-500",
-      "data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-teal-100 data-[highlighted]:via-blue-100 data-[highlighted]:to-cyan-100 data-[highlighted]:shadow-lg data-[highlighted]:shadow-teal-300/50 data-[highlighted]:scale-[1.02] data-[highlighted]:-translate-y-0.5 data-[highlighted]:border-l-2 data-[highlighted]:border-teal-500",
+      "hover:bg-gradient-to-r hover:from-teal-50/80 hover:via-blue-50/80 hover:to-cyan-50/80 hover:shadow-md hover:shadow-teal-200/30 hover:border-l-2 hover:border-teal-400",
+      "focus:bg-gradient-to-r focus:from-teal-100/90 focus:via-blue-100/90 focus:to-cyan-100/90 focus:shadow-lg focus:shadow-teal-300/40 focus:border-l-2 focus:border-teal-500",
+      "data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-teal-100 data-[highlighted]:via-blue-100 data-[highlighted]:to-cyan-100 data-[highlighted]:shadow-lg data-[highlighted]:shadow-teal-300/50 data-[highlighted]:border-l-2 data-[highlighted]:border-teal-500",
       // Dark mode hover and focus
       "dark:hover:bg-gradient-to-r dark:hover:from-teal-950/60 dark:hover:via-blue-950/60 dark:hover:to-cyan-950/60 dark:hover:shadow-teal-500/20 dark:hover:border-teal-600",
       "dark:focus:bg-gradient-to-r dark:focus:from-teal-900/80 dark:focus:via-blue-900/80 dark:focus:to-cyan-900/80 dark:focus:shadow-teal-500/30 dark:focus:border-teal-500",
       "dark:data-[highlighted]:bg-gradient-to-r dark:data-[highlighted]:from-teal-900/90 dark:data-[highlighted]:via-blue-900/90 dark:data-[highlighted]:to-cyan-900/90 dark:data-[highlighted]:shadow-teal-500/40 dark:data-[highlighted]:border-teal-500",
       // Disabled states
-      "data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[disabled]:hover:scale-100 data-[disabled]:hover:translate-y-0 data-[disabled]:hover:border-l-0",
+      "data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[disabled]:hover:border-l-0",
       "group/item",
       className
     )}
@@ -156,7 +156,7 @@ const SelectItem = React.forwardRef<
     {/* Borde izquierdo animado */}
     <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-teal-400 via-blue-400 to-cyan-400 opacity-0 group-hover/item:opacity-100 transition-opacity duration-200 rounded-l-md" />
     
-    <span className="absolute right-2 flex h-4 w-4 items-center justify-center transition-all duration-200 group-hover/item:scale-110 group-hover/item:rotate-12">
+    <span className="absolute right-2 flex h-4 w-4 items-center justify-center transition-all duration-200 group-hover/item:rotate-12">
       <SelectPrimitive.ItemIndicator className="text-teal-600 dark:text-teal-400">
         <CheckIcon className="h-4 w-4 animate-in fade-in-0 zoom-in-95 duration-200" />
       </SelectPrimitive.ItemIndicator>

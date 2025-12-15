@@ -72,7 +72,7 @@ export const SUBJECTS_CONFIG: Subject[] = [
     topics: [
       { name: 'Textos literarios', code: 'TL' },
       { name: 'Textos informativos', code: 'TI' },
-      { name: 'Textos filosoficos y religiosos', code: 'TF' },
+      { name: 'Textos filosoficos', code: 'TF' },
     ],
   },
   {
@@ -80,7 +80,7 @@ export const SUBJECTS_CONFIG: Subject[] = [
     code: 'CS',
     icon: '🌍',
     topics: [
-      { name: 'El espacio, el territorio, el ambiente y laa población', code: 'ET' },
+      { name: 'El espacio, el territorio, el ambiente y la población', code: 'ET' },
       { name: 'El poder, la economia y las organicaciones sociales', code: 'PE' },
       { name: 'El tiempo y las culturas', code: 'TC' },
       { name: 'Competencias ciudadanas', code: 'CC' },
@@ -91,7 +91,7 @@ export const SUBJECTS_CONFIG: Subject[] = [
     code: 'BI',
     icon: '🌿',
     topics: [
-      { name: 'Las celulas', code: 'LC' },
+      { name: 'Las células', code: 'LC' },
       { name: 'Los organismos', code: 'LO' },
       { name: 'Los ecosistemas', code: 'LE' },
     ],
@@ -123,13 +123,13 @@ export const SUBJECTS_CONFIG: Subject[] = [
     code: 'IN',
     icon: '🇬🇧',
     topics: [
-      { name: 'Prueba 1', code: 'P1' },
-      { name: 'Prueba 2', code: 'P2' },
-      { name: 'Prueba 3', code: 'P3' },
-      { name: 'Prueba 4', code: 'P4' },
-      { name: 'Prueba 5', code: 'P5' },
-      { name: 'Prueba 6', code: 'P6' },
-      { name: 'Prueba 7', code: 'P7' },
+      { name: 'Parte 1', code: 'P1' },
+      { name: 'Parte 2', code: 'P2' },
+      { name: 'Parte 3', code: 'P3' },
+      { name: 'Parte 4', code: 'P4' },
+      { name: 'Parte 5', code: 'P5' },
+      { name: 'Parte 6', code: 'P6' },
+      { name: 'Parte 7', code: 'P7' },
     ],
   },
 ];
