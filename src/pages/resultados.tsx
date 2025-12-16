@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Home, ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
+import { ContactRound, NotepadText, BarChart2, Apple, CheckCircle2, AlertCircle, Clock, BookOpen, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";

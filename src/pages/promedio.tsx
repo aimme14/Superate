@@ -33,7 +33,6 @@ import {
   Zap,
   Trophy,
   Medal,
-  Home,
   ContactRound,
   NotepadText,
   BarChart2,
