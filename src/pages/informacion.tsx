@@ -88,7 +88,7 @@ export default function InfoTab() {
             <Input id="name" value={user?.displayName || ''} readOnly className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')} />
           </div>
           <div>
-            <Label htmlFor="inst" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institución</Label>
+            <Label htmlFor="inst" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Institució educativa</Label>
             <Input id="inst" value={userData?.institutionName || userData?.inst || ''} readOnly className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')} />
           </div>
           <div>
