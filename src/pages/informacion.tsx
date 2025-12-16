@@ -100,7 +100,7 @@ export default function InfoTab() {
             <Input id="grade" value={userData?.gradeName || userData?.grade || ''} readOnly className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')} />
           </div>
           <div>
-            <Label htmlFor="role" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>tipo de documento</Label>
+            <Label htmlFor="role" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Rol</Label>
             <Input id="role" value={userData?.role || ''} readOnly className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')} />
           </div>
           <div>
