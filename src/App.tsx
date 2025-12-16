@@ -18,6 +18,7 @@ import PromedioPage from "@/pages/promedio";
 import InnovativeHero from "@/pages/inovativeGero";
 import Prueba from "@/pages/prueba";
 import Intento from "@/pages/Intento";
+import ExamAnalyzer from "@/pages/ExamAnalyzer";
 import DemoImageOptionsPage from "@/pages/DemoImageOptions";
 
 // Dashboards específicos por rol
@@ -88,6 +89,7 @@ function App() {
               <Route path="/Intento" element={<Intento />} />
 
               {/* rutas publicas */}
+              <Route path="/exam-analyzer" element={<ExamAnalyzer />} />
               <Route path="/demo-image-options" element={<DemoImageOptionsPage />} />
               
             </Route>
