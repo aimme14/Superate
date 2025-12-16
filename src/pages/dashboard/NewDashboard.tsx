@@ -1,4 +1,4 @@
-import { HousePlug, ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
+import { ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
 import { Link } from "react-router-dom"
 import InnovativeHero from "../inovativeGero"
 import { motion } from "framer-motion"
