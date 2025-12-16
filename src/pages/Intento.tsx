@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck, Atom, Microscope, FlaskConical } from 'lucide-react'
+import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck, Atom, Microscope, FlaskConical, Trophy } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Link, useNavigate } from "react-router-dom"
 import { useRole } from "@/hooks/core/useRole"
@@ -8,6 +8,8 @@ import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
 import SubjectPhaseStatus from "@/components/quiz/SubjectPhaseStatus"
 import { PhaseType } from "@/interfaces/phase.interface"
+import { useAuthContext } from "@/context/AuthContext"
+import { phaseAuthorizationService } from "@/services/phase/phaseAuthorization.service"
 
 // Componente de tarjeta giratoria mejorado
 function FlipCard({
@@ -356,8 +358,104 @@ function NaturalSciencesCard({
 // Componente principal que usa las tarjetas
 export default function InteractiveCards() {
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
+  const [isPhase3Complete, setIsPhase3Complete] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
   const { isStudent } = useRole()
   const { theme } = useThemeContext()
+  const { user } = useAuthContext()
+
+  // Lista de todas las materias del sistema
+  const ALL_SUBJECTS = [
+    'Matemáticas',
+    'Lenguaje',
+    'Ciencias Sociales',
+    'Biologia',
+    'Quimica',
+    'Física',
+    'Inglés'
+  ]
+
+  // Verificar si todas las materias de fase 3 están completadas
+  useEffect(() => {
+    const checkPhase3Completion = async () => {
+      if (!user?.uid || !isStudent) {
+        setIsChecking(false)
+        return
+      }
+
+      try {
+        const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(
+          user.uid,
+          'third'
+        )
+
+        if (progressResult.success && progressResult.data) {
+          const progress = progressResult.data
+          const completedSubjects = (progress.subjectsCompleted || []).map((s: string) => s.trim())
+          
+          // Verificar si todas las materias están completadas
+          const allCompleted = completedSubjects.length >= ALL_SUBJECTS.length
+          
+          // Verificación adicional: consultar directamente en Firestore
+          try {
+            const { getFirestore, collection, getDocs } = await import('firebase/firestore')
+            const { firebaseApp } = await import('@/services/db')
+            const db = getFirestore(firebaseApp)
+            const { getPhaseName } = await import('@/utils/firestoreHelpers')
+            
+            const phaseName = getPhaseName('third')
+            const resultsRef = collection(db, 'results', user.uid, phaseName)
+            const resultsSnapshot = await getDocs(resultsRef)
+            
+            // Contar exámenes completados por materia
+            const completedSubjectsSet = new Set<string>()
+            
+            resultsSnapshot.docs.forEach((doc: any) => {
+              const examData = doc.data()
+              if (examData.completed === true && examData.subject) {
+                const subject = examData.subject.trim().toLowerCase()
+                completedSubjectsSet.add(subject)
+              }
+            })
+            
+            // Verificar si todas las materias tienen examen completado
+            const allSubjectsCompleted = ALL_SUBJECTS.every(subject => {
+              const normalizedSubject = subject.trim().toLowerCase()
+              return completedSubjectsSet.has(normalizedSubject)
+            })
+            
+            setIsPhase3Complete(allSubjectsCompleted)
+            console.log('[InteractiveCards] Fase 3 completada:', {
+              allSubjectsCompleted,
+              completedCount: completedSubjectsSet.size,
+              totalSubjects: ALL_SUBJECTS.length
+            })
+          } catch (error) {
+            console.error('[InteractiveCards] Error verificando Firestore:', error)
+            // Fallback al progreso si hay error
+            setIsPhase3Complete(allCompleted)
+          }
+        } else {
+          setIsPhase3Complete(false)
+        }
+      } catch (error) {
+        console.error('[InteractiveCards] Error verificando fase 3:', error)
+        setIsPhase3Complete(false)
+      } finally {
+        setIsChecking(false)
+      }
+    }
+
+    checkPhase3Completion()
+    
+    // Recargar cuando la ventana vuelve a tener foco (después de completar un examen)
+    const handleFocus = () => {
+      checkPhase3Completion()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [user?.uid, isStudent])
 
   const toggleCard = (cardId: string) => {
     setFlippedCards((prev) => ({
@@ -370,6 +468,102 @@ export default function InteractiveCards() {
   const gridClasses = isStudent 
     ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
     : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
+
+  // Si está cargando, mostrar un estado de carga
+  if (isChecking) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className={cn(
+          "text-center",
+          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+        )}>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p>Verificando progreso...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Si fase 3 está completa, mostrar mensaje de felicitaciones
+  if (isPhase3Complete) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className={cn(
+            "max-w-4xl w-full text-center p-8 sm:p-12 rounded-3xl shadow-2xl",
+            theme === 'dark' 
+              ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-emerald-500/50' 
+              : 'bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200'
+          )}
+        >
+          <motion.div
+            animate={{ 
+              scale: [1, 1.1, 1],
+              rotate: [0, 5, -5, 0]
+            }}
+            transition={{ 
+              duration: 2,
+              repeat: Infinity,
+              repeatDelay: 1
+            }}
+            className="mb-6"
+          >
+            <Trophy className={cn(
+              "w-20 h-20 mx-auto",
+              theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'
+            )} />
+          </motion.div>
+          
+          <motion.h2
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className={cn(
+              "text-3xl sm:text-4xl md:text-5xl font-bold mb-6",
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            )}
+          >
+            FELICITACIONES
+          </motion.h2>
+          
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className={cn(
+              "text-xl sm:text-2xl md:text-3xl font-semibold",
+              theme === 'dark' ? 'text-emerald-300' : 'text-emerald-700'
+            )}
+          >
+            EL FUTURO ESTÁ EN TUS MANOS
+          </motion.p>
+          
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="mt-8"
+          >
+            <p className={cn(
+              "text-base sm:text-lg",
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+            )}>
+              Has completado exitosamente todas las fases evaluativas.
+            </p>
+            <p className={cn(
+              "text-base sm:text-lg mt-2",
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+            )}>
+              ¡Sigue adelante, esfuerzate y alcanza tus metas!
+            </p>
+          </motion.div>
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <div className={gridClasses}>
