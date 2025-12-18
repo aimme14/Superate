@@ -89,7 +89,7 @@ export function SubjectTopicsAccordion({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
-      {subjects.map((subject, index) => (
+      {subjects.map((subject) => (
         <Accordion type="single" collapsible defaultValue={subject.subjectName} className="w-full">
           <AccordionItem 
             key={subject.subjectName} 

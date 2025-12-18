@@ -3,12 +3,6 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer, Lege
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Interfaz para los datos de rendimiento por fase
-interface PhaseData {
-  phase: string; // Nombre de la fase (Fase I, Fase II, Fase III)
-  percentage: number; // Porcentaje de rendimiento en esa fase
-}
-
 // Interfaz para los datos del gráfico
 interface SubjectPhaseData {
   subject: string; // Nombre de la materia
