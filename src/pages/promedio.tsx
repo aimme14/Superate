@@ -16,6 +16,10 @@ import { getUserById } from "@/controllers/user.controller"
 import { cn } from "@/lib/utils"
 import { geminiService } from "@/services/ai/gemini.service"
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers"
+import { SubjectTopicsAccordion } from "@/components/charts/SubjectTopicsAccordion"
+import { StrengthsRadarChart } from "@/components/charts/StrengthsRadarChart"
+import { SubjectsProgressChart } from "@/components/charts/SubjectsProgressChart"
+import { SubjectsDetailedSummary } from "@/components/charts/SubjectsDetailedSummary"
 import {
   Brain,
   Download,
@@ -67,14 +71,16 @@ interface ExamResult {
   timeSpent: number;
   completed: boolean;
   timestamp: number;
+  questionTimeTracking?: { [key: string]: { timeSpent: number; startTime?: number; endTime?: number } }; // Tiempo por pregunta
   questionDetails: Array<{
-    questionId: number;
+    questionId: number | string;
     questionText: string;
     userAnswer: string | null;
     correctAnswer: string;
     topic: string;
     isCorrect: boolean;
     answered: boolean;
+    timeSpent?: number; // Tiempo en segundos que se demoró en esta pregunta
   }>;
 }
 
@@ -108,6 +114,7 @@ interface SubjectWithTopics {
   topics: TopicAnalysis[];
   strengths: string[]; // Temas que son fortalezas (>= 70%)
   weaknesses: string[]; // Temas que son debilidades (< 60%)
+  neutrals: string[]; // Temas intermedios (60% - 69%)
 }
 
 interface AnalysisData {
@@ -136,6 +143,7 @@ interface AnalysisData {
     weakestArea: string;
     completionRate: number;
     securityIssues: number;
+    luckPercentage: number; // Porcentaje de respuestas "con suerte" (< 10 segundos)
   };
   recommendations: Array<{
     priority: string;
@@ -225,8 +233,8 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
   return (
     <Accordion type="multiple" className="w-full">
       {subjectsWithTopics.map((subject) => {
-        // Filtrar materias que tengan al menos fortalezas o debilidades
-        const hasData = subject.strengths.length > 0 || subject.weaknesses.length > 0;
+        // Filtrar materias que tengan al menos fortalezas, debilidades o neutros
+        const hasData = subject.strengths.length > 0 || subject.weaknesses.length > 0 || subject.neutrals.length > 0;
         
         return (
           <AccordionItem key={subject.name} value={subject.name} className={cn("border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
@@ -237,6 +245,11 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                   {subject.strengths.length > 0 && (
                     <Badge className={cn("text-xs", theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200")}>
                       {subject.strengths.length} fortaleza{subject.strengths.length > 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                  {subject.neutrals.length > 0 && (
+                    <Badge className={cn("text-xs", theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200")}>
+                      {subject.neutrals.length} intermedio{subject.neutrals.length > 1 ? 's' : ''}
                     </Badge>
                   )}
                   {subject.weaknesses.length > 0 && (
@@ -282,6 +295,38 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                     </div>
                     <p className={cn("text-xs italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
                       No se identificaron fortalezas en esta materia
+                    </p>
+                  </div>
+                )}
+                
+                {/* Neutros/Intermedios - Siempre mostrar si hay */}
+                {subject.neutrals.length > 0 ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4 text-yellow-500" />
+                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600')}>
+                        Intermedios ({subject.neutrals.length})
+                      </span>
+                    </div>
+                    <ul className={cn("space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                      {subject.neutrals.map((neutral, index) => (
+                        <li key={index} className="flex items-center gap-2 text-xs">
+                          <Clock className="h-3 w-3 text-yellow-500 flex-shrink-0" />
+                          <span>{neutral}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4 text-gray-400" />
+                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Intermedios
+                      </span>
+                    </div>
+                    <p className={cn("text-xs italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                      No se identificaron temas intermedios en esta materia
                     </p>
                   </div>
                 )}
@@ -456,50 +501,132 @@ function StudyPlan({ recommendations, theme = 'light', loadingAI = false }: { re
     </div>
   );
 }
-
-// Componente de comparación/progreso
-function ComparisonChart({ subjects, theme = 'light' }: { subjects: SubjectAnalysis[], theme?: 'light' | 'dark' }) {
-  const averageScore = subjects.reduce((acc, subject) => acc + subject.percentage, 0) / subjects.length;
+/**
+ * Función para preparar datos de gráficos por materia y tema
+ * Agrupa el rendimiento de cada TEMA de cada materia a través de las 3 fases
+ */
+function prepareSubjectTopicsData(
+  phase1Data: AnalysisData | null,
+  phase2Data: AnalysisData | null,
+  phase3Data: AnalysisData | null
+): Array<{
+  subjectName: string;
+  topics: Array<{ topic: string; phase1: number | null; phase2: number | null; phase3: number | null }>;
+  averagePerformance: number;
+  trend: 'up' | 'down' | 'stable';
+}> {
+  // Obtener todas las materias únicas de las 3 fases
+  const allSubjects = new Set<string>();
   
-  return (
-    <div className="space-y-6">
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-        <CardHeader>
-          <CardTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Progreso por Materia</CardTitle>
-          <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Análisis comparativo de tu desempeño</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {subjects.map((subject) => (
-              <div key={subject.name} className={cn("flex items-center justify-between p-4 border rounded-lg", theme === 'dark' ? 'border-zinc-700' : '')}>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</span>
-                    <span className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>{subject.percentage}%</span>
-                  </div>
-                  <Progress value={subject.percentage} className="h-3" />
-                </div>
-                <div className="ml-4 text-center">
-                  <div className={cn("text-sm font-medium", subject.percentage > averageScore ? (theme === 'dark' ? 'text-green-400' : 'text-green-600') : (theme === 'dark' ? 'text-red-400' : 'text-red-600'))}>
-                    {subject.percentage > averageScore ? '↑' : '↓'} {Math.abs(subject.percentage - averageScore).toFixed(1)}%
-                  </div>
-                  <div className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>vs promedio</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  if (phase1Data) {
+    phase1Data.subjectsWithTopics?.forEach(s => allSubjects.add(s.name));
+  }
+  if (phase2Data) {
+    phase2Data.subjectsWithTopics?.forEach(s => allSubjects.add(s.name));
+  }
+  if (phase3Data) {
+    phase3Data.subjectsWithTopics?.forEach(s => allSubjects.add(s.name));
+  }
+
+  // Orden de materias para mostrar
+  const subjectOrder: Record<string, number> = {
+    'Matemáticas': 1,
+    'Lenguaje': 2,
+    'Ciencias Sociales': 3,
+    'Biologia': 4,
+    'Quimica': 5,
+    'Física': 6,
+    'Inglés': 7
+  };
+
+  // Procesar cada materia
+  const result = Array.from(allSubjects).map(subjectName => {
+    // Buscar los datos de esta materia en cada fase
+    const phase1Subject = phase1Data?.subjectsWithTopics?.find(s => s.name === subjectName);
+    const phase2Subject = phase2Data?.subjectsWithTopics?.find(s => s.name === subjectName);
+    const phase3Subject = phase3Data?.subjectsWithTopics?.find(s => s.name === subjectName);
+
+    // Obtener todos los temas únicos de esta materia
+    const allTopics = new Set<string>();
+    phase1Subject?.topics.forEach(t => allTopics.add(t.name));
+    phase2Subject?.topics.forEach(t => allTopics.add(t.name));
+    phase3Subject?.topics.forEach(t => allTopics.add(t.name));
+
+    // Crear array de datos de temas
+    const topics = Array.from(allTopics).map(topicName => {
+      const phase1Topic = phase1Subject?.topics.find(t => t.name === topicName);
+      const phase2Topic = phase2Subject?.topics.find(t => t.name === topicName);
+      const phase3Topic = phase3Subject?.topics.find(t => t.name === topicName);
+
+      return {
+        topic: topicName,
+        phase1: phase1Topic ? phase1Topic.percentage : null,
+        phase2: phase2Topic ? phase2Topic.percentage : null,
+        phase3: phase3Topic ? phase3Topic.percentage : null,
+      };
+    });
+
+    // Calcular promedio general de la materia (usando datos de subjectsWithTopics)
+    const phase1Percentage = phase1Subject?.percentage ?? null;
+    const phase2Percentage = phase2Subject?.percentage ?? null;
+    const phase3Percentage = phase3Subject?.percentage ?? null;
+
+    const validPercentages = [phase1Percentage, phase2Percentage, phase3Percentage].filter(
+      (p): p is number => p !== null
+    );
+    const averagePerformance = validPercentages.length > 0
+      ? validPercentages.reduce((sum, p) => sum + p, 0) / validPercentages.length
+      : 0;
+
+    // Calcular tendencia de la materia
+    let trend: 'up' | 'down' | 'stable' = 'stable';
+    let firstPhase: number | null = null;
+    let lastPhase: number | null = null;
+
+    if (phase1Percentage !== null) firstPhase = phase1Percentage;
+    
+    if (phase3Percentage !== null) {
+      lastPhase = phase3Percentage;
+    } else if (phase2Percentage !== null) {
+      lastPhase = phase2Percentage;
+    } else if (phase1Percentage !== null) {
+      lastPhase = phase1Percentage;
+    }
+
+    if (firstPhase !== null && lastPhase !== null && firstPhase !== lastPhase) {
+      const difference = lastPhase - firstPhase;
+      const percentageChange = (difference / firstPhase) * 100;
+
+      if (Math.abs(percentageChange) >= 2) {
+        trend = percentageChange > 0 ? 'up' : 'down';
+      }
+    }
+
+    return {
+      subjectName,
+      topics,
+      averagePerformance,
+      trend,
+    };
+  });
+
+  // Ordenar por el orden predefinido de materias
+  result.sort((a, b) => {
+    const orderA = subjectOrder[a.subjectName] || 999;
+    const orderB = subjectOrder[b.subjectName] || 999;
+    return orderA - orderB;
+  });
+
+  return result;
 }
 
 export default function ICFESAnalysisInterface() {
   const [activeTab, setActiveTab] = useState("overview")
-  const [selectedPhase, setSelectedPhase] = useState<'phase1' | 'phase2' | 'all'>('all');
+  const [selectedPhase, setSelectedPhase] = useState<'phase1' | 'phase2' | 'phase3' | 'all'>('all');
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [phase1Data, setPhase1Data] = useState<AnalysisData | null>(null);
   const [phase2Data, setPhase2Data] = useState<AnalysisData | null>(null);
+  const [phase3Data, setPhase3Data] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingAI, setLoadingAI] = useState(false);
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
@@ -803,6 +930,24 @@ export default function ICFESAnalysisInterface() {
         evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setEvaluations(evaluationsArray);
 
+        // Verificar y mostrar resumen del tiempo por pregunta
+        console.log('📊 Resumen de tiempo por pregunta:');
+        evaluationsArray.forEach(exam => {
+          if (exam.questionDetails && exam.questionDetails.length > 0) {
+            const questionsWithTime = exam.questionDetails.filter((q: { timeSpent?: number }) => q.timeSpent && q.timeSpent > 0);
+            const totalTimeQuestions = questionsWithTime.reduce((sum: number, q: { timeSpent?: number }) => sum + (q.timeSpent || 0), 0);
+            const avgTimePerQuestion = questionsWithTime.length > 0 ? totalTimeQuestions / questionsWithTime.length : 0;
+            
+            console.log(`  📝 ${exam.examTitle || exam.examId} (${exam.subject || 'Sin materia'}):`, {
+              totalQuestions: exam.questionDetails.length,
+              questionsWithTime: questionsWithTime.length,
+              avgTimePerQuestion: `${Math.round(avgTimePerQuestion)}s`,
+              totalTimeQuestions: `${Math.round(totalTimeQuestions)}s`,
+              hasQuestionTimeTracking: !!exam.questionTimeTracking
+            });
+          }
+        });
+
         // Filtrar evaluaciones por fase
         const phase1Evals = evaluationsArray.filter(e => {
           const phase = e.phase || '';
@@ -819,32 +964,51 @@ export default function ICFESAnalysisInterface() {
                  phase === 'Fase II' ||
                  getPhaseType(phase) === 'second';
         });
-
-        // Procesar datos para el análisis general
-        const processedData = processEvaluationData(evaluationsArray, user);
-        setAnalysisData(processedData);
         
+        const phase3Evals = evaluationsArray.filter(e => {
+          const phase = e.phase || '';
+          return phase === 'third' || 
+                 phase === 'fase III' || 
+                 phase === 'Fase III' ||
+                 getPhaseType(phase) === 'third';
+        });
+
         // Procesar datos por fase
+        let phase1Processed: AnalysisData | null = null;
+        let phase2Processed: AnalysisData | null = null;
+        let phase3Processed: AnalysisData | null = null;
+
         if (phase1Evals.length > 0) {
-          const phase1Processed = processEvaluationData(phase1Evals, user);
+          phase1Processed = processEvaluationData(phase1Evals, user);
           setPhase1Data(phase1Processed);
         }
         
         if (phase2Evals.length > 0) {
-          const phase2Processed = processEvaluationData(phase2Evals, user);
+          phase2Processed = processEvaluationData(phase2Evals, user);
           setPhase2Data(phase2Processed);
         }
         
+        if (phase3Evals.length > 0) {
+          phase3Processed = processEvaluationData(phase3Evals, user);
+          setPhase3Data(phase3Processed);
+        }
+
+        // Calcular datos consolidados para "Todas las Fases"
+        const consolidatedData = calculateAllPhasesData(phase1Processed, phase2Processed, phase3Processed, user);
+        setAnalysisData(consolidatedData);
+        
         // Establecer fase inicial automáticamente
-        if (phase2Evals.length > 0) {
+        if (phase3Evals.length > 0) {
+          setSelectedPhase('phase3');
+        } else if (phase2Evals.length > 0) {
           setSelectedPhase('phase2');
         } else if (phase1Evals.length > 0) {
           setSelectedPhase('phase1');
         }
         
         // Generar recomendaciones con IA si está disponible
-        if (geminiService.isAvailable() && processedData.subjects.length > 0) {
-          generateAIRecommendations(processedData);
+        if (geminiService.isAvailable() && consolidatedData.subjects.length > 0) {
+          generateAIRecommendations(consolidatedData);
         }
       } catch (error) {
         console.error("Error al obtener los datos:", error);
@@ -897,15 +1061,38 @@ export default function ICFESAnalysisInterface() {
     const subjectTopicGroups: { [subject: string]: { [topic: string]: any[] } } = {};
     let totalQuestions = 0;
     let totalCorrect = 0;
-    let totalTimeSpent = 0;
+    let totalTimeSpent = 0; // Tiempo total en segundos (suma de todos los questionDetails[].timeSpent)
+    let totalTimeFromQuestions = 0; // Tiempo total calculado desde questionDetails
+    let totalQuestionsWithTime = 0; // Total de preguntas que tienen tiempo registrado
     let totalAnswered = 0;
     let securityIssues = 0;
+    let luckAnswers = 0; // Respuestas respondidas en < 10 segundos
+    let totalAnswersWithTime = 0; // Total de respuestas que tienen tiempo registrado
 
     // Agrupar resultados por fase y materia para calcular puntos
     // Usamos el mejor resultado de cada materia por fase
     const phaseSubjectResults: { [phase: string]: { [subject: string]: { correct: number; total: number; percentage: number } } } = {};
 
     evaluations.forEach(exam => {
+      // Calcular tiempo desde questionDetails si está disponible
+      if (exam.questionDetails && exam.questionDetails.length > 0) {
+        exam.questionDetails.forEach(question => {
+          if (question.timeSpent && question.timeSpent > 0) {
+            totalTimeFromQuestions += question.timeSpent; // tiempo en segundos
+            totalQuestionsWithTime++;
+            
+            // Contar respuestas "con suerte" (< 10 segundos) si la pregunta fue respondida
+            if (question.answered) {
+              totalAnswersWithTime++;
+              if (question.timeSpent < 10) {
+                luckAnswers++;
+              }
+            }
+          }
+        });
+      }
+      
+      // Mantener compatibilidad con tiempo total del examen (fallback)
       totalTimeSpent += exam.timeSpent;
       totalAnswered += exam.score.totalAnswered;
       totalQuestions += exam.score.totalQuestions;
@@ -1050,7 +1237,7 @@ export default function ICFESAnalysisInterface() {
       const totalQuestions = topicAnalyses.reduce((sum, topic) => sum + topic.total, 0);
       const subjectPercentage = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
 
-      // Calcular fortalezas (temas con >= 70%) y debilidades (temas con < 60%)
+      // Calcular fortalezas (temas con >= 70%), debilidades (temas con < 60%) y neutros (60% - 69%)
       const strengths = topicAnalyses
         .filter(topic => topic.percentage >= 70)
         .map(topic => topic.name);
@@ -1058,13 +1245,18 @@ export default function ICFESAnalysisInterface() {
       const weaknesses = topicAnalyses
         .filter(topic => topic.percentage < 60)
         .map(topic => topic.name);
+      
+      const neutrals = topicAnalyses
+        .filter(topic => topic.percentage >= 60 && topic.percentage < 70)
+        .map(topic => topic.name);
 
         return {
           name: subject,
           percentage: subjectPercentage,
           topics: topicAnalyses,
           strengths,
-          weaknesses
+          weaknesses,
+          neutrals
         };
       })
       .sort((a, b) => {
@@ -1111,7 +1303,10 @@ export default function ICFESAnalysisInterface() {
         percentile: Math.round(percentile),
         phasePercentage, // Porcentaje de completitud de fase
         currentPhase, // Fase actual (I, II o III)
-        timeSpent: Math.round(totalTimeSpent / 60), // En minutos
+        // Usar tiempo de questionDetails si está disponible, sino usar tiempo total del examen
+        timeSpent: totalQuestionsWithTime > 0 
+          ? (totalTimeFromQuestions / totalQuestionsWithTime) / 60 // Promedio por pregunta en minutos (desde segundos)
+          : totalTimeSpent / 60, // Fallback: tiempo total en minutos
         questionsAnswered: totalAnswered,
         totalQuestions,
         averagePercentage
@@ -1129,7 +1324,8 @@ export default function ICFESAnalysisInterface() {
         strongestArea: bestSubject?.name || "Sin datos",
         weakestArea: worstSubject?.name || "Sin datos",
         completionRate: totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0,
-        securityIssues
+        securityIssues,
+        luckPercentage: totalAnswersWithTime > 0 ? Math.round((luckAnswers / totalAnswersWithTime) * 100) : 0
       },
       recommendations: generateBasicRecommendations(subjects)
     };
@@ -1161,9 +1357,215 @@ export default function ICFESAnalysisInterface() {
         strongestArea: "Sin datos",
         weakestArea: "Sin datos",
         completionRate: 0,
-        securityIssues: 0
+        securityIssues: 0,
+        luckPercentage: 0
       },
       recommendations: []
+    };
+  };
+
+  /**
+   * Calcula datos consolidados para "Todas las Fases"
+   * PROMEDIA el puntaje global de las 3 fases
+   */
+  const calculateAllPhasesData = (
+    phase1: AnalysisData | null,
+    phase2: AnalysisData | null,
+    phase3: AnalysisData | null,
+    user: any
+  ): AnalysisData => {
+    const phases = [phase1, phase2, phase3].filter(p => p !== null) as AnalysisData[];
+    
+    if (phases.length === 0) {
+      return getEmptyAnalysisData(user);
+    }
+
+    // Normalizar nombres de materias
+    const normalizeSubjectName = (subject: string): string => {
+      const normalized = subject.trim().toLowerCase();
+      const subjectMap: Record<string, string> = {
+        'biologia': 'Biologia',
+        'biología': 'Biologia',
+        'quimica': 'Quimica',
+        'química': 'Quimica',
+        'fisica': 'Física',
+        'física': 'Física',
+        'matematicas': 'Matemáticas',
+        'matemáticas': 'Matemáticas',
+        'lenguaje': 'Lenguaje',
+        'ciencias sociales': 'Ciencias Sociales',
+        'sociales': 'Ciencias Sociales',
+        'ingles': 'Inglés',
+        'inglés': 'Inglés',
+      };
+      return subjectMap[normalized] || subject;
+    };
+
+    // ✅ CORRECCIÓN: Promediar el puntaje global de las 3 fases
+    const globalScores = phases.map(p => p.overall.score);
+    const globalScore = globalScores.reduce((sum, score) => sum + score, 0) / globalScores.length;
+
+    // Agrupar materias por nombre y promediar su rendimiento
+    const subjectAverages: { [subject: string]: number[] } = {};
+    
+    phases.forEach(phase => {
+      phase.subjects.forEach(subject => {
+        const normalized = normalizeSubjectName(subject.name);
+        if (!subjectAverages[normalized]) {
+          subjectAverages[normalized] = [];
+        }
+        subjectAverages[normalized].push(subject.percentage);
+      });
+    });
+
+    // Consolidar métricas
+    const totalQuestions = phases.reduce((sum, p) => sum + p.overall.totalQuestions, 0);
+    const totalAnswered = phases.reduce((sum, p) => sum + p.overall.questionsAnswered, 0);
+    const totalTimeSpent = phases.reduce((sum, p) => sum + p.overall.timeSpent * p.overall.totalQuestions, 0);
+    const securityIssues = phases.reduce((sum, p) => sum + p.patterns.securityIssues, 0);
+    // Calcular promedio de porcentaje de suerte entre todas las fases
+    const luckPercentages = phases.map(p => p.patterns.luckPercentage);
+    const avgLuckPercentage = luckPercentages.length > 0 
+      ? Math.round(luckPercentages.reduce((sum, p) => sum + p, 0) / luckPercentages.length)
+      : 0;
+
+    // Calcular materias únicas completadas
+    const completedSubjects = new Set<string>();
+    phases.forEach(phase => {
+      phase.subjects.forEach(subject => {
+        completedSubjects.add(normalizeSubjectName(subject.name));
+      });
+    });
+
+    // Combinar subjectsWithTopics de todas las fases
+    const allSubjectsWithTopics: SubjectWithTopics[] = [];
+    Object.keys(subjectAverages).forEach(subjectName => {
+      // Buscar esta materia en cada fase
+      const phase1Subject = phase1?.subjectsWithTopics?.find(s => normalizeSubjectName(s.name) === subjectName);
+      const phase2Subject = phase2?.subjectsWithTopics?.find(s => normalizeSubjectName(s.name) === subjectName);
+      const phase3Subject = phase3?.subjectsWithTopics?.find(s => normalizeSubjectName(s.name) === subjectName);
+
+      // Obtener todos los temas únicos
+      const allTopics = new Set<string>();
+      [phase1Subject, phase2Subject, phase3Subject].forEach(phase => {
+        phase?.topics.forEach(t => allTopics.add(t.name));
+      });
+
+      // Crear array de temas con promedios
+      const topics: TopicAnalysis[] = Array.from(allTopics).map(topicName => {
+        const topicPercentages: number[] = [];
+        let totalCorrect = 0;
+        let totalQuestions = 0;
+
+        [phase1Subject, phase2Subject, phase3Subject].forEach(phase => {
+          const topic = phase?.topics.find(t => t.name === topicName);
+          if (topic) {
+            topicPercentages.push(topic.percentage);
+            totalCorrect += topic.correct;
+            totalQuestions += topic.total;
+          }
+        });
+
+        const avgPercentage = topicPercentages.length > 0
+          ? Math.round(topicPercentages.reduce((sum, p) => sum + p, 0) / topicPercentages.length)
+          : 0;
+
+        return {
+          name: topicName,
+          percentage: avgPercentage,
+          correct: totalCorrect,
+          total: totalQuestions
+        };
+      });
+
+      // Calcular promedio de la materia
+      const subjectAvgPercentage = Math.round(
+        subjectAverages[subjectName].reduce((sum, p) => sum + p, 0) / subjectAverages[subjectName].length
+      );
+
+      // Clasificar temas
+      const strengths = topics.filter(t => t.percentage >= 70).map(t => t.name);
+      const weaknesses = topics.filter(t => t.percentage < 60).map(t => t.name);
+      const neutrals = topics.filter(t => t.percentage >= 60 && t.percentage < 70).map(t => t.name);
+
+      allSubjectsWithTopics.push({
+        name: subjectName,
+        percentage: subjectAvgPercentage,
+        topics,
+        strengths,
+        weaknesses,
+        neutrals
+      });
+    });
+
+    // Ordenar materias
+    const subjectOrder: Record<string, number> = {
+      'Matemáticas': 1,
+      'Lenguaje': 2,
+      'Ciencias Sociales': 3,
+      'Biologia': 4,
+      'Quimica': 5,
+      'Física': 6,
+      'Inglés': 7
+    };
+    allSubjectsWithTopics.sort((a, b) => {
+      const orderA = subjectOrder[a.name] || 999;
+      const orderB = subjectOrder[b.name] || 999;
+      return orderA - orderB;
+    });
+
+    // Crear subjects para compatibilidad
+    const subjects: SubjectAnalysis[] = allSubjectsWithTopics.map(subject => ({
+      name: subject.name,
+      score: subject.percentage,
+      maxScore: 100,
+      correct: subject.topics.reduce((sum, t) => sum + t.correct, 0),
+      total: subject.topics.reduce((sum, t) => sum + t.total, 0),
+      timeSpent: 0,
+      percentage: subject.percentage,
+      strengths: subject.strengths,
+      weaknesses: subject.weaknesses,
+      improvement: ''
+    }));
+
+    const avgPercentage = totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0;
+    const bestSubject = subjects.reduce((best, current) => current.percentage > best.percentage ? current : best, subjects[0]);
+    const worstSubject = subjects.reduce((worst, current) => current.percentage < worst.percentage ? current : worst, subjects[0]);
+
+    return {
+      student: {
+        name: user?.displayName || user?.email || "Usuario",
+        id: user?.uid?.substring(0, 8) || "N/A",
+        testDate: new Date().toLocaleDateString('es-ES'),
+        testType: `${phases.length} Fases Completadas`
+      },
+      overall: {
+        score: Math.round(globalScore),
+        percentile: Math.min(95, Math.max(5, avgPercentage + Math.random() * 20 - 10)),
+        phasePercentage: Math.round((completedSubjects.size / 7) * 100),
+        currentPhase: 'III',
+        timeSpent: totalQuestions > 0 ? totalTimeSpent / totalQuestions : 0,
+        questionsAnswered: totalAnswered,
+        totalQuestions,
+        averagePercentage: avgPercentage
+      },
+      subjects,
+      subjectsWithTopics: allSubjectsWithTopics,
+      patterns: {
+        timeManagement: totalTimeSpent > (totalQuestions * 5 * 60) ? 
+          "Necesita mejorar gestión del tiempo" : "Buen manejo del tiempo",
+        errorTypes: [
+          `Conceptual: ${Math.round(Math.random() * 30 + 35)}%`,
+          `Interpretativo: ${Math.round(Math.random() * 20 + 25)}%`,
+          `Cálculo: ${Math.round(Math.random() * 15 + 15)}%`
+        ],
+        strongestArea: bestSubject?.name || "Sin datos",
+        weakestArea: worstSubject?.name || "Sin datos",
+        completionRate: totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0,
+        securityIssues,
+        luckPercentage: avgLuckPercentage
+      },
+      recommendations: generateBasicRecommendations(subjects)
     };
   };
 
@@ -1261,8 +1663,13 @@ export default function ICFESAnalysisInterface() {
   const getCurrentPhaseData = (): AnalysisData | null => {
     if (selectedPhase === 'phase1' && phase1Data) return phase1Data;
     if (selectedPhase === 'phase2' && phase2Data) return phase2Data;
-    if (selectedPhase === 'all' && analysisData) return analysisData;
+    if (selectedPhase === 'phase3' && phase3Data) return phase3Data;
+    if (selectedPhase === 'all') {
+      // ✅ USAR DATOS CONSOLIDADOS que ya incluyen suma de intentos de fraude
+      return analysisData;
+    }
     // Si no hay datos para la fase seleccionada, intentar con otra fase disponible
+    if (phase3Data) return phase3Data;
     if (phase2Data) return phase2Data;
     if (phase1Data) return phase1Data;
     return analysisData;
@@ -1291,7 +1698,7 @@ export default function ICFESAnalysisInterface() {
             <nav className="hidden md:flex items-center space-x-8">
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="DESEMPEÑO" active theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
@@ -1327,7 +1734,7 @@ export default function ICFESAnalysisInterface() {
             <nav className="hidden md:flex items-center space-x-8">
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="DESEMPEÑO" active theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
@@ -1371,7 +1778,7 @@ export default function ICFESAnalysisInterface() {
           <nav className="hidden md:flex items-center space-x-8">
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="DESEMPEÑO" active theme={theme} />
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
             <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>
@@ -1406,12 +1813,9 @@ export default function ICFESAnalysisInterface() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className={cn("text-lg font-semibold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                <h3 className={cn("text-lg font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                   Seleccionar Fase
                 </h3>
-                <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                  Elige la fase para ver su análisis completo
-                </p>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -1451,6 +1855,24 @@ export default function ICFESAnalysisInterface() {
                   )}
                 </Button>
                 <Button
+                  onClick={() => setSelectedPhase('phase3')}
+                  variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
+                  className={cn(
+                    selectedPhase === 'phase3'
+                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                      : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
+                  )}
+                  disabled={!phase3Data}
+                >
+                  <Target className="h-4 w-4 mr-2" />
+                  Fase III
+                  {phase3Data && (
+                    <Badge className={cn("ml-2", selectedPhase === 'phase3' ? 'bg-orange-500' : 'bg-gray-500')}>
+                      {phase3Data.subjects.length} materias
+                    </Badge>
+                  )}
+                </Button>
+                <Button
                   onClick={() => setSelectedPhase('all')}
                   variant={selectedPhase === 'all' ? 'default' : 'outline'}
                   className={cn(
@@ -1469,14 +1891,10 @@ export default function ICFESAnalysisInterface() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className={cn("grid w-full grid-cols-2 md:grid-cols-5", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
+          <TabsList className={cn("grid w-full grid-cols-2 md:grid-cols-3", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
             <TabsTrigger value="overview" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700 border-gray-200')}>
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Resumen</span>
-            </TabsTrigger>
-            <TabsTrigger value="performance" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 border-gray-200')}>
-              <TrendingUp className="h-4 w-4" />
-              <span className="hidden sm:inline">Desempeño</span>
             </TabsTrigger>
             <TabsTrigger value="diagnosis" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700 border-gray-200')}>
               <Target className="h-4 w-4" />
@@ -1485,10 +1903,6 @@ export default function ICFESAnalysisInterface() {
             <TabsTrigger value="study-plan" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 border-gray-200')}>
               <BookOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Plan de Estudio</span>
-            </TabsTrigger>
-            <TabsTrigger value="progress" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-yellow-100 data-[state=active]:text-yellow-700 border-gray-200')}>
-              <Trophy className="h-4 w-4" />
-              <span className="hidden sm:inline">Progreso</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1515,7 +1929,7 @@ export default function ICFESAnalysisInterface() {
               }
               return (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md')}>
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
@@ -1572,20 +1986,95 @@ export default function ICFESAnalysisInterface() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>{currentData.overall.phasePercentage}%</p>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
+                        {selectedPhase === 'all' 
+                          ? (() => {
+                              // Para "Todas las Fases", calcular el porcentaje real basándose en materias completadas vs materias esperadas
+                              // Asumimos 7 materias por fase (las 7 materias estándar del ICFES)
+                              const EXPECTED_SUBJECTS_PER_PHASE = 7;
+                              let totalExpected = 0;
+                              let totalCompleted = 0;
+                              
+                              // Contar materias completadas y esperadas por fase
+                              if (phase1Data) {
+                                totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                                totalCompleted += phase1Data.subjects.length;
+                              }
+                              if (phase2Data) {
+                                totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                                totalCompleted += phase2Data.subjects.length;
+                              }
+                              if (phase3Data) {
+                                totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                                totalCompleted += phase3Data.subjects.length;
+                              }
+                              
+                              const percentage = totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0;
+                              return `${percentage}%`;
+                            })()
+                          : `${currentData.overall.phasePercentage}%`
+                        }
+                      </p>
                       <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                        Porcentaje de Fase {currentData.overall.currentPhase}
+                        {selectedPhase === 'all' 
+                          ? 'Completitud General'
+                          : `Porcentaje de Fase ${currentData.overall.currentPhase}`
+                        }
                       </p>
                     </div>
                     <TrendingUp className="h-8 w-8 text-green-500" />
                   </div>
                   <div className="mt-2">
                     <Progress 
-                      value={currentData.overall.phasePercentage} 
+                      value={selectedPhase === 'all' 
+                        ? (() => {
+                            const EXPECTED_SUBJECTS_PER_PHASE = 7;
+                            let totalExpected = 0;
+                            let totalCompleted = 0;
+                            
+                            if (phase1Data) {
+                              totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                              totalCompleted += phase1Data.subjects.length;
+                            }
+                            if (phase2Data) {
+                              totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                              totalCompleted += phase2Data.subjects.length;
+                            }
+                            if (phase3Data) {
+                              totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                              totalCompleted += phase3Data.subjects.length;
+                            }
+                            
+                            return totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0;
+                          })()
+                        : currentData.overall.phasePercentage
+                      } 
                       className={cn("h-2", theme === 'dark' ? '' : '')}
                     />
                     <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                      {Math.round((currentData.overall.phasePercentage / 100) * 7)} de 7 materias completadas
+                      {selectedPhase === 'all'
+                        ? (() => {
+                            const EXPECTED_SUBJECTS_PER_PHASE = 7;
+                            let totalExpected = 0;
+                            let totalCompleted = 0;
+                            
+                            if (phase1Data) {
+                              totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                              totalCompleted += phase1Data.subjects.length;
+                            }
+                            if (phase2Data) {
+                              totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                              totalCompleted += phase2Data.subjects.length;
+                            }
+                            if (phase3Data) {
+                              totalExpected += EXPECTED_SUBJECTS_PER_PHASE;
+                              totalCompleted += phase3Data.subjects.length;
+                            }
+                            
+                            return `${totalCompleted} de ${totalExpected} materias completadas`;
+                          })()
+                        : `${Math.round((currentData.overall.phasePercentage / 100) * 7)} de 7 materias completadas`
+                      }
                     </p>
                   </div>
                 </CardContent>
@@ -1595,15 +2084,19 @@ export default function ICFESAnalysisInterface() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{currentData.overall.timeSpent}m</p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Tiempo Total</p>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {currentData.overall.timeSpent.toFixed(1)}m
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        {selectedPhase === 'all' ? 'Tiempo Promedio por Pregunta' : `Tiempo Promedio por Pregunta - Fase ${currentData.overall.currentPhase}`}
+                      </p>
                     </div>
                     <Clock className="h-8 w-8 text-blue-500" />
                   </div>
                   <div className="mt-2">
                     <Badge variant="outline" className={cn(theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-300 bg-white/50')}>
                       {currentData.overall.totalQuestions > 0 ? 
-                        `${(currentData.overall.timeSpent / currentData.overall.totalQuestions).toFixed(2)}m por pregunta` : 
+                        `Promedio de ${currentData.overall.totalQuestions} preguntas` : 
                         'Sin datos'
                       }
                     </Badge>
@@ -1666,109 +2159,184 @@ export default function ICFESAnalysisInterface() {
                   </div>
                 </CardContent>
               </Card>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                <CardHeader>
-                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    <PieChart className="h-5 w-5" />
-                    Rendimiento académico por matería
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {currentData.subjectsWithTopics.length > 0 ? (
-                    <PerformanceChart data={currentData.subjects} subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
-                  ) : currentData.subjects.length > 0 ? (
-                    <PerformanceChart data={currentData.subjects} theme={theme} />
-                  ) : (
-                    <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sin datos de materias disponibles</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                <CardHeader>
-                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    <Zap className="h-5 w-5" />
-                    Fortalezas y Debilidades
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {currentData.subjectsWithTopics.length > 0 ? (
-                    <StrengthsWeaknessesChart subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
-                  ) : (
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Star className="h-4 w-4 text-yellow-500" />
-                          <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Área más fuerte</span>
-                        </div>
-                        <Badge className={theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200"}>{currentData.patterns.strongestArea}</Badge>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <AlertTriangle className="h-4 w-4 text-orange-500" />
-                          <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Área a mejorar</span>
-                        </div>
-                        <Badge className={theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200"}>{currentData.patterns.weakestArea}</Badge>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock className="h-4 w-4 text-blue-500" />
-                          <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Gestión del tiempo</span>
-                        </div>
-                        <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{currentData.patterns.timeManagement}</p>
-                      </div>
-                      {currentData.patterns.securityIssues > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Shield className="h-4 w-4 text-red-500" />
-                            <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Alertas de seguridad</span>
-                          </div>
-                          <Badge className={theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200"}>
-                            {currentData.patterns.securityIssues} evaluación{currentData.patterns.securityIssues > 1 ? 'es' : ''} con incidentes
-                          </Badge>
-                        </div>
+              <Card className={cn(
+                theme === 'dark' 
+                  ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg'
+                  : currentData.patterns.luckPercentage < 20 
+                    ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200 shadow-md'
+                    : currentData.patterns.luckPercentage <= 40
+                    ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md'
+                    : 'bg-gradient-to-br from-orange-50 to-red-50 border-gray-200 shadow-md'
+              )}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn(
+                        "text-2xl font-bold",
+                        currentData.patterns.luckPercentage < 20
+                          ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                          : currentData.patterns.luckPercentage <= 40
+                          ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
+                          : theme === 'dark' ? 'text-orange-400' : 'text-orange-700'
+                      )}>
+                        {currentData.patterns.luckPercentage}%
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Porcentaje de Suerte</p>
+                    </div>
+                    <Zap className={cn(
+                      "h-8 w-8",
+                      currentData.patterns.luckPercentage < 20
+                        ? 'text-green-500'
+                        : currentData.patterns.luckPercentage <= 40
+                        ? 'text-yellow-500'
+                        : 'text-orange-500'
+                    )} />
+                  </div>
+                  <div className="mt-2">
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        theme === 'dark' ? 'border-zinc-600' : 'border-gray-300',
+                        currentData.patterns.luckPercentage < 20
+                          ? theme === 'dark' ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-green-50 text-green-800 border-green-200'
+                          : currentData.patterns.luckPercentage <= 40
+                          ? theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-700' : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                          : theme === 'dark' ? 'bg-orange-900/30 text-orange-300 border-orange-700' : 'bg-orange-50 text-orange-800 border-orange-200'
                       )}
-                    </div>
-                  )}
+                    >
+                      {currentData.patterns.luckPercentage < 20
+                        ? 'Excelente análisis' 
+                        : currentData.patterns.luckPercentage <= 40
+                        ? 'Respuestas reflexivas'
+                        : 'Muchas respuestas rápidas'
+                      }
+                    </Badge>
+                  </div>
                 </CardContent>
               </Card>
             </div>
-                </>
-              );
-            })()}
-          </TabsContent>
 
-          {/* Performance Tab */}
-          <TabsContent value="performance" className="space-y-6">
-            {(() => {
-              const currentData = getCurrentPhaseData();
-              if (!currentData) {
-                return (
-                  <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                    <CardContent className="pt-6">
-                      <div className="text-center py-8">
-                        <BarChart3 className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                        <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos de desempeño disponibles para esta fase</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              }
-              return currentData.subjects.length > 0 ? (
-                <SubjectAnalysis subjects={currentData.subjects} theme={theme} />
-              ) : (
+            {/* Mostrar tarjetas ORIGINALES para fases individuales (Fase I, II, III) */}
+            {selectedPhase !== 'all' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                  <CardContent className="pt-6">
-                    <div className="text-center py-8">
-                      <BarChart3 className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                      <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos de desempeño por materia disponibles</p>
-                      <p className={cn("text-sm mt-2", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta más evaluaciones para obtener un análisis detallado</p>
-                    </div>
+                  <CardHeader>
+                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <PieChart className="h-5 w-5" />
+                      Rendimiento académico por materia
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {currentData.subjectsWithTopics.length > 0 ? (
+                      <PerformanceChart data={currentData.subjects} subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
+                    ) : currentData.subjects.length > 0 ? (
+                      <PerformanceChart data={currentData.subjects} theme={theme} />
+                    ) : (
+                      <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sin datos de materias disponibles</p>
+                    )}
                   </CardContent>
                 </Card>
+
+                <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
+                  <CardHeader>
+                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <Zap className="h-5 w-5" />
+                      Fortalezas y Debilidades
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {currentData.subjectsWithTopics.length > 0 ? (
+                      <StrengthsWeaknessesChart subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Star className="h-4 w-4 text-yellow-500" />
+                            <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Área más fuerte</span>
+                          </div>
+                          <Badge className={theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200"}>{currentData.patterns.strongestArea}</Badge>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <AlertTriangle className="h-4 w-4 text-orange-500" />
+                            <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Área a mejorar</span>
+                          </div>
+                          <Badge className={theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200"}>{currentData.patterns.weakestArea}</Badge>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Clock className="h-4 w-4 text-blue-500" />
+                            <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Gestión del tiempo</span>
+                          </div>
+                          <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{currentData.patterns.timeManagement}</p>
+                        </div>
+                        {currentData.patterns.securityIssues > 0 && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Shield className="h-4 w-4 text-red-500" />
+                              <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Alertas de seguridad</span>
+                            </div>
+                            <Badge className={theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200"}>
+                              {currentData.patterns.securityIssues} evaluación{currentData.patterns.securityIssues > 1 ? 'es' : ''} con incidentes
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Gráfico de Evolución por Materia y Temas - SOLO para "Todas las Fases" */}
+            {selectedPhase === 'all' && (() => {
+              const phasesWithData = [phase1Data, phase2Data, phase3Data].filter(p => p !== null).length;
+              if (phasesWithData >= 2) {
+                const subjectTopicsData = prepareSubjectTopicsData(phase1Data, phase2Data, phase3Data);
+                
+                // Filtrar materias que tienen al menos un tema con datos
+                const subjectsWithValidData = subjectTopicsData.filter(subject => 
+                  subject.topics.length > 0 && 
+                  subject.topics.some(topic => 
+                    topic.phase1 !== null || topic.phase2 !== null || topic.phase3 !== null
+                  )
+                );
+
+                if (subjectsWithValidData.length > 0) {
+                  return (
+                    <Card className={cn(
+                      theme === 'dark' 
+                        ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' 
+                        : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm'
+                    )}>
+                      <CardHeader>
+                        <CardTitle className={cn(
+                          "flex items-center gap-2",
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        )}>
+                          <TrendingUp className="h-5 w-5 text-purple-500" />
+                          Rendimiento por Materia
+                        </CardTitle>
+                        <CardDescription className={cn(
+                          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                        )}>
+                          Evolución de temas a través de las 3 fases evaluativas
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <SubjectTopicsAccordion 
+                          subjects={subjectsWithValidData}
+                          theme={theme}
+                        />
+                      </CardContent>
+                    </Card>
+                  );
+                }
+              }
+              return null;
+            })()}
+                </>
               );
             })()}
           </TabsContent>
@@ -1789,89 +2357,52 @@ export default function ICFESAnalysisInterface() {
                   </Card>
                 );
               }
+
               return (
                 <>
-                  <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                    <CardHeader>
-                      <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
-                        <Target className="h-5 w-5" />
-                        Análisis de Patrones de Error
-                      </CardTitle>
-                      <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Identificación de tipos de errores y sus causas principales</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {currentData.patterns.errorTypes.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {currentData.patterns.errorTypes.map((error, index) => (
-                      <div key={index} className={cn("p-4 border rounded-lg", theme === 'dark' ? 'border-zinc-700 bg-zinc-900' : '')}>
-                        <div className={cn("text-lg font-semibold mb-2", theme === 'dark' ? 'text-white' : '')}>{error}</div>
-                        <Progress value={parseInt(error.split(": ")[1])} className="h-2" />
-                      </div>
-                    ))}
+                  {/* Primera Fila: Radar Chart y Tarjeta de Riesgo */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Radar Chart de Fortalezas/Debilidades */}
+                    {currentData.subjects.length > 0 && (
+                      <StrengthsRadarChart
+                        subjects={currentData.subjects}
+                        theme={theme}
+                      />
+                    )}
+
+                    {/* Gráfico de Evolución por Materia */}
+                    <SubjectsProgressChart
+                      phase1Data={phase1Data ? { 
+                        phase: 'phase1' as const, 
+                        subjects: phase1Data.subjects.map(s => ({ 
+                          name: s.name, 
+                          percentage: s.percentage 
+                        })) 
+                      } : null}
+                      phase2Data={phase2Data ? { 
+                        phase: 'phase2' as const, 
+                        subjects: phase2Data.subjects.map(s => ({ 
+                          name: s.name, 
+                          percentage: s.percentage 
+                        })) 
+                      } : null}
+                      phase3Data={phase3Data ? { 
+                        phase: 'phase3' as const, 
+                        subjects: phase3Data.subjects.map(s => ({ 
+                          name: s.name, 
+                          percentage: s.percentage 
+                        })) 
+                      } : null}
+                      theme={theme}
+                    />
                   </div>
-                ) : (
-                  <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Datos insuficientes para análisis de errores</p>
-                )}
-              </CardContent>
-            </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                <CardHeader>
-                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-                    <CheckCircle2 className="h-5 w-5" />
-                    Fortalezas Identificadas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {currentData.subjects.length > 0 ? (
-                    currentData.subjects.map((subject) => (
-                      <div key={subject.name} className="border-l-4 border-green-500 pl-4">
-                        <h4 className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</h4>
-                        <ul className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                          {subject.strengths.map((strength, index) => (
-                            <li key={index} className="flex items-center gap-2">
-                              <CheckCircle2 className="h-3 w-3 text-green-500" />
-                              {strength}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))
-                  ) : (
-                    <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos de fortalezas disponibles</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                <CardHeader>
-                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-                    <AlertTriangle className="h-5 w-5" />
-                    Áreas de Mejora
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {currentData.subjects.length > 0 ? (
-                    currentData.subjects.map((subject) => (
-                      <div key={subject.name} className="border-l-4 border-red-500 pl-4">
-                        <h4 className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</h4>
-                        <ul className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                          {subject.weaknesses.map((weakness, index) => (
-                            <li key={index} className="flex items-center gap-2">
-                              <AlertTriangle className="h-3 w-3 text-red-500" />
-                              {weakness}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))
-                  ) : (
-                    <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos de debilidades disponibles</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  {/* Análisis Detallado por Materia */}
+                  <SubjectsDetailedSummary
+                    subjects={currentData.subjects}
+                    subjectsWithTopics={currentData.subjectsWithTopics}
+                    theme={theme}
+                  />
                 </>
               );
             })()}
@@ -1910,46 +2441,6 @@ export default function ICFESAnalysisInterface() {
                       <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
                       <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay recomendaciones específicas disponibles</p>
                       <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta más evaluaciones para generar un plan de estudio personalizado</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })()}
-          </TabsContent>
-
-          {/* Progress Tab */}
-          <TabsContent value="progress" className="space-y-6">
-            {(() => {
-              const currentData = getCurrentPhaseData();
-              if (!currentData) {
-                return (
-                  <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                    <CardContent className="pt-6">
-                      <div className="text-center py-8">
-                        <Trophy className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                        <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay suficientes datos para mostrar el progreso</p>
-                        <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta múltiples evaluaciones para ver tu evolución</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              }
-              return currentData.subjects.length > 0 ? (
-                <ComparisonChart subjects={currentData.subjects} theme={theme} />
-              ) : (
-                <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                  <CardHeader>
-                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
-                      <Trophy className="h-5 w-5" />
-                      Seguimiento de Progreso
-                    </CardTitle>
-                    <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Análisis comparativo de tu evolución</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8">
-                      <Trophy className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                      <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay suficientes datos para mostrar el progreso</p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta múltiples evaluaciones para ver tu evolución</p>
                     </div>
                   </CardContent>
                 </Card>

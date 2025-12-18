@@ -66,9 +66,9 @@ export default function InfoTab() {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-          <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" active theme={theme}/>
+            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" active theme={theme}/>
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="desempeño" theme={theme} />
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
             <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>
