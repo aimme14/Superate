@@ -17,6 +17,7 @@ export const registerSchema = z.object({
   inst: z.string().min(1, "La institución educativa es requerida"),
   campus: z.string().min(1, "La sede es requerida"),
   grade: z.string().min(1, "El grado es requerido"),
+  representativePhone: z.string().min(10, "El número de teléfono del representante debe tener al menos 10 caracteres").optional(),
 })
 
 /*--------------------------------------------------adminRegisterSchema--------------------------------------------------*/

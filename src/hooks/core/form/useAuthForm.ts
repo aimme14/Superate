@@ -63,6 +63,7 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
       inst: '',
       campus: '',
       grade: '',
+      representativePhone: '',
     },
     mode: "onChange",
   })
@@ -75,7 +76,8 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
       username: user.displayName || '',
       inst: user.institution || '',
       campus: user.campus || '',
-      grade: user.grade || ''
+      grade: user.grade || '',
+      representativePhone: (user as any).representativePhone || ''
     })
   }, [id, user])
 

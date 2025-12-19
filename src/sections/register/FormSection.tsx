@@ -61,6 +61,14 @@ const FormSection = ({ theme }: FormSectionProps) => {
         />
       </div>
       <div className="[&>div]:space-y-1">
+        <InputField
+          name="representativePhone"
+          label="Número de teléfono del representante (WhatsApp)"
+          placeholder="Ej: +57 300 1234567"
+          theme={theme}
+        />
+      </div>
+      <div className="[&>div]:space-y-1">
         <SelectField
           name='inst'
           theme={theme}

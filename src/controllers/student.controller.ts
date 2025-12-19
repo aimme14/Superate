@@ -15,6 +15,7 @@ export interface CreateStudentData {
   password?: string
   adminEmail?: string
   adminPassword?: string
+  representativePhone?: string
 }
 
 export interface UpdateStudentData extends Partial<CreateStudentData> {
@@ -41,7 +42,7 @@ export interface StudentFilters {
  */
 export const createStudent = async (studentData: CreateStudentData): Promise<Result<User>> => {
   try {
-    const { name, email, institutionId, campusId, gradeId, userdoc, password, adminEmail, adminPassword } = studentData
+    const { name, email, institutionId, campusId, gradeId, userdoc, password, adminEmail, adminPassword, representativePhone } = studentData
 
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = password || userdoc + '0'
@@ -51,7 +52,7 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     if (!userAccount.success) throw userAccount.error
 
     // Crear documento en Firestore
-    const dbUserData = {
+    const dbUserData: any = {
       role: 'student',
       name,
       email,
@@ -62,6 +63,11 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
       createdAt: new Date().toISOString(),
       isActive: true,
       createdBy: 'admin'
+    }
+
+    // Agregar teléfono del representante si se proporciona
+    if (representativePhone) {
+      dbUserData.representativePhone = representativePhone
     }
 
     const dbResult = await dbService.createUser(userAccount.data, dbUserData)

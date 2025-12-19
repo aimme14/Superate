@@ -145,7 +145,7 @@ const assignStudentToRector = async (studentId: string, institutionId: string): 
  */
 export const register = async (user: RegisterFormProps): Promise<Result<void>> => {
   try {
-    const { role, userdoc, email, grade, inst, campus, username } = user
+    const { role, userdoc, email, grade, inst, campus, username, representativePhone } = user
     
     // Verificar que solo se registren estudiantes
     if (role !== 'student') {
@@ -165,7 +165,7 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     if (!userAccount.success) throw userAccount.error
 
     // Crear documento en Firestore con los mismos campos que cuando se crea por admin
-    const dbUserData = {
+    const dbUserData: any = {
       role: 'student',
       name: username,
       email,
@@ -176,6 +176,11 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
       createdAt: new Date().toISOString(),
       isActive: true,
       createdBy: 'admin' // Marcar como creado por admin para que aparezca en la gestión de usuarios
+    }
+
+    // Agregar teléfono del representante si se proporciona
+    if (representativePhone) {
+      dbUserData.representativePhone = representativePhone
     }
 
     const dbResult = await dbService.createUser(userAccount.data, dbUserData)

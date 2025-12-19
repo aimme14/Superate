@@ -1062,7 +1062,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
     campus: '',
     grade: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    representativePhone: ''
   })
 
 
@@ -1751,7 +1752,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
           userdoc: newUser.password, // Usar la contraseña como documento temporal
           password: newUser.password,
           adminEmail: currentUser?.email,
-          adminPassword: getAdminPassword()
+          adminPassword: getAdminPassword(),
+          representativePhone: newUser.representativePhone || undefined
         }
         
         console.log('🔍 Datos del estudiante desde el formulario:', studentData)
@@ -1910,7 +1912,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         campus: '',
         grade: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        representativePhone: ''
       })
       notifySuccess({ 
         title: 'Éxito', 
@@ -2085,6 +2088,19 @@ export default function UserManagement({ theme }: UserManagementProps) {
                       <div className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-800')}>
                         <strong className="text-xs">ℹ️ Rector:</strong> Se asignará a toda la institución. Acceso completo a todas las sedes.
                       </div>
+                    </div>
+                  )}
+                  {newUser.role === 'student' && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="representativePhone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono del representante (WhatsApp)</Label>
+                      <Input
+                        id="representativePhone"
+                        type="tel"
+                        value={newUser.representativePhone}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, representativePhone: e.target.value }))}
+                        placeholder="Ej: +57 300 1234567"
+                        className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                      />
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
