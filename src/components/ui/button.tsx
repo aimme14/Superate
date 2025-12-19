@@ -47,7 +47,6 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size, asChild = false, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
-    const hasGradientEffect = variant === 'default' || variant === 'destructive' || variant === 'success' || variant === 'secondary'
     
     // Si es Slot (asChild), solo pasamos las clases
     if (asChild) {
