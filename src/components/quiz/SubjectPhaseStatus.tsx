@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { 
   CheckCircle2, 
   Lock, 
@@ -534,10 +533,10 @@ export default function SubjectPhaseStatus({
       console.log(`[SubjectPhaseStatus] 🔒 BLOQUEANDO ${subject} - Fase ${phase} (examen completado, esperando otras materias)`);
       return {
         status: 'locked',
-        label: 'Finalizada',
+        label: 'Bloqueada',
         icon: Lock,
-        color: 'text-orange-500',
-        bgColor: 'bg-orange-50 dark:bg-orange-950/20',
+        color: 'text-gray-500',
+        bgColor: 'bg-gray-100 dark:bg-zinc-800',
         reason: 'Esperando...'
       };
     }
@@ -553,13 +552,13 @@ export default function SubjectPhaseStatus({
       };
     }
 
-    // Si no tiene acceso, está bloqueada (fase no autorizada)
+    // Si no tiene acceso, no está habilitado (fase no autorizada)
     if (!state.canAccess) {
       return {
         status: 'locked',
-        label: 'Bloqueada',
+        label: 'No habilitado',
         icon: Lock,
-        color: 'text-gray-400',
+        color: 'text-gray-500',
         bgColor: 'bg-gray-100 dark:bg-zinc-800',
       };
     }
@@ -580,7 +579,7 @@ export default function SubjectPhaseStatus({
     return {
       status: 'available',
       label: 'Disponible',
-      icon: Play,
+      icon: CheckCircle2,
       color: 'text-blue-500',
       bgColor: 'bg-blue-50 dark:bg-blue-950/20',
     };
@@ -631,6 +630,29 @@ export default function SubjectPhaseStatus({
   const phaseStatus = getPhaseStatus(displayPhase);
   const StatusIcon = phaseStatus.icon;
 
+  // Verificar si todas las fases están completadas
+  const allPhasesCompleted = 
+    (phaseStates.first.isCompleted || phaseStates.first.isExamCompleted) &&
+    (phaseStates.second.isCompleted || phaseStates.second.isExamCompleted) &&
+    (phaseStates.third.isCompleted || phaseStates.third.isExamCompleted);
+
+  // Si todas las fases están completadas, solo mostrar el cuadro verde
+  if (allPhasesCompleted) {
+    return (
+      <div className="space-y-3">
+        <div className={cn(
+          "flex items-center justify-center gap-2 px-3 py-2 rounded-md",
+          theme === 'dark' 
+            ? 'bg-green-900/30 text-green-300 border border-green-800/50' 
+            : 'bg-green-50 text-green-700 border border-green-200'
+        )}>
+          <CheckCircle2 className="h-4 w-4" />
+          <span className="text-sm font-medium">Fases completadas</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* Estado de la fase actual */}
@@ -646,57 +668,44 @@ export default function SubjectPhaseStatus({
               {getPhaseName(displayPhase)}
             </span>
           </div>
-          <Badge
-            variant={
-              phaseStatus.status === 'completed'
-                ? 'default'
-                : phaseStatus.status === 'in_progress'
-                ? 'secondary'
-                : phaseStatus.status === 'available'
-                ? 'outline'
-                : 'secondary'
-            }
-            className={cn(
-              phaseStatus.status === 'completed' && 'bg-green-500 text-white',
-              phaseStatus.status === 'in_progress' && 'bg-yellow-500 text-white',
-              phaseStatus.status === 'available' && 'bg-blue-500 text-white'
-            )}
-          >
-            {phaseStatus.label}
-          </Badge>
+          <div className={cn(
+            "flex items-center justify-center w-8 h-8 rounded-md",
+            phaseStatus.status === 'completed' && 'bg-green-500',
+            phaseStatus.status === 'in_progress' && 'bg-yellow-500',
+            phaseStatus.status === 'available' && 'bg-blue-500',
+            phaseStatus.status === 'locked' && phaseStatus.label === 'No habilitado' && 'bg-gray-500',
+            phaseStatus.status === 'locked' && phaseStatus.label === 'Bloqueada' && 'bg-gray-500'
+          )}>
+            <StatusIcon className="h-4 w-4 text-white" />
+          </div>
         </div>
 
-        {/* Aviso de fase anterior completada - Solo mostrar si la fase actual NO está bloqueada */}
-        {displayPhase === 'second' && 
-         (phaseStates.first.isCompleted || phaseStates.first.isExamCompleted) && 
-         phaseStatus.status !== 'locked' && (
-          <div className={cn(
-            "flex items-center gap-1.5 mb-2 px-2 py-1 rounded text-xs",
-            theme === 'dark' 
-              ? 'bg-green-900/30 text-green-300 border border-green-800/50' 
-              : 'bg-green-50 text-green-700 border border-green-200'
-          )}>
-            <CheckCircle2 className="h-3 w-3" />
-            <span>Fase 1 finalizada</span>
-          </div>
-        )}
-
-        {displayPhase === 'third' && 
-         (phaseStates.second.isCompleted || phaseStates.second.isExamCompleted) && 
-         phaseStatus.status !== 'locked' && (
-          <div className={cn(
-            "flex items-center gap-1.5 mb-2 px-2 py-1 rounded text-xs",
-            theme === 'dark' 
-              ? 'bg-green-900/30 text-green-300 border border-green-800/50' 
-              : 'bg-green-50 text-green-700 border border-green-200'
-          )}>
-            <CheckCircle2 className="h-3 w-3" />
-            <span>Fase 2 finalizada</span>
+        {/* Indicadores de fases completadas con chulitos */}
+        {phaseStatus.status !== 'locked' && 
+          ((phaseStates.first.isCompleted || phaseStates.first.isExamCompleted) ||
+           (phaseStates.second.isCompleted || phaseStates.second.isExamCompleted)) && (
+          <div className="flex items-center justify-center gap-2 mb-2">
             {(phaseStates.first.isCompleted || phaseStates.first.isExamCompleted) && (
-              <span className="mx-1">•</span>
+              <div className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-md",
+                theme === 'dark' 
+                  ? 'bg-green-900/30 text-green-300' 
+                  : 'bg-green-50 text-green-700'
+              )}>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span className="text-xs font-medium">Fase 1</span>
+              </div>
             )}
-            {(phaseStates.first.isCompleted || phaseStates.first.isExamCompleted) && (
-              <span>Fase 1 finalizada</span>
+            {(phaseStates.second.isCompleted || phaseStates.second.isExamCompleted) && (
+              <div className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-md",
+                theme === 'dark' 
+                  ? 'bg-green-900/30 text-green-300' 
+                  : 'bg-green-50 text-green-700'
+              )}>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span className="text-xs font-medium">Fase 2</span>
+              </div>
             )}
           </div>
         )}

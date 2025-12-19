@@ -872,7 +872,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex flex-col gap-3">
           <Button
             onClick={() => window.location.reload()}
-            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+            className="bg-blue-600 hover:bg-gradient-to-r hover:from-blue-600 hover:to-blue-500 hover:shadow-lg"
           >
             <Database className="h-4 w-4 mr-2" />
             Reintentar
@@ -916,7 +916,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Volver al Dashboard
           </Button>
@@ -991,7 +991,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Ir a las demás pruebas
           </Button>
@@ -1102,7 +1102,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={startExam}
               size="lg"
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <Play className="h-5 w-5 mr-2" />
               Iniciar Examen
@@ -1259,7 +1259,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={() => navigate('/dashboard')}
               size="lg"
-              className="bg-gradient-to-r from-green-600 to-blue-500 hover:from-green-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
               Volver a las demas pruebas
@@ -1382,14 +1382,21 @@ const ExamWithFirebase = () => {
                 {/* Texto informativo */}
                 {currentQ.informativeText && (
                   <div className={cn("mb-4 p-4 rounded-lg border", appTheme === 'dark' ? 'bg-blue-900/30 border-blue-800' : 'bg-blue-50 border-blue-200')}>
-                    <p className={cn("leading-relaxed", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{stripHtmlTags(currentQ.informativeText)}</p>
+                    <div 
+                      className={cn("leading-relaxed", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.informativeText)) }}
+                    />
                   </div>
                 )}
 
                 {/* Imágenes informativas */}
                 {currentQ.informativeImages && currentQ.informativeImages.length > 0 && (
                   <div className="mb-4">
-                    <ImageGallery images={currentQ.informativeImages} title="Imágenes informativas" maxImages={5} />
+                    <ImageGallery 
+                      images={currentQ.informativeImages} 
+                      title="Imágenes informativas" 
+                      maxImages={5}
+                    />
                   </div>
                 )}
 
@@ -1400,9 +1407,12 @@ const ExamWithFirebase = () => {
                   </div>
                 )}
 
-                {/* Texto de la pregunta - Limpio, sin etiquetas HTML */}
+                {/* Texto de la pregunta - Con soporte para fórmulas */}
                 {currentQ.questionText && (
-                  <p className={cn("leading-relaxed text-lg font-medium", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>{stripHtmlTags(currentQ.questionText)}</p>
+                  <div 
+                    className={cn("leading-relaxed text-lg font-medium", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.questionText)) }}
+                  />
                 )}
               </div>
               
@@ -1427,7 +1437,7 @@ const ExamWithFirebase = () => {
                               key={option.id}
                               onClick={() => handleAnswerChange(questionId, option.id)}
                               className={cn(
-                                `relative rounded-lg p-2 transition-all duration-200 cursor-pointer border-2`,
+                                `relative rounded-lg p-2 transition-none cursor-pointer border-2`,
                                 answers[questionId] === option.id
                                   ? appTheme === 'dark'
                                     ? 'border-purple-500 bg-purple-900/30'
@@ -1488,10 +1498,10 @@ const ExamWithFirebase = () => {
                           key={option.id}
                           onClick={() => handleAnswerChange(questionId, option.id)}
                           className={cn(
-                            `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden cursor-pointer`,
+                            `flex items-start space-x-3 rounded-lg p-4 transition-none relative cursor-pointer`,
                             appTheme === 'dark' 
-                              ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
-                              : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
+                              ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700/90 border' 
+                              : `${theme.answerBorder} ${theme.answerBackground} hover:bg-opacity-60`
                           )}
                           style={appTheme === 'dark' ? {} : (theme.pattern ? { 
                             backgroundImage: theme.pattern,
@@ -1554,7 +1564,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={nextQuestion}
                 disabled={currentQuestion === quizData.questions.length - 1}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className="flex items-center gap-2 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
               </Button>
@@ -1626,7 +1636,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={showSubmitWarning}
                 disabled={isSubmitting}
-                className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className="w-full mt-4 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
               >
                 {isSubmitting ? (
                   <>

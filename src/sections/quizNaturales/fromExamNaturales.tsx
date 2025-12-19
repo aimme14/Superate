@@ -769,7 +769,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Ir a las demás pruebas
           </Button>
@@ -1168,7 +1168,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={() => navigate('/dashboard')}
               size="lg"
-              className="bg-gradient-to-r from-green-600 to-blue-500 hover:from-green-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
               Volver a las demas pruebas
@@ -1277,7 +1277,7 @@ const ExamWithFirebase = () => {
                   <div
                     key={option.id}
                     onClick={() => handleAnswerChange(currentQ.id, option.id)}
-                    className={`flex items-start space-x-3 ${theme.answerBorder} rounded-lg p-4 transition-all duration-200 ${theme.answerBackground} relative overflow-hidden ${theme.answerHover} cursor-pointer`}
+                    className={`flex items-start space-x-3 ${theme.answerBorder} rounded-lg p-4 transition-none ${theme.answerBackground} relative hover:bg-opacity-60 cursor-pointer`}
                     style={theme.pattern ? { backgroundImage: theme.pattern } : {}}
                   >
                     <RadioGroupItem

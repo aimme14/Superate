@@ -2,7 +2,9 @@ import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -890,7 +892,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         <CardFooter className="flex flex-col gap-3">
           <Button
             onClick={() => window.location.reload()}
-            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+            className="bg-blue-600 hover:bg-gradient-to-r hover:from-blue-600 hover:to-blue-500 hover:shadow-lg"
           >
             <Database className="h-4 w-4 mr-2" />
             Reintentar
@@ -973,7 +975,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Ir a las demás pruebas
           </Button>
@@ -1084,7 +1086,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
             <Button
               onClick={startExam}
               size="lg"
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <Play className="h-5 w-5 mr-2" />
               Iniciar Examen
@@ -1348,7 +1350,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
             <Button
               onClick={() => navigate('/dashboard')}
               size="lg"
-              className="bg-gradient-to-r from-green-600 to-blue-500 hover:from-green-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
               Volver a las demas pruebas
@@ -1366,6 +1368,34 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     const currentQ = quizData.questions[currentQuestion]
     const answeredQuestions = Object.keys(answers).length
     const questionId = currentQ.id || currentQ.code;
+    const optionsContainerRef = useRef<HTMLDivElement>(null);
+
+    // Renderizar fórmulas matemáticas en las opciones y textos después de que se rendericen
+    useEffect(() => {
+      if (!optionsContainerRef.current) return;
+
+      // Pequeño delay para asegurar que el DOM esté completamente renderizado
+      const timeoutId = setTimeout(() => {
+        // Buscar todas las fórmulas matemáticas que necesiten renderizado
+        const mathElements = optionsContainerRef.current?.querySelectorAll('[data-latex], .katex, .katex-inline');
+        mathElements?.forEach((el) => {
+          const latex = (el as HTMLElement).getAttribute('data-latex');
+          if (latex && !(el as HTMLElement).querySelector('.katex')) {
+            try {
+              katex.render(latex, el as HTMLElement, {
+                throwOnError: false,
+                displayMode: false,
+                strict: false,
+              });
+            } catch (error) {
+              console.error('Error renderizando fórmula:', error);
+            }
+          }
+        });
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
+    }, [currentQuestion, quizData]);
 
     return (
       <div className={cn("flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-4 pb-4", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-25')}>
@@ -1440,90 +1470,128 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg max-w-none">
-                {/* Texto informativo */}
-                {currentQ.informativeText && (
+                {/* Texto informativo - Material de apoyo */}
+                {currentQ.informativeText && currentQ.informativeText.trim() !== '' && (
                   <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                    <div className={cn("text-sm font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                      Material de apoyo:
+                    </div>
                     <div
-                      className={cn("leading-relaxed prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                      className={cn("leading-relaxed prose max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                      style={{ whiteSpace: 'pre-wrap' }}
                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.informativeText) }}
                     />
                   </div>
                 )}
 
-                {/* Imágenes informativas */}
-                {currentQ.informativeImages && currentQ.informativeImages.length > 0 && (
+                {/* Imágenes informativas - Material de apoyo */}
+                {currentQ.informativeImages && Array.isArray(currentQ.informativeImages) && currentQ.informativeImages.length > 0 && (
                   <div className="mb-4">
-                    <ImageGallery images={currentQ.informativeImages} />
+                    <div className={cn("text-sm font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                      Material de apoyo (imágenes):
+                    </div>
+                    <ImageGallery 
+                      images={currentQ.informativeImages} 
+                    />
                   </div>
                 )}
 
                 {/* Imagen de la pregunta */}
-                {currentQ.questionImages && currentQ.questionImages.length > 0 && (
+                {currentQ.questionImages && Array.isArray(currentQ.questionImages) && currentQ.questionImages.length > 0 && (
                   <div className="mb-4">
                     <ImageGallery images={currentQ.questionImages} />
                   </div>
                 )}
 
                 {/* Texto de la pregunta */}
-                {currentQ.questionText && (
+                {currentQ.questionText && currentQ.questionText.trim() !== '' && (
                   <div
-                    className={cn("leading-relaxed text-lg font-medium prose max-w-none", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                    className={cn("leading-relaxed text-lg font-medium prose max-w-none mb-6 whitespace-pre-wrap", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                    style={{ whiteSpace: 'pre-wrap' }}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.questionText) }}
                   />
                 )}
               </div>
               
-              <RadioGroup
-                value={answers[questionId] || ""}
-                onValueChange={(value) => handleAnswerChange(questionId, value)}
-                className="space-y-0.5 mt-6"
-              >
-                {currentQ.options.map((option) => (
+              {/* Opciones de respuesta */}
+              {currentQ.options && Array.isArray(currentQ.options) && currentQ.options.length > 0 ? (
+                <div ref={optionsContainerRef}>
+                <RadioGroup
+                  value={answers[questionId] || ""}
+                  onValueChange={(value) => handleAnswerChange(questionId, value)}
+                  className="space-y-2 mt-6"
+                >
+                  {currentQ.options.map((option) => (
                   <div
                     key={option.id}
                     onClick={() => handleAnswerChange(questionId, option.id)}
-                    className={cn("flex items-start space-x-3 border rounded-lg p-3 transition-colors cursor-pointer", theme === 'dark' ? 'border-zinc-700 hover:bg-zinc-700' : 'hover:bg-gray-50')}
+                    className={cn("flex items-start space-x-3 border rounded-lg p-3 cursor-pointer", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}
                   >
                     <RadioGroupItem
                       value={option.id}
                       id={`${questionId}-${option.id}`}
-                      className="mt-1"
+                      className="mt-1 flex-shrink-0"
+                      onClick={(e) => {
+                        // Prevenir propagación del click para evitar doble selección
+                        e.stopPropagation();
+                      }}
                     />
-                    <Label
-                      htmlFor={`${questionId}-${option.id}`}
-                      className="flex-1 cursor-pointer"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className={cn("font-semibold mr-2", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
-                        <div className="flex-1">
-                          {option.text && (
-                            <span className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}>{option.text}</span>
-                          )}
-                          {option.imageUrl && (
-                            <div className="mt-2">
-                              <img 
-                                src={option.imageUrl} 
-                                alt={`Opción ${option.id}`}
-                                className="max-w-full h-auto rounded-lg border shadow-sm"
-                                onError={(e) => {
-                                  console.error('Error cargando imagen de opción:', option.imageUrl);
-                                  e.currentTarget.style.display = 'none';
-                                }}
+                      <Label
+                        htmlFor={`${questionId}-${option.id}`}
+                        className="flex-1 cursor-pointer"
+                      >
+                        <div className="flex items-start gap-3 w-full">
+                          <span className={cn("font-semibold mr-2 flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
+                            {option.id}.
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            {option.text && option.text.trim() !== '' && (
+                              <span 
+                                className={cn("block", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
+                                dangerouslySetInnerHTML={{ __html: sanitizeHtml(option.text) }}
                               />
-                            </div>
-                          )}
+                            )}
+                            {option.imageUrl && option.imageUrl.trim() !== '' && (
+                              <div className={cn("mt-2", option.text && option.text.trim() !== '' ? '' : 'mt-0')}>
+                                <img 
+                                  src={option.imageUrl} 
+                                  alt={`Opción ${option.id}`}
+                                  className="max-w-full h-auto rounded-lg border shadow-sm"
+                                  onError={(e) => {
+                                    console.error('Error cargando imagen de opción:', option.imageUrl);
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                            {(!option.text || option.text.trim() === '') && (!option.imageUrl || option.imageUrl.trim() === '') && (
+                              <span className={cn("text-sm italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                                Opción {option.id}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+                </div>
+              ) : (
+                <div className={cn("mt-6 p-4 rounded-lg border", theme === 'dark' ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200')}>
+                  <Alert className={cn(theme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className={cn(theme === 'dark' ? 'text-red-200' : 'text-red-700')}>
+                      Esta pregunta no tiene opciones disponibles. Por favor, contacta al administrador.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
             </CardContent>
             <CardFooter className="flex justify-end">
               <Button
                 onClick={nextQuestion}
                 disabled={currentQuestion === quizData.questions.length - 1}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className="flex items-center gap-2 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
               </Button>
@@ -1595,7 +1663,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               <Button
                 onClick={showSubmitWarning}
                 disabled={isSubmitting}
-                className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className="w-full mt-4 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
               >
                 {isSubmitting ? (
                   <>
@@ -1789,7 +1857,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
             <CardFooter className="flex justify-center">
               <Button
                 onClick={() => navigate('/dashboard#fases')}
-                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+                className="bg-blue-600 hover:bg-gradient-to-r hover:from-blue-600 hover:to-blue-500 hover:shadow-lg"
               >
                 Ver Estado de Fases
               </Button>

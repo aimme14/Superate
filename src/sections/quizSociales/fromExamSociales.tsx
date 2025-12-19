@@ -746,7 +746,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Ir a las demás pruebas
           </Button>
@@ -864,7 +864,7 @@ const ExamWithFirebase = () => {
           <Button
             onClick={startExam}
             size="lg"
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
           >
             <Play className="h-5 w-5 mr-2" />
             Iniciar Examen
@@ -1162,7 +1162,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={() => navigate('/dashboard')}
               size="lg"
-              className="bg-gradient-to-r from-green-600 to-blue-500 hover:from-green-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
               Volver a las demas pruebas
@@ -1289,7 +1289,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={nextQuestion}
                 disabled={currentQuestion === examData.questions.length - 1}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className="flex items-center gap-2 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
               </Button>
@@ -1359,7 +1359,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={showSubmitWarning}
                 disabled={isSubmitting}
-                className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className="w-full mt-4 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
               >
                 {isSubmitting ? (
                   <>

@@ -1101,7 +1101,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+            className="bg-blue-600 hover:bg-gradient-to-r hover:from-blue-600 hover:to-blue-500 hover:shadow-lg"
           >
             Volver al Dashboard
           </Button>
@@ -1191,7 +1191,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Ir a las demás pruebas
           </Button>
@@ -1649,7 +1649,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Volver al Dashboard
           </Button>
@@ -1721,7 +1721,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={() => navigate('/dashboard')}
               size="lg"
-              className="bg-gradient-to-r from-green-600 to-blue-500 hover:from-green-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
               Volver a las demas pruebas
@@ -1858,7 +1858,11 @@ const ExamWithFirebase = () => {
                     {/* Imágenes informativas */}
                     {firstGroupQuestion.informativeImages && firstGroupQuestion.informativeImages.length > 0 && (
                       <div className="mb-4">
-                        <ImageGallery images={firstGroupQuestion.informativeImages} title="Imágenes informativas" maxImages={5} />
+                        <ImageGallery 
+                          images={firstGroupQuestion.informativeImages} 
+                          title="Imágenes informativas" 
+                          maxImages={5}
+                        />
                       </div>
                     )}
                     
@@ -2107,29 +2111,10 @@ const ExamWithFirebase = () => {
                                   value={selectedAnswer || undefined}
                                   open={isOpen}
                                   onOpenChange={(open) => {
-                                    // Solo permitir cerrar si es un cierre intencional
-                                    // o si el usuario está abriendo el dropdown
-                                    if (open) {
-                                      // Abrir está siempre permitido
-                                      setOpenSelects(prev => ({ ...prev, [questionId]: true }));
-                                    } else {
-                                      // Para cerrar, verificar si es intencional
-                                      // Si no es intencional (por ejemplo, un re-render), mantener abierto
-                                      if (intentionalCloseRef.current[questionId]) {
-                                        setOpenSelects(prev => ({ ...prev, [questionId]: false }));
-                                        intentionalCloseRef.current[questionId] = false;
-                                      } else {
-                                        // Si no es intencional, mantener abierto
-                                        // Usar setTimeout para evitar conflictos con el estado
-                                        setTimeout(() => {
-                                          setOpenSelects(prev => {
-                                            if (prev[questionId] !== false) {
-                                              return { ...prev, [questionId]: true };
-                                            }
-                                            return prev;
-                                          });
-                                        }, 0);
-                                      }
+                                    // Simplificado: Solo actualizar el estado directamente sin lógica compleja
+                                    setOpenSelects(prev => ({ ...prev, [questionId]: open }));
+                                    if (!open) {
+                                      intentionalCloseRef.current[questionId] = false;
                                     }
                                   }}
                                   onValueChange={(value) => {
@@ -2157,41 +2142,9 @@ const ExamWithFirebase = () => {
                                       "[&>button]:hidden", // Ocultar botones de scroll
                                       appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200',
                                       // Deshabilitar animaciones que pueden causar intermitencia
-                                      "!animate-none !transition-none"
+                                      "!animate-none !transition-none [&>div]:!animate-none [&>div]:!transition-none"
                                     )}
                                     style={{ zIndex: 99999 }}
-                                    onPointerDownOutside={(e) => {
-                                      const target = e.target as HTMLElement;
-                                      
-                                      // Verificar si el click es dentro del SelectContent o su portal
-                                      // Radix UI renderiza el contenido en un portal, así que verificamos el atributo data-radix-select-content
-                                      const selectContent = target.closest('[data-radix-select-content]');
-                                      const selectViewport = target.closest('[data-radix-select-viewport]');
-                                      const selectItem = target.closest('[data-radix-select-item]');
-                                      
-                                      if (selectContent || selectViewport || selectItem) {
-                                        // Prevenir el cierre si está dentro del dropdown o sus elementos
-                                        e.preventDefault();
-                                        return;
-                                      }
-                                      
-                                      // Verificar si el click es en el contenedor de la pregunta Matching
-                                      const questionContainer = target.closest('.border.rounded-lg');
-                                      if (questionContainer) {
-                                        // Prevenir el cierre si está dentro del área de la pregunta
-                                        e.preventDefault();
-                                        return;
-                                      }
-                                      
-                                      // Si el click es fuera, marcar como cierre intencional y permitir el cierre
-                                      intentionalCloseRef.current[questionId] = true;
-                                      setOpenSelects(prev => ({ ...prev, [questionId]: false }));
-                                    }}
-                                    onEscapeKeyDown={() => {
-                                      // Marcar como cierre intencional y cerrar el dropdown cuando se presiona Escape
-                                      intentionalCloseRef.current[questionId] = true;
-                                      setOpenSelects(prev => ({ ...prev, [questionId]: false }));
-                                    }}
                                     position="popper"
                                     sideOffset={5}
                                     avoidCollisions={true}
@@ -2201,7 +2154,15 @@ const ExamWithFirebase = () => {
                                         <SelectItem 
                                           key={option.id} 
                                           value={option.id}
-                                          className="!transition-none hover:!scale-100 hover:!translate-y-0 hover:!shadow-none data-[highlighted]:!scale-100 data-[highlighted]:!translate-y-0 data-[highlighted]:!shadow-none [&>div]:!opacity-0 [&>div]:!animate-none"
+                                          className={cn(
+                                            "!transition-none !transform-none hover:!scale-100 hover:!translate-y-0 hover:!shadow-none hover:!transform-none",
+                                            "data-[highlighted]:!scale-100 data-[highlighted]:!translate-y-0 data-[highlighted]:!shadow-none data-[highlighted]:!transform-none",
+                                            "data-[state=checked]:!scale-100 data-[state=checked]:!translate-y-0 data-[state=checked]:!transform-none",
+                                            "[&>div]:!opacity-0 [&>div]:!animate-none [&>div]:!transition-none",
+                                            appTheme === 'dark' 
+                                              ? 'hover:!bg-zinc-700 data-[highlighted]:!bg-zinc-700 focus:!bg-zinc-700' 
+                                              : 'hover:!bg-gray-100 data-[highlighted]:!bg-gray-100 focus:!bg-gray-100'
+                                          )}
                                         >
                                           <div className="flex items-center gap-2 w-full">
                                             <span className="font-semibold min-w-[20px]">{option.id}:</span>
@@ -2255,10 +2216,10 @@ const ExamWithFirebase = () => {
                                 key={option.id}
                                 onClick={() => handleAnswerChange(question.id || '', option.id)}
                                 className={cn(
-                                  `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden cursor-pointer`,
+                                  `flex items-start space-x-3 rounded-lg p-4 transition-none relative cursor-pointer`,
                                   appTheme === 'dark' 
-                                    ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
-                                    : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
+                                    ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700/90 border' 
+                                    : `${theme.answerBorder} ${theme.answerBackground} hover:bg-opacity-60`
                                 )}
                                 style={appTheme === 'dark' ? {} : (theme.pattern ? { 
                                   backgroundImage: theme.pattern,

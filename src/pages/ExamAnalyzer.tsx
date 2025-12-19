@@ -399,7 +399,7 @@ const ExamAnalyzer = () => {
             <p className={cn("text-lg mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos suficientes para el análisis</p>
             <p className={cn("mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Necesitas presentar al menos una evaluación para ver tu progreso</p>
             <Link to="/dashboard#evaluacion">
-              <button className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-6 py-2 rounded-lg">
+              <button className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg text-white px-6 py-2 rounded-lg transition-all duration-300">
                 Presentar Evaluación
               </button>
             </Link>

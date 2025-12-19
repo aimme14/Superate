@@ -33,9 +33,6 @@ const TabsTrigger = React.forwardRef<
       "border-2 border-transparent box-border overflow-hidden",
       "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1",
       "disabled:pointer-events-none disabled:opacity-50",
-      // Efecto shimmer sutil mediante before pseudo-elemento
-      "before:absolute before:inset-[2px] before:rounded-[calc(0.375rem-2px)] before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent before:opacity-0 before:transition-opacity before:duration-300 before:pointer-events-none before:z-0",
-      "data-[state=active]:before:opacity-100 data-[state=active]:before:animate-shimmer",
       // Estados inactivos - hover más visible en modo claro con borde de color
       "hover:bg-gray-100 hover:shadow-md hover:border-black/60",
       // Modo oscuro - texto gris para tabs inactivos

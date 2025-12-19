@@ -69,8 +69,8 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
               "rounded-lg mx-2 my-1",
               isActive
                 ? theme === 'dark'
-                  ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/50'
-                  : 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
+                  ? 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
+                  : 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/30'
                 : theme === 'dark'
                   ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
                   : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
@@ -95,20 +95,6 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
                 isActive ? 'text-white' : ''
               )}>{item.label}</span>
               {item.subItems && (<IconChevron isOpen={isOpen} />)}
-              {/* Efecto de brillo en botones activos */}
-              {isActive && (
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                  initial={{ x: '-100%' }}
-                  animate={{ x: '100%' }}
-                  transition={{ 
-                    duration: 1.5, 
-                    repeat: Infinity, 
-                    repeatDelay: 2,
-                    ease: "easeInOut"
-                  }}
-                />
-              )}
             </Link>
           </SidebarMenuButton>
         </motion.div>
@@ -150,8 +136,8 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
                 "rounded-lg mx-2 my-1",
                 isActive
                   ? theme === 'dark'
-                    ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/50'
-                    : 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
+                    ? 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
+                    : 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/30'
                   : theme === 'dark'
                     ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
                     : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
@@ -176,20 +162,6 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
                   isActive ? 'text-white' : ''
                 )}>{item.label}</span>
                 {item.subItems && (<IconChevron isOpen={isOpen} />)}
-                {/* Efecto de brillo en botones activos */}
-                {isActive && (
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                    initial={{ x: '-100%' }}
-                    animate={{ x: '100%' }}
-                    transition={{ 
-                      duration: 1.5, 
-                      repeat: Infinity, 
-                      repeatDelay: 2,
-                      ease: "easeInOut"
-                    }}
-                  />
-                )}
               </Link>
             </SidebarMenuSubButton>
           </motion.div>

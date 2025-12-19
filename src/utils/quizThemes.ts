@@ -37,11 +37,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-blue-600',
     answerBorder: 'border border-blue-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50 hover:bg-white/95',
+    answerHover: 'hover:border-blue-300 hover:bg-blue-50/30',
     answerText: 'text-gray-800',
     pattern: 'radial-gradient(circle at 2px 2px, rgba(59, 130, 246, 0.015) 1px, transparent 0), repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(99, 102, 241, 0.008) 20px, rgba(99, 102, 241, 0.008) 40px)',
-    buttonGradient: 'bg-gradient-to-r from-blue-600 to-indigo-600',
-    buttonHover: 'hover:from-blue-700 hover:to-indigo-700',
+    buttonGradient: 'bg-blue-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-blue-600 hover:to-indigo-600 hover:shadow-lg',
   },
 
   // Física - Estilo ICFES con ondas sutiles
@@ -55,11 +55,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-orange-600',
     answerBorder: 'border border-orange-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-orange-300 hover:shadow-sm hover:shadow-orange-50 hover:bg-white/95',
+    answerHover: 'hover:border-orange-300 hover:bg-orange-50/30',
     answerText: 'text-gray-800',
     pattern: 'repeating-linear-gradient(45deg, transparent, transparent 15px, rgba(251, 146, 60, 0.01) 15px, rgba(251, 146, 60, 0.01) 30px)',
-    buttonGradient: 'bg-gradient-to-r from-orange-600 to-amber-600',
-    buttonHover: 'hover:from-orange-700 hover:to-amber-700',
+    buttonGradient: 'bg-orange-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-orange-600 hover:to-amber-600 hover:shadow-lg',
   },
 
   // Química - Estilo ICFES con estructura molecular sutil
@@ -73,11 +73,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-green-600',
     answerBorder: 'border border-green-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-green-300 hover:shadow-sm hover:shadow-green-50 hover:bg-white/95',
+    answerHover: 'hover:border-green-300 hover:bg-green-50/30',
     answerText: 'text-gray-800',
     pattern: 'radial-gradient(circle at 3px 3px, rgba(16, 185, 129, 0.012) 1.5px, transparent 0), radial-gradient(circle at 15px 15px, rgba(5, 150, 105, 0.008) 1px, transparent 0)',
-    buttonGradient: 'bg-gradient-to-r from-green-600 to-emerald-600',
-    buttonHover: 'hover:from-green-700 hover:to-emerald-700',
+    buttonGradient: 'bg-green-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-green-600 hover:to-emerald-600 hover:shadow-lg',
   },
 
   // Biología - Estilo ICFES con textura orgánica sutil
@@ -91,11 +91,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-emerald-600',
     answerBorder: 'border border-emerald-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-emerald-300 hover:shadow-sm hover:shadow-emerald-50 hover:bg-white/95',
+    answerHover: 'hover:border-emerald-300 hover:bg-emerald-50/30',
     answerText: 'text-gray-800',
     pattern: 'repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(16, 185, 129, 0.01) 20px, rgba(16, 185, 129, 0.01) 40px)',
-    buttonGradient: 'bg-gradient-to-r from-emerald-600 to-green-600',
-    buttonHover: 'hover:from-emerald-700 hover:to-green-700',
+    buttonGradient: 'bg-emerald-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-emerald-600 hover:to-green-600 hover:shadow-lg',
   },
 
   // Inglés - Estilo ICFES con líneas sutiles tipo cuaderno
@@ -109,11 +109,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-blue-600',
     answerBorder: 'border border-blue-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50 hover:bg-white/95',
+    answerHover: 'hover:border-blue-300 hover:bg-blue-50/30',
     answerText: 'text-gray-800',
     pattern: 'repeating-linear-gradient(0deg, transparent, transparent 24px, rgba(59, 130, 246, 0.01) 24px, rgba(59, 130, 246, 0.01) 25px)',
-    buttonGradient: 'bg-gradient-to-r from-blue-600 to-indigo-600',
-    buttonHover: 'hover:from-blue-700 hover:to-indigo-700',
+    buttonGradient: 'bg-blue-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-blue-600 hover:to-indigo-600 hover:shadow-lg',
   },
 
   // Lenguaje/Lectura - Estilo ICFES con líneas de texto sutiles
@@ -127,11 +127,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-purple-600',
     answerBorder: 'border border-purple-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-purple-300 hover:shadow-sm hover:shadow-purple-50 hover:bg-white/95',
+    answerHover: 'hover:border-purple-300 hover:bg-purple-50/30',
     answerText: 'text-gray-800',
     pattern: 'repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(168, 85, 247, 0.01) 20px, rgba(168, 85, 247, 0.01) 21px)',
-    buttonGradient: 'bg-gradient-to-r from-purple-600 to-violet-600',
-    buttonHover: 'hover:from-purple-700 hover:to-violet-700',
+    buttonGradient: 'bg-purple-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-purple-600 hover:to-violet-600 hover:shadow-lg',
   },
 
   // Sociales - Estilo ICFES con textura tipo pergamino
@@ -145,11 +145,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-amber-600',
     answerBorder: 'border border-amber-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-amber-300 hover:shadow-sm hover:shadow-amber-50 hover:bg-white/95',
+    answerHover: 'hover:border-amber-300 hover:bg-amber-50/30',
     answerText: 'text-gray-800',
     pattern: 'repeating-linear-gradient(45deg, transparent, transparent 18px, rgba(245, 158, 11, 0.01) 18px, rgba(245, 158, 11, 0.01) 36px)',
-    buttonGradient: 'bg-gradient-to-r from-amber-600 to-yellow-600',
-    buttonHover: 'hover:from-amber-700 hover:to-yellow-700',
+    buttonGradient: 'bg-amber-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-amber-600 hover:to-yellow-600 hover:shadow-lg',
   },
 
   // Naturales - Estilo ICFES con textura natural sutil
@@ -163,11 +163,11 @@ export const quizThemes: Record<string, QuizTheme> = {
     accentColor: 'text-teal-600',
     answerBorder: 'border border-teal-200',
     answerBackground: 'bg-white/90',
-    answerHover: 'hover:border-teal-300 hover:shadow-sm hover:shadow-teal-50 hover:bg-white/95',
+    answerHover: 'hover:border-teal-300 hover:bg-teal-50/30',
     answerText: 'text-gray-800',
     pattern: 'radial-gradient(circle at 4px 4px, rgba(20, 184, 166, 0.01) 1.5px, transparent 0), radial-gradient(circle at 20px 20px, rgba(6, 182, 212, 0.008) 1px, transparent 0)',
-    buttonGradient: 'bg-gradient-to-r from-teal-600 to-cyan-600',
-    buttonHover: 'hover:from-teal-700 hover:to-cyan-700',
+    buttonGradient: 'bg-teal-600',
+    buttonHover: 'hover:bg-gradient-to-r hover:from-teal-600 hover:to-cyan-600 hover:shadow-lg',
   },
 };
 

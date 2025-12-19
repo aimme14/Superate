@@ -17,6 +17,9 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { processExamResults } from "@/utils/phaseIntegration";
 import ImageGallery from "@/components/common/ImageGallery";
+import DOMPurify from 'dompurify';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 const db = getFirestore(firebaseApp);
 
@@ -44,6 +47,70 @@ const stripHtmlTags = (html: string): string => {
   text = text.replace(/\s+/g, ' ').trim()
   
   return text
+}
+
+// Función para sanitizar HTML de forma segura
+const sanitizeHtml = (html: string) => {
+  if (!html) return ''
+  return DOMPurify.sanitize(html, { 
+    USE_PROFILES: { html: true },
+    // Permitir elementos y atributos de KaTeX, incluyendo SVG
+    ADD_TAGS: [
+      'math', 'annotation', 'semantics', 'mtext', 'mn', 'mo', 'mi', 'mspace', 'mover', 'munder', 'munderover',
+      'msup', 'msub', 'msubsup', 'mfrac', 'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'mrow',
+      'menclose', 'mstyle', 'mpadded', 'mphantom', 'mfenced', 'maction', 'mmultiscripts',
+      'svg', 'path', 'g', 'line', 'rect', 'circle', 'use'
+    ],
+    ADD_ATTR: [
+      'data-latex', 'class', 'style', 'aria-label', 'role', 'tabindex',
+      'xmlns', 'width', 'height', 'viewBox', 'focusable', 'aria-hidden', 'stroke', 'fill', 'stroke-width',
+      'x', 'y', 'x1', 'x2', 'y1', 'y2', 'd', 'transform'
+    ]
+  })
+}
+
+// Función para renderizar fórmulas matemáticas en el HTML
+const renderMathInHtml = (html: string): string => {
+  if (!html) return ''
+  
+  // Crear un elemento temporal para procesar el HTML
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+  
+  // Buscar todos los elementos con data-latex que necesitan renderizado
+  const mathElements = tempDiv.querySelectorAll('[data-latex]')
+  
+  mathElements.forEach((el) => {
+    const latex = el.getAttribute('data-latex')
+    if (latex) {
+      // Verificar si ya está renderizado
+      const hasKaTeX = el.querySelector('.katex') !== null
+      
+      // Si no está renderizado, renderizarlo
+      if (!hasKaTeX) {
+        try {
+          const isDisplay = el.classList.contains('katex-display') || el.tagName === 'DIV'
+          const rendered = katex.renderToString(latex, {
+            throwOnError: false,
+            displayMode: isDisplay,
+            strict: false,
+          })
+          
+          if (rendered && rendered.trim() !== '' && rendered.includes('katex')) {
+            el.innerHTML = rendered
+            el.classList.add('katex-formula')
+            if (isDisplay) {
+              el.classList.add('katex-display')
+            }
+          }
+        } catch (error) {
+          console.error('Error renderizando fórmula:', error)
+        }
+      }
+    }
+  })
+  
+  return tempDiv.innerHTML
 }
 
 // Tipo para el seguimiento de tiempo por pregunta
@@ -806,7 +873,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex flex-col gap-3">
           <Button
             onClick={() => window.location.reload()}
-            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+            className="bg-blue-600 hover:bg-gradient-to-r hover:from-blue-600 hover:to-blue-500 hover:shadow-lg"
           >
             <Database className="h-4 w-4 mr-2" />
             Reintentar
@@ -850,7 +917,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Volver al Dashboard
           </Button>
@@ -925,7 +992,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
           >
             Ir a las demás pruebas
           </Button>
@@ -1193,7 +1260,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={() => navigate('/dashboard')}
               size="lg"
-              className="bg-gradient-to-r from-green-600 to-blue-500 hover:from-green-700 hover:to-blue-600 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
               Volver a las demas pruebas
@@ -1290,14 +1357,21 @@ const ExamWithFirebase = () => {
                 {/* Texto informativo */}
                 {currentQ.informativeText && (
                   <div className={cn("mb-4 p-4 rounded-lg border", appTheme === 'dark' ? 'bg-blue-900/30 border-blue-800' : 'bg-blue-50 border-blue-200')}>
-                    <p className={cn("leading-relaxed", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{stripHtmlTags(currentQ.informativeText)}</p>
+                    <div 
+                      className={cn("leading-relaxed", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.informativeText)) }}
+                    />
                   </div>
                 )}
 
                 {/* Imágenes informativas */}
                 {currentQ.informativeImages && currentQ.informativeImages.length > 0 && (
                   <div className="mb-4">
-                    <ImageGallery images={currentQ.informativeImages} title="Imágenes informativas" maxImages={5} />
+                    <ImageGallery 
+                      images={currentQ.informativeImages} 
+                      title="Imágenes informativas" 
+                      maxImages={5}
+                    />
                   </div>
                 )}
 
@@ -1308,9 +1382,12 @@ const ExamWithFirebase = () => {
                   </div>
                 )}
 
-                {/* Texto de la pregunta - Limpio, sin etiquetas HTML */}
+                {/* Texto de la pregunta - Con soporte para fórmulas */}
                 {currentQ.questionText && (
-                  <p className={cn("leading-relaxed text-lg font-medium", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}>{stripHtmlTags(currentQ.questionText)}</p>
+                  <div 
+                    className={cn("leading-relaxed text-lg font-medium", appTheme === 'dark' ? 'text-white' : 'text-gray-900')}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.questionText)) }}
+                  />
                 )}
               </div>
               
@@ -1335,7 +1412,7 @@ const ExamWithFirebase = () => {
                               key={option.id}
                               onClick={() => handleAnswerChange(questionId, option.id)}
                               className={cn(
-                                `relative rounded-lg p-2 transition-all duration-200 cursor-pointer border-2`,
+                                `relative rounded-lg p-2 transition-none cursor-pointer border-2`,
                                 answers[questionId] === option.id
                                   ? appTheme === 'dark'
                                     ? 'border-purple-500 bg-purple-900/30'
@@ -1396,10 +1473,10 @@ const ExamWithFirebase = () => {
                           key={option.id}
                           onClick={() => handleAnswerChange(questionId, option.id)}
                           className={cn(
-                            `flex items-start space-x-3 rounded-lg p-4 transition-all duration-200 relative overflow-hidden cursor-pointer`,
+                            `flex items-start space-x-3 rounded-lg p-4 transition-none relative cursor-pointer`,
                             appTheme === 'dark' 
-                              ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 border' 
-                              : `${theme.answerBorder} ${theme.answerBackground} ${theme.answerHover}`
+                              ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700/90 border' 
+                              : `${theme.answerBorder} ${theme.answerBackground} hover:bg-opacity-60`
                           )}
                           style={appTheme === 'dark' ? {} : (theme.pattern ? { 
                             backgroundImage: theme.pattern,
@@ -1419,7 +1496,10 @@ const ExamWithFirebase = () => {
                               <span className={cn(`font-bold mr-2 text-base flex-shrink-0`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
                               <div className="flex-1">
                                 {option.text && (
-                                  <span className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}>{stripHtmlTags(option.text)}</span>
+                                  <div 
+                                    className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}
+                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }}
+                                  />
                                 )}
                                 {option.imageUrl && (
                                   <div 

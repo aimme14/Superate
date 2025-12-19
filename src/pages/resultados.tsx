@@ -699,7 +699,7 @@ export default function EvaluationsTab() {
                 <p className={cn("text-lg mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No has presentado ningún examen aún</p>
                 <p className={cn("mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Cuando presentes una evaluación, aparecerá aquí</p>
                 <Link to="/dashboard#evaluacion">
-                  <Button className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600">
+                  <Button className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg">
                     Ir a las Evaluaciones
                   </Button>
                 </Link>
