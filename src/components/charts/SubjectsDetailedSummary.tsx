@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { BookOpen, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -191,7 +190,6 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
   }
 
   const generalSummary = generateGeneralSummary();
-  const averagePercentage = subjects.reduce((sum, s) => sum + s.percentage, 0) / subjects.length;
 
   return (
     <div className="space-y-6">
@@ -200,25 +198,10 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
         theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm'
       )}>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <BookOpen className="h-5 w-5 text-purple-500" />
-              Resumen General de Desempeño
-            </CardTitle>
-            <Badge 
-              variant="outline" 
-              className={cn(
-                "text-sm font-bold",
-                averagePercentage >= 70 
-                  ? theme === 'dark' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-green-100 text-green-800 border-green-200'
-                  : averagePercentage >= 60
-                    ? theme === 'dark' ? 'bg-yellow-900 text-yellow-300 border-yellow-700' : 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                    : theme === 'dark' ? 'bg-red-900 text-red-300 border-red-700' : 'bg-red-100 text-red-800 border-red-200'
-              )}
-            >
-              Promedio: {averagePercentage.toFixed(1)}%
-            </Badge>
-          </div>
+          <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <BookOpen className="h-5 w-5 text-purple-500" />
+            Resumen General de Desempeño
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className={cn(
@@ -251,26 +234,11 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
               )}
             >
               {/* Header de la materia */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {getTrendIcon(subject.percentage)}
-                  <h3 className={cn("font-semibold text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {subject.name}
-                  </h3>
-                </div>
-                <Badge 
-                  variant="outline" 
-                  className={cn(
-                    "font-bold",
-                    subject.percentage >= 70 
-                      ? theme === 'dark' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-green-100 text-green-800 border-green-200'
-                      : subject.percentage >= 60
-                        ? theme === 'dark' ? 'bg-yellow-900 text-yellow-300 border-yellow-700' : 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                        : theme === 'dark' ? 'bg-red-900 text-red-300 border-red-700' : 'bg-red-100 text-red-800 border-red-200'
-                  )}
-                >
-                  {subject.percentage.toFixed(1)}%
-                </Badge>
+              <div className="flex items-center gap-2 mb-3">
+                {getTrendIcon(subject.percentage)}
+                <h3 className={cn("font-semibold text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {subject.name}
+                </h3>
               </div>
 
               {/* Resumen detallado */}

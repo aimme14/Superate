@@ -1074,6 +1074,10 @@ export default function ICFESAnalysisInterface() {
     const phaseSubjectResults: { [phase: string]: { [subject: string]: { correct: number; total: number; percentage: number } } } = {};
 
     evaluations.forEach(exam => {
+      // Obtener la materia normalizada al inicio para usarla en los cálculos
+      const rawSubject = exam.subject || exam.examTitle || 'General';
+      const subject = normalizeSubjectName(rawSubject);
+      
       // Calcular tiempo desde questionDetails si está disponible
       if (exam.questionDetails && exam.questionDetails.length > 0) {
         exam.questionDetails.forEach(question => {
@@ -1082,7 +1086,8 @@ export default function ICFESAnalysisInterface() {
             totalQuestionsWithTime++;
             
             // Contar respuestas "con suerte" (< 10 segundos) si la pregunta fue respondida
-            if (question.answered) {
+            // Excluir la materia de Inglés porque en esta materia las respuestas rápidas son válidas
+            if (question.answered && subject !== 'Inglés') {
               totalAnswersWithTime++;
               if (question.timeSpent < 10) {
                 luckAnswers++;
@@ -1102,8 +1107,6 @@ export default function ICFESAnalysisInterface() {
 
       // Agrupar por fase y materia para calcular puntos
       const phase = exam.phase || 'unknown';
-      const rawSubject = exam.subject || exam.examTitle || 'General';
-      const subject = normalizeSubjectName(rawSubject);
       
       if (!phaseSubjectResults[phase]) {
         phaseSubjectResults[phase] = {};
@@ -1238,6 +1241,10 @@ export default function ICFESAnalysisInterface() {
       const subjectPercentage = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
 
       // Calcular fortalezas (temas con >= 70%), debilidades (temas con < 60%) y neutros (60% - 69%)
+      // Los rangos son mutuamente excluyentes y cubren todos los casos posibles:
+      // - Debilidades: 0% - 59%
+      // - Intermedios: 60% - 69%
+      // - Fortalezas: 70% - 100%
       const strengths = topicAnalyses
         .filter(topic => topic.percentage >= 70)
         .map(topic => topic.name);
@@ -1249,6 +1256,12 @@ export default function ICFESAnalysisInterface() {
       const neutrals = topicAnalyses
         .filter(topic => topic.percentage >= 60 && topic.percentage < 70)
         .map(topic => topic.name);
+      
+      // Validación: todos los temas deben estar clasificados en alguna categoría
+      const classifiedTopics = strengths.length + weaknesses.length + neutrals.length;
+      if (classifiedTopics !== topicAnalyses.length) {
+        console.warn(`⚠️ Algunos temas no fueron clasificados correctamente en ${subject}. Total temas: ${topicAnalyses.length}, Clasificados: ${classifiedTopics}`);
+      }
 
         return {
           name: subject,
@@ -1484,9 +1497,16 @@ export default function ICFESAnalysisInterface() {
       );
 
       // Clasificar temas
+      // Rangos mutuamente excluyentes: Debilidades (< 60%), Intermedios (60-69%), Fortalezas (>= 70%)
       const strengths = topics.filter(t => t.percentage >= 70).map(t => t.name);
       const weaknesses = topics.filter(t => t.percentage < 60).map(t => t.name);
       const neutrals = topics.filter(t => t.percentage >= 60 && t.percentage < 70).map(t => t.name);
+      
+      // Validación: todos los temas deben estar clasificados
+      const classifiedTopics = strengths.length + weaknesses.length + neutrals.length;
+      if (classifiedTopics !== topics.length) {
+        console.warn(`⚠️ Algunos temas no fueron clasificados correctamente en ${subjectName} (consolidado). Total temas: ${topics.length}, Clasificados: ${classifiedTopics}`);
+      }
 
       allSubjectsWithTopics.push({
         name: subjectName,

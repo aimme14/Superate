@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { cn } from "@/lib/utils";
 import { BookOpen } from 'lucide-react';
@@ -77,15 +76,6 @@ export function SubjectsProgressChart({
     }
   ];
 
-  // Calcular promedio actual (última fase con datos)
-  const currentAverage = phase3Data 
-    ? phase3Data.subjects.reduce((sum, s) => sum + s.percentage, 0) / (phase3Data.subjects.length || 1)
-    : phase2Data 
-      ? phase2Data.subjects.reduce((sum, s) => sum + s.percentage, 0) / (phase2Data.subjects.length || 1)
-      : phase1Data 
-        ? phase1Data.subjects.reduce((sum, s) => sum + s.percentage, 0) / (phase1Data.subjects.length || 1)
-        : 0;
-
   // Tooltip personalizado
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -139,32 +129,15 @@ export function SubjectsProgressChart({
       theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm'
     )}>
       <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-blue-500" />
-            <div>
-              <CardTitle className={cn("text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                Evolución por Materia
-              </CardTitle>
-              <CardDescription className={cn("text-xs mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                {subjectsList.length} materias evaluadas
-              </CardDescription>
-            </div>
-          </div>
-          <div className="text-right">
-            <Badge 
-              variant="outline" 
-              className={cn(
-                "text-sm font-bold",
-                currentAverage >= 70 
-                  ? theme === 'dark' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-green-100 text-green-800 border-green-200'
-                  : currentAverage >= 60
-                    ? theme === 'dark' ? 'bg-yellow-900 text-yellow-300 border-yellow-700' : 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                    : theme === 'dark' ? 'bg-red-900 text-red-300 border-red-700' : 'bg-red-100 text-red-800 border-red-200'
-              )}
-            >
-              {currentAverage.toFixed(0)}%
-            </Badge>
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-5 w-5 text-blue-500" />
+          <div>
+            <CardTitle className={cn("text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              Evolución por Materia
+            </CardTitle>
+            <CardDescription className={cn("text-xs mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              {subjectsList.length} materias evaluadas
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
