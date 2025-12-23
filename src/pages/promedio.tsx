@@ -480,7 +480,7 @@ function PersonalizedStudyPlan({
 }) {
   const [studyPlans, setStudyPlans] = useState<Record<string, StudyPlanData>>({});
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
-  const [expandedSection, setExpandedSection] = useState<Record<string, string | null>>({});
+  const [expandedSection] = useState<Record<string, string | null>>({});
   // Estados para ejercicios de práctica: rastrear respuestas expandidas y selecciones del estudiante
   const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
@@ -1116,7 +1116,7 @@ export default function ICFESAnalysisInterface() {
   const [phase2Data, setPhase2Data] = useState<AnalysisData | null>(null);
   const [phase3Data, setPhase3Data] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingAI, setLoadingAI] = useState(false);
+  const [, setLoadingAI] = useState(false);
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
   const [studentRank, setStudentRank] = useState<number | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
