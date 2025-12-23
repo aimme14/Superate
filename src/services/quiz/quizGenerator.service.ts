@@ -1080,74 +1080,144 @@ class QuizGeneratorService {
   /**
    * Ordena las preguntas agrupadas por orden de creación (más antigua primero)
    * Mantiene el orden dentro de cada grupo basado en fecha de creación
+   * Para todas las materias excepto inglés:
+   * - Las preguntas con informativeText (comprensión de lectura corta) se agrupan y muestran consecutivamente
+   * - Las preguntas sin informativeText (opción múltiple estándar) pueden estar en cualquier orden
    */
   private sortGroupedQuestionsByCreationOrder(questions: Question[], subject: string): Question[] {
-    // Solo aplicar para inglés que tiene preguntas agrupadas
-    if (subject !== 'Inglés') {
-      return questions;
+    // Para inglés, usar la lógica especial existente
+    if (subject === 'Inglés') {
+      // Agrupar preguntas por informativeText (para preguntas agrupadas)
+      const groupedMap: { [key: string]: Question[] } = {};
+      const ungrouped: Question[] = [];
+
+      questions.forEach(question => {
+        if (question.informativeText && question.subjectCode === 'IN') {
+          const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
+          if (!groupedMap[groupKey]) {
+            groupedMap[groupKey] = [];
+          }
+          groupedMap[groupKey].push(question);
+        } else {
+          ungrouped.push(question);
+        }
+      });
+
+      // Ordenar preguntas dentro de cada grupo por fecha de creación
+      Object.keys(groupedMap).forEach(groupKey => {
+        groupedMap[groupKey].sort((a, b) => {
+          // Primero, intentar ordenar por número de hueco si ambas son cloze test
+          const aMatch = a.questionText?.match(/hueco \[(\d+)\]/);
+          const bMatch = b.questionText?.match(/hueco \[(\d+)\]/);
+          if (aMatch && bMatch) {
+            return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+          }
+
+          // Si no tienen número de hueco, ordenar por fecha de creación ascendente
+          const dateA = new Date(a.createdAt).getTime();
+          const dateB = new Date(b.createdAt).getTime();
+          if (dateA !== dateB) {
+            return dateA - dateB; // Más antigua primero (orden de inserción)
+          }
+
+          // Si tienen la misma fecha, ordenar por código
+          return a.code.localeCompare(b.code);
+        });
+      });
+
+      // Reconstruir el array con grupos ordenados y preguntas no agrupadas
+      const result: Question[] = [];
+      const processedIds = new Set<string>();
+
+      questions.forEach(question => {
+        if (processedIds.has(question.id || question.code)) {
+          return;
+        }
+
+        if (question.informativeText && question.subjectCode === 'IN') {
+          const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
+          const group = groupedMap[groupKey];
+          if (group) {
+            result.push(...group);
+            group.forEach(q => processedIds.add(q.id || q.code));
+          }
+        } else {
+          result.push(question);
+          processedIds.add(question.id || question.code);
+        }
+      });
+
+      return result;
     }
 
-    // Agrupar preguntas por informativeText (para preguntas agrupadas)
+    // Para todas las demás materias: agrupar preguntas con informativeText (comprensión de lectura corta)
     const groupedMap: { [key: string]: Question[] } = {};
     const ungrouped: Question[] = [];
+    const subjectCode = this.getSubjectCode(subject);
 
     questions.forEach(question => {
-      if (question.informativeText && question.subjectCode === 'IN') {
-        const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
+      // Si tiene informativeText, es comprensión de lectura corta - debe agruparse
+      if (question.informativeText && question.informativeText.trim() !== '' && question.subjectCode === subjectCode) {
+        // Clave única para el grupo: informativeText + imágenes informativas
+        const informativeImages = JSON.stringify(question.informativeImages || []);
+        const groupKey = `${question.informativeText}_${informativeImages}`;
+        
         if (!groupedMap[groupKey]) {
           groupedMap[groupKey] = [];
         }
         groupedMap[groupKey].push(question);
       } else {
+        // Pregunta de opción múltiple estándar - puede estar en cualquier orden
         ungrouped.push(question);
       }
     });
 
-    // Ordenar preguntas dentro de cada grupo por fecha de creación
+    // Ordenar preguntas dentro de cada grupo por fecha de creación (más antigua primero)
     Object.keys(groupedMap).forEach(groupKey => {
       groupedMap[groupKey].sort((a, b) => {
-        // Primero, intentar ordenar por número de hueco si ambas son cloze test
-        const aMatch = a.questionText?.match(/hueco \[(\d+)\]/);
-        const bMatch = b.questionText?.match(/hueco \[(\d+)\]/);
-        if (aMatch && bMatch) {
-          return parseInt(aMatch[1]) - parseInt(bMatch[1]);
-        }
-
-        // Si no tienen número de hueco, ordenar por fecha de creación ascendente
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
         if (dateA !== dateB) {
-          return dateA - dateB; // Más antigua primero (orden de inserción)
+          return dateA - dateB; // Más antigua primero (orden de creación)
         }
-
         // Si tienen la misma fecha, ordenar por código
         return a.code.localeCompare(b.code);
       });
     });
 
-    // Reconstruir el array con grupos ordenados y preguntas no agrupadas
-    // Mantener el orden original mezclado pero con grupos ordenados internamente
+    // Reconstruir el array: primero las preguntas agrupadas (consecutivas), luego las no agrupadas
     const result: Question[] = [];
     const processedIds = new Set<string>();
 
+    // Agregar primero todas las preguntas agrupadas (comprensión de lectura corta) consecutivamente
     questions.forEach(question => {
       if (processedIds.has(question.id || question.code)) {
         return;
       }
 
-      if (question.informativeText && question.subjectCode === 'IN') {
-        const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
+      if (question.informativeText && question.informativeText.trim() !== '' && question.subjectCode === subjectCode) {
+        const informativeImages = JSON.stringify(question.informativeImages || []);
+        const groupKey = `${question.informativeText}_${informativeImages}`;
         const group = groupedMap[groupKey];
+        
         if (group) {
+          // Agregar todo el grupo consecutivamente
           result.push(...group);
           group.forEach(q => processedIds.add(q.id || q.code));
         }
-      } else {
+      }
+    });
+
+    // Agregar después las preguntas no agrupadas (opción múltiple estándar) - pueden estar en cualquier orden
+    ungrouped.forEach(question => {
+      if (!processedIds.has(question.id || question.code)) {
         result.push(question);
         processedIds.add(question.id || question.code);
       }
     });
 
+    console.log(`📚 Preguntas ordenadas para ${subject}: ${Object.keys(groupedMap).length} grupo(s) de comprensión de lectura corta, ${ungrouped.length} pregunta(s) estándar`);
+    
     return result;
   }
 
