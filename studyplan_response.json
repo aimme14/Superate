@@ -1,0 +1,311 @@
+﻿{
+    "success":  true,
+    "data":  {
+                 "student_info":  {
+                                      "studentId":  "PtuNEUzx2qbzFoEsSjW75FftMmf1",
+                                      "phase":  "first",
+                                      "subject":  "Ciencias Sociales",
+                                      "weaknesses":  [
+                                                         {
+                                                             "topic":  "Competencias ciudadanas",
+                                                             "percentage":  0,
+                                                             "correct":  0,
+                                                             "total":  5
+                                                         },
+                                                         {
+                                                             "topic":  "El poder, la economia y las organicaciones sociales",
+                                                             "percentage":  20,
+                                                             "correct":  1,
+                                                             "total":  5
+                                                         },
+                                                         {
+                                                             "topic":  "El espacio, el territorio, el ambiente y laa población",
+                                                             "percentage":  20,
+                                                             "correct":  1,
+                                                             "total":  5
+                                                         },
+                                                         {
+                                                             "topic":  "El tiempo y las culturas",
+                                                             "percentage":  20,
+                                                             "correct":  1,
+                                                             "total":  5
+                                                         }
+                                                     ]
+                                  },
+                 "diagnostic_summary":  "Este plan se enfoca en Ciencias Sociales, abordando debilidades críticas en Competencias Ciudadanas, estructuras de poder y economía, dinámicas territoriales y ambientales, y el estudio de las culturas y el tiempo, con aciertos muy bajos en todas ellas.",
+                 "study_plan_summary":  "Este plan de estudio estratégico busca fortalecer las bases en Ciencias Sociales, centrándose en las áreas de mayor dificultad. La metodología incluye el estudio profundo de conceptos clave en Competencias Ciudadanas, análisis de estructuras de poder y económicas, dinámicas geográficas y ambientales, y la comprensión de diversas culturas a través del tiempo. Se utilizarán recursos didácticos como videos explicativos y lecturas para una comprensión clara, seguido de la práctica con ejercicios tipo ICFES para aplicar los conocimientos y desarrollar habilidades de análisis crítico, esenciales para el éxito en el examen Saber 11.",
+                 "topics":  [
+                                {
+                                    "name":  "Mecanismos de Participación Ciudadana y Derechos",
+                                    "description":  "Comprender los diferentes mecanismos que tienen los ciudadanos para participar en las decisiones públicas (plebiscito, referendo, consulta popular, etc.) y la importancia de los derechos y deberes ciudadanos en la vida democrática. Crucial para las Competencias Ciudadanas del ICFES.",
+                                    "level":  "Básico",
+                                    "keywords":  [
+                                                     "mecanismos participación ciudadana",
+                                                     "derechos fundamentales Colombia",
+                                                     "deberes ciudadanos ICFES",
+                                                     "democracia participativa"
+                                                 ],
+                                    "webSearchInfo":  {
+                                                          "searchIntent":  "Artículo explicativo sobre los mecanismos de participación ciudadana en Colombia y los derechos fundamentales",
+                                                          "searchKeywords":  [
+                                                                                 "mecanismos participación Colombia",
+                                                                                 "derechos ciudadanos",
+                                                                                 "fundamentos democracia participativa"
+                                                                             ],
+                                                          "expectedContentTypes":  [
+                                                                                       "artículo explicativo",
+                                                                                       "guía paso a paso",
+                                                                                       "resumen conceptual"
+                                                                                   ],
+                                                          "educationalLevel":  "preparación ICFES"
+                                                      }
+                                },
+                                {
+                                    "name":  "Principios del Estado Social de Derecho y Convivencia",
+                                    "description":  "Explorar los fundamentos del Estado Social de Derecho en Colombia, su implicación en la protección de derechos y la promoción de la convivencia pacífica, analizando situaciones que atentan contra estos principios como los linchamientos o la intolerancia.",
+                                    "level":  "Intermedio",
+                                    "keywords":  [
+                                                     "Estado Social de Derecho Colombia",
+                                                     "convivencia pacífica ICFES",
+                                                     "justicia social",
+                                                     "resolución conflictos"
+                                                 ],
+                                    "webSearchInfo":  {
+                                                          "searchIntent":  "Contenido académico introductorio sobre el Estado Social de Derecho y su relación con la convivencia y la justicia",
+                                                          "searchKeywords":  [
+                                                                                 "Estado Social de Derecho principios",
+                                                                                 "justicia y convivencia Colombia",
+                                                                                 "rol del Estado en derechos"
+                                                                             ],
+                                                          "expectedContentTypes":  [
+                                                                                       "contenido académico introductorio",
+                                                                                       "análisis de casos",
+                                                                                       "resumen conceptual"
+                                                                                   ],
+                                                          "educationalLevel":  "secundaria"
+                                                      }
+                                },
+                                {
+                                    "name":  "Tipos de Poder y Sistemas Económicos Básicos",
+                                    "description":  "Analizar las diferentes formas de poder (político, económico, social) y su ejercicio en la sociedad. Estudiar los principios de sistemas económicos clave (capitalismo, feudalismo, colonialismo) y cómo influyen en la organización social y la distribución de recursos.",
+                                    "level":  "Básico",
+                                    "keywords":  [
+                                                     "tipos de poder social",
+                                                     "sistemas económicos básicos",
+                                                     "economía y sociedad ICFES",
+                                                     "poder e instituciones"
+                                                 ],
+                                    "webSearchInfo":  {
+                                                          "searchIntent":  "Guía explicativa sobre las diferentes estructuras de poder y los sistemas económicos fundamentales y su impacto social",
+                                                          "searchKeywords":  [
+                                                                                 "estructuras de poder en la sociedad",
+                                                                                 "conceptos sistemas económicos",
+                                                                                 "relación economía y poder"
+                                                                             ],
+                                                          "expectedContentTypes":  [
+                                                                                       "guía paso a paso",
+                                                                                       "artículo explicativo",
+                                                                                       "contenido académico introductorio"
+                                                                                   ],
+                                                          "educationalLevel":  "secundaria"
+                                                      }
+                                },
+                                {
+                                    "name":  "Análisis de Prejuicios y Estereotipos Sociales",
+                                    "description":  "Identificar qué son los prejuicios y estereotipos, cómo se forman y su impacto en las relaciones sociales y la discriminación. Desarrollar la capacidad de analizar críticamente situaciones donde operan estos sesgos, lo que es clave para entender las dinámicas de poder.",
+                                    "level":  "Básico",
+                                    "keywords":  [
+                                                     "prejuicios y estereotipos",
+                                                     "discriminación social",
+                                                     "sesgos cognitivos",
+                                                     "pensamiento crítico prejuicios"
+                                                 ],
+                                    "webSearchInfo":  {
+                                                          "searchIntent":  "Guía introductoria sobre la definición, formación y consecuencias de los prejuicios y estereotipos en la sociedad",
+                                                          "searchKeywords":  [
+                                                                                 "qué son prejuicios",
+                                                                                 "ejemplos de estereotipos",
+                                                                                 "impacto de la discriminación"
+                                                                             ],
+                                                          "expectedContentTypes":  [
+                                                                                       "guía paso a paso",
+                                                                                       "artículo explicativo",
+                                                                                       "contenido académico introductorio"
+                                                                                   ],
+                                                          "educationalLevel":  "secundaria"
+                                                      }
+                                },
+                                {
+                                    "name":  "Demografía, Migraciones y Diversidad Territorial",
+                                    "description":  "Entender los conceptos demográficos (población, natalidad, mortalidad, migraciones), su distribución espacial y cómo estos factores configuran el territorio. Se abordará la diversidad étnica en Colombia y su relación con el espacio, como la población indígena.",
+                                    "level":  "Intermedio",
+                                    "keywords":  [
+                                                     "demografía Colombia",
+                                                     "migraciones y población",
+                                                     "diversidad étnica territorial",
+                                                     "geografía humana ICFES"
+                                                 ],
+                                    "webSearchInfo":  {
+                                                          "searchIntent":  "Artículo sobre las dinámicas demográficas, los patrones de migración y la diversidad cultural en el territorio colombiano",
+                                                          "searchKeywords":  [
+                                                                                 "dinámicas población Colombia",
+                                                                                 "migración interna y externa",
+                                                                                 "distribución población indígena"
+                                                                             ],
+                                                          "expectedContentTypes":  [
+                                                                                       "artículo explicativo",
+                                                                                       "mapas y gráficos demográficos",
+                                                                                       "resumen conceptual"
+                                                                                   ],
+                                                          "educationalLevel":  "preparación ICFES"
+                                                      }
+                                },
+                                {
+                                    "name":  "Impacto Ambiental y Desarrollo Sostenible",
+                                    "description":  "Comprender las causas y consecuencias del uso indiscriminado de recursos naturales, la contaminación y el cambio climático. Explorar el concepto de desarrollo sostenible como alternativa para la interacción entre sociedad y ambiente.",
+                                    "level":  "Intermedio",
+                                    "keywords":  [
+                                                     "impacto ambiental uso recursos",
+                                                     "desarrollo sostenible ICFES",
+                                                     "problemas ambientales Colombia",
+                                                     "conservación recursos naturales"
+                                                 ],
+                                    "webSearchInfo":  {
+                                                          "searchIntent":  "Contenido introductorio sobre los problemas ambientales causados por la actividad humana y las propuestas de desarrollo sostenible",
+                                                          "searchKeywords":  [
+                                                                                 "consecuencias uso recursos naturales",
+                                                                                 "conceptos desarrollo sostenible",
+                                                                                 "crisis ambiental global"
+                                                                             ],
+                                                          "expectedContentTypes":  [
+                                                                                       "contenido académico introductorio",
+                                                                                       "análisis de problemas ambientales",
+                                                                                       "ejemplos de sostenibilidad"
+                                                                                   ],
+                                                          "educationalLevel":  "secundaria"
+                                                      }
+                                },
+                                {
+                                    "name":  "Diversidad Cultural y Cosmovisiones",
+                                    "description":  "Analizar cómo se construyen las identidades culturales, la importancia del patrimonio y las expresiones culturales (como la música, por ejemplo, la salsa). Estudiar diferentes cosmovisiones, especialmente las de pueblos indígenas, para entender sus formas de interpretar el mundo y sus símbolos.",
+                                    "level":  "Intermedio",
+                                    "keywords":  [
+                                                     "identidad cultural Colombia",
+                                                     "cosmovisiones indígenas",
+                                                     "patrimonio cultural ICFES",
+                                                     "sincretismo cultural"
+                                                 ],
+                                    "webSearchInfo":  {
+                                                          "searchIntent":  "Artículo explicativo sobre la diversidad cultural, las cosmovisiones ancestrales y la construcción de identidad a través de expresiones culturales",
+                                                          "searchKeywords":  [
+                                                                                 "conceptos de cultura",
+                                                                                 "cosmovisión pueblos originarios",
+                                                                                 "expresiones culturales Colombia"
+                                                                             ],
+                                                          "expectedContentTypes":  [
+                                                                                       "artículo explicativo",
+                                                                                       "resumen conceptual",
+                                                                                       "ejemplos culturales"
+                                                                                   ],
+                                                          "educationalLevel":  "secundaria"
+                                                      }
+                                }
+                            ],
+                 "practice_exercises":  [
+
+                                        ],
+                 "video_resources":  [
+                                         {
+                                             "title":  "Pre - ICFES | Curso Teórico C. Sociales - Mecanismos de participación ciudadana y constitucionales.",
+                                             "url":  "https://www.youtube.com/watch?v=IsU3uDZQN0A",
+                                             "description":  "Curso de preparación para las pruebas de estado ICFES - SABER 11°. Contenidos Mecanismos de participación ciudadana ...",
+                                             "channelTitle":  "Praxis Thinks",
+                                             "topic":  "Mecanismos de Participación Ciudadana y Derechos"
+                                         },
+                                         {
+                                             "title":  "Mecanismos de participación",
+                                             "url":  "https://www.youtube.com/watch?v=NkJRRPmNs6s",
+                                             "description":  "Producido por: Ude@/ Diseño gráfico y animación: Jenny David/ Jefe de Producción: Lyda Contreras/ Departamento de Recursos ...",
+                                             "channelTitle":  "Ingenia UdeA",
+                                             "topic":  "Mecanismos de Participación Ciudadana y Derechos"
+                                         },
+                                         {
+                                             "title":  "Los mecanismos de protección ciudadana",
+                                             "url":  "https://www.youtube.com/watch?v=pr_vZ9U5LgQ",
+                                             "description":  "En la clase de hoy explicamos en qué consisten los Mecanismos de Protección Ciudadana en Colombia, y cómo podemos de ...",
+                                             "channelTitle":  "Profelogía",
+                                             "topic":  "Mecanismos de Participación Ciudadana y Derechos"
+                                         },
+                                         {
+                                             "title":  "MEDIOS ALTERNOS DE SOLUCIÓN DE CONFLICTOS",
+                                             "url":  "https://www.youtube.com/watch?v=He6yULGkeBo",
+                                             "description":  "Conoce los cuales son los medios alternos de solución de conflictos y sus diferencias entre ellos, las ventajas que conllevan y las ...",
+                                             "channelTitle":  "JurídicaMente",
+                                             "topic":  "Principios del Estado Social de Derecho y Convivencia"
+                                         },
+                                         {
+                                             "title":  "Los Derechos Humanos",
+                                             "url":  "https://www.youtube.com/watch?v=TSa6odOXavY",
+                                             "description":  "Hola a todos, en este video les hablo sobre los derechos humanos, espero y sea de su agrado. ¡¡Sígueme en mis redes sociales!",
+                                             "channelTitle":  "MARIO CARREÓN",
+                                             "topic":  "Principios del Estado Social de Derecho y Convivencia"
+                                         }
+                                     ],
+                 "study_links":  [
+                                     {
+                                         "title":  "UNIVERSIDAD DEL TOLIMA VICERRECTORÍA ACADÉMICA ...",
+                                         "url":  "http://www.ut.edu.co/images/Estudiantes/Simulacro_pruebas/BANCO_DE_PREGUNTAS_COMPETENCIAS_CIUDADANAS.pdf",
+                                         "description":  "anterior en nuestra constitución tiene mecanismos de participación ciudadana como: A. acción de tutela. B. acto legislativo. C. referendo. D. derecho de ..."
+                                     },
+                                     {
+                                         "title":  "Módulo de Competencias Ciudadanas",
+                                         "url":  "https://ww2.ufps.edu.co/public/archivos/pdf/587e8d249e58aff5a333be83c4ddde7f.pdf",
+                                         "description":  "¿cómo influye la participación ciudadana en la democracia actualmente? ¿Cuál ... CONSTITUCIÓN POLÍTICA DE COLOMBIA. Conoce los derechos fundamentales de los ..."
+                                     },
+                                     {
+                                         "title":  "Estándares básicos de Competencias Ciudadanas",
+                                         "url":  "https://www.mineducacion.gov.co/1621/articles-116042_archivo_pdf4.pdf",
+                                         "description":  "Conozco los mecanismos constitucionales que protegen los derechos fundamentales (como la tutela) y comprendo cómo se aplican. (Conocimientos). • Analizo el ..."
+                                     },
+                                     {
+                                         "title":  "la-participacion-en-la-gestion-ambiental.pdf",
+                                         "url":  "https://editorial.urosario.edu.co/pageflip/acceso-abierto/la-participacion-en-la-gestion-ambiental.pdf",
+                                         "description":  "bre la tierra, así como derechos de uso y aprovechamiento sobre otros ... El voto es el mecanismo de participación ciudadana por excelencia. Es el pro ..."
+                                     },
+                                     {
+                                         "title":  "La democracia ambiental y el Acuerdo de Escazú en Colombia a ...",
+                                         "url":  "https://revistas.uexternado.edu.co/index.php/derest/article/view/7430/11425",
+                                         "description":  "Fundamentos constitucionales para la democracia ambiental en Colombia. 2.2.1 ... mecanismos de participación democrática ciudadana (art. 103); (iv) la ..."
+                                     },
+                                     {
+                                         "title":  "El camino tortuoso de la participación ciudadana. Una mirada al ...",
+                                         "url":  "https://revistas.javeriana.edu.co/index.php/univhumanistica/article/download/2300/1621/7997",
+                                         "description":  "Por el contrario, Norberto Bobbio cree ver en la democracia una constante histórica participativa donde los ciudadanos ejercen sus derechos en la toma de ..."
+                                     },
+                                     {
+                                         "title":  "GESTION AMBIENTAL EN PROYECTOS DE DESARROLLO",
+                                         "url":  "https://minas.medellin.unal.edu.co/images/Centro-Editorial/Gestion_ambiental_en_proyectos.pdf",
+                                         "description":  "ANTROPOLOGIA Y DESARROLLO SOSTENIBLE. Sergio Iván Carmona Maya. 2. EL CONCEPTO DE SOSTENIBILIDAD ECOLÓGICA: GENESIS Y LIMITES. Luis Jair Gómez Giraldo."
+                                     },
+                                     {
+                                         "title":  "Vista de Cosmovisiones y prácticas ancestrales de los pastos para ...",
+                                         "url":  "https://revistas.udenar.edu.co/index.php/rtend/article/view/3962/5069",
+                                         "description":  "Jun 23, 2018 ... COSMOVISIONS AND ANCESTRAL PRACTICES OF THE PASTOS TO BUILD REGIONAL PEACE. COSMOVISÕES E PRÁTICAS ANCESTRAIS DOS PASTOS PARA CONSTRUIR A ..."
+                                     },
+                                     {
+                                         "title":  "importancia de los saberes ancestrales en la identidad cultural en ...",
+                                         "url":  "https://repositorio.usil.edu.pe/server/api/core/bitstreams/db6e2b79-d34d-49e8-a492-0c72b6167c92/content",
+                                         "description":  "Jun 9, 2022 ... donde las culturas dominantes someten a los pueblos originarios a su cultura, la Occidental, ... Las expresiones tradicionales de los pueblos ..."
+                                     },
+                                     {
+                                         "title":  "EDUCACION PROPIA:ESCENARIO DE DIVERSIDAD CULTURAL ...",
+                                         "url":  "https://repositorio.ucaldas.edu.co/bitstream/handle/ucaldas/16753/MariaAmanda_TabordaGaleano_2021.pdf?sequence=1\u0026isAllowed=y",
+                                         "description":  "... cultura, nos permite retomar lo planteado por Geertz (1973):. El concepto de cultura que propugnamos (…) es esencialmente un concepto semiótico. Creyendo con ..."
+                                     }
+                                 ]
+             },
+    "metadata":  {
+                     "processingTime":  291027,
+                     "timestamp":  "2025-12-23T03:16:43.464Z"
+                 }
+}

@@ -5,9 +5,11 @@
  * y proporciona acceso a Firestore y otras funcionalidades
  */
 
-// Cargar variables de entorno
+// Cargar variables de entorno (solo en desarrollo local)
 import * as dotenv from 'dotenv';
-dotenv.config();
+if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'development') {
+  dotenv.config();
+}
 
 import * as admin from 'firebase-admin';
 import * as path from 'path';
@@ -24,40 +26,63 @@ if (!admin.apps.length) {
     // Verificar si estamos en desarrollo local o en Cloud Functions
     const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     
-    if (serviceAccountPath) {
-      // Validar que sea una ruta de archivo válida (no un hash)
-      if (serviceAccountPath.length > 200 || !serviceAccountPath.endsWith('.json')) {
-        throw new Error(
-          `GOOGLE_APPLICATION_CREDENTIALS debe ser una ruta a un archivo JSON. ` +
-          `Valor actual parece ser un hash. ` +
-          `Configura GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json en tu archivo .env`
-        );
+    // Detectar si estamos en modo deploy/analizador de Firebase
+    const isDeployPhase = process.env.FIREBASE_CONFIG || 
+                          process.env.GCLOUD_PROJECT ||
+                          (typeof process.env.FUNCTION_TARGET === 'undefined' && !process.env.FUNCTIONS_EMULATOR);
+    
+    // Solo validar archivos en desarrollo local con emulador
+    const shouldValidateFiles = !isDeployPhase && process.env.FUNCTIONS_EMULATOR === 'true';
+    
+    if (serviceAccountPath && shouldValidateFiles) {
+      try {
+        // Validar que sea una ruta de archivo válida (no un hash)
+        if (serviceAccountPath.length > 200 || !serviceAccountPath.endsWith('.json')) {
+          console.warn(`⚠️ GOOGLE_APPLICATION_CREDENTIALS no parece ser una ruta válida: ${serviceAccountPath}`);
+          // Fallback a credenciales por defecto
+          admin.initializeApp({
+            credential: admin.credential.applicationDefault(),
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'superate-6c730.firebasestorage.app',
+          });
+          console.log('✅ Firebase Admin inicializado (modo local, usando credenciales por defecto)');
+        } else {
+          // Desarrollo local: usar service account
+          const absolutePath = path.resolve(__dirname, '../../', serviceAccountPath);
+          
+          if (require('fs').existsSync(absolutePath)) {
+            const serviceAccount = require(absolutePath);
+            admin.initializeApp({
+              credential: admin.credential.cert(serviceAccount),
+              storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'superate-6c730.firebasestorage.app',
+            });
+            console.log('✅ Firebase Admin inicializado correctamente (modo local)');
+          } else {
+            console.warn(`⚠️ No se encontró el archivo de credenciales: ${absolutePath}`);
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault(),
+              storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'superate-6c730.firebasestorage.app',
+            });
+            console.log('✅ Firebase Admin inicializado (modo local, usando credenciales por defecto)');
+          }
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ Error cargando credenciales locales: ${error.message}`);
+        // Fallback a credenciales por defecto
+        admin.initializeApp({
+          credential: admin.credential.applicationDefault(),
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'superate-6c730.firebasestorage.app',
+        });
+        console.log('✅ Firebase Admin inicializado (usando credenciales por defecto)');
       }
-      
-      // Desarrollo local: usar service account
-      // Construir ruta absoluta desde la raíz del proyecto functions
-      const absolutePath = path.resolve(__dirname, '../../', serviceAccountPath);
-      
-      if (!require('fs').existsSync(absolutePath)) {
-        throw new Error(
-          `No se encontró el archivo de credenciales de Firebase: ${absolutePath}\n` +
-          `Asegúrate de que el archivo existe y que GOOGLE_APPLICATION_CREDENTIALS en .env apunta a la ruta correcta.`
-        );
-      }
-      
-      const serviceAccount = require(absolutePath);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'superate-6c730.firebasestorage.app',
-      });
-      console.log('✅ Firebase Admin inicializado correctamente (modo local)');
     } else {
-      // Cloud Functions: usar credenciales por defecto
+      // Cloud Functions o deploy: usar credenciales por defecto
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'superate-6c730.firebasestorage.app',
       });
-      console.log('✅ Firebase Admin inicializado correctamente (modo producción)');
+      if (!isDeployPhase) {
+        console.log('✅ Firebase Admin inicializado correctamente (modo producción)');
+      }
     }
   } catch (error) {
     console.error('❌ Error al inicializar Firebase Admin:', error);

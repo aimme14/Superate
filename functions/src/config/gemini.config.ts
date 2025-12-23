@@ -5,9 +5,11 @@
  * funcionalidades para generar contenido con IA
  */
 
-// Cargar variables de entorno desde .env
+// Cargar variables de entorno desde .env (solo en desarrollo local)
 import * as dotenv from 'dotenv';
-dotenv.config();
+if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'development') {
+  dotenv.config();
+}
 
 import { VertexAI } from '@google-cloud/vertexai';
 import * as path from 'path';
@@ -67,33 +69,56 @@ class GeminiClient {
     // Leer la ruta desde la configuración (que viene de .env)
     const credentialsPath = GEMINI_CONFIG.VERTEX_AI_CREDENTIALS;
     
-    // Validar que sea una ruta de archivo válida (no un hash)
-    if (!credentialsPath || credentialsPath.length > 200 || !credentialsPath.endsWith('.json')) {
-      throw new Error(
-        `VERTEX_AI_CREDENTIALS debe ser una ruta a un archivo JSON. ` +
-        `Valor actual: ${credentialsPath}. ` +
-        `Configura VERTEX_AI_CREDENTIALS=./serviceAccountKey-ia.json en tu archivo .env`
-      );
+    // Detectar si estamos en modo deploy/analizador de Firebase
+    // Durante el deploy, Firebase ejecuta el código para analizarlo, pero no debemos validar archivos
+    const isDeployPhase = process.env.FIREBASE_CONFIG || 
+                          process.env.GCLOUD_PROJECT ||
+                          (typeof process.env.FUNCTION_TARGET === 'undefined' && !process.env.FUNCTIONS_EMULATOR);
+    
+    // Solo validar archivos en desarrollo local con emulador o cuando explícitamente no estamos en deploy
+    const shouldValidateFiles = !isDeployPhase && 
+                                 (process.env.FUNCTIONS_EMULATOR === 'true' || 
+                                  process.env.NODE_ENV === 'development');
+    
+    if (shouldValidateFiles && credentialsPath) {
+      try {
+        // Validar que sea una ruta de archivo válida (no un hash)
+        if (credentialsPath.length > 200 || !credentialsPath.endsWith('.json')) {
+          console.warn(`⚠️ VERTEX_AI_CREDENTIALS no parece ser una ruta válida: ${credentialsPath}`);
+          this.vertexKeyPath = '';
+          this.serviceAccountKey = null;
+        } else {
+          this.vertexKeyPath = path.resolve(__dirname, '../../', credentialsPath);
+          
+          if (fs.existsSync(this.vertexKeyPath)) {
+            this.serviceAccountKey = JSON.parse(fs.readFileSync(this.vertexKeyPath, 'utf8'));
+            console.log('✅ Cliente de Gemini (Vertex AI) configurado (modo local)');
+            console.log(`   Proyecto Vertex AI: ${GEMINI_CONFIG.PROJECT_ID}`);
+            console.log(`   Región: ${GEMINI_CONFIG.REGION}`);
+            console.log(`   Modelo: ${GEMINI_CONFIG.MODEL_NAME}`);
+            console.log(`   Email de servicio: ${this.serviceAccountKey.client_email}`);
+          } else {
+            console.warn(`⚠️ No se encontró el archivo de credenciales: ${this.vertexKeyPath}`);
+            this.vertexKeyPath = '';
+            this.serviceAccountKey = null;
+          }
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ Error cargando credenciales locales: ${error.message}`);
+        this.vertexKeyPath = '';
+        this.serviceAccountKey = null;
+      }
+    } else {
+      // Producción o deploy: no validar archivos, usar credenciales automáticas
+      this.vertexKeyPath = '';
+      this.serviceAccountKey = null;
+      if (!isDeployPhase) {
+        console.log('✅ Cliente de Gemini (Vertex AI) configurado (modo producción)');
+      }
     }
     
-    this.vertexKeyPath = path.resolve(__dirname, '../../', credentialsPath);
-    
-    if (!fs.existsSync(this.vertexKeyPath)) {
-      throw new Error(
-        `No se encontró el archivo de credenciales: ${this.vertexKeyPath}\n` +
-        `Asegúrate de que el archivo existe y que VERTEX_AI_CREDENTIALS en .env apunta a la ruta correcta.`
-      );
-    }
-    
-    this.serviceAccountKey = JSON.parse(fs.readFileSync(this.vertexKeyPath, 'utf8'));
     this.originalGoogleCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     
-    console.log('✅ Cliente de Gemini (Vertex AI) configurado');
-    console.log(`   Proyecto Vertex AI: ${GEMINI_CONFIG.PROJECT_ID}`);
-    console.log(`   Región: ${GEMINI_CONFIG.REGION}`);
-    console.log(`   Modelo: ${GEMINI_CONFIG.MODEL_NAME}`);
-    console.log(`   Credenciales: ${GEMINI_CONFIG.VERTEX_AI_CREDENTIALS}`);
-    console.log(`   Email de servicio: ${this.serviceAccountKey.client_email}`);
   }
 
   /**
@@ -106,18 +131,27 @@ class GeminiClient {
     }
     
     try {
-      // Inicializar Vertex AI con el proyecto desde .env y credenciales explícitas
-      // Usamos googleAuthOptions para pasar las credenciales directamente
-      // Para modelos Publisher de Gemini, el SDK construye automáticamente la ruta:
-      // projects/{project}/locations/{location}/publishers/google/models/{model}
-      this.vertexAI = new VertexAI({
-        project: GEMINI_CONFIG.PROJECT_ID, // Desde .env
-        location: GEMINI_CONFIG.REGION, // Desde .env
-        googleAuthOptions: {
-          credentials: this.serviceAccountKey, // ⚠️ Pasamos el JSON parseado directamente
-          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-        },
-      });
+      const isLocalDevelopment = process.env.FUNCTIONS_EMULATOR === 'true' || 
+                                  process.env.NODE_ENV !== 'production' ||
+                                  !process.env.FUNCTION_TARGET;
+      
+      if (isLocalDevelopment && this.serviceAccountKey) {
+        // Desarrollo local: usar credenciales explícitas
+        this.vertexAI = new VertexAI({
+          project: GEMINI_CONFIG.PROJECT_ID, // Desde .env
+          location: GEMINI_CONFIG.REGION, // Desde .env
+          googleAuthOptions: {
+            credentials: this.serviceAccountKey, // ⚠️ Pasamos el JSON parseado directamente
+            scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+          },
+        });
+      } else {
+        // Producción: usar credenciales automáticas de Firebase Functions
+        this.vertexAI = new VertexAI({
+          project: GEMINI_CONFIG.PROJECT_ID,
+          location: GEMINI_CONFIG.REGION,
+        });
+      }
 
       // Para modelos Publisher de Gemini, el SDK construye automáticamente la ruta:
       // projects/{project}/locations/{location}/publishers/google/models/{model}
@@ -129,9 +163,11 @@ class GeminiClient {
       });
       
       console.log(`   Modelo configurado: ${GEMINI_CONFIG.MODEL_NAME}`);
-      console.log(`   Ruta esperada: projects/${this.serviceAccountKey.project_id}/locations/${GEMINI_CONFIG.REGION}/publishers/google/models/${GEMINI_CONFIG.MODEL_NAME}`);
+      if (isLocalDevelopment && this.serviceAccountKey) {
+        console.log(`   Ruta esperada: projects/${this.serviceAccountKey.project_id}/locations/${GEMINI_CONFIG.REGION}/publishers/google/models/${GEMINI_CONFIG.MODEL_NAME}`);
+      }
       
-      console.log('✅ Vertex AI inicializado con credenciales de superate-ia');
+      console.log('✅ Vertex AI inicializado');
     } catch (error: any) {
       console.error('❌ Error al inicializar cliente de Gemini (Vertex AI):', error.message);
       throw error;

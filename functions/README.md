@@ -89,23 +89,98 @@ npm run lint:fix        # Linter con auto-fix
 
 ### Desarrollo Local (.env)
 
+Crea un archivo `.env` en la carpeta `functions/` con las siguientes variables:
+
 ```env
 GEMINI_API_KEY=tu_api_key_aqui
+YOUTUBE_API_KEY=tu_youtube_api_key_aqui
 FIREBASE_STORAGE_BUCKET=superate-5a48d.appspot.com
+
+# Google Custom Search API (para búsqueda de enlaces web educativos)
+GOOGLE_CSE_API_KEY=tu_google_cse_api_key_aqui
+GOOGLE_CSE_ID=tu_google_cse_id_aqui
 ```
 
-### Producción (Firebase Config)
+**Cómo obtener GOOGLE_CSE_API_KEY:**
+1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
+2. Selecciona tu proyecto (o crea uno nuevo)
+3. Habilita la API: Ve a **APIs & Services > Library** y busca "**Custom Search API**" > Click en **Enable**
+4. Crea la API Key: Ve a **APIs & Services > Credentials** > Click en **Create Credentials > API Key**
+5. (Opcional pero recomendado) Restringe la API Key:
+   - Click en la API Key recién creada
+   - En "API restrictions", selecciona "Restrict key"
+   - Elige "Custom Search API"
+   - Guarda
+6. Copia la API Key (formato: `AIzaSy...`) y pégalo en `.env` como `GOOGLE_CSE_API_KEY`
+
+**Cómo obtener GOOGLE_CSE_ID:**
+1. Ve a [Programmable Search Engine](https://programmablesearchengine.google.com/)
+2. Click en **"Add"** o **"Create a search engine"**
+3. Configura el motor:
+   - **Sites to search**: Deja en blanco o escribe `*` para buscar en toda la web
+   - **Language**: Spanish
+   - **Name**: "Superate Educational Search" (o el nombre que prefieras)
+4. Click en **"Create"**
+5. Una vez creado, ve a **"Setup" > "Basics"**
+6. Copia el **"Search engine ID"** (formato: `017576662512468239146:omuauf_lfve`) y pégalo en `.env` como `GOOGLE_CSE_ID`
+
+**Ejemplo de valores en .env:**
+```env
+GOOGLE_CSE_API_KEY=AIzaSyAOLMin_Gy3_1r9ipwh7xqCHpqHRblRlwI
+GOOGLE_CSE_ID=017576662512468239146:omuauf_lfve
+```
+
+**Nota sobre YOUTUBE_API_KEY:**
+- La API key de YouTube es **opcional** pero altamente recomendada
+- Se usa para validar que los videos de YouTube generados por la IA realmente existen y están disponibles
+- Sin la API key, solo se validará el formato de las URLs (no su existencia)
+- Para obtener una API key:
+  1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
+  2. Crea o selecciona un proyecto
+  3. Habilita la "YouTube Data API v3"
+  4. Ve a "Credenciales" y crea una API key
+  5. Copia la API key y añádela a tu archivo `.env`
+
+### Producción (Firebase Functions - Secrets)
+
+**⚠️ IMPORTANTE:** Firebase ha deprecado `functions.config()`. Ahora debemos usar **secrets** (el método moderno y recomendado).
+
+#### **Configurar las API keys en producción:**
+
+**Para YOUTUBE_API_KEY:**
+
+**Paso 1:** Abre PowerShell o Terminal en la raíz del proyecto (donde está el archivo `firebase.json`)
+
+**Paso 2:** Ejecuta este comando:
 
 ```bash
-firebase functions:config:set gemini.api_key="TU_API_KEY"
-firebase functions:config:set firebase.storage_bucket="superate-5a48d.appspot.com"
+firebase functions:secrets:set YOUTUBE_API_KEY
 ```
 
-Para ver la configuración actual:
+**¿Qué va a pasar?**
+- El comando te mostrará un mensaje como: `? Enter a value for YOUTUBE_API_KEY:`
+- **Pega tu API key** (por ejemplo: `AIzaSyAOLMin_Gy3_1r9ipwh7xqCHpqHRblRlwI`)
+- Presiona **Enter**
+
+**Paso 3:** Verifica que se configuró correctamente:
 
 ```bash
-firebase functions:config:get
+firebase functions:secrets:access YOUTUBE_API_KEY
 ```
+
+Deberías ver tu API key mostrada.
+
+**Paso 4:** Despliega las funciones:
+
+```bash
+firebase deploy --only functions
+```
+
+**✅ Listo!** El código ya está configurado para leer el secreto automáticamente.
+
+---
+
+**Nota:** El código ya está actualizado para usar secrets. Solo necesitas configurarlo una vez con el comando de arriba.
 
 ## 🌐 Endpoints HTTP
 
