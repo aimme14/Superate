@@ -389,7 +389,7 @@ Preguntas de ejemplo:
 ${sampleQuestions}`;
     }).join('\n\n');
 
-    return `Eres un **experto en educación secundaria y preparación para el examen ICFES Saber 11**, con amplia experiencia pedagógica, curricular y evaluativa. Tu objetivo es diseñar un **plan de estudio personalizado** basado en el desempeño real del estudiante, detectado a partir de un cuestionario previamente respondido y almacenado en base de datos.
+    return `Eres un **experto con doctorado en educación secundaria y preparación para el examen ICFES Saber 11**, con amplia experiencia pedagógica, curricular y evaluativa. Tu objetivo es diseñar un **plan de estudio personalizado** basado en el desempeño real del estudiante, detectado a partir de un cuestionario previamente respondido y almacenado en base de datos.
 
 ═══════════════════════════════════════════════════════════════
 📋 INFORMACIÓN DEL ESTUDIANTE Y SU DESEMPEÑO
@@ -407,14 +407,14 @@ ${topicsList || 'No se especificaron temas'}
 ${weaknesses.length > 0 ? weaknessesDescription : 'No se identificaron debilidades específicas. El estudiante tiene un buen desempeño general.'}
 
 ═══════════════════════════════════════════════════════════════
-🎯 TU MISIÓN COMO EXPERTO EN EDUCACIÓN
+🎯 TU MISIÓN COMO EXPERTO CON DOCTORADO EN EDUCACIÓN
 ═══════════════════════════════════════════════════════════════
 
-Debes crear un **plan de estudio personalizado** que:
+Debes crear un **plan de estudio personalizado completo** que:
 
 1. **Se enfoque exclusivamente en las debilidades identificadas** - Este es el eje central de la ruta de mejora
 2. **Esté alineado con los lineamientos oficiales del ICFES Saber 11**
-3. **Priorice el fortalecimiento de competencias evaluadas en Saber 11**
+3. **Priorice el fortalecimiento de competencias evaluadas en Saber 11 y las debilidades identificadas**
 4. **Sea práctico, accionable y orientado a resultados**
 
 ═══════════════════════════════════════════════════════════════
@@ -437,27 +437,27 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       }
     ]
   },
-  "diagnostic_summary": "Resumen de máximo 50 palabras sobre la materia y los temas a mejorar en esta ruta de estudio",
-  "study_plan_summary": "Resumen más detallado del plan de estudio (100-150 palabras)",
+  "diagnostic_summary": "Resumen de máximo 50 palabras sobre la materia y los temas a mejorar en esta ruta de estudio (debes mencionar las debilidades principales identificadas)",
+  "study_plan_summary": "Resumen más detallado del plan de estudio (100-150 palabras) (debes explicar la estrategia de mejora y los recursos incluidos (videos, ejercicios))",
   "practice_exercises": [
     {
       "question": "Texto completo de la pregunta estilo ICFES",
       "options": ["A) Opción A", "B) Opción B", "C) Opción C", "D) Opción D"],
       "correctAnswer": "A",
-      "explanation": "Explicación detallada de por qué esta es la respuesta correcta",
-      "topic": "Tema relacionado con la debilidad"
+      "explanation": "Explicación detallada de por qué esta es la respuesta correcta (debes explicar el proceso de resolución de la pregunta)",
+      "topic": "Tema relacionado con la debilidad (debes que debe ser exactamente el mismo tema que la debilidad identificada)"
     }
   ],
   "topics": [
     {
       "name": "Nombre del tema a estudiar",
-      "description": "Descripción detallada del tema y por qué es importante",
+      "description": "Descripción detallada del tema y por qué es importante (debes explicar el tema y por qué es importante para el estudiante)",
       "level": "Básico|Intermedio|Avanzado",
       "keywords": ["keyword1", "keyword2", "keyword3"],
       "webSearchInfo": {
-        "searchIntent": "Intención pedagógica de búsqueda (ej: artículo explicativo sobre ecuaciones cuadráticas)",
+        "searchIntent": "Intención pedagógica de búsqueda (ej: artículo explicativo o paguina web donde se explique como se resuelven ecuaciones cuadráticas y si se puede que incluya ejercicios resueltos)",
         "searchKeywords": ["palabra1", "palabra2", "palabra3"],
-        "expectedContentTypes": ["artículo explicativo", "guía paso a paso", "contenido académico introductorio"],
+        "expectedContentTypes": ["artículo explicativo o paguina web", "guía paso a paso", "contenido académico introductorio"],
         "educationalLevel": "Nivel educativo (ej: secundaria, preparación ICFES)"
       }
     }

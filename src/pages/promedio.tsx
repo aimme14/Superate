@@ -485,6 +485,8 @@ function PersonalizedStudyPlan({
   const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [loadingPlans, setLoadingPlans] = useState<boolean>(true);
+  // Estado para controlar qué materias están expandidas en el acordeón
+  const [expandedSubjects, setExpandedSubjects] = useState<string[]>([]);
 
   // URL base de Cloud Functions
   const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
@@ -637,7 +639,13 @@ function PersonalizedStudyPlan({
   }
 
   return (
-    <div className="space-y-6">
+    <Accordion 
+      type="multiple" 
+      className="w-full"
+      value={expandedSubjects}
+      onValueChange={setExpandedSubjects}
+    >
+      <div className="space-y-3">
       {sortedSubjects.map((subject) => {
         const plan = studyPlans[subject.name];
         const isGenerating = generatingFor === subject.name;
@@ -646,68 +654,88 @@ function PersonalizedStudyPlan({
         const shouldShowButton = !plan && !loadingPlans && firstSubjectWithoutPlan?.name === subject.name;
 
         return (
-          <Card key={subject.name} className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
-                    <BookOpen className="h-5 w-5" />
-                    {subject.name}
-                  </CardTitle>
-                  <CardDescription className={cn("mt-1", theme === 'dark' ? 'text-gray-400' : '')}>
-                    {subject.weaknesses.length} debilidad(es) identificada(s)
-                  </CardDescription>
-                </div>
-                {shouldShowButton && (
-                  <Button
-                    onClick={() => generateStudyPlan(subject.name)}
-                    disabled={isGenerating}
-                    className={cn(
-                      theme === 'dark' 
-                        ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-                        : 'bg-purple-600 hover:bg-purple-700 text-white'
-                    )}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <div className={cn("animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2")}></div>
-                        Generando...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="h-4 w-4 mr-2" />
-                        Generar Plan
-                      </>
-                    )}
-                  </Button>
-                )}
-                {!plan && !shouldShowButton && (
-                  <div className={cn("text-sm px-3 py-2 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50 text-gray-400' : 'bg-gray-100 text-gray-600')}>
-                    <Clock className="h-4 w-4 inline mr-2" />
-                    En espera
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-
-            {isGenerating && (
-              <CardContent>
-                <div className="flex items-center justify-center gap-3 py-8">
-                  <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
-                  <div>
-                    <p className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>
-                      Generando plan de estudio personalizado...
-                    </p>
-                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                      Estamos creando un plan detallado con videos, enlaces web y ejercicios de práctica. Esto puede tardar varios minutos. El plan aparecerá automáticamente cuando esté completo.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
+          <AccordionItem 
+            key={subject.name}
+            value={subject.name}
+            className={cn(
+              "border rounded-lg overflow-hidden transition-all border-b-0",
+              theme === 'dark' ? 'border-zinc-700 bg-zinc-800/80 hover:bg-zinc-800' : 'bg-white/90 border-gray-200 hover:bg-white shadow-md'
             )}
+          >
+            <AccordionTrigger 
+              className={cn(
+                "px-4 py-3 hover:no-underline",
+                theme === 'dark' ? 'hover:bg-zinc-700/50' : 'hover:bg-gray-50'
+              )}
+            >
+              <div className="flex items-center justify-between w-full pr-4">
+                <div className="flex items-center gap-3 flex-1 text-left">
+                  <BookOpen className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
+                  <div>
+                    <h3 className={cn("font-semibold text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      {subject.name}
+                    </h3>
+                    <p className={cn("text-sm mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      {subject.weaknesses.length} debilidad(es) identificada(s)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  {shouldShowButton && (
+                    <Button
+                      onClick={() => generateStudyPlan(subject.name)}
+                      disabled={isGenerating}
+                      size="sm"
+                      className={cn(
+                        theme === 'dark' 
+                          ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                          : 'bg-purple-600 hover:bg-purple-700 text-white'
+                      )}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2")}></div>
+                          Generando...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="h-3 w-3 mr-2" />
+                          Generar Plan
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {!plan && !shouldShowButton && (
+                    <div className={cn("text-sm px-3 py-1.5 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50 text-gray-400' : 'bg-gray-100 text-gray-600')}>
+                      <Clock className="h-3 w-3 inline mr-2" />
+                      En espera
+                    </div>
+                  )}
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className={cn(
+                "px-4 pb-4 pt-2",
+                theme === 'dark' ? 'bg-zinc-900/30' : 'bg-gray-50/50'
+              )}>
 
-            {plan && !isGenerating && (
-              <CardContent className="space-y-6">
+                {isGenerating && (
+                  <div className="flex items-center justify-center gap-3 py-8">
+                    <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
+                    <div>
+                      <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        Generando plan de estudio personalizado...
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Estamos creando un plan detallado con videos, enlaces web y ejercicios de práctica. Esto puede tardar varios minutos. El plan aparecerá automáticamente cuando esté completo.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {plan && !isGenerating && (
+                  <div className="space-y-6">
                 {/* Resumen del diagnóstico */}
                 <div className={cn("p-4 rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border border-purple-700/50' : 'bg-purple-50 border border-purple-200')}>
                   <h3 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
@@ -947,12 +975,12 @@ function PersonalizedStudyPlan({
                       </div>
                     </AccordionContent>
                   </AccordionItem>
-                </Accordion>
-              </CardContent>
-            )}
+                  </Accordion>
+                  </div>
+                )}
 
-            {!plan && !isGenerating && (
-              <CardContent>
+                {!plan && !isGenerating && (
+                  <div>
                 <div className="text-center py-6">
                   {shouldShowButton ? (
                     <>
@@ -1000,13 +1028,16 @@ function PersonalizedStudyPlan({
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
-              </CardContent>
-            )}
-          </Card>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
         );
       })}
-    </div>
+      </div>
+    </Accordion>
   );
 }
 /**

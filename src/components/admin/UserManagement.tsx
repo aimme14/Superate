@@ -94,6 +94,10 @@ function CoordinatorCard({ principal, theme, onEdit, onDelete }: CoordinatorCard
                   {principal.createdAt ? new Date(principal.createdAt).toLocaleDateString() : 'N/A'}
                 </span>
               </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>ID:</span>
+                <span className={cn('ml-1 font-mono', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{principal.id || principal.uid || 'N/A'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -367,6 +371,10 @@ function TeacherCard({ teacher, theme, onEdit, onDelete }: TeacherCardProps) {
                   {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString() : 'N/A'}
                 </span>
               </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>ID:</span>
+                <span className={cn('ml-1 font-mono', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{teacher.id || teacher.uid || 'N/A'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -539,6 +547,10 @@ function RectorCard({ rector, theme, onEdit, onDelete }: RectorCardProps) {
                 <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                   {rector.createdAt ? new Date(rector.createdAt).toLocaleDateString() : 'N/A'}
                 </span>
+              </div>
+              <div className="text-sm">
+                <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>ID:</span>
+                <span className={cn('ml-1 font-mono', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{rector.id || rector.uid || 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -2274,6 +2286,10 @@ export default function UserManagement({ theme }: UserManagementProps) {
                               <span className={cn('ml-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                                 {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : 'N/A'}
                               </span>
+                            </div>
+                            <div className="text-sm">
+                              <span className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>ID:</span>
+                              <span className={cn('ml-1 font-mono', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{student.id || student.uid || 'N/A'}</span>
                             </div>
                           </div>
                         </div>
