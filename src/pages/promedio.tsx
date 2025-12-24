@@ -489,7 +489,18 @@ function PersonalizedStudyPlan({
   // URL base de Cloud Functions
   const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
 
-  // Cargar planes existentes al montar
+  // Verificar si un plan está completo (tiene videos, enlaces y ejercicios)
+  const isPlanComplete = (plan: StudyPlanData | undefined): boolean => {
+    if (!plan) return false;
+    
+    const hasVideos = plan.video_resources && Array.isArray(plan.video_resources) && plan.video_resources.length > 0;
+    const hasLinks = plan.study_links && Array.isArray(plan.study_links) && plan.study_links.length > 0;
+    const hasExercises = plan.practice_exercises && Array.isArray(plan.practice_exercises) && plan.practice_exercises.length > 0;
+    
+    return hasVideos && hasLinks && hasExercises;
+  };
+
+  // Cargar planes existentes al montar (solo planes completos)
   useEffect(() => {
     const loadStudyPlans = async () => {
       setLoadingPlans(true);
@@ -504,8 +515,13 @@ function PersonalizedStudyPlan({
             );
             const result = await response.json();
             if (result.success && result.data) {
-              plans[subject.name] = result.data;
-              console.log(`✅ Plan encontrado para ${subject.name} en ${phase}`);
+              // Solo cargar el plan si está completo
+              if (isPlanComplete(result.data)) {
+                plans[subject.name] = result.data;
+                console.log(`✅ Plan completo encontrado para ${subject.name} en ${phase}`);
+              } else {
+                console.log(`⚠️ Plan incompleto para ${subject.name} en ${phase} (no se mostrará)`);
+              }
             } else {
               console.log(`ℹ️ No hay plan para ${subject.name} en ${phase}`);
             }
@@ -530,6 +546,7 @@ function PersonalizedStudyPlan({
   const generateStudyPlan = async (subject: string) => {
     setGeneratingFor(subject);
     try {
+      // Iniciar generación del plan (esto puede tardar varios minutos)
       const response = await fetch(`${FUNCTIONS_URL}/generateStudyPlan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -543,10 +560,13 @@ function PersonalizedStudyPlan({
       const result = await response.json();
       
       if (result.success && result.data) {
+        // El backend ya generó y guardó el plan completo
+        // Usar directamente el plan retornado
         setStudyPlans(prev => ({
           ...prev,
           [subject]: result.data,
         }));
+        console.log(`✅ Plan completo cargado para ${subject}`);
       } else {
         alert(`Error: ${result.error?.message || 'No se pudo generar el plan de estudio'}`);
       }
@@ -679,7 +699,7 @@ function PersonalizedStudyPlan({
                       Generando plan de estudio personalizado...
                     </p>
                     <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                      Estamos creando un plan detallado adaptado a tus necesidades específicas. Esto puede tardar varios minutos.
+                      Estamos creando un plan detallado con videos, enlaces web y ejercicios de práctica. Esto puede tardar varios minutos. El plan aparecerá automáticamente cuando esté completo.
                     </p>
                   </div>
                 </div>

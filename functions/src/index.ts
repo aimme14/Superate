@@ -703,56 +703,6 @@ export const generateWebLinks = functions
     }
   });
 
-/**
- * Migra videos de la estructura antigua (por estudiante) a la nueva (por tema)
- * 
- * POST /migrateVideos
- */
-export const migrateVideos = functions
-  .region(REGION)
-  .https.onRequest(async (req, res) => {
-    // CORS
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
-    
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-    
-    if (req.method !== 'POST') {
-      const response: APIResponse = {
-        success: false,
-        error: { message: 'Método no permitido. Usa POST' },
-      };
-      res.status(405).json(response);
-      return;
-    }
-    
-    try {
-      console.log('🔄 Iniciando migración de videos a nueva estructura...');
-      const result = await studyPlanService.migrateVideosToNewStructure();
-      
-      const response: APIResponse = {
-        success: true,
-        data: {
-          migrated: result.migrated,
-          errors: result.errors,
-          message: `Migración completada: ${result.migrated} videos migrados, ${result.errors} errores`,
-        },
-      };
-      
-      res.status(200).json(response);
-    } catch (error: any) {
-      console.error('Error en migración:', error);
-      const response: APIResponse = {
-        success: false,
-        error: { message: error.message || 'Error interno del servidor' },
-      };
-      res.status(500).json(response);
-    }
-  });
 
 /**
  * Health check del sistema

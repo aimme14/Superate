@@ -50,6 +50,19 @@ export interface TopicWebSearchInfo {
   educationalLevel: string; // Nivel educativo (ej: "secundaria", "preparación ICFES")
 }
 
+/**
+ * Información semántica para búsqueda de videos en YouTube
+ * Generada por Gemini antes de realizar la búsqueda en YouTube API
+ * Gemini NO genera enlaces ni IDs de video, solo criterios pedagógicos de búsqueda
+ */
+export interface YouTubeSearchSemanticInfo {
+  searchIntent: string; // Intención pedagógica del video (qué debe aprender el estudiante)
+  searchKeywords: string[]; // Lista de 5 a 8 palabras clave optimizadas para buscar videos educativos en YouTube
+  academicLevel: string; // Nivel académico objetivo: "básico", "medio", "avanzado"
+  expectedContentType: string; // Tipo de explicación esperada: "conceptual", "paso a paso", "con ejemplos", "ejercicios resueltos"
+  competenceToStrengthen: string; // Competencia a fortalecer: "interpretación", "formulación", "argumentación"
+}
+
 export interface StudyPlanResponse {
   student_info: {
     studentId: string;
@@ -79,6 +92,9 @@ export interface StudyPlanResponse {
     url: string;
     description: string;
     channelTitle: string;
+    videoId?: string;
+    duration?: string;
+    language?: string;
   }>;
   study_links: Array<{
     title: string;
@@ -1095,44 +1111,57 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       if (parsed.topics && Array.isArray(parsed.topics) && parsed.topics.length > 0) {
         console.log(`   📚 Procesando ${parsed.topics.length} topic(s) para obtener videos...`);
         
-      // Obtener videos para cada topic (desde caché o YouTube)
-      // IMPORTANTE: Cada topic debe tener exactamente 7 videos
-      const videoPromises = parsed.topics.map(async (topic) => {
-        try {
-          if (!topic.keywords || !Array.isArray(topic.keywords) || topic.keywords.length === 0) {
-            console.warn(`⚠️ Topic "${topic.name}" no tiene keywords, omitiendo búsqueda de videos`);
+        // Verificar que los topics tengan keywords
+        const topicsWithKeywords = parsed.topics.filter(t => t.keywords && Array.isArray(t.keywords) && t.keywords.length > 0);
+        console.log(`   📊 Topics con keywords: ${topicsWithKeywords.length} de ${parsed.topics.length}`);
+        
+        if (topicsWithKeywords.length === 0) {
+          console.error(`❌ ERROR CRÍTICO: Ningún topic tiene keywords. No se pueden buscar videos.`);
+          console.error(`   Topics recibidos:`, parsed.topics.map(t => ({ name: t.name, hasKeywords: !!(t.keywords && t.keywords.length > 0) })));
+        }
+        
+        // Obtener videos para cada topic (desde caché o YouTube)
+        // IMPORTANTE: Cada topic debe tener exactamente 7 videos
+        const videoPromises = parsed.topics.map(async (topic) => {
+          try {
+            if (!topic.keywords || !Array.isArray(topic.keywords) || topic.keywords.length === 0) {
+              console.warn(`⚠️ Topic "${topic.name}" no tiene keywords, omitiendo búsqueda de videos`);
+              return [];
+            }
+            
+            console.log(`   🔍 Procesando videos para topic: "${topic.name}"`);
+            console.log(`      Keywords: ${topic.keywords.join(', ')}`);
+            
+            // Obtener videos para este topic específico (retorna exactamente 7 videos)
+            const videos = await this.getVideosForTopic(
+              input.studentId,
+              input.phase,
+              input.subject,
+              topic.name,
+              topic.keywords
+            );
+            
+            if (videos.length > 0) {
+              console.log(`   ✅ Obtenidos ${videos.length} video(s) para topic "${topic.name}" (objetivo: 7)`);
+            } else {
+              console.warn(`   ⚠️ No se encontraron videos para topic "${topic.name}"`);
+              console.warn(`      Esto puede deberse a:`);
+              console.warn(`      1. No hay videos en Firestore para este topic`);
+              console.warn(`      2. La búsqueda en YouTube falló`);
+              console.warn(`      3. YOUTUBE_API_KEY no está configurada correctamente`);
+            }
+            
+            // Retornar videos con información del topic para referencia
+            return videos.map(video => ({
+              ...video,
+              topic: topic.name, // Agregar el nombre del topic para referencia
+            }));
+          } catch (error: any) {
+            console.error(`   ❌ Error procesando videos para topic "${topic.name}":`, error.message);
+            console.error(`   Stack:`, error.stack);
             return [];
           }
-          
-          console.log(`   🔍 Procesando videos para topic: "${topic.name}"`);
-          console.log(`      Keywords: ${topic.keywords.join(', ')}`);
-          
-          // Obtener videos para este topic específico (retorna exactamente 7 videos)
-          const videos = await this.getVideosForTopic(
-            input.studentId,
-            input.phase,
-            input.subject,
-            topic.name,
-            topic.keywords
-          );
-          
-          if (videos.length > 0) {
-            console.log(`   ✅ Obtenidos ${videos.length} video(s) para topic "${topic.name}" (objetivo: 7)`);
-          } else {
-            console.warn(`   ⚠️ No se encontraron videos para topic "${topic.name}"`);
-          }
-          
-          // Retornar videos con información del topic para referencia
-          return videos.map(video => ({
-            ...video,
-            topic: topic.name, // Agregar el nombre del topic para referencia
-          }));
-        } catch (error: any) {
-          console.error(`   ❌ Error procesando videos para topic "${topic.name}":`, error.message);
-          console.error(`   Stack:`, error.stack);
-          return [];
-        }
-      });
+        });
         
         const allVideos = await Promise.all(videoPromises);
         
@@ -1147,8 +1176,16 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
         if (totalVideos < expectedVideos) {
           console.warn(`   ⚠️ Faltan ${expectedVideos - totalVideos} video(s) (algunos topics no tienen suficientes videos)`);
         }
+        
+        if (totalVideos === 0) {
+          console.error(`❌ ERROR CRÍTICO: No se encontraron videos para ningún topic.`);
+          console.error(`   Verifica:`);
+          console.error(`   1. Que los topics tengan keywords válidas`);
+          console.error(`   2. Que YOUTUBE_API_KEY esté configurada: ${!!process.env.YOUTUBE_API_KEY}`);
+          console.error(`   3. Que la API de YouTube esté funcionando`);
+        }
       } else {
-        console.warn('⚠️ No se encontraron topics con keywords. No se buscarán videos.');
+        console.warn('⚠️ No se encontraron topics. No se buscarán videos.');
       }
 
       // Obtener enlaces web validados desde Firestore (caché) o buscar nuevos si es necesario
@@ -1219,19 +1256,57 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       console.log(`      - Enlaces: ${parsed.study_links?.length || 0}`);
       console.log(`      - Ejercicios de práctica: ${parsed.practice_exercises?.length || 0}`);
       
-      if (!parsed.practice_exercises || parsed.practice_exercises.length === 0) {
-        console.error(`   ❌ ADVERTENCIA: Se está intentando guardar un plan sin ejercicios de práctica`);
-        console.error(`   El plan se guardará, pero los estudiantes no podrán realizar ejercicios de práctica`);
+      // Validación: el plan debe estar completo antes de guardar y retornar
+      if (!parsed.topics || !Array.isArray(parsed.topics) || parsed.topics.length === 0) {
+        throw new Error('El plan debe tener al menos un topic');
+      }
+
+      // Verificar que el plan tenga todos los recursos necesarios
+      const hasExercises = parsed.practice_exercises && Array.isArray(parsed.practice_exercises) && parsed.practice_exercises.length > 0;
+      const hasVideos = parsed.video_resources && Array.isArray(parsed.video_resources) && parsed.video_resources.length > 0;
+      const hasLinks = parsed.study_links && Array.isArray(parsed.study_links) && parsed.study_links.length > 0;
+
+      if (!hasExercises) {
+        throw new Error('El plan debe tener al menos un ejercicio de práctica');
+      }
+
+      if (!hasVideos) {
+        throw new Error('El plan debe tener al menos un video educativo');
+      }
+
+      if (!hasLinks) {
+        throw new Error('El plan debe tener al menos un enlace web educativo');
+      }
+
+      // Verificar que los videos tengan campos válidos
+      const invalidVideos = parsed.video_resources.filter(v => !v.title || !v.url);
+      if (invalidVideos.length > 0) {
+        throw new Error(`${invalidVideos.length} video(s) sin título o URL válida`);
+      }
+
+      // Verificar que los enlaces tengan campos válidos
+      const invalidLinks = parsed.study_links.filter(l => !l.title || !l.url);
+      if (invalidLinks.length > 0) {
+        throw new Error(`${invalidLinks.length} enlace(s) sin título o URL válida`);
+      }
+
+      // Verificar que los ejercicios tengan campos válidos
+      const incompleteExercises = parsed.practice_exercises.filter(e => !e.question || !e.options || !e.correctAnswer);
+      if (incompleteExercises.length > 0) {
+        throw new Error(`${incompleteExercises.length} ejercicio(s) incompleto(s)`);
       }
       
       await this.saveStudyPlan(input, parsed);
 
       const processingTime = Date.now() - startTime;
-      console.log(`\n✅ Plan de estudio generado exitosamente en ${(processingTime / 1000).toFixed(1)}s`);
+      console.log(`\n✅ Plan de estudio generado y guardado exitosamente en ${(processingTime / 1000).toFixed(1)}s`);
+      console.log(`   ✅ Videos: ${parsed.video_resources.length}`);
+      console.log(`   ✅ Enlaces: ${parsed.study_links.length}`);
+      console.log(`   ✅ Ejercicios: ${parsed.practice_exercises.length}`);
 
       return {
         success: true,
-        studyPlan: parsed,
+        studyPlan: parsed, // Retornar el plan generado directamente
         processingTimeMs: processingTime,
       };
     } catch (error: any) {
@@ -1376,166 +1451,106 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
     }
   }
 
+
   /**
-   * Migra videos de la estructura antigua (por estudiante) a la nueva (por tema)
-   * Estructura antigua: YoutubeLinks/{studentId}/{phase}/{subject}/{topic}
-   * Estructura nueva: YoutubeLinks/{phase}/{subject}/{topic}/videos
+   * Obtiene información semántica de Gemini para buscar videos en YouTube
+   * Este método se llama SOLO cuando no hay suficientes videos en Firestore
+   * @param topic - Nombre del tema
+   * @param subject - Materia
+   * @param phase - Fase del estudiante
+   * @param keywords - Keywords básicas del tema
+   * @returns Información semántica para optimizar la búsqueda en YouTube
    */
-  async migrateVideosToNewStructure(): Promise<{ migrated: number; errors: number }> {
-    let migrated = 0;
-    let errors = 0;
-    
+  private async getYouTubeSearchSemanticInfo(
+    topic: string,
+    subject: string,
+    phase: 'first' | 'second' | 'third',
+    keywords: string[]
+  ): Promise<YouTubeSearchSemanticInfo | null> {
     try {
-      const studentDb = this.getStudentDatabase();
-      const oldStructureRef = studentDb.collection('YoutubeLinks');
-      
-      // Obtener todos los estudiantes en la estructura antigua
-      const studentsSnapshot = await oldStructureRef.get();
-      
-      if (studentsSnapshot.empty) {
-        console.log('ℹ️ No se encontraron documentos en YoutubeLinks (estructura antigua)');
-        console.log('   Esto puede significar:');
-        console.log('   1. No hay videos en la estructura antigua (nunca se generaron)');
-        console.log('   2. Los videos ya fueron migrados');
-        console.log('   3. Los videos están en una estructura diferente');
-        
-        // Verificar si hay videos en la nueva estructura
-        const newStructureRef = studentDb.collection('YoutubeLinks');
-        const newStructureSnapshot = await newStructureRef.get();
-        
-        if (!newStructureSnapshot.empty) {
-          console.log(`   ✅ Se encontraron documentos en la nueva estructura (${newStructureSnapshot.docs.length} fases)`);
-        }
-        
-        return { migrated: 0, errors: 0 };
+      if (!(await geminiClient.isAvailable())) {
+        console.warn('⚠️ Gemini no está disponible, usando keywords básicas');
+        return null;
       }
+
+      const phaseMap: Record<string, string> = {
+        first: 'Fase I',
+        second: 'Fase II',
+        third: 'Fase III',
+      };
+
+      const prompt = `Actúas como un experto en educación secundaria y docencia en ${subject},
+especializado en la Prueba Saber 11 (ICFES) y en el diseño de recursos educativos audiovisuales.
+
+Tu tarea NO es generar enlaces ni recomendar videos específicos.
+Tu función es definir criterios pedagógicos de búsqueda para encontrar
+videos educativos adecuados para reforzar una debilidad académica.
+
+REGLAS ESTRICTAS:
+- NO generes enlaces.
+- NO inventes URLs ni IDs de YouTube.
+- NO menciones videos, canales o plataformas específicas.
+- Limítate exclusivamente a análisis pedagógico y semántico.
+
+Para el siguiente tema con debilidad identificada, devuelve:
+1. Intención pedagógica del video (qué debe aprender el estudiante).
+2. Nivel académico objetivo (básico, medio, avanzado).
+3. Tipo de explicación esperada (conceptual, paso a paso, con ejemplos, ejercicios resueltos).
+4. Lista de 5 a 8 palabras clave optimizadas para buscar videos educativos en YouTube.
+5. Competencia a fortalecer (interpretación, formulación, argumentación).
+
+**Tema con debilidad:** ${topic}
+**Materia:** ${subject}
+**Fase:** ${phaseMap[phase]}
+**Keywords básicas del tema:** ${keywords.join(', ')}
+
+Devuelve exclusivamente un objeto JSON válido con esta estructura:
+{
+  "searchIntent": "Intención pedagógica clara de qué debe aprender el estudiante",
+  "searchKeywords": ["palabra1", "palabra2", "palabra3", "palabra4", "palabra5", "palabra6", "palabra7", "palabra8"],
+  "academicLevel": "básico|medio|avanzado",
+  "expectedContentType": "conceptual|paso a paso|con ejemplos|ejercicios resueltos",
+  "competenceToStrengthen": "interpretación|formulación|argumentación"
+}
+
+Responde SOLO con JSON válido, sin texto adicional.`;
+
+      console.log(`   🤖 Consultando Gemini para información semántica de búsqueda...`);
+      const result = await geminiClient.generateContent(prompt, [], {
+        retries: 2,
+        timeout: 30000, // 30 segundos
+      });
+
+      // Parsear respuesta JSON
+      let cleanedText = result.text.replace(/```json\n?([\s\S]*?)\n?```/g, '$1');
+      cleanedText = cleanedText.replace(/```\n?([\s\S]*?)\n?```/g, '$1');
       
-      console.log(`📦 Encontrados ${studentsSnapshot.docs.length} estudiante(s) en YoutubeLinks`);
+      const firstBrace = cleanedText.indexOf('{');
+      const lastBrace = cleanedText.lastIndexOf('}');
       
-      const phaseNames = ['Fase I', 'Fase II', 'Fase III'];
-      
-      for (const studentDoc of studentsSnapshot.docs) {
-        const studentId = studentDoc.id;
-        
-        for (const phaseName of phaseNames) {
-          try {
-            const phaseRef = studentDoc.ref.collection(phaseName);
-            const subjectsSnapshot = await phaseRef.get();
-            
-            if (subjectsSnapshot.empty) {
-              continue; // No hay materias en esta fase para este estudiante
-            }
-            
-            for (const subjectDoc of subjectsSnapshot.docs) {
-              const subject = subjectDoc.id;
-              
-              // Obtener todos los topics (subcolecciones) de esta materia
-              // Estructura antigua: YoutubeLinks/{studentId}/{phase}/{subject}/{topic}/videos/{videoId}
-              // Necesitamos listar las subcolecciones, pero Firestore no tiene API directa para esto
-              // Usaremos collectionGroup desde la raíz de la base de datos
-              const topicsMap = new Map<string, any[]>();
-              
-              // Obtener todos los videos usando collectionGroup desde la raíz
-              // Estructura antigua: YoutubeLinks/{studentId}/{phase}/{subject}/{topic}/videos/{videoId}
-              console.log(`   🔍 Buscando videos para estudiante "${studentId}", fase "${phaseName}", materia "${subject}"...`);
-              
-              const allVideosSnapshot = await studentDb.collectionGroup('videos').get();
-              console.log(`   📊 Total de videos encontrados en collectionGroup: ${allVideosSnapshot.docs.length}`);
-              
-              for (const videoDoc of allVideosSnapshot.docs) {
-                // Extraer información del path: YoutubeLinks/{studentId}/{phase}/{subject}/{topic}/videos/{videoId}
-                const pathParts = videoDoc.ref.path.split('/');
-                
-                // Verificar que este video pertenece a este estudiante, fase y materia
-                const studentIndex = pathParts.indexOf('YoutubeLinks');
-                if (studentIndex === -1 || pathParts[studentIndex + 1] !== studentId) continue;
-                
-                const phaseIndex = pathParts.indexOf(phaseName);
-                if (phaseIndex === -1) continue;
-                
-                const subjectIndex = pathParts.indexOf(subject);
-                if (subjectIndex === -1) continue;
-                
-                // El topic está después de la materia
-                if (subjectIndex + 1 >= pathParts.length) continue;
-                const topic = pathParts[subjectIndex + 1];
-                
-                // Verificar que el siguiente elemento es 'videos'
-                if (subjectIndex + 2 >= pathParts.length || pathParts[subjectIndex + 2] !== 'videos') continue;
-                
-                if (!topicsMap.has(topic)) {
-                  topicsMap.set(topic, []);
-                }
-                
-                topicsMap.get(topic)!.push({
-                  id: videoDoc.id,
-                  data: videoDoc.data(),
-                });
-              }
-              
-              // Migrar cada topic
-              for (const [topic, videos] of topicsMap.entries()) {
-                try {
-                  // Verificar si ya existe en la nueva estructura
-                  const newTopicRef = studentDb
-                    .collection('YoutubeLinks')
-                    .doc(phaseName)
-                    .collection(subject)
-                    .doc(topic)
-                    .collection('videos');
-                  
-                  const existingSnapshot = await newTopicRef.get();
-                  
-                  if (!existingSnapshot.empty) {
-                    console.log(`   ⏭️  Topic "${topic}" ya existe en nueva estructura, omitiendo`);
-                    continue;
-                  }
-                  
-                  // Migrar videos
-                  const batch = studentDb.batch();
-                  videos.forEach((video, index) => {
-                    const order = video.data.order || (index + 1);
-                    const videoId = `video${String(order).padStart(2, '0')}`;
-                    const newVideoRef = newTopicRef.doc(videoId);
-                    
-                    batch.set(newVideoRef, {
-                      title: video.data.title || '',
-                      url: video.data.url || '',
-                      description: video.data.description || '',
-                      channelTitle: video.data.channelTitle || '',
-                      order: order,
-                      savedAt: video.data.savedAt || new Date(),
-                      migratedFrom: `YoutubeLinks/${studentId}/${phaseName}/${subject}/${topic}`,
-                      migratedAt: new Date(),
-                    }, { merge: true });
-                  });
-                  
-                  await batch.commit();
-                  migrated += videos.length;
-                  console.log(`   ✅ Migrados ${videos.length} video(s) de "${topic}" (${phaseName}/${subject})`);
-                } catch (error: any) {
-                  console.error(`   ❌ Error migrando topic "${topic}":`, error.message);
-                  errors++;
-                }
-              }
-            }
-          } catch (error: any) {
-            console.error(`   ❌ Error procesando fase "${phaseName}" del estudiante "${studentId}":`, error.message);
-            errors++;
-          }
-        }
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        console.warn('⚠️ No se pudo parsear respuesta de Gemini, usando keywords básicas');
+        return null;
       }
-      
-      console.log(`\n✅ Migración completada: ${migrated} videos migrados, ${errors} errores`);
-      return { migrated, errors };
+
+      const jsonString = cleanedText.substring(firstBrace, lastBrace + 1);
+      const semanticInfo = JSON.parse(jsonString) as YouTubeSearchSemanticInfo;
+
+      console.log(`   ✅ Información semántica obtenida de Gemini`);
+      console.log(`      Intención: ${semanticInfo.searchIntent}`);
+      console.log(`      Keywords: ${semanticInfo.searchKeywords.join(', ')}`);
+
+      return semanticInfo;
     } catch (error: any) {
-      console.error('❌ Error en migración:', error);
-      return { migrated, errors: errors + 1 };
+      console.warn(`⚠️ Error obteniendo información semántica de Gemini:`, error.message);
+      console.warn(`   Se usarán keywords básicas para la búsqueda`);
+      return null;
     }
   }
 
   /**
    * Obtiene videos para un topic específico desde Firestore (caché) o busca en YouTube si es necesario
+   * FLUJO CORRECTO: Firestore primero, Gemini+YouTube solo si faltan videos
    * @param studentId - ID del estudiante (ya no se usa en la ruta, pero se mantiene para compatibilidad)
    * @param phase - Fase del estudiante
    * @param subject - Materia
@@ -1554,59 +1569,170 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
     url: string;
     description: string;
     channelTitle: string;
+    videoId?: string;
+    duration?: string;
+    language?: string;
   }>> {
-    const TARGET_VIDEOS_IN_DB = 20; // Número objetivo de videos almacenados en DB (para tener variedad)
+    const MIN_VIDEOS_IN_DB = 20; // Mínimo de videos almacenados en DB
     const VIDEOS_TO_RETURN = 7; // Número de videos a retornar por topic débil
     
     try {
       console.log(`   📋 Iniciando búsqueda de videos para topic: "${topic}"`);
       console.log(`      Fase: ${phase}, Materia: ${subject}`);
       
-      // 1. Consultar Firestore primero (nueva estructura: por tema, no por estudiante)
+      // ============================================================
+      // PASO 1: Consultar Firestore PRIMERO (fuente primaria de datos)
+      // ============================================================
+      console.log(`\n   🔄 PASO 1: Consultando Firestore PRIMERO...`);
+      console.log(`      Ruta esperada: YoutubeLinks/${phase === 'first' ? 'Fase I' : phase === 'second' ? 'Fase II' : 'Fase III'}/${subject}/${this.normalizeTopicId(topic)}/videos/video01...video20`);
       const cachedVideos = await this.getCachedVideos(phase, subject, topic);
       
-      console.log(`   📦 Videos en caché para "${topic}": ${cachedVideos.length}`);
+      console.log(`   📦 Resultado: ${cachedVideos.length} video(s) encontrado(s) en Firestore`);
       
-      // 2. Si hay ≥20 videos en caché, retornar solo 7 (para tener variedad en la DB)
-      if (cachedVideos.length >= TARGET_VIDEOS_IN_DB) {
-        console.log(`   ✅ Usando ${VIDEOS_TO_RETURN} videos desde caché (hay ${cachedVideos.length} disponibles, no se consulta YouTube)`);
-        // Retornar 7 videos aleatorios o los primeros 7 ordenados
-        return cachedVideos.slice(0, VIDEOS_TO_RETURN);
+      // ============================================================
+      // PASO 2: Si hay ≥20 videos en Firestore, REUTILIZAR exclusivamente
+      // ============================================================
+      if (cachedVideos.length >= MIN_VIDEOS_IN_DB) {
+        console.log(`\n   ✅ PASO 2: Hay ${cachedVideos.length} videos (≥${MIN_VIDEOS_IN_DB} requeridos)`);
+        console.log(`      ❌ NO se llama a Gemini`);
+        console.log(`      ❌ NO se llama a YouTube API`);
+        console.log(`      ✅ Reutilizando ${VIDEOS_TO_RETURN} videos desde Firestore`);
+        // Retornar los primeros 7 videos
+        return cachedVideos.slice(0, VIDEOS_TO_RETURN).map(v => ({
+          title: v.title,
+          url: v.url,
+          description: v.description,
+          channelTitle: v.channelTitle,
+          videoId: v.videoId,
+          duration: v.duration,
+          language: v.language,
+        }));
       }
       
-      // 3. Si hay <20 videos, calcular cuántos faltan y buscar en YouTube
-      const videosNeeded = TARGET_VIDEOS_IN_DB - cachedVideos.length;
-      console.log(`   🔍 Faltan ${videosNeeded} video(s) para completar ${TARGET_VIDEOS_IN_DB} en DB, buscando en YouTube...`);
+      console.log(`\n   ⚠️ PASO 2: Solo hay ${cachedVideos.length} videos (<${MIN_VIDEOS_IN_DB} requeridos)`);
+      console.log(`      ✅ Se habilita el flujo de generación`);
       
-      // 4. Buscar videos nuevos en YouTube (más de los necesarios para filtrar duplicados)
-      const newVideos = await this.searchYouTubeVideos(keywords, videosNeeded + 5);
+      // ============================================================
+      // PASO 3: Calcular cuántos videos faltan
+      // ============================================================
+      const videosNeeded = MIN_VIDEOS_IN_DB - cachedVideos.length;
+      console.log(`\n   🔍 PASO 3: Faltan ${videosNeeded} video(s) para completar ${MIN_VIDEOS_IN_DB} en Firestore`);
+      
+      // ============================================================
+      // PASO 4: Obtener información semántica de Gemini (SOLO si faltan videos)
+      // ============================================================
+      console.log(`\n   🤖 PASO 4: Consultando Gemini para información semántica...`);
+      console.log(`      Gemini NO genera enlaces ni IDs de video`);
+      console.log(`      Gemini solo define criterios pedagógicos de búsqueda`);
+      const semanticInfo = await this.getYouTubeSearchSemanticInfo(topic, subject, phase, keywords);
+      
+      // ============================================================
+      // PASO 5: Usar keywords optimizadas de Gemini o keywords básicas
+      // ============================================================
+      const searchKeywords = semanticInfo?.searchKeywords || keywords;
+      console.log(`\n   🔍 PASO 5: Keywords para búsqueda: ${searchKeywords.join(', ')}`);
+      
+      // ============================================================
+      // PASO 6: Buscar videos nuevos en YouTube (más de los necesarios para filtrar duplicados)
+      // ============================================================
+      // Si no hay videos en caché, intentar buscar al menos 7 videos directamente
+      const videosToSearch = cachedVideos.length === 0 ? Math.max(7, videosNeeded + 5) : videosNeeded + 5;
+      console.log(`\n   📹 PASO 6: Buscando ${videosToSearch} video(s) en YouTube Data API v3...`);
+      console.log(`      Usando YOUTUBE_API_KEY: ${process.env.YOUTUBE_API_KEY ? '✅ Configurada' : '❌ NO CONFIGURADA'}`);
+      
+      const newVideos = await this.searchYouTubeVideos(searchKeywords, videosToSearch);
       
       if (newVideos.length === 0) {
         console.warn(`   ⚠️ No se encontraron videos nuevos en YouTube para "${topic}"`);
+        console.warn(`      Keywords usadas: ${searchKeywords.join(', ')}`);
+        console.warn(`      YOUTUBE_API_KEY configurada: ${!!process.env.YOUTUBE_API_KEY}`);
+        
+        // Si no hay videos en caché Y no se encontraron nuevos, intentar con keywords originales
+        if (cachedVideos.length === 0 && searchKeywords !== keywords) {
+          console.warn(`   🔄 Intentando búsqueda con keywords originales (sin optimización de Gemini)...`);
+          const fallbackVideos = await this.searchYouTubeVideos(keywords, 10);
+          if (fallbackVideos.length > 0) {
+            console.log(`   ✅ Encontrados ${fallbackVideos.length} video(s) con keywords originales`);
+            // Guardar estos videos y retornarlos
+            await this.saveVideosToCache(phase, subject, topic, fallbackVideos, 0);
+            const allVideosAfterFallback = await this.getCachedVideos(phase, subject, topic);
+            return allVideosAfterFallback.slice(0, VIDEOS_TO_RETURN).map(v => ({
+              title: v.title,
+              url: v.url,
+              description: v.description,
+              channelTitle: v.channelTitle,
+              videoId: v.videoId,
+              duration: v.duration,
+              language: v.language,
+            }));
+          }
+        }
+        
+        // Si no hay videos en caché Y no se encontraron nuevos, esto es un problema crítico
+        if (cachedVideos.length === 0) {
+          console.error(`   ❌ ERROR CRÍTICO: No hay videos en caché ni se encontraron nuevos videos para "${topic}"`);
+          console.error(`      Keywords intentadas: ${searchKeywords.join(', ')}`);
+          console.error(`      Keywords originales: ${keywords.join(', ')}`);
+          console.error(`      YOUTUBE_API_KEY: ${process.env.YOUTUBE_API_KEY ? 'Configurada' : 'NO CONFIGURADA'}`);
+          console.error(`      Esto significa que el plan no tendrá videos para este topic.`);
+        }
+        
         // Retornar los que hay en caché (hasta 7)
-        return cachedVideos.slice(0, VIDEOS_TO_RETURN);
+        return cachedVideos.slice(0, VIDEOS_TO_RETURN).map(v => ({
+          title: v.title,
+          url: v.url,
+          description: v.description,
+          channelTitle: v.channelTitle,
+          videoId: v.videoId,
+          duration: v.duration,
+          language: v.language,
+        }));
       }
       
-      // 5. Filtrar videos duplicados (comparar URLs)
-      const existingUrls = new Set(cachedVideos.map(v => v.url));
-      const uniqueNewVideos = newVideos.filter(v => !existingUrls.has(v.url));
+      // PASO 7: Filtrar videos duplicados (comparar por videoId o URL)
+      const existingVideoIds = new Set(cachedVideos.map(v => v.videoId || v.url));
+      const uniqueNewVideos = newVideos.filter(v => {
+        const videoId = v.videoId || v.url;
+        return !existingVideoIds.has(videoId);
+      });
       
       console.log(`   ✅ Encontrados ${uniqueNewVideos.length} video(s) nuevo(s) (${newVideos.length - uniqueNewVideos.length} duplicado(s) filtrado(s))`);
       
-      // 6. Guardar videos nuevos en Firestore (nueva estructura: por tema, no por estudiante)
+      // ============================================================
+      // PASO 8: Guardar videos nuevos en Firestore inmediatamente
+      // ============================================================
       if (uniqueNewVideos.length > 0) {
-        console.log(`   💾 Guardando ${uniqueNewVideos.length} video(s) en Firestore...`);
+        console.log(`\n   💾 PASO 8: Guardando ${uniqueNewVideos.length} video(s) en Firestore...`);
+        const savePath = `YoutubeLinks/${phase === 'first' ? 'Fase I' : phase === 'second' ? 'Fase II' : 'Fase III'}/${subject}/${this.normalizeTopicId(topic)}/videos/video${String(cachedVideos.length + 1).padStart(2, '0')}...video${String(cachedVideos.length + uniqueNewVideos.length).padStart(2, '0')}`;
+        console.log(`      Ruta de guardado: ${savePath}`);
         await this.saveVideosToCache(phase, subject, topic, uniqueNewVideos, cachedVideos.length);
-        console.log(`   ✅ Videos guardados exitosamente`);
+        console.log(`   ✅ Videos guardados exitosamente en Firestore`);
+        console.log(`      A partir de ahora, este tema queda cacheado`);
+        console.log(`      Futuras solicitudes NO volverán a usar Gemini ni YouTube para este tema`);
       }
       
-      // 7. Obtener todos los videos desde Firestore (incluyendo los nuevos)
+      // ============================================================
+      // PASO 9: Obtener todos los videos desde Firestore (incluyendo los nuevos)
+      // ============================================================
+      console.log(`\n   🔄 PASO 9: Obteniendo todos los videos desde Firestore (incluyendo los nuevos)...`);
       const allVideos = await this.getCachedVideos(phase, subject, topic);
+      console.log(`      Total de videos ahora en Firestore: ${allVideos.length}`);
       
-      // 8. Retornar exactamente 7 videos (o menos si no hay suficientes)
+      // ============================================================
+      // PASO 10: Retornar exactamente 7 videos (o menos si no hay suficientes)
+      // ============================================================
       const videosToReturn = allVideos.slice(0, VIDEOS_TO_RETURN);
-      console.log(`   📤 Retornando ${videosToReturn.length} video(s) para el estudiante (de ${allVideos.length} disponibles en DB)`);
-      return videosToReturn;
+      console.log(`\n   📤 PASO 10: Retornando ${videosToReturn.length} video(s) para el estudiante (de ${allVideos.length} disponibles en Firestore)`);
+      
+      return videosToReturn.map(v => ({
+        title: v.title,
+        url: v.url,
+        description: v.description,
+        channelTitle: v.channelTitle,
+        videoId: v.videoId,
+        duration: v.duration,
+        language: v.language,
+      }));
     } catch (error: any) {
       console.error(`❌ Error obteniendo videos para topic "${topic}":`, error.message);
       console.error(`   Stack:`, error.stack);
@@ -1616,11 +1742,11 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
 
   /**
    * Obtiene videos desde Firestore (caché)
-   * Nueva estructura: YoutubeLinks/{phase}/{subject}/{topic}
+   * Estructura: YoutubeLinks/{phase}/{subject}/{topic}/ con documentos video1...video20
    * @param phase - Fase del estudiante
    * @param subject - Materia
    * @param topic - Nombre del topic
-   * @returns Array de videos ordenados por campo 'order'
+   * @returns Array de videos ordenados (video1, video2, ..., video20)
    */
   private async getCachedVideos(
     phase: 'first' | 'second' | 'third',
@@ -1631,6 +1757,9 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
     url: string;
     description: string;
     channelTitle: string;
+    videoId?: string;
+    duration?: string;
+    language?: string;
   }>> {
     try {
       // Mapear fase a nombre de subcolección
@@ -1645,33 +1774,58 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       // Obtener la base de datos correcta (superate-6c730)
       const studentDb = this.getStudentDatabase();
       
-      // Nueva estructura: YoutubeLinks/{phaseName}/{subject}/{topicId}/videos
+      // Estructura NUEVA: YoutubeLinks/{phaseName}/{subject}/{topicId}/videos/video01...video20
       // Normalizar nombre del tema para usar como ID del documento
       const topicId = this.normalizeTopicId(topic);
+      
+      // Construir ruta completa para logging
+      const firestorePath = `YoutubeLinks/${phaseName}/${subject}/${topicId}/videos/video01...video20`;
+      console.log(`   🔍 Consultando Firestore en ruta: ${firestorePath}`);
       
       const topicRef = studentDb
         .collection('YoutubeLinks')
         .doc(phaseName)
         .collection(subject)
-        .doc(topicId)
-        .collection('videos');
+        .doc(topicId);
       
-      // Obtener todos los videos ordenados por 'order'
-      const snapshot = await topicRef.orderBy('order', 'asc').get();
+      // Obtener todos los documentos video01...video20 desde la subcolección videos
+      console.log(`   📋 Buscando documentos video01...video20 en subcolección 'videos'...`);
+      const videoPromises: Promise<admin.firestore.DocumentSnapshot | null>[] = [];
       
-      if (snapshot.empty) {
-        return [];
+      for (let i = 1; i <= 20; i++) {
+        const videoId = `video${String(i).padStart(2, '0')}`; // video01, video02, ..., video20
+        videoPromises.push(topicRef.collection('videos').doc(videoId).get().then(doc => doc.exists ? doc : null));
       }
       
-      const videos = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          title: data.title || '',
-          url: data.url || '',
-          description: data.description || '',
-          channelTitle: data.channelTitle || '',
-        };
-      });
+      const videoDocs = await Promise.all(videoPromises);
+      
+      // Filtrar documentos nulos y mapear a formato esperado
+      const videos = videoDocs
+        .filter((doc): doc is admin.firestore.DocumentSnapshot => doc !== null)
+        .map(doc => {
+          const data = doc.data();
+          if (!data) return null;
+          
+          // Soporte para campos en español e inglés
+          return {
+            title: data.título || data.title || '',
+            url: data.url || `https://www.youtube.com/watch?v=${data.videoId || ''}`,
+            description: data.description || '',
+            channelTitle: data.canal || data.channelTitle || '',
+            videoId: data.videoId || '',
+            duration: data.duración || data.duration || '',
+            language: data.idioma || data.language || 'es',
+          };
+        })
+        .filter((video): video is NonNullable<typeof video> => video !== null);
+      
+      console.log(`   📦 Videos encontrados en Firestore para "${topic}": ${videos.length} de 20 posibles`);
+      if (videos.length > 0) {
+        console.log(`      ✅ Ruta verificada correctamente: ${firestorePath}`);
+        console.log(`      📹 Primer video: ${videos[0].title.substring(0, 50)}...`);
+      } else {
+        console.log(`      ⚠️ No hay videos en esta ruta aún (primera vez para este tema)`);
+      }
       
       return videos;
     } catch (error: any) {
@@ -1682,11 +1836,11 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
 
   /**
    * Guarda videos en Firestore (caché)
-   * Nueva estructura: YoutubeLinks/{phase}/{subject}/{topic}/videos
+   * Estructura: YoutubeLinks/{phase}/{subject}/{topic}/videos/video1...video20
    * @param phase - Fase del estudiante
    * @param subject - Materia
    * @param topic - Nombre del topic
-   * @param videos - Array de videos a guardar
+   * @param videos - Array de videos a guardar con metadata completa
    * @param startOrder - Número de orden inicial (para continuar la secuencia)
    */
   private async saveVideosToCache(
@@ -1698,6 +1852,9 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       url: string;
       description: string;
       channelTitle: string;
+      videoId?: string;
+      duration?: string;
+      language?: string;
     }>,
     startOrder: number = 0
   ): Promise<void> {
@@ -1714,31 +1871,65 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       // Obtener la base de datos correcta (superate-6c730)
       const studentDb = this.getStudentDatabase();
       
-      // Nueva estructura: YoutubeLinks/{phaseName}/{subject}/{topicId}/videos
+      // Estructura: YoutubeLinks/{phaseName}/{subject}/{topicId}/videos/video1...video20
       // Normalizar nombre del tema para usar como ID del documento
       const topicId = this.normalizeTopicId(topic);
       
-      const topicRef = studentDb
+      // topicDocRef es un DocumentReference del tema
+      const topicDocRef = studentDb
         .collection('YoutubeLinks')
         .doc(phaseName)
         .collection(subject)
-        .doc(topicId)
-        .collection('videos');
+        .doc(topicId);
       
-      // Guardar cada video con formato video01, video02, etc. y campo order
+      // Construir ruta completa para logging
+      const savePath = `YoutubeLinks/${phaseName}/${subject}/${topicId}/videos/video${String(startOrder + 1).padStart(2, '0')}...video${String(startOrder + videos.length).padStart(2, '0')}`;
+      console.log(`      💾 Guardando en ruta: ${savePath}`);
+      
+      // Guardar cada video con formato video01, video02, ..., video20 (con padding)
       const batch = studentDb.batch();
       
       videos.forEach((video, index) => {
         const order = startOrder + index + 1;
-        const videoId = `video${String(order).padStart(2, '0')}`;
         
-        const videoRef = topicRef.doc(videoId);
+        // Limitar a 20 videos máximo
+        if (order > 20) {
+          console.warn(`   ⚠️ Se alcanzó el límite de 20 videos para tema "${topic}", omitiendo video adicional`);
+          return;
+        }
         
+        const videoId = `video${String(order).padStart(2, '0')}`; // video01, video02, ..., video20
+        
+        // Extraer videoId de la URL si no está presente
+        let extractedVideoId = video.videoId || '';
+        if (!extractedVideoId && video.url) {
+          const match = video.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+          if (match) {
+            extractedVideoId = match[1];
+          }
+        }
+        
+        // Acceder a la subcolección 'videos' desde el DocumentReference del tema
+        const videoRef = topicDocRef.collection('videos').doc(videoId);
+        
+        // Guardar con metadata completa (en español e inglés para compatibilidad)
         batch.set(videoRef, {
+          // Campos en español (preferidos según especificación)
+          videoId: extractedVideoId,
+          título: video.title,
+          canal: video.channelTitle,
+          duración: video.duration || '',
+          idioma: video.language || 'es',
+          fechaVerificación: new Date(),
+          // Campos en inglés (para compatibilidad)
           title: video.title,
-          url: video.url,
-          description: video.description,
           channelTitle: video.channelTitle,
+          duration: video.duration || '',
+          language: video.language || 'es',
+          verificationDate: new Date(),
+          // Campos comunes
+          url: video.url,
+          description: video.description || '',
           order: order,
           savedAt: new Date(),
           topic: topic, // Guardar el nombre original del tema para referencia
@@ -1747,18 +1938,107 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       
       await batch.commit();
       
-      console.log(`   💾 Guardados ${videos.length} video(s) en caché para topic "${topic}" (${phaseName}/${subject})`);
+      console.log(`   💾 Guardados ${videos.length} video(s) en Firestore para topic "${topic}" (${phaseName}/${subject})`);
     } catch (error: any) {
-      console.error(`❌ Error guardando videos en caché:`, error.message);
+      console.error(`❌ Error guardando videos en Firestore:`, error.message);
       throw error;
     }
+  }
+
+  /**
+   * Convierte duración ISO 8601 (PT4M13S) a formato legible (4:13)
+   * @param duration - Duración en formato ISO 8601
+   * @returns Duración en formato legible
+   */
+  private parseDuration(duration: string): string {
+    if (!duration || !duration.startsWith('PT')) {
+      return '';
+    }
+
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) {
+      return '';
+    }
+
+    const hours = parseInt(match[1] || '0', 10);
+    const minutes = parseInt(match[2] || '0', 10);
+    const seconds = parseInt(match[3] || '0', 10);
+
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  /**
+   * Obtiene detalles de videos (duración, idioma) desde YouTube API
+   * @param videoIds - Array de IDs de videos
+   * @returns Map con videoId -> { duration, language }
+   */
+  private async getVideoDetails(videoIds: string[]): Promise<Map<string, { duration: string; language: string }>> {
+    const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+    const detailsMap = new Map<string, { duration: string; language: string }>();
+
+    if (!YOUTUBE_API_KEY || videoIds.length === 0) {
+      return detailsMap;
+    }
+
+    try {
+      // YouTube API permite hasta 50 videos por request
+      const chunks = [];
+      for (let i = 0; i < videoIds.length; i += 50) {
+        chunks.push(videoIds.slice(i, i + 50));
+      }
+
+      for (const chunk of chunks) {
+        const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?` +
+          `part=contentDetails,snippet` +
+          `&id=${chunk.join(',')}` +
+          `&key=${YOUTUBE_API_KEY}`;
+
+        const response = await fetch(detailsUrl);
+
+        if (!response.ok) {
+          console.warn(`⚠️ Error obteniendo detalles de videos (${response.status}): ${response.statusText}`);
+          continue;
+        }
+
+        const data = await response.json() as {
+          items?: Array<{
+            id: string;
+            contentDetails: {
+              duration: string;
+            };
+            snippet: {
+              defaultAudioLanguage?: string;
+              defaultLanguage?: string;
+            };
+          }>;
+        };
+
+        if (data.items) {
+          data.items.forEach(item => {
+            const duration = this.parseDuration(item.contentDetails.duration);
+            const language = item.snippet.defaultAudioLanguage || 
+                           item.snippet.defaultLanguage || 
+                           'es'; // Default a español si no se especifica
+
+            detailsMap.set(item.id, { duration, language });
+          });
+        }
+      }
+    } catch (error: any) {
+      console.warn(`⚠️ Error obteniendo detalles de videos:`, error.message);
+    }
+
+    return detailsMap;
   }
 
   /**
    * Busca videos educativos en YouTube usando keywords
    * @param keywords - Array de keywords para buscar
    * @param maxResults - Número máximo de videos a retornar (default: 3)
-   * @returns Array de videos encontrados con título, URL, descripción y canal
+   * @returns Array de videos encontrados con título, URL, descripción, canal, duración e idioma
    */
   private async searchYouTubeVideos(
     keywords: string[],
@@ -1768,13 +2048,19 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
     url: string;
     description: string;
     channelTitle: string;
+    videoId?: string;
+    duration?: string;
+    language?: string;
   }>> {
     const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
     
     if (!YOUTUBE_API_KEY) {
-      console.warn('⚠️ YOUTUBE_API_KEY no está configurada. No se pueden buscar videos.');
+      console.error('❌ YOUTUBE_API_KEY no está configurada. No se pueden buscar videos.');
+      console.error('   Verifica que el secret esté configurado en Firebase Functions.');
       return [];
     }
+    
+    console.log(`   ✅ YOUTUBE_API_KEY encontrada (longitud: ${YOUTUBE_API_KEY.length} caracteres)`);
 
     try {
       // Construir query de búsqueda combinando keywords
@@ -1797,7 +2083,29 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       const response = await fetch(searchUrl);
       
       if (!response.ok) {
-        console.warn(`⚠️ Error en API de YouTube (${response.status}): ${response.statusText}`);
+        const errorText = await response.text().catch(() => 'No se pudo leer el error');
+        let errorData: any = {};
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          // Si no se puede parsear, usar el texto directamente
+        }
+        
+        console.error(`❌ Error en API de YouTube (${response.status}): ${response.statusText}`);
+        console.error(`   Detalles del error: ${errorText.substring(0, 500)}`);
+        
+        // Si es un error de autenticación, es crítico
+        if (response.status === 403 || response.status === 401) {
+          console.error(`   ❌ ERROR CRÍTICO: Problema de autenticación con YouTube API`);
+          console.error(`   Razón: ${errorData.error?.message || 'Desconocida'}`);
+          console.error(`   Soluciones:`);
+          console.error(`   1. Verifica que YOUTUBE_API_KEY sea válida`);
+          console.error(`   2. Verifica que YouTube Data API v3 esté habilitada en Google Cloud Console`);
+          console.error(`   3. Verifica que la API key tenga permisos para YouTube Data API v3`);
+          console.error(`   4. Verifica que la cuota de la API no se haya agotado`);
+          console.error(`   5. Si la API key tiene restricciones, verifica que permita acceso desde Cloud Functions`);
+        }
+        
         return [];
       }
 
@@ -1819,16 +2127,34 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
 
       if (!data.items || data.items.length === 0) {
         console.warn(`⚠️ No se encontraron videos para keywords: ${keywords.join(', ')}`);
+        console.warn(`   Query completa: "${query + ' educación ICFES'}"`);
+        console.warn(`   Esto puede deberse a:`);
+        console.warn(`   1. Las keywords son muy específicas o no existen videos con esos términos`);
+        console.warn(`   2. Problemas con la API de YouTube`);
+        console.warn(`   3. Filtros muy restrictivos (videoEmbeddable=true)`);
         return [];
       }
 
-      // Mapear resultados a formato esperado
-      const videos = data.items.map(item => ({
-        title: item.snippet.title,
-        url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-        description: item.snippet.description.substring(0, 200) + (item.snippet.description.length > 200 ? '...' : ''),
-        channelTitle: item.snippet.channelTitle,
-      }));
+      // Extraer IDs de videos para obtener detalles (duración, idioma)
+      const videoIds = data.items.map(item => item.id.videoId);
+      console.log(`   📊 Obteniendo detalles (duración, idioma) para ${videoIds.length} video(s)...`);
+      const videoDetails = await this.getVideoDetails(videoIds);
+
+      // Mapear resultados a formato esperado con metadata completa
+      const videos = data.items.map(item => {
+        const videoId = item.id.videoId;
+        const details = videoDetails.get(videoId);
+
+        return {
+          title: item.snippet.title,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          description: item.snippet.description.substring(0, 200) + (item.snippet.description.length > 200 ? '...' : ''),
+          channelTitle: item.snippet.channelTitle,
+          videoId: videoId,
+          duration: details?.duration || '',
+          language: details?.language || 'es',
+        };
+      });
 
       console.log(`✅ Encontrados ${videos.length} video(s) para keywords: ${keywords.join(', ')}`);
       return videos;
