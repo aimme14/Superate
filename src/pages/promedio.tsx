@@ -13,6 +13,9 @@ import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { useAuthContext } from "@/context/AuthContext"
 import { getUserById } from "@/controllers/user.controller"
+import { dbService } from "@/services/firebase/db.service"
+import { studyPlanAuthorizationService } from "@/services/studyPlan/studyPlanAuthorization.service"
+import { SubjectName, StudyPlanPhase } from "@/interfaces/studyPlan.interface"
 import { cn } from "@/lib/utils"
 import { geminiService } from "@/services/ai/gemini.service"
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers"
@@ -43,7 +46,8 @@ import {
   Apple,
   Shield,
   Link as LinkIcon,
-  Eye
+  Eye,
+  Lock
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -487,6 +491,9 @@ function PersonalizedStudyPlan({
   const [loadingPlans, setLoadingPlans] = useState<boolean>(true);
   // Estado para controlar qué materias están expandidas en el acordeón
   const [expandedSubjects, setExpandedSubjects] = useState<string[]>([]);
+  // Estado para almacenar las autorizaciones de planes de estudio por materia
+  const [subjectAuthorizations, setSubjectAuthorizations] = useState<Record<string, boolean>>({});
+  const [loadingAuthorizations, setLoadingAuthorizations] = useState<boolean>(true);
 
   // URL base de Cloud Functions
   const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
@@ -501,6 +508,82 @@ function PersonalizedStudyPlan({
     
     return hasVideos && hasLinks && hasExercises;
   };
+
+  // Cargar autorizaciones de planes de estudio
+  useEffect(() => {
+    const loadAuthorizations = async () => {
+      setLoadingAuthorizations(true);
+      const authorizations: Record<string, boolean> = {};
+      
+      try {
+        // Obtener información del estudiante para obtener el gradeId
+        const userResult = await dbService.getUserById(studentId);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data;
+          const gradeId = studentData.gradeId || studentData.grade;
+          
+          if (gradeId) {
+            // Solo verificar autorización para Fase I y Fase II
+            // Convertir phase a StudyPlanPhase (solo 'first' o 'second' son válidos)
+            const studyPlanPhase: StudyPlanPhase | null = 
+              phase === 'first' ? 'first' : 
+              phase === 'second' ? 'second' : 
+              null;
+            
+            if (studyPlanPhase) {
+              // Verificar autorización para cada materia en la fase actual
+              for (const subject of subjectsWithTopics) {
+                if (subject.weaknesses.length > 0) {
+                  try {
+                    const authResult = await studyPlanAuthorizationService.isStudyPlanAuthorized(
+                      gradeId,
+                      studyPlanPhase,
+                      subject.name as SubjectName
+                    );
+                    authorizations[subject.name] = authResult.success ? authResult.data : false;
+                  } catch (error) {
+                    console.error(`Error verificando autorización para ${subject.name}:`, error);
+                    authorizations[subject.name] = false;
+                  }
+                }
+              }
+            } else {
+              // Si es Fase III, no hay autorizaciones de planes de estudio
+              console.log('Fase III no requiere autorización de planes de estudio');
+              subjectsWithTopics.forEach(subject => {
+                authorizations[subject.name] = false;
+              });
+            }
+          } else {
+            console.warn('No se encontró gradeId para el estudiante');
+            // Si no hay gradeId, no autorizar ninguna materia
+            subjectsWithTopics.forEach(subject => {
+              authorizations[subject.name] = false;
+            });
+          }
+        } else {
+          console.error('Error obteniendo información del estudiante');
+          subjectsWithTopics.forEach(subject => {
+            authorizations[subject.name] = false;
+          });
+        }
+      } catch (error) {
+        console.error('Error cargando autorizaciones:', error);
+        subjectsWithTopics.forEach(subject => {
+          authorizations[subject.name] = false;
+        });
+      }
+      
+      setSubjectAuthorizations(authorizations);
+      setLoadingAuthorizations(false);
+    };
+
+    if (studentId && subjectsWithTopics.length > 0) {
+      loadAuthorizations();
+    } else {
+      setLoadingAuthorizations(false);
+    }
+  }, [studentId, subjectsWithTopics]);
 
   // Cargar planes existentes al montar (solo planes completos)
   useEffect(() => {
@@ -649,9 +732,14 @@ function PersonalizedStudyPlan({
       {sortedSubjects.map((subject) => {
         const plan = studyPlans[subject.name];
         const isGenerating = generatingFor === subject.name;
-        // Mostrar el botón solo en la primera materia sin plan (en cascada)
-        // IMPORTANTE: Solo mostrar si NO hay plan en la base de datos
-        const shouldShowButton = !plan && !loadingPlans && firstSubjectWithoutPlan?.name === subject.name;
+        const isAuthorized = subjectAuthorizations[subject.name] ?? false;
+        // Mostrar el botón solo si:
+        // 1. NO hay plan en la base de datos
+        // 2. Es la primera materia sin plan (en cascada)
+        // 3. La materia está autorizada para el grado del estudiante
+        // 4. Se han cargado las autorizaciones
+        const shouldShowButton = !plan && !loadingPlans && !loadingAuthorizations && 
+          firstSubjectWithoutPlan?.name === subject.name && isAuthorized;
 
         return (
           <AccordionItem 
@@ -707,8 +795,22 @@ function PersonalizedStudyPlan({
                   )}
                   {!plan && !shouldShowButton && (
                     <div className={cn("text-sm px-3 py-1.5 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50 text-gray-400' : 'bg-gray-100 text-gray-600')}>
-                      <Clock className="h-3 w-3 inline mr-2" />
-                      En espera
+                      {loadingAuthorizations ? (
+                        <>
+                          <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 inline-block mr-2", theme === 'dark' ? 'border-gray-400' : 'border-gray-600')}></div>
+                          Verificando...
+                        </>
+                      ) : !isAuthorized ? (
+                        <>
+                          <Lock className="h-3 w-3 inline mr-2" />
+                          No autorizado
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3 w-3 inline mr-2" />
+                          En espera
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
