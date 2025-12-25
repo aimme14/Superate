@@ -666,7 +666,7 @@ function PersonalizedStudyPlan({
   // Obtener materias con debilidades
   const subjectsWithWeaknesses = subjectsWithTopics.filter(s => s.weaknesses.length > 0);
 
-  // Orden de materias para mostrar el botón en cascada
+  // Orden de materias para mostrar (solo para orden visual, no para cascada)
   const subjectOrder: Record<string, number> = {
     'Matemáticas': 1,
     'Lenguaje': 2,
@@ -677,15 +677,12 @@ function PersonalizedStudyPlan({
     'Inglés': 7
   };
 
-  // Ordenar materias según el orden predefinido
+  // Ordenar materias según el orden predefinido (solo para orden visual)
   const sortedSubjects = [...subjectsWithWeaknesses].sort((a, b) => {
     const orderA = subjectOrder[a.name] || 999;
     const orderB = subjectOrder[b.name] || 999;
     return orderA - orderB;
   });
-
-  // Determinar cuál es la primera materia sin plan generado
-  const firstSubjectWithoutPlan = sortedSubjects.find(subject => !studyPlans[subject.name]);
 
   if (subjectsWithWeaknesses.length === 0) {
     return (
@@ -735,11 +732,10 @@ function PersonalizedStudyPlan({
         const isAuthorized = subjectAuthorizations[subject.name] ?? false;
         // Mostrar el botón solo si:
         // 1. NO hay plan en la base de datos
-        // 2. Es la primera materia sin plan (en cascada)
-        // 3. La materia está autorizada para el grado del estudiante
-        // 4. Se han cargado las autorizaciones
-        const shouldShowButton = !plan && !loadingPlans && !loadingAuthorizations && 
-          firstSubjectWithoutPlan?.name === subject.name && isAuthorized;
+        // 2. La materia está autorizada para el grado y fase del estudiante
+        // 3. Se han cargado las autorizaciones
+        // NO hay lógica de cascada - cada materia se habilita independientemente según la autorización del admin
+        const shouldShowButton = !plan && !loadingPlans && !loadingAuthorizations && isAuthorized;
 
         return (
           <AccordionItem 
