@@ -17,8 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Brain,
-  BookOpen
+  Brain
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotification } from '@/hooks/ui/useNotification';
