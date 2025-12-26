@@ -3,6 +3,7 @@ import {
   collection, 
   doc, 
   setDoc, 
+  updateDoc,
   getDoc, 
   getDocFromServer,
   getDocs, 
@@ -803,7 +804,9 @@ class QuestionService {
         }
       });
 
-      await setDoc(questionRef, updates, { merge: true });
+      // Usar updateDoc para asegurar que los arrays se actualicen correctamente
+      // updateDoc es más explícito para actualizaciones parciales
+      await updateDoc(questionRef, updates);
       console.log('✅ Pregunta actualizada en Firestore');
 
       // Obtener la pregunta actualizada

@@ -3919,6 +3919,52 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           allInformativeImages.push(editReadingExistingImageUrl)
         }
         
+        // Obtener la primera pregunta relacionada para comparar imágenes originales
+        const firstRelatedQuestion = editReadingRelatedQuestions.length > 0 ? editReadingRelatedQuestions[0] : null
+        const originalInformativeImages = firstRelatedQuestion?.informativeImages || []
+        
+        // Función auxiliar para normalizar URLs
+        const normalizeUrl = (url: string): string => {
+          if (!url) return ''
+          try {
+            if (url.includes('?')) {
+              return url.split('?')[0]
+            }
+            return url
+          } catch {
+            return url
+          }
+        }
+        
+        // Detectar imágenes informativas eliminadas
+        const deletedInformativeImages = originalInformativeImages.filter(originalImg => {
+          const normalizedOriginal = normalizeUrl(originalImg)
+          const existsInCurrent = allInformativeImages.some(currentImg => {
+            const normalizedCurrent = normalizeUrl(currentImg)
+            return normalizedOriginal === normalizedCurrent || originalImg === currentImg
+          })
+          return !existsInCurrent
+        })
+        
+        console.log('🔍 Comparando imágenes informativas de lectura:', {
+          original: originalInformativeImages,
+          final: allInformativeImages,
+          deleted: deletedInformativeImages
+        })
+        
+        // Eliminar imágenes borradas del Storage
+        for (const deletedImg of deletedInformativeImages) {
+          if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
+            console.log(`🗑️ Eliminando imagen informativa de lectura del Storage: ${deletedImg}`)
+            try {
+              await questionService.deleteImage(deletedImg)
+              console.log('✅ Imagen informativa de lectura eliminada del Storage')
+            } catch (error) {
+              console.warn('⚠️ No se pudo eliminar la imagen informativa de lectura del Storage:', error)
+            }
+          }
+        }
+        
         // Actualizar todas las preguntas relacionadas de comprensión de lectura
         let successCount = 0
         let errorCount = 0
@@ -4083,9 +4129,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             options: rqOptions,
           }
           
-          if (allInformativeImages.length > 0) {
-            questionData.informativeImages = allInformativeImages
-          }
+          // SIEMPRE actualizar el array de imágenes informativas, incluso si está vacío
+          questionData.informativeImages = allInformativeImages
           
           if (questionImageUrl) {
             questionData.questionImages = [questionImageUrl]
@@ -4228,6 +4273,52 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               allInformativeImages.push(newReadingImageUrl)
             } else if (editOtherSubjectsReadingExistingImageUrl) {
               allInformativeImages.push(editOtherSubjectsReadingExistingImageUrl)
+            }
+            
+            // Obtener la primera pregunta relacionada para comparar imágenes originales
+            const firstRelatedQuestion = editOtherSubjectsReadingRelatedQuestions.length > 0 ? editOtherSubjectsReadingRelatedQuestions[0] : null
+            const originalInformativeImages = firstRelatedQuestion?.informativeImages || []
+            
+            // Función auxiliar para normalizar URLs
+            const normalizeUrl = (url: string): string => {
+              if (!url) return ''
+              try {
+                if (url.includes('?')) {
+                  return url.split('?')[0]
+                }
+                return url
+              } catch {
+                return url
+              }
+            }
+            
+            // Detectar imágenes informativas eliminadas
+            const deletedInformativeImages = originalInformativeImages.filter(originalImg => {
+              const normalizedOriginal = normalizeUrl(originalImg)
+              const existsInCurrent = allInformativeImages.some(currentImg => {
+                const normalizedCurrent = normalizeUrl(currentImg)
+                return normalizedOriginal === normalizedCurrent || originalImg === currentImg
+              })
+              return !existsInCurrent
+            })
+            
+            console.log('🔍 Comparando imágenes informativas de lectura (otras materias):', {
+              original: originalInformativeImages,
+              final: allInformativeImages,
+              deleted: deletedInformativeImages
+            })
+            
+            // Eliminar imágenes borradas del Storage
+            for (const deletedImg of deletedInformativeImages) {
+              if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
+                console.log(`🗑️ Eliminando imagen informativa de lectura del Storage (otras materias): ${deletedImg}`)
+                try {
+                  await questionService.deleteImage(deletedImg)
+                  console.log('✅ Imagen informativa de lectura eliminada del Storage')
+                } catch (error) {
+                  console.warn('⚠️ No se pudo eliminar la imagen informativa de lectura del Storage:', error)
+                }
+              }
             }
             
             // Actualizar todas las preguntas relacionadas
@@ -4394,9 +4485,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 options: rqOptions,
               }
               
-              if (allInformativeImages.length > 0) {
-                questionData.informativeImages = allInformativeImages
-              }
+              // SIEMPRE actualizar el array de imágenes informativas, incluso si está vacío
+              questionData.informativeImages = allInformativeImages
               
               // Manejar imágenes de pregunta: si hay nueva imagen, usarla; si se eliminó la existente, establecer array vacío
               if (questionImageUrl) {
@@ -4820,13 +4910,112 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           updates.code = newCode
         }
 
-        // Agregar nuevas imágenes si las hay
-        if (newInformativeImageUrls.length > 0) {
-          updates.informativeImages = [...(selectedQuestion.informativeImages || []), ...newInformativeImageUrls]
+        // Manejar imágenes informativas: detectar eliminadas y actualizar correctamente
+        const originalInformativeImages = selectedQuestion.informativeImages || []
+        const currentInformativeImages = informativeImagePreviews || []
+        
+        console.log('🔍 Comparando imágenes informativas:', {
+          original: originalInformativeImages,
+          current: currentInformativeImages,
+          originalCount: originalInformativeImages.length,
+          currentCount: currentInformativeImages.length
+        })
+        
+        // Función auxiliar para normalizar URLs (eliminar parámetros de query para comparación)
+        const normalizeUrl = (url: string): string => {
+          if (!url) return ''
+          try {
+            // Si es una URL completa, extraer solo la parte base sin parámetros
+            if (url.includes('?')) {
+              return url.split('?')[0]
+            }
+            return url
+          } catch {
+            return url
+          }
         }
-        if (newQuestionImageUrls.length > 0) {
-          updates.questionImages = [...(selectedQuestion.questionImages || []), ...newQuestionImageUrls]
+        
+        // Detectar imágenes eliminadas (están en original pero no en current)
+        // Usar comparación normalizada para evitar problemas con parámetros de query
+        const deletedInformativeImages = originalInformativeImages.filter(originalImg => {
+          const normalizedOriginal = normalizeUrl(originalImg)
+          const existsInCurrent = currentInformativeImages.some(currentImg => {
+            const normalizedCurrent = normalizeUrl(currentImg)
+            return normalizedOriginal === normalizedCurrent || originalImg === currentImg
+          })
+          return !existsInCurrent
+        })
+        
+        console.log('🗑️ Imágenes informativas eliminadas:', deletedInformativeImages)
+        
+        // Eliminar imágenes borradas del Storage
+        for (const deletedImg of deletedInformativeImages) {
+          // Solo eliminar si es una URL de Firebase (no base64)
+          if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
+            console.log(`🗑️ Eliminando imagen informativa del Storage: ${deletedImg}`)
+            try {
+              await questionService.deleteImage(deletedImg)
+              console.log('✅ Imagen informativa eliminada del Storage')
+            } catch (error) {
+              console.warn('⚠️ No se pudo eliminar la imagen informativa del Storage:', error)
+            }
+          }
         }
+        
+        // Combinar imágenes existentes (las que quedan en previews) con las nuevas
+        // SIEMPRE actualizar el array, incluso si está vacío
+        const finalInformativeImages = [...currentInformativeImages, ...newInformativeImageUrls]
+        console.log('📤 Imágenes informativas finales a guardar:', finalInformativeImages)
+        updates.informativeImages = finalInformativeImages
+
+        // Manejar imágenes de pregunta: detectar eliminadas y actualizar correctamente
+        const originalQuestionImages = selectedQuestion.questionImages || []
+        const currentQuestionImages = questionImagePreviews || []
+        
+        console.log('🔍 Comparando imágenes de pregunta:', {
+          original: originalQuestionImages,
+          current: currentQuestionImages,
+          originalCount: originalQuestionImages.length,
+          currentCount: currentQuestionImages.length
+        })
+        
+        // Detectar imágenes eliminadas (están en original pero no en current)
+        const deletedQuestionImages = originalQuestionImages.filter(originalImg => {
+          const normalizedOriginal = normalizeUrl(originalImg)
+          const existsInCurrent = currentQuestionImages.some(currentImg => {
+            const normalizedCurrent = normalizeUrl(currentImg)
+            return normalizedOriginal === normalizedCurrent || originalImg === currentImg
+          })
+          return !existsInCurrent
+        })
+        
+        console.log('🗑️ Imágenes de pregunta eliminadas:', deletedQuestionImages)
+        
+        // Eliminar imágenes borradas del Storage
+        for (const deletedImg of deletedQuestionImages) {
+          // Solo eliminar si es una URL de Firebase (no base64)
+          if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
+            console.log(`🗑️ Eliminando imagen de pregunta del Storage: ${deletedImg}`)
+            try {
+              await questionService.deleteImage(deletedImg)
+              console.log('✅ Imagen de pregunta eliminada del Storage')
+            } catch (error) {
+              console.warn('⚠️ No se pudo eliminar la imagen de pregunta del Storage:', error)
+            }
+          }
+        }
+        
+        // Combinar imágenes existentes (las que quedan en previews) con las nuevas
+        // SIEMPRE actualizar el array, incluso si está vacío
+        const finalQuestionImages = [...currentQuestionImages, ...newQuestionImageUrls]
+        console.log('📤 Imágenes de pregunta finales a guardar:', finalQuestionImages)
+        updates.questionImages = finalQuestionImages
+        
+        console.log('📋 Objeto updates completo:', {
+          ...updates,
+          informativeImages: updates.informativeImages,
+          questionImages: updates.questionImages
+        })
 
         // Actualizar la pregunta
         const result = await questionService.updateQuestion(selectedQuestion.id, updates)
