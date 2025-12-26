@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -47,7 +48,8 @@ import {
   Shield,
   Link as LinkIcon,
   Eye,
-  Lock
+  Lock,
+  Info
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -468,6 +470,351 @@ interface StudyPlanData {
     url: string;
     description: string;
   }>;
+}
+
+// Componente de resumen de planes de estudio para "Todas las Fases"
+function StudyPlanSummary({
+  phase1Data,
+  phase2Data,
+  user,
+  theme
+}: {
+  phase1Data: AnalysisData | null;
+  phase2Data: AnalysisData | null;
+  user: any;
+  theme: 'light' | 'dark';
+}) {
+  const [phase1Stats, setPhase1Stats] = useState({ deployed: 0, pending: 0, loading: true });
+  const [phase2Stats, setPhase2Stats] = useState({ deployed: 0, pending: 0, loading: true });
+  const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
+
+  // Función para verificar si un plan está completo
+  const isPlanComplete = (plan: any): boolean => {
+    if (!plan) return false;
+    const hasVideos = plan.video_resources && Array.isArray(plan.video_resources) && plan.video_resources.length > 0;
+    const hasLinks = plan.study_links && Array.isArray(plan.study_links) && plan.study_links.length > 0;
+    const hasExercises = plan.practice_exercises && Array.isArray(plan.practice_exercises) && plan.practice_exercises.length > 0;
+    return hasVideos && hasLinks && hasExercises;
+  };
+
+  // Cargar estadísticas de Fase I
+  useEffect(() => {
+    const loadPhase1Stats = async () => {
+      if (!phase1Data?.subjectsWithTopics || !user?.uid) {
+        setPhase1Stats({ deployed: 0, pending: 0, loading: false });
+        return;
+      }
+
+      setPhase1Stats({ deployed: 0, pending: 0, loading: true });
+      const subjectsWithWeaknesses = phase1Data.subjectsWithTopics.filter(s => s.weaknesses.length > 0);
+      let deployed = 0;
+
+      for (const subject of subjectsWithWeaknesses) {
+        try {
+          const response = await fetch(
+            `${FUNCTIONS_URL}/getStudyPlan?studentId=${user.uid}&phase=first&subject=${encodeURIComponent(subject.name)}`
+          );
+          const result = await response.json();
+          if (result.success && result.data && isPlanComplete(result.data)) {
+            deployed++;
+          }
+        } catch (error) {
+          console.error(`Error verificando plan para ${subject.name} (Fase I):`, error);
+        }
+      }
+
+      setPhase1Stats({
+        deployed,
+        pending: subjectsWithWeaknesses.length - deployed,
+        loading: false
+      });
+    };
+
+    loadPhase1Stats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase1Data, user?.uid]);
+
+  // Cargar estadísticas de Fase II
+  useEffect(() => {
+    const loadPhase2Stats = async () => {
+      if (!phase2Data?.subjectsWithTopics || !user?.uid) {
+        setPhase2Stats({ deployed: 0, pending: 0, loading: false });
+        return;
+      }
+
+      setPhase2Stats({ deployed: 0, pending: 0, loading: true });
+      const subjectsWithWeaknesses = phase2Data.subjectsWithTopics.filter(s => s.weaknesses.length > 0);
+      let deployed = 0;
+
+      for (const subject of subjectsWithWeaknesses) {
+        try {
+          const response = await fetch(
+            `${FUNCTIONS_URL}/getStudyPlan?studentId=${user.uid}&phase=second&subject=${encodeURIComponent(subject.name)}`
+          );
+          const result = await response.json();
+          if (result.success && result.data && isPlanComplete(result.data)) {
+            deployed++;
+          }
+        } catch (error) {
+          console.error(`Error verificando plan para ${subject.name} (Fase II):`, error);
+        }
+      }
+
+      setPhase2Stats({
+        deployed,
+        pending: subjectsWithWeaknesses.length - deployed,
+        loading: false
+      });
+    };
+
+    loadPhase2Stats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase2Data, user?.uid]);
+
+  const totalPhase1Subjects = phase1Data?.subjectsWithTopics?.length || 0;
+  const totalPhase2Subjects = phase2Data?.subjectsWithTopics?.length || 0;
+
+  return (
+    <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className={cn(
+          "rounded-2xl shadow-xl p-6 sm:p-8",
+          theme === 'dark' 
+            ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-purple-500/50' 
+            : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200'
+        )}
+      >
+        <div className="flex items-center gap-4 mb-6">
+          <div className={cn(
+            "p-3 rounded-xl",
+            theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+          )}>
+            <BookOpen className={cn(
+              "w-8 h-8",
+              theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+            )} />
+          </div>
+          <div>
+            <h3 className={cn(
+              "text-2xl sm:text-3xl font-bold",
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            )}>
+              Resumen de Planes de Estudio
+            </h3>
+            <p className={cn(
+              "text-sm sm:text-base mt-1",
+              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+            )}>
+              Disponibles para Fase I y Fase II
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Fase I */}
+          <Card className={cn(
+            theme === 'dark' 
+              ? 'bg-zinc-800/50 border-zinc-700' 
+              : 'bg-white/80 border-gray-200'
+          )}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'
+                  )}>
+                    <Target className={cn(
+                      "w-5 h-5",
+                      theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                    )} />
+                  </div>
+                  <h4 className={cn(
+                    "font-semibold text-lg",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    Fase I
+                  </h4>
+                </div>
+                <Badge className={cn(
+                  "bg-blue-500 text-white"
+                )}>
+                  Diagnóstico
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Materias evaluadas
+                  </span>
+                  <span className={cn(
+                    "font-semibold",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    {totalPhase1Subjects}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes desplegados
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-blue-500",
+                    theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                  )}>
+                    {phase1Stats.loading ? '...' : phase1Stats.deployed}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes por desplegar
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-orange-500",
+                    theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
+                  )}>
+                    {phase1Stats.loading ? '...' : phase1Stats.pending}
+                  </span>
+                </div>
+              </div>
+              <p className={cn(
+                "text-xs mt-4 pt-4 border-t",
+                theme === 'dark' ? 'text-gray-500 border-zinc-700' : 'text-gray-500 border-gray-200'
+              )}>
+                Selecciona "Fase I" para ver y generar planes de estudio personalizados
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Fase II */}
+          <Card className={cn(
+            theme === 'dark' 
+              ? 'bg-zinc-800/50 border-zinc-700' 
+              : 'bg-white/80 border-gray-200'
+          )}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                  )}>
+                    <TrendingUp className={cn(
+                      "w-5 h-5",
+                      theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                    )} />
+                  </div>
+                  <h4 className={cn(
+                    "font-semibold text-lg",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    Fase II
+                  </h4>
+                </div>
+                <Badge className={cn(
+                  "bg-green-500 text-white"
+                )}>
+                  Refuerzo
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Materias evaluadas
+                  </span>
+                  <span className={cn(
+                    "font-semibold",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    {totalPhase2Subjects}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes desplegados
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-green-500",
+                    theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                  )}>
+                    {phase2Stats.loading ? '...' : phase2Stats.deployed}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes por desplegar
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-orange-500",
+                    theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
+                  )}>
+                    {phase2Stats.loading ? '...' : phase2Stats.pending}
+                  </span>
+                </div>
+              </div>
+              <p className={cn(
+                "text-xs mt-4 pt-4 border-t",
+                theme === 'dark' ? 'text-gray-500 border-zinc-700' : 'text-gray-500 border-gray-200'
+              )}>
+                Selecciona "Fase II" para ver y generar planes de estudio personalizados
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className={cn(
+          "mt-6 p-4 rounded-lg",
+          theme === 'dark' 
+            ? 'bg-zinc-800/50 border border-zinc-700' 
+            : 'bg-white/60 border border-gray-200'
+        )}>
+          <div className="flex items-start gap-3">
+            <Info className={cn(
+              "w-5 h-5 mt-0.5 flex-shrink-0",
+              theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+            )} />
+            <div>
+              <p className={cn(
+                "text-sm font-medium mb-1",
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              )}>
+                Información importante
+              </p>
+              <p className={cn(
+                "text-xs leading-relaxed",
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              )}>
+                Los planes de estudio personalizados están disponibles únicamente para la <strong>Fase I</strong> (Diagnóstico) y la <strong>Fase II</strong> (Refuerzo Personalizado). 
+                La <strong>Fase III</strong> (Simulacro ICFES) es una evaluación final y no requiere plan de estudio adicional. 
+                Selecciona una fase específica arriba para ver y generar tus planes personalizados.
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
 }
 
 // Componente de plan de estudio personalizado
@@ -3088,6 +3435,99 @@ export default function ICFESAnalysisInterface() {
                 : selectedPhase === 'phase2' ? 'second' 
                 : selectedPhase === 'phase3' ? 'third' 
                 : 'first'; // Default a first si es 'all'
+
+              // Si es "Todas las Fases", mostrar resumen de planes disponibles
+              if (selectedPhase === 'all') {
+                return (
+                  <StudyPlanSummary 
+                    phase1Data={phase1Data}
+                    phase2Data={phase2Data}
+                    user={user}
+                    theme={theme}
+                  />
+                );
+              }
+
+              // Si es Fase III, mostrar mensaje de ánimo en lugar del plan de estudio
+              if (currentPhase === 'third') {
+                return (
+                  <div className="flex items-center justify-center min-h-[60vh] px-4">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ duration: 0.6 }}
+                      className={cn(
+                        "max-w-4xl w-full text-center p-8 sm:p-12 rounded-3xl shadow-2xl",
+                        theme === 'dark' 
+                          ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-blue-500/50' 
+                          : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200'
+                      )}
+                    >
+                      <motion.div
+                        animate={{ 
+                          scale: [1, 1.1, 1],
+                          rotate: [0, 5, -5, 0]
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: Infinity,
+                          repeatDelay: 1
+                        }}
+                        className="mb-6"
+                      >
+                        <Trophy className={cn(
+                          "w-20 h-20 mx-auto",
+                          theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                        )} />
+                      </motion.div>
+                      
+                      <motion.h2
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className={cn(
+                          "text-3xl sm:text-4xl md:text-5xl font-bold mb-6",
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        )}
+                      >
+                        ¡SIGUE ADELANTE!
+                      </motion.h2>
+                      
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className={cn(
+                          "text-xl sm:text-2xl md:text-3xl font-semibold",
+                          theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
+                        )}
+                      >
+                        TU ESFUERZO TE LLEVARÁ AL ÉXITO
+                      </motion.p>
+                      
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="mt-8"
+                      >
+                        <p className={cn(
+                          "text-base sm:text-lg",
+                          theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                        )}>
+                          ¡NUNCA DEJES QUE LOS DEMAS DECIDAN EN QUIEN TE CONVERTIRÁS!.
+                        </p>
+                        <p className={cn(
+                          "text-base sm:text-lg mt-2",
+                          theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                        )}>
+                          Sigue estudiando, repasando y fortaleciendo tus conocimientos. ¡El éxito está en tus manos!
+                        </p>
+                      </motion.div>
+                    </motion.div>
+                  </div>
+                );
+              }
 
               return (
                 <PersonalizedStudyPlan
