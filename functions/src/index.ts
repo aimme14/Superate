@@ -9,6 +9,7 @@ import * as functions from 'firebase-functions';
 import { justificationService } from './services/justification.service';
 import { questionService } from './services/question.service';
 import { geminiService } from './services/gemini.service';
+import { studyPlanService, TopicWebSearchInfo } from './services/studyPlan.service';
 import { APIResponse } from './types/question.types';
 
 // =============================
@@ -444,6 +445,264 @@ export const aiInfo = functions
       res.status(500).json(response);
     }
   });
+
+/**
+ * Genera un plan de estudio personalizado para un estudiante
+ * 
+ * POST /generateStudyPlan
+ * Body: { studentId: string, phase: 'first' | 'second' | 'third', subject: string }
+ */
+export const generateStudyPlan = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 540, // 9 minutos (máximo para HTTP functions)
+    memory: '1GB',
+    secrets: ['YOUTUBE_API_KEY', 'GOOGLE_CSE_API_KEY', 'GOOGLE_CSE_ID'], // Secrets para APIs externas
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { studentId, phase, subject } = req.body;
+      
+      if (!studentId || !phase || !subject) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'studentId, phase y subject son requeridos' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      // Validar fase
+      if (!['first', 'second', 'third'].includes(phase)) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'phase debe ser: first, second o third' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      console.log(`📚 Generando plan de estudio para estudiante ${studentId}, fase ${phase}, materia ${subject}`);
+      
+      const result = await studyPlanService.generateStudyPlan({
+        studentId,
+        phase: phase as 'first' | 'second' | 'third',
+        subject,
+      });
+      
+      const response: APIResponse = {
+        success: result.success,
+        data: result.studyPlan,
+        error: result.error ? { message: result.error } : undefined,
+        metadata: {
+          processingTime: result.processingTimeMs,
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(result.success ? 200 : 500).json(response);
+    } catch (error: any) {
+      console.error('Error en generateStudyPlan:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Obtiene un plan de estudio existente
+ * 
+ * GET /getStudyPlan?studentId=...&phase=...&subject=...
+ */
+export const getStudyPlan = functions
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'GET') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa GET' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { studentId, phase, subject } = req.query;
+      
+      if (!studentId || !phase || !subject) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'studentId, phase y subject son requeridos como query params' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      // Validar fase
+      if (!['first', 'second', 'third'].includes(phase as string)) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'phase debe ser: first, second o third' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const studyPlan = await studyPlanService.getStudyPlan(
+        studentId as string,
+        phase as 'first' | 'second' | 'third',
+        subject as string
+      );
+      
+      const response: APIResponse = {
+        success: true,
+        data: studyPlan,
+        metadata: {
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en getStudyPlan:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Genera enlaces web educativos para un tema específico
+ * Endpoint independiente para pruebas y generación selectiva
+ * 
+ * POST /generateWebLinks
+ * Body: { phase: 'first'|'second'|'third', subject: string, topic: string, webSearchInfo: TopicWebSearchInfo }
+ */
+export const generateWebLinks = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '1GB',
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { phase, subject, topic, webSearchInfo } = req.body;
+      
+      if (!phase || !subject || !topic || !webSearchInfo) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'phase, subject, topic y webSearchInfo son requeridos' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+      
+      // Validar fase
+      if (!['first', 'second', 'third'].includes(phase)) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'phase debe ser: first, second o third' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+      
+      // Validar webSearchInfo
+      if (!webSearchInfo.searchIntent || !webSearchInfo.searchKeywords || !Array.isArray(webSearchInfo.searchKeywords)) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'webSearchInfo debe tener searchIntent y searchKeywords (array)' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+      
+      console.log(`🔗 Generando enlaces web para tema "${topic}", fase ${phase}, materia ${subject}`);
+      
+      const links = await studyPlanService.generateWebLinksForTopic(
+        phase as 'first' | 'second' | 'third',
+        subject,
+        topic,
+        webSearchInfo as TopicWebSearchInfo
+      );
+      
+      const response: APIResponse = {
+        success: true,
+        data: {
+          links,
+          count: links.length,
+          topic,
+          subject,
+          phase,
+        },
+        metadata: {
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en generateWebLinks:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
 
 /**
  * Health check del sistema

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,9 @@ import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { useAuthContext } from "@/context/AuthContext"
 import { getUserById } from "@/controllers/user.controller"
+import { dbService } from "@/services/firebase/db.service"
+import { studyPlanAuthorizationService } from "@/services/studyPlan/studyPlanAuthorization.service"
+import { SubjectName, StudyPlanPhase } from "@/interfaces/studyPlan.interface"
 import { cn } from "@/lib/utils"
 import { geminiService } from "@/services/ai/gemini.service"
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers"
@@ -41,7 +45,11 @@ import {
   NotepadText,
   BarChart2,
   Apple,
-  Shield
+  Shield,
+  Link as LinkIcon,
+  Eye,
+  Lock,
+  Info
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -430,18 +438,627 @@ function SubjectAnalysis({ subjects, theme = 'light' }: { subjects: SubjectAnaly
   );
 }
 
-// Componente de plan de estudio
-function StudyPlan({ recommendations, theme = 'light', loadingAI = false }: { recommendations: AnalysisData['recommendations'], theme?: 'light' | 'dark', loadingAI?: boolean }) {
-  if (loadingAI) {
+// Tipos para el plan de estudio
+interface StudyPlanData {
+  student_info: {
+    studentId: string;
+    phase: string;
+    subject: string;
+    weaknesses: Array<{
+      topic: string;
+      percentage: number;
+      correct: number;
+      total: number;
+    }>;
+  };
+  diagnostic_summary: string;
+  study_plan_summary: string;
+  video_resources: Array<{
+    title: string;
+    url: string;
+    description: string;
+  }>;
+  practice_exercises: Array<{
+    question: string;
+    options: string[];
+    correctAnswer: string;
+    explanation: string;
+    topic: string;
+  }>;
+  study_links: Array<{
+    title: string;
+    url: string;
+    description: string;
+  }>;
+}
+
+// Componente de resumen de planes de estudio para "Todas las Fases"
+function StudyPlanSummary({
+  phase1Data,
+  phase2Data,
+  user,
+  theme
+}: {
+  phase1Data: AnalysisData | null;
+  phase2Data: AnalysisData | null;
+  user: any;
+  theme: 'light' | 'dark';
+}) {
+  const [phase1Stats, setPhase1Stats] = useState({ deployed: 0, pending: 0, loading: true });
+  const [phase2Stats, setPhase2Stats] = useState({ deployed: 0, pending: 0, loading: true });
+  const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
+
+  // Función para verificar si un plan está completo
+  const isPlanComplete = (plan: any): boolean => {
+    if (!plan) return false;
+    const hasVideos = plan.video_resources && Array.isArray(plan.video_resources) && plan.video_resources.length > 0;
+    const hasLinks = plan.study_links && Array.isArray(plan.study_links) && plan.study_links.length > 0;
+    const hasExercises = plan.practice_exercises && Array.isArray(plan.practice_exercises) && plan.practice_exercises.length > 0;
+    return hasVideos && hasLinks && hasExercises;
+  };
+
+  // Cargar estadísticas de Fase I
+  useEffect(() => {
+    const loadPhase1Stats = async () => {
+      if (!phase1Data?.subjectsWithTopics || !user?.uid) {
+        setPhase1Stats({ deployed: 0, pending: 0, loading: false });
+        return;
+      }
+
+      setPhase1Stats({ deployed: 0, pending: 0, loading: true });
+      const subjectsWithWeaknesses = phase1Data.subjectsWithTopics.filter(s => s.weaknesses.length > 0);
+      let deployed = 0;
+
+      for (const subject of subjectsWithWeaknesses) {
+        try {
+          const response = await fetch(
+            `${FUNCTIONS_URL}/getStudyPlan?studentId=${user.uid}&phase=first&subject=${encodeURIComponent(subject.name)}`
+          );
+          const result = await response.json();
+          if (result.success && result.data && isPlanComplete(result.data)) {
+            deployed++;
+          }
+        } catch (error) {
+          console.error(`Error verificando plan para ${subject.name} (Fase I):`, error);
+        }
+      }
+
+      setPhase1Stats({
+        deployed,
+        pending: subjectsWithWeaknesses.length - deployed,
+        loading: false
+      });
+    };
+
+    loadPhase1Stats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase1Data, user?.uid]);
+
+  // Cargar estadísticas de Fase II
+  useEffect(() => {
+    const loadPhase2Stats = async () => {
+      if (!phase2Data?.subjectsWithTopics || !user?.uid) {
+        setPhase2Stats({ deployed: 0, pending: 0, loading: false });
+        return;
+      }
+
+      setPhase2Stats({ deployed: 0, pending: 0, loading: true });
+      const subjectsWithWeaknesses = phase2Data.subjectsWithTopics.filter(s => s.weaknesses.length > 0);
+      let deployed = 0;
+
+      for (const subject of subjectsWithWeaknesses) {
+        try {
+          const response = await fetch(
+            `${FUNCTIONS_URL}/getStudyPlan?studentId=${user.uid}&phase=second&subject=${encodeURIComponent(subject.name)}`
+          );
+          const result = await response.json();
+          if (result.success && result.data && isPlanComplete(result.data)) {
+            deployed++;
+          }
+        } catch (error) {
+          console.error(`Error verificando plan para ${subject.name} (Fase II):`, error);
+        }
+      }
+
+      setPhase2Stats({
+        deployed,
+        pending: subjectsWithWeaknesses.length - deployed,
+        loading: false
+      });
+    };
+
+    loadPhase2Stats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase2Data, user?.uid]);
+
+  const totalPhase1Subjects = phase1Data?.subjectsWithTopics?.length || 0;
+  const totalPhase2Subjects = phase2Data?.subjectsWithTopics?.length || 0;
+
+  return (
+    <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className={cn(
+          "rounded-2xl shadow-xl p-6 sm:p-8",
+          theme === 'dark' 
+            ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-purple-500/50' 
+            : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200'
+        )}
+      >
+        <div className="flex items-center gap-4 mb-6">
+          <div className={cn(
+            "p-3 rounded-xl",
+            theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+          )}>
+            <BookOpen className={cn(
+              "w-8 h-8",
+              theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+            )} />
+          </div>
+          <div>
+            <h3 className={cn(
+              "text-2xl sm:text-3xl font-bold",
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            )}>
+              Resumen de Planes de Estudio
+            </h3>
+            <p className={cn(
+              "text-sm sm:text-base mt-1",
+              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+            )}>
+              Disponibles para Fase I y Fase II
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Fase I */}
+          <Card className={cn(
+            theme === 'dark' 
+              ? 'bg-zinc-800/50 border-zinc-700' 
+              : 'bg-white/80 border-gray-200'
+          )}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'
+                  )}>
+                    <Target className={cn(
+                      "w-5 h-5",
+                      theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                    )} />
+                  </div>
+                  <h4 className={cn(
+                    "font-semibold text-lg",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    Fase I
+                  </h4>
+                </div>
+                <Badge className={cn(
+                  "bg-blue-500 text-white"
+                )}>
+                  Diagnóstico
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Materias evaluadas
+                  </span>
+                  <span className={cn(
+                    "font-semibold",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    {totalPhase1Subjects}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes desplegados
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-blue-500",
+                    theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                  )}>
+                    {phase1Stats.loading ? '...' : phase1Stats.deployed}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes por desplegar
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-orange-500",
+                    theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
+                  )}>
+                    {phase1Stats.loading ? '...' : phase1Stats.pending}
+                  </span>
+                </div>
+              </div>
+              <p className={cn(
+                "text-xs mt-4 pt-4 border-t",
+                theme === 'dark' ? 'text-gray-500 border-zinc-700' : 'text-gray-500 border-gray-200'
+              )}>
+                Selecciona "Fase I" para ver y generar planes de estudio personalizados
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Fase II */}
+          <Card className={cn(
+            theme === 'dark' 
+              ? 'bg-zinc-800/50 border-zinc-700' 
+              : 'bg-white/80 border-gray-200'
+          )}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                  )}>
+                    <TrendingUp className={cn(
+                      "w-5 h-5",
+                      theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                    )} />
+                  </div>
+                  <h4 className={cn(
+                    "font-semibold text-lg",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    Fase II
+                  </h4>
+                </div>
+                <Badge className={cn(
+                  "bg-green-500 text-white"
+                )}>
+                  Refuerzo
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Materias evaluadas
+                  </span>
+                  <span className={cn(
+                    "font-semibold",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  )}>
+                    {totalPhase2Subjects}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes desplegados
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-green-500",
+                    theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                  )}>
+                    {phase2Stats.loading ? '...' : phase2Stats.deployed}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  )}>
+                    Planes por desplegar
+                  </span>
+                  <span className={cn(
+                    "font-semibold text-orange-500",
+                    theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
+                  )}>
+                    {phase2Stats.loading ? '...' : phase2Stats.pending}
+                  </span>
+                </div>
+              </div>
+              <p className={cn(
+                "text-xs mt-4 pt-4 border-t",
+                theme === 'dark' ? 'text-gray-500 border-zinc-700' : 'text-gray-500 border-gray-200'
+              )}>
+                Selecciona "Fase II" para ver y generar planes de estudio personalizados
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className={cn(
+          "mt-6 p-4 rounded-lg",
+          theme === 'dark' 
+            ? 'bg-zinc-800/50 border border-zinc-700' 
+            : 'bg-white/60 border border-gray-200'
+        )}>
+          <div className="flex items-start gap-3">
+            <Info className={cn(
+              "w-5 h-5 mt-0.5 flex-shrink-0",
+              theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+            )} />
+            <div>
+              <p className={cn(
+                "text-sm font-medium mb-1",
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              )}>
+                Información importante
+              </p>
+              <p className={cn(
+                "text-xs leading-relaxed",
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              )}>
+                Los planes de estudio personalizados están disponibles únicamente para la <strong>Fase I</strong> (Diagnóstico) y la <strong>Fase II</strong> (Refuerzo Personalizado). 
+                La <strong>Fase III</strong> (Simulacro ICFES) es una evaluación final y no requiere plan de estudio adicional. 
+                Selecciona una fase específica arriba para ver y generar tus planes personalizados.
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// Componente de plan de estudio personalizado
+function PersonalizedStudyPlan({ 
+  subjectsWithTopics, 
+  phase, 
+  studentId, 
+  theme = 'light' 
+}: { 
+  subjectsWithTopics: SubjectWithTopics[];
+  phase: 'first' | 'second' | 'third';
+  studentId: string;
+  theme?: 'light' | 'dark';
+}) {
+  const [studyPlans, setStudyPlans] = useState<Record<string, StudyPlanData>>({});
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [expandedSection] = useState<Record<string, string | null>>({});
+  // Estados para ejercicios de práctica: rastrear respuestas expandidas y selecciones del estudiante
+  const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const [loadingPlans, setLoadingPlans] = useState<boolean>(true);
+  // Estado para controlar qué materias están expandidas en el acordeón
+  const [expandedSubjects, setExpandedSubjects] = useState<string[]>([]);
+  // Estado para almacenar las autorizaciones de planes de estudio por materia
+  const [subjectAuthorizations, setSubjectAuthorizations] = useState<Record<string, boolean>>({});
+  const [loadingAuthorizations, setLoadingAuthorizations] = useState<boolean>(true);
+
+  // URL base de Cloud Functions
+  const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
+
+  // Verificar si un plan está completo (tiene videos, enlaces y ejercicios)
+  const isPlanComplete = (plan: StudyPlanData | undefined): boolean => {
+    if (!plan) return false;
+    
+    const hasVideos = plan.video_resources && Array.isArray(plan.video_resources) && plan.video_resources.length > 0;
+    const hasLinks = plan.study_links && Array.isArray(plan.study_links) && plan.study_links.length > 0;
+    const hasExercises = plan.practice_exercises && Array.isArray(plan.practice_exercises) && plan.practice_exercises.length > 0;
+    
+    return hasVideos && hasLinks && hasExercises;
+  };
+
+  // Cargar autorizaciones de planes de estudio
+  useEffect(() => {
+    const loadAuthorizations = async () => {
+      setLoadingAuthorizations(true);
+      const authorizations: Record<string, boolean> = {};
+      
+      try {
+        // Obtener información del estudiante para obtener el gradeId
+        const userResult = await dbService.getUserById(studentId);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data;
+          const gradeId = studentData.gradeId || studentData.grade;
+          
+          if (gradeId) {
+            // Solo verificar autorización para Fase I y Fase II
+            // Convertir phase a StudyPlanPhase (solo 'first' o 'second' son válidos)
+            const studyPlanPhase: StudyPlanPhase | null = 
+              phase === 'first' ? 'first' : 
+              phase === 'second' ? 'second' : 
+              null;
+            
+            if (studyPlanPhase) {
+              // Verificar autorización para cada materia en la fase actual
+              for (const subject of subjectsWithTopics) {
+                if (subject.weaknesses.length > 0) {
+                  try {
+                    const authResult = await studyPlanAuthorizationService.isStudyPlanAuthorized(
+                      gradeId,
+                      studyPlanPhase,
+                      subject.name as SubjectName
+                    );
+                    authorizations[subject.name] = authResult.success ? authResult.data : false;
+                  } catch (error) {
+                    console.error(`Error verificando autorización para ${subject.name}:`, error);
+                    authorizations[subject.name] = false;
+                  }
+                }
+              }
+            } else {
+              // Si es Fase III, no hay autorizaciones de planes de estudio
+              console.log('Fase III no requiere autorización de planes de estudio');
+              subjectsWithTopics.forEach(subject => {
+                authorizations[subject.name] = false;
+              });
+            }
+          } else {
+            console.warn('No se encontró gradeId para el estudiante');
+            // Si no hay gradeId, no autorizar ninguna materia
+            subjectsWithTopics.forEach(subject => {
+              authorizations[subject.name] = false;
+            });
+          }
+        } else {
+          console.error('Error obteniendo información del estudiante');
+          subjectsWithTopics.forEach(subject => {
+            authorizations[subject.name] = false;
+          });
+        }
+      } catch (error) {
+        console.error('Error cargando autorizaciones:', error);
+        subjectsWithTopics.forEach(subject => {
+          authorizations[subject.name] = false;
+        });
+      }
+      
+      setSubjectAuthorizations(authorizations);
+      setLoadingAuthorizations(false);
+    };
+
+    if (studentId && subjectsWithTopics.length > 0) {
+      loadAuthorizations();
+    } else {
+      setLoadingAuthorizations(false);
+    }
+  }, [studentId, subjectsWithTopics]);
+
+  // Cargar planes existentes al montar (solo planes completos)
+  useEffect(() => {
+    const loadStudyPlans = async () => {
+      setLoadingPlans(true);
+      const plans: Record<string, StudyPlanData> = {};
+      
+      for (const subject of subjectsWithTopics) {
+        // Solo cargar planes para materias con debilidades
+        if (subject.weaknesses.length > 0) {
+          try {
+            const response = await fetch(
+              `${FUNCTIONS_URL}/getStudyPlan?studentId=${studentId}&phase=${phase}&subject=${encodeURIComponent(subject.name)}`
+            );
+            const result = await response.json();
+            if (result.success && result.data) {
+              // Solo cargar el plan si está completo
+              if (isPlanComplete(result.data)) {
+                plans[subject.name] = result.data;
+                console.log(`✅ Plan completo encontrado para ${subject.name} en ${phase}`);
+              } else {
+                console.log(`⚠️ Plan incompleto para ${subject.name} en ${phase} (no se mostrará)`);
+              }
+            } else {
+              console.log(`ℹ️ No hay plan para ${subject.name} en ${phase}`);
+            }
+          } catch (error) {
+            console.error(`Error cargando plan para ${subject.name}:`, error);
+          }
+        }
+      }
+      
+      setStudyPlans(plans);
+      setLoadingPlans(false);
+    };
+
+    if (studentId && subjectsWithTopics.length > 0) {
+      loadStudyPlans();
+    } else {
+      setLoadingPlans(false);
+    }
+  }, [studentId, phase, subjectsWithTopics]);
+
+  // Generar plan de estudio para una materia
+  const generateStudyPlan = async (subject: string) => {
+    setGeneratingFor(subject);
+    try {
+      // Iniciar generación del plan (esto puede tardar varios minutos)
+      const response = await fetch(`${FUNCTIONS_URL}/generateStudyPlan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId,
+          phase,
+          subject,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        // El backend ya generó y guardó el plan completo
+        // Usar directamente el plan retornado
+        setStudyPlans(prev => ({
+          ...prev,
+          [subject]: result.data,
+        }));
+        console.log(`✅ Plan completo cargado para ${subject}`);
+      } else {
+        alert(`Error: ${result.error?.message || 'No se pudo generar el plan de estudio'}`);
+      }
+    } catch (error: any) {
+      console.error('Error generando plan de estudio:', error);
+      alert(`Error: ${error.message || 'Error al generar el plan de estudio'}`);
+    } finally {
+      setGeneratingFor(null);
+    }
+  };
+
+  // Obtener materias con debilidades
+  const subjectsWithWeaknesses = subjectsWithTopics.filter(s => s.weaknesses.length > 0);
+
+  // Orden de materias para mostrar (solo para orden visual, no para cascada)
+  const subjectOrder: Record<string, number> = {
+    'Matemáticas': 1,
+    'Lenguaje': 2,
+    'Ciencias Sociales': 3,
+    'Biologia': 4,
+    'Quimica': 5,
+    'Física': 6,
+    'Inglés': 7
+  };
+
+  // Ordenar materias según el orden predefinido (solo para orden visual)
+  const sortedSubjects = [...subjectsWithWeaknesses].sort((a, b) => {
+    const orderA = subjectOrder[a.name] || 999;
+    const orderB = subjectOrder[b.name] || 999;
+    return orderA - orderB;
+  });
+
+  if (subjectsWithWeaknesses.length === 0) {
+    return (
+      <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <Trophy className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600')} />
+            <p className={cn("mb-2 font-medium", theme === 'dark' ? 'text-white' : 'text-gray-800')}>
+              ¡Excelente trabajo!
+            </p>
+            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              No se identificaron debilidades. Continúa así.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Mostrar loading mientras se verifican los planes en la base de datos
+  if (loadingPlans) {
     return (
       <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
         <CardContent className="pt-6">
           <div className="flex items-center justify-center gap-3 py-8">
             <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
-            <div>
-              <p className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Generando recomendaciones con IA...</p>
-              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Gemini 3.0 Pro está analizando tu rendimiento</p>
-            </div>
+            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Verificando planes de estudio en la base de datos...
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -449,56 +1066,423 @@ function StudyPlan({ recommendations, theme = 'light', loadingAI = false }: { re
   }
 
   return (
-    <div className="space-y-4">
-      {recommendations.map((rec, index) => (
-        <Card key={index} className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <Badge className={rec.priority === "Alta" ? (theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200") : rec.priority === "Media" ? (theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200") : (theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200")}>
-                {rec.priority}
-              </Badge>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className={cn("font-semibold text-lg", theme === 'dark' ? 'text-white' : '')}>{rec.subject} - {rec.topic}</h3>
-                  {(() => {
-                    const hasExplanation = 'explanation' in rec && rec.explanation && typeof rec.explanation === 'string';
-                    return hasExplanation ? (
-                      <Badge variant="outline" className={cn("text-xs", theme === 'dark' ? 'border-purple-500 text-purple-300' : 'border-gray-300 text-purple-600')}>
-                        <Zap className="h-3 w-3 mr-1" />
-                        IA
-                      </Badge>
-                    ) : null;
-                  })()}
+    <Accordion 
+      type="multiple" 
+      className="w-full"
+      value={expandedSubjects}
+      onValueChange={setExpandedSubjects}
+    >
+      <div className="space-y-3">
+      {sortedSubjects.map((subject) => {
+        const plan = studyPlans[subject.name];
+        const isGenerating = generatingFor === subject.name;
+        const isAuthorized = subjectAuthorizations[subject.name] ?? false;
+        // Mostrar el botón solo si:
+        // 1. NO hay plan en la base de datos
+        // 2. La materia está autorizada para el grado y fase del estudiante
+        // 3. Se han cargado las autorizaciones
+        // NO hay lógica de cascada - cada materia se habilita independientemente según la autorización del admin
+        const shouldShowButton = !plan && !loadingPlans && !loadingAuthorizations && isAuthorized;
+
+        return (
+          <AccordionItem 
+            key={subject.name}
+            value={subject.name}
+            className={cn(
+              "border rounded-lg overflow-hidden transition-all border-b-0",
+              theme === 'dark' ? 'border-zinc-700 bg-zinc-800/80 hover:bg-zinc-800' : 'bg-white/90 border-gray-200 hover:bg-white shadow-md'
+            )}
+          >
+            <AccordionTrigger 
+              className={cn(
+                "px-4 py-3 hover:no-underline",
+                theme === 'dark' ? 'hover:bg-zinc-700/50' : 'hover:bg-gray-50'
+              )}
+            >
+              <div className="flex items-center justify-between w-full pr-4">
+                <div className="flex items-center gap-3 flex-1 text-left">
+                  <BookOpen className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')} />
+                  <div>
+                    <h3 className={cn("font-semibold text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      {subject.name}
+                    </h3>
+                    <p className={cn("text-sm mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      {subject.weaknesses.length} debilidad(es) identificada(s)
+                    </p>
+                  </div>
                 </div>
-                <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Tiempo estimado: {rec.timeEstimate}</p>
-                {(() => {
-                  const hasExplanation = 'explanation' in rec && rec.explanation && typeof rec.explanation === 'string';
-                  const explanation = hasExplanation ? String(rec.explanation) : null;
-                  return explanation ? (
-                    <div className={cn("mt-3 p-3 rounded-lg bg-gradient-to-r", theme === 'dark' ? 'from-purple-900/30 to-blue-900/30 border border-purple-700/50' : 'from-purple-50 to-blue-50 border border-purple-200')}>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                        <strong className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-600')}>Análisis IA:</strong> {explanation}
-                      </p>
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  {shouldShowButton && (
+                    <Button
+                      onClick={() => generateStudyPlan(subject.name)}
+                      disabled={isGenerating}
+                      size="sm"
+                      className={cn(
+                        theme === 'dark' 
+                          ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                          : 'bg-purple-600 hover:bg-purple-700 text-white'
+                      )}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2")}></div>
+                          Generando...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="h-3 w-3 mr-2" />
+                          Generar Plan
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {!plan && !shouldShowButton && (
+                    <div className={cn("text-sm px-3 py-1.5 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50 text-gray-400' : 'bg-gray-100 text-gray-600')}>
+                      {loadingAuthorizations ? (
+                        <>
+                          <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 inline-block mr-2", theme === 'dark' ? 'border-gray-400' : 'border-gray-600')}></div>
+                          Verificando...
+                        </>
+                      ) : !isAuthorized ? (
+                        <>
+                          <Lock className="h-3 w-3 inline mr-2" />
+                          No autorizado
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3 w-3 inline mr-2" />
+                          En espera
+                        </>
+                      )}
                     </div>
-                  ) : null;
-                })()}
-                <div className="mt-3">
-                  <h4 className={cn("text-sm font-medium mb-2", theme === 'dark' ? 'text-white' : '')}>Recursos recomendados:</h4>
-                  <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                    {rec.resources.map((resource, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <BookOpen className="h-3 w-3" />
-                        {resource}
-                      </li>
-                    ))}
-                  </ul>
+                  )}
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className={cn(
+                "px-4 pb-4 pt-2",
+                theme === 'dark' ? 'bg-zinc-900/30' : 'bg-gray-50/50'
+              )}>
+
+                {isGenerating && (
+                  <div className="flex items-center justify-center gap-3 py-8">
+                    <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
+                    <div>
+                      <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        Generando plan de estudio personalizado...
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Estamos creando un plan detallado con videos, enlaces web y ejercicios de práctica. Esto puede tardar varios minutos. El plan aparecerá automáticamente cuando esté completo.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {plan && !isGenerating && (
+                  <div className="space-y-6">
+                {/* Resumen del diagnóstico */}
+                <div className={cn("p-4 rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border border-purple-700/50' : 'bg-purple-50 border border-purple-200')}>
+                  <h3 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
+                    <Target className="h-4 w-4" />
+                    Resumen del Diagnóstico
+                  </h3>
+                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                    {plan.diagnostic_summary}
+                  </p>
+                </div>
+
+                {/* Resumen del plan */}
+                <div>
+                  <h3 className={cn("font-semibold mb-2", theme === 'dark' ? 'text-white' : '')}>
+                    Resumen del Plan de Estudio
+                  </h3>
+                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                    {plan.study_plan_summary}
+                  </p>
+                </div>
+
+                {/* Videos */}
+                <Accordion type="single" collapsible value={expandedSection[`${subject.name}-videos`] || undefined}>
+                  <AccordionItem value="videos">
+                    <AccordionTrigger className={cn(theme === 'dark' ? 'text-white hover:text-gray-300' : '')}>
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4" />
+                        Videos Educativos ({plan.video_resources?.length || 0})
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-3">
+                        {plan.video_resources?.map((video, idx) => (
+                          <a
+                            key={idx}
+                            href={video.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={cn(
+                              "block p-3 rounded-lg border transition-colors",
+                              theme === 'dark' 
+                                ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
+                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                            )}
+                          >
+                            <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
+                              {video.title}
+                            </h4>
+                            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                              {video.description}
+                            </p>
+                            <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
+                              {video.url}
+                            </p>
+                          </a>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                {/* Enlaces de estudio */}
+                <Accordion type="single" collapsible value={expandedSection[`${subject.name}-links`] || undefined}>
+                  <AccordionItem value="links">
+                    <AccordionTrigger className={cn(theme === 'dark' ? 'text-white hover:text-gray-300' : '')}>
+                      <div className="flex items-center gap-2">
+                        <LinkIcon className="h-4 w-4" />
+                        Recursos Web ({plan.study_links?.length || 0})
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-3">
+                        {plan.study_links?.map((link, idx) => (
+                          <a
+                            key={idx}
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={cn(
+                              "block p-3 rounded-lg border transition-colors",
+                              theme === 'dark' 
+                                ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
+                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                            )}
+                          >
+                            <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
+                              {link.title}
+                            </h4>
+                            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                              {link.description}
+                            </p>
+                            <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
+                              {link.url}
+                            </p>
+                          </a>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                {/* Ejercicios de práctica */}
+                <Accordion type="single" collapsible value={expandedSection[`${subject.name}-exercises`] || undefined}>
+                  <AccordionItem value="exercises">
+                    <AccordionTrigger className={cn(theme === 'dark' ? 'text-white hover:text-gray-300' : '')}>
+                      <div className="flex items-center gap-2">
+                        <NotepadText className="h-4 w-4" />
+                        Ejercicios de Práctica ({plan.practice_exercises?.length || 0})
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4">
+                        {plan.practice_exercises?.map((exercise, idx) => {
+                          const exerciseKey = `${subject.name}-${idx}`;
+                          const isExpanded = expandedExercises[exerciseKey] || false;
+                          const selectedAnswer = selectedAnswers[exerciseKey] || '';
+                          const showAnswer = isExpanded;
+
+                          return (
+                            <Card key={idx} className={cn(theme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-gray-50 border-gray-200')}>
+                              <CardContent className="pt-4">
+                                <div className="space-y-3">
+                                  <div>
+                                    <Badge className={cn("mb-2", theme === 'dark' ? 'bg-purple-700 text-purple-200' : 'bg-purple-100 text-purple-700')}>
+                                      {exercise.topic}
+                                    </Badge>
+                                    <p className={cn("font-medium mb-3", theme === 'dark' ? 'text-white' : '')}>
+                                      {exercise.question}
+                                    </p>
+                                    <div className="space-y-2">
+                                      {exercise.options?.map((option, optIdx) => {
+                                        const isSelected = selectedAnswer === option;
+                                        // Verificar si es la opción correcta: debe empezar con "A) ", "B) ", etc.
+                                        // Manejar tanto el caso donde correctAnswer es "A" y la opción es "A) Texto"
+                                        // como el caso donde correctAnswer podría ser "A) Texto" completo
+                                        const correctAnswerLetter = exercise.correctAnswer?.trim().charAt(0).toUpperCase();
+                                        const isCorrectOption = option.trim().toUpperCase().startsWith(`${correctAnswerLetter}) `) ||
+                                                              option.trim().toUpperCase().startsWith(correctAnswerLetter + ')');
+                                        const shouldHighlightCorrect = showAnswer && isCorrectOption;
+                                        const shouldHighlightIncorrect = showAnswer && isSelected && !isCorrectOption;
+
+                                        return (
+                                          <div
+                                            key={optIdx}
+                                            onClick={() => {
+                                              if (!isExpanded) {
+                                                setSelectedAnswers(prev => ({
+                                                  ...prev,
+                                                  [exerciseKey]: option
+                                                }));
+                                              }
+                                            }}
+                                            className={cn(
+                                              "p-3 rounded border transition-colors cursor-pointer",
+                                              !isExpanded && "hover:opacity-80",
+                                              isExpanded && "cursor-default",
+                                              shouldHighlightCorrect
+                                                ? theme === 'dark'
+                                                  ? 'bg-green-900/30 border-green-700'
+                                                  : 'bg-green-50 border-green-200'
+                                                : shouldHighlightIncorrect
+                                                ? theme === 'dark'
+                                                  ? 'bg-red-900/30 border-red-700'
+                                                  : 'bg-red-50 border-red-200'
+                                                : isSelected && !isExpanded
+                                                ? theme === 'dark'
+                                                  ? 'bg-blue-900/30 border-blue-700'
+                                                  : 'bg-blue-50 border-blue-200'
+                                                : theme === 'dark'
+                                                ? 'bg-zinc-800/50 border-zinc-600'
+                                                : 'bg-white border-gray-200'
+                                            )}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span className={cn(
+                                                "font-medium",
+                                                shouldHighlightCorrect
+                                                  ? theme === 'dark' ? 'text-green-300' : 'text-green-700'
+                                                  : shouldHighlightIncorrect
+                                                  ? theme === 'dark' ? 'text-red-300' : 'text-red-700'
+                                                  : isSelected && !isExpanded
+                                                  ? theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
+                                                  : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                              )}>
+                                                {option}
+                                              </span>
+                                              {shouldHighlightCorrect && (
+                                                <CheckCircle2 className={cn("h-5 w-5", theme === 'dark' ? 'text-green-300' : 'text-green-700')} />
+                                              )}
+                                              {shouldHighlightIncorrect && (
+                                                <AlertTriangle className={cn("h-5 w-5", theme === 'dark' ? 'text-red-300' : 'text-red-700')} />
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Botón para ver respuesta y explicación */}
+                                  {!isExpanded && (
+                                    <Button
+                                      onClick={() => {
+                                        setExpandedExercises(prev => ({
+                                          ...prev,
+                                          [exerciseKey]: true
+                                        }));
+                                      }}
+                                      className={cn(
+                                        "w-full",
+                                        theme === 'dark' 
+                                          ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                                          : 'bg-blue-500 hover:bg-blue-600 text-white'
+                                      )}
+                                    >
+                                      <Eye className="h-4 w-4 mr-2" />
+                                      Ver respuesta y explicación
+                                    </Button>
+                                  )}
+
+                                  {/* Explicación (solo visible cuando está expandido) */}
+                                  {isExpanded && (
+                                    <div className={cn("p-3 rounded-lg mt-3", theme === 'dark' ? 'bg-blue-900/30 border border-blue-700/50' : 'bg-blue-50 border border-blue-200')}>
+                                      <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-blue-300' : 'text-blue-700')}>
+                                        Explicación:
+                                      </p>
+                                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                        {exercise.explanation}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                  </Accordion>
+                  </div>
+                )}
+
+                {!plan && !isGenerating && (
+                  <div>
+                <div className="text-center py-6">
+                  {shouldShowButton ? (
+                    <>
+                      <p className={cn("text-sm mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        Haz clic en "Generar Plan" para crear un plan de estudio personalizado basado en tus debilidades.
+                      </p>
+                      <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-yellow-900/30 border border-yellow-700/50' : 'bg-yellow-50 border border-yellow-200')}>
+                        <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700')}>
+                          Debilidades identificadas:
+                        </p>
+                        <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                          {subject.weaknesses.map((weakness, idx) => {
+                            const topicData = subject.topics.find(t => t.name === weakness);
+                            return (
+                              <li key={idx}>
+                                • {weakness} ({topicData?.percentage || 0}%)
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={cn("flex items-center justify-center gap-2 mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        <Clock className="h-5 w-5" />
+                        <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                          El plan de estudio estará disponible después de generar el plan de la materia anterior.
+                        </p>
+                      </div>
+                      <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-zinc-700/30 border border-zinc-600/50' : 'bg-gray-50 border border-gray-200')}>
+                        <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                          Debilidades identificadas:
+                        </p>
+                        <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                          {subject.weaknesses.map((weakness, idx) => {
+                            const topicData = subject.topics.find(t => t.name === weakness);
+                            return (
+                              <li key={idx}>
+                                • {weakness} ({topicData?.percentage || 0}%)
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </>
+                  )}
+                  </div>
+                </div>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
+      </div>
+    </Accordion>
   );
 }
 /**
@@ -628,7 +1612,7 @@ export default function ICFESAnalysisInterface() {
   const [phase2Data, setPhase2Data] = useState<AnalysisData | null>(null);
   const [phase3Data, setPhase3Data] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingAI, setLoadingAI] = useState(false);
+  const [, setLoadingAI] = useState(false);
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
   const [studentRank, setStudentRank] = useState<number | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
@@ -2438,32 +3422,120 @@ export default function ICFESAnalysisInterface() {
                     <CardContent className="pt-6">
                       <div className="text-center py-8">
                         <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                        <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay recomendaciones disponibles para esta fase</p>
+                        <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos disponibles para esta fase</p>
                         <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta evaluaciones para generar un plan de estudio personalizado</p>
                       </div>
                     </CardContent>
                   </Card>
                 );
               }
-              return loadingAI || (currentData.recommendations.length > 0) ? (
-                <StudyPlan recommendations={currentData.recommendations} theme={theme} loadingAI={loadingAI} />
-              ) : (
-                <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                  <CardHeader>
-                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
-                      <BookOpen className="h-5 w-5" />
-                      Plan de Estudio Personalizado
-                    </CardTitle>
-                    <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>Recomendaciones basadas en tu desempeño</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8">
-                      <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                      <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay recomendaciones específicas disponibles</p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta más evaluaciones para generar un plan de estudio personalizado</p>
-                    </div>
-                  </CardContent>
-                </Card>
+
+              // Determinar la fase actual
+              const currentPhase = selectedPhase === 'phase1' ? 'first' 
+                : selectedPhase === 'phase2' ? 'second' 
+                : selectedPhase === 'phase3' ? 'third' 
+                : 'first'; // Default a first si es 'all'
+
+              // Si es "Todas las Fases", mostrar resumen de planes disponibles
+              if (selectedPhase === 'all') {
+                return (
+                  <StudyPlanSummary 
+                    phase1Data={phase1Data}
+                    phase2Data={phase2Data}
+                    user={user}
+                    theme={theme}
+                  />
+                );
+              }
+
+              // Si es Fase III, mostrar mensaje de ánimo en lugar del plan de estudio
+              if (currentPhase === 'third') {
+                return (
+                  <div className="flex items-center justify-center min-h-[60vh] px-4">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ duration: 0.6 }}
+                      className={cn(
+                        "max-w-4xl w-full text-center p-8 sm:p-12 rounded-3xl shadow-2xl",
+                        theme === 'dark' 
+                          ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-blue-500/50' 
+                          : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200'
+                      )}
+                    >
+                      <motion.div
+                        animate={{ 
+                          scale: [1, 1.1, 1],
+                          rotate: [0, 5, -5, 0]
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: Infinity,
+                          repeatDelay: 1
+                        }}
+                        className="mb-6"
+                      >
+                        <Trophy className={cn(
+                          "w-20 h-20 mx-auto",
+                          theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                        )} />
+                      </motion.div>
+                      
+                      <motion.h2
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className={cn(
+                          "text-3xl sm:text-4xl md:text-5xl font-bold mb-6",
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        )}
+                      >
+                        ¡SIGUE ADELANTE!
+                      </motion.h2>
+                      
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className={cn(
+                          "text-xl sm:text-2xl md:text-3xl font-semibold",
+                          theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
+                        )}
+                      >
+                        TU ESFUERZO TE LLEVARÁ AL ÉXITO
+                      </motion.p>
+                      
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="mt-8"
+                      >
+                        <p className={cn(
+                          "text-base sm:text-lg",
+                          theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                        )}>
+                          ¡NUNCA DEJES QUE LOS DEMAS DECIDAN EN QUIEN TE CONVERTIRÁS!.
+                        </p>
+                        <p className={cn(
+                          "text-base sm:text-lg mt-2",
+                          theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                        )}>
+                          Sigue estudiando, repasando y fortaleciendo tus conocimientos. ¡El éxito está en tus manos!
+                        </p>
+                      </motion.div>
+                    </motion.div>
+                  </div>
+                );
+              }
+
+              return (
+                <PersonalizedStudyPlan
+                  subjectsWithTopics={currentData.subjectsWithTopics}
+                  phase={currentPhase}
+                  studentId={user?.uid || ''}
+                  theme={theme}
+                />
               );
             })()}
           </TabsContent>

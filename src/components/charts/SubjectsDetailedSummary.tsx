@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import { BookOpen, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -224,48 +225,69 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-          {subjects.map((subject) => (
-            <div 
-              key={subject.name}
-              className={cn(
-                "p-4 rounded-lg border",
-                theme === 'dark' ? 'bg-zinc-900/50 border-zinc-700' : 'bg-gray-50 border-gray-200'
-              )}
-            >
-              {/* Header de la materia */}
-              <div className="flex items-center gap-2 mb-3">
-                {getTrendIcon(subject.percentage)}
-                <h3 className={cn("font-semibold text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  {subject.name}
-                </h3>
-              </div>
+          <Accordion type="multiple" className="w-full">
+            <div className="space-y-3">
+            {subjects.map((subject) => (
+              <AccordionItem 
+                key={subject.name}
+                value={subject.name}
+                className={cn(
+                  "border rounded-lg overflow-hidden transition-all border-b-0",
+                  theme === 'dark' ? 'border-zinc-700 bg-zinc-900/50 hover:bg-zinc-900' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                )}
+              >
+                <AccordionTrigger 
+                  className={cn(
+                    "px-4 py-3 hover:no-underline",
+                    theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-50'
+                  )}
+                >
+                  <div className="flex items-center gap-2 flex-1 text-left">
+                    {getTrendIcon(subject.percentage)}
+                    <h3 className={cn("font-semibold text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      {subject.name}
+                    </h3>
+                    <span className={cn(
+                      "ml-auto mr-2 text-xs font-semibold",
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    )}>
+                      {subject.percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className={cn(
+                    "px-4 pb-4 pt-2",
+                    theme === 'dark' ? 'bg-zinc-900/30' : 'bg-white/50'
+                  )}>
+                    {/* Resumen detallado */}
+                    <p className={cn(
+                      "text-sm leading-relaxed text-justify mb-3",
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    )}>
+                      {generateSubjectSummary(subject)}
+                    </p>
 
-              {/* Resumen detallado */}
-              <p className={cn(
-                "text-sm leading-relaxed text-justify",
-                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-              )}>
-                {generateSubjectSummary(subject)}
-              </p>
-
-              {/* Estadística rápida */}
-              <div className={cn(
-                "mt-3 pt-3 border-t flex items-center justify-between text-xs",
-                theme === 'dark' ? 'border-zinc-700 text-gray-400' : 'border-gray-200 text-gray-500'
-              )}>
-                <span>
-                  Respuestas correctas: <span className="font-semibold">{subject.correct}/{subject.total}</span>
-                </span>
-                <span>
-                  Puntuación: <span className="font-semibold">{subject.score}/{subject.maxScore}</span>
-                </span>
-              </div>
+                    {/* Estadística rápida */}
+                    <div className={cn(
+                      "pt-3 border-t flex items-center justify-between text-xs",
+                      theme === 'dark' ? 'border-zinc-700 text-gray-400' : 'border-gray-200 text-gray-500'
+                    )}>
+                      <span>
+                        Respuestas correctas: <span className="font-semibold">{subject.correct}/{subject.total}</span>
+                      </span>
+                      <span>
+                        Puntuación: <span className="font-semibold">{subject.score}/{subject.maxScore}</span>
+                      </span>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          </Accordion>
+        </CardContent>
+      </Card>
     </div>
   );
 }
