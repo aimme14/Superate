@@ -1077,6 +1077,12 @@ const ExamWithFirebase = () => {
     }
   }
 
+  // Función para saltar pregunta (No sé)
+  const handleSkipQuestion = () => {
+    // No guardamos ninguna respuesta, simplemente avanzamos a la siguiente pregunta
+    nextQuestion();
+  }
+
 
   // Función para mostrar advertencia de envío
   const showSubmitWarning = () => {
@@ -1190,7 +1196,7 @@ const ExamWithFirebase = () => {
                 </div>
                 <div>
                   <h3 className="text-xs text-gray-500 font-medium">Estás realizando:</h3>
-                  <h2 className="text-base font-bold">{examData.module || examData.title}</h2>
+                  <h2 className="text-base font-normal text-gray-600">{examData.module || examData.title}</h2>
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1216,10 +1222,6 @@ const ExamWithFirebase = () => {
                     {formatTimeLeft(timeLeft)}
                   </span>
                 </div>
-                {/* Preguntas respondidas */}
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
-                  <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
-                </div>
                 {/* Advertencias de cambio de pestaña */}
                 {tabChangeCount === 1 && (
                   <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
@@ -1236,7 +1238,7 @@ const ExamWithFirebase = () => {
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Pregunta {currentQuestion + 1}</CardTitle>
+                <CardTitle className="text-lg font-normal text-gray-600">Pregunta {currentQuestion + 1}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
@@ -1285,10 +1287,19 @@ const ExamWithFirebase = () => {
                 ))}
               </RadioGroup>
             </CardContent>
-            <CardFooter className="flex justify-end">
+            <CardFooter className="flex justify-end gap-2">
+              <Button
+                onClick={handleSkipQuestion}
+                disabled={currentQuestion === examData.questions.length - 1}
+                variant="outline"
+                className="flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <HelpCircle className="h-4 w-4" />
+                No sé
+              </Button>
               <Button
                 onClick={nextQuestion}
-                disabled={currentQuestion === examData.questions.length - 1}
+                disabled={currentQuestion === examData.questions.length - 1 || !answers[currentQ.id]}
                 className="flex items-center gap-2 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
@@ -1299,11 +1310,11 @@ const ExamWithFirebase = () => {
 
         {/* Panel lateral derecho con navegación de preguntas */}
         <div className="w-full lg:w-56 flex-shrink-0">
-          <div className="bg-white border rounded-lg p-3 sticky top-4 shadow-sm">
-            <h3 className="text-xs font-semibold mb-2.5 text-gray-700 uppercase tracking-wide">
+          <div className="bg-white border rounded-lg p-2.5 sticky top-4 shadow-sm">
+            <h3 className="text-xs font-semibold mb-2 text-gray-700 uppercase tracking-wide">
               Navegación
             </h3>
-            <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
+            <div className="grid grid-cols-6 gap-1.5 mb-3">
               {examData.questions.map((q, index) => {
                 const isAnswered = answers[q.id];
                 const isCurrent = currentQuestion === index;
@@ -1319,14 +1330,14 @@ const ExamWithFirebase = () => {
                       // BLOQUEAR TODOS los clics - los botones son SOLO marcadores visuales
                       return false;
                     }}
-                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 cursor-not-allowed ${
+                    className={`relative h-7 w-7 rounded-md flex items-center justify-center text-[10px] font-bold transition-all duration-200 cursor-not-allowed ${
                       isCurrent
                         ? isAnswered
-                          ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
-                          : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
+                          ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-1 ring-purple-400 scale-110"
+                          : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-1 ring-purple-300 scale-110"
                         : isAnswered
-                        ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
-                        : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300"
+                        ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm"
+                        : "bg-gray-100 text-gray-600 border border-gray-300"
                     }`}
                     title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"} - Solo marcador visual`}
                     onMouseDown={(e) => {
@@ -1337,45 +1348,40 @@ const ExamWithFirebase = () => {
                   >
                     {index + 1}
                     {isAnswered && !isCurrent && (
-                      <CheckCircle2 className="absolute -top-1 -right-1 h-3 w-3 text-green-500 bg-white rounded-full" />
+                      <CheckCircle2 className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 text-green-500 bg-white rounded-full" />
                     )}
                   </button>
                 )
               })}
             </div>
 
-            <div className="mt-4 pt-4 border-t">
-              <div className="text-sm text-gray-500 mb-2">Progreso del examen</div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">
+            <div className="mt-3 pt-3 border-t">
+              <div className="text-xs text-gray-500 mb-1.5 font-medium">Progreso del examen</div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold">
                   {answeredQuestions}/{examData.questions.length}
                 </span>
-                <span className="text-sm text-gray-500">
+                <span className="text-xs text-gray-500">
                   {Math.round((answeredQuestions / examData.questions.length) * 100)}%
                 </span>
               </div>
-              <Progress value={(answeredQuestions / examData.questions.length) * 100} className="h-2" />
+              <Progress value={(answeredQuestions / examData.questions.length) * 100} className="h-1.5 mb-3" />
 
               <Button
                 onClick={showSubmitWarning}
                 disabled={isSubmitting}
-                className="w-full mt-4 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
+                size="sm"
+                className="w-full bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg text-xs py-2"
               >
                 {isSubmitting ? (
                   <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
                     Enviando...
                   </>
                 ) : (
                   'Finalizar examen'
                 )}
               </Button>
-
-              {answeredQuestions < examData.questions.length && (
-                <p className="text-xs text-center mt-2 text-orange-500">
-                  Tienes {examData.questions.length - answeredQuestions} preguntas sin responder
-                </p>
-              )}
             </div>
           </div>
         </div>

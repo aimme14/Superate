@@ -1598,6 +1598,11 @@ const ExamWithFirebase = () => {
     }
   }
 
+  // Función para saltar pregunta/grupo (No sé)
+  const handleSkipQuestion = () => {
+    // No guardamos ninguna respuesta, simplemente avanzamos a la siguiente pregunta/grupo
+    nextQuestion();
+  }
 
   // Función para mostrar advertencia de envío
   const showSubmitWarning = () => {
@@ -1788,7 +1793,7 @@ const ExamWithFirebase = () => {
                 </div>
                 <div>
                   <h3 className={cn("text-xs font-medium", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estás realizando:</h3>
-                  <h2 className={cn("text-base font-bold", appTheme === 'dark' ? 'text-white' : '')}>{quizData.title}</h2>
+                  <h2 className={cn("text-base font-normal", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{quizData.title}</h2>
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1814,10 +1819,6 @@ const ExamWithFirebase = () => {
                     {formatTimeLeft(timeLeft)}
                   </span>
                 </div>
-                {/* Preguntas respondidas */}
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
-                  <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
-                </div>
                 {/* Advertencias de cambio de pestaña */}
                 {tabChangeCount === 1 && (
                   <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
@@ -1835,12 +1836,12 @@ const ExamWithFirebase = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 {isEnglishWithGroups ? (
-                  <CardTitle className={cn(`text-xl`, appTheme === 'dark' ? 'text-white' : theme.primaryColor)}>
+                  <CardTitle className={cn(`text-lg font-normal`, appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                     Grupo {currentGroupIndex + 1} de {questionGroups.length} 
                     {currentGroupQuestions.length > 1 && ` (${currentGroupQuestions.length} preguntas)`}
                   </CardTitle>
                 ) : (
-                  <CardTitle className={cn(`text-xl`, appTheme === 'dark' ? 'text-white' : theme.primaryColor)}>
+                  <CardTitle className={cn(`text-lg font-normal`, appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                     Pregunta {currentQuestion + 1}
                   </CardTitle>
                 )}
@@ -2248,18 +2249,23 @@ const ExamWithFirebase = () => {
                 )}
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between">
+            <CardFooter className="flex justify-end gap-2">
               <Button
-                onClick={previousQuestion}
-                disabled={isEnglishWithGroups ? currentGroupIndex === 0 : currentQuestion === 0}
+                onClick={handleSkipQuestion}
+                disabled={isEnglishWithGroups ? currentGroupIndex === questionGroups.length - 1 : currentQuestion === quizData.questions.length - 1}
                 variant="outline"
-                className={cn("flex items-center gap-2", appTheme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : '')}
+                className={cn("flex items-center gap-2", appTheme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50')}
               >
-                <ChevronRight className="h-4 w-4 rotate-180" /> Anterior
+                <HelpCircle className="h-4 w-4" />
+                No sé
               </Button>
               <Button
                 onClick={nextQuestion}
-                disabled={isEnglishWithGroups ? currentGroupIndex === questionGroups.length - 1 : currentQuestion === quizData.questions.length - 1}
+                disabled={
+                  isEnglishWithGroups 
+                    ? currentGroupIndex === questionGroups.length - 1 || !currentGroupQuestions.some(q => answers[q.id || ''])
+                    : currentQuestion === quizData.questions.length - 1 || !answers[quizData.questions[currentQuestion].id || '']
+                }
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
@@ -2275,7 +2281,7 @@ const ExamWithFirebase = () => {
               {isEnglishWithGroups ? 'Navegación por Grupos' : 'Navegación'}
             </h3>
             {isEnglishWithGroups && questionGroups.length > 0 ? (
-              <div className="space-y-2 max-h-72 overflow-y-auto pb-2">
+              <div className="space-y-2 pb-2">
                 {questionGroups.map((group, groupIndex) => {
                   // Calcular índice de la primera pregunta del grupo
                   let firstQuestionIndex = 0;
@@ -2343,7 +2349,7 @@ const ExamWithFirebase = () => {
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
+              <div className="grid grid-cols-6 gap-1.5 mb-3">
                 {quizData.questions.map((q, index) => {
                   const questionId = q.id || ''
                   const isAnswered = answers[questionId];
@@ -2361,14 +2367,14 @@ const ExamWithFirebase = () => {
                         return false;
                       }}
                       className={cn(
-                        "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 cursor-not-allowed",
+                        "relative h-7 w-7 rounded-md flex items-center justify-center text-[10px] font-bold transition-all duration-200 cursor-not-allowed",
                         isCurrent
                           ? isAnswered
-                            ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
-                            : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
+                            ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-1 ring-purple-400 scale-110"
+                            : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-1 ring-purple-300 scale-110"
                           : isAnswered
-                          ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
-                          : (appTheme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300")
+                          ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm"
+                          : (appTheme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600" : "bg-gray-100 text-gray-600 border border-gray-300")
                       )}
                       title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"} - Solo marcador visual`}
                       onMouseDown={(e) => {
@@ -2379,7 +2385,7 @@ const ExamWithFirebase = () => {
                     >
                       {index + 1}
                       {isAnswered && !isCurrent && (
-                        <CheckCircle2 className={cn("absolute -top-1 -right-1 h-3 w-3 text-green-500 rounded-full", appTheme === 'dark' ? 'bg-zinc-800' : 'bg-white')} />
+                        <CheckCircle2 className={cn("absolute -top-0.5 -right-0.5 h-2.5 w-2.5 text-green-500 rounded-full", appTheme === 'dark' ? 'bg-zinc-800' : 'bg-white')} />
                       )}
                     </button>
                   )
@@ -2387,38 +2393,33 @@ const ExamWithFirebase = () => {
               </div>
             )}
 
-            <div className={cn("mt-4 pt-4 border-t", appTheme === 'dark' ? 'border-zinc-700' : '')}>
-              <div className={cn("text-sm mb-2", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Progreso del examen</div>
-              <div className="flex items-center justify-between mb-2">
-                <span className={cn("text-sm font-medium", appTheme === 'dark' ? 'text-white' : '')}>
+            <div className={cn("mt-3 pt-3 border-t", appTheme === 'dark' ? 'border-zinc-700' : '')}>
+              <div className={cn("text-xs mb-1.5 font-medium", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Progreso del examen</div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={cn("text-xs font-semibold", appTheme === 'dark' ? 'text-white' : '')}>
                   {answeredQuestions}/{quizData.questions.length}
                 </span>
-                <span className={cn("text-sm", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                <span className={cn("text-xs", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                   {Math.round((answeredQuestions / quizData.questions.length) * 100)}%
                 </span>
               </div>
-              <Progress value={(answeredQuestions / quizData.questions.length) * 100} className="h-2" />
+              <Progress value={(answeredQuestions / quizData.questions.length) * 100} className="h-1.5 mb-3" />
 
               <Button
                 onClick={showSubmitWarning}
                 disabled={isSubmitting}
-                className={`w-full mt-4 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
+                size="sm"
+                className={`w-full ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg text-xs py-2`}
               >
                 {isSubmitting ? (
                   <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
                     Enviando...
                   </>
                 ) : (
                   'Finalizar examen'
                 )}
               </Button>
-
-              {answeredQuestions < quizData.questions.length && (
-                <p className={cn("text-xs text-center mt-2", appTheme === 'dark' ? 'text-orange-400' : 'text-orange-500')}>
-                  Tienes {quizData.questions.length - answeredQuestions} preguntas sin responder
-                </p>
-              )}
             </div>
           </div>
         </div>
