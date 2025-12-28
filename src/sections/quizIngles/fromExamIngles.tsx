@@ -511,16 +511,7 @@ const ExamWithFirebase = () => {
     }
   };
 
-  // Función para cambiar de pregunta con seguimiento de tiempo
-  // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-  const changeQuestion = (_newQuestionIndex: number) => {
-    // BLOQUEAR TODA navegación desde los botones de navegación
-    // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
-    // Los botones de navegación son SOLO marcadores visuales
-    return;
-  };
-
-  // Función interna para cambiar de pregunta (solo usada por nextQuestion y changeGroup)
+  // Función interna para cambiar de pregunta (solo usada por nextQuestion)
   const internalChangeQuestion = (newQuestionIndex: number) => {
     if (!quizData) return;
     
@@ -561,16 +552,6 @@ const ExamWithFirebase = () => {
       const newQuestionId = quizData.questions[newQuestionIndex].id || '';
       initializeQuestionTime(newQuestionId);
     }
-  };
-  
-  // Función para cambiar de grupo (para inglés)
-  // Función para cambiar de grupo (para inglés)
-  // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-  const changeGroup = (_newGroupIndex: number) => {
-    // BLOQUEAR TODA navegación desde los botones de navegación
-    // Solo permitir cambiar de grupo cuando se usa el botón "Siguiente"
-    // Los botones de navegación son SOLO marcadores visuales
-    return;
   };
 
   // Función interna para cambiar de grupo (solo usada por nextQuestion)
