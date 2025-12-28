@@ -1581,23 +1581,6 @@ const ExamWithFirebase = () => {
     }
   }
   
-  // Función para ir a la pregunta anterior o grupo anterior
-  const previousQuestion = () => {
-    if (!quizData) return;
-    
-    // Para inglés, navegar entre grupos
-    if (quizData.subject === 'Inglés' && questionGroups.length > 0) {
-      if (currentGroupIndex > 0) {
-        changeGroup(currentGroupIndex - 1);
-      }
-    } else {
-      // Para otras materias, navegar entre preguntas individuales
-      if (currentQuestion > 0) {
-        changeQuestion(currentQuestion - 1);
-      }
-    }
-  }
-
   // Función para saltar pregunta/grupo (No sé)
   const handleSkipQuestion = () => {
     // No guardamos ninguna respuesta, simplemente avanzamos a la siguiente pregunta/grupo
