@@ -2890,7 +2890,6 @@ export default function ICFESAnalysisInterface() {
     studentName: string,
     studentId: string,
     institutionName: string,
-    applicationDate: Date,
     currentDate: Date,
     phaseName: string,
     phaseMetrics: {
@@ -3439,9 +3438,7 @@ export default function ICFESAnalysisInterface() {
     studentName: string,
     studentId: string,
     institutionName: string,
-    applicationDate: Date,
     currentDate: Date,
-    phaseName: string,
     sortedSubjects: any[],
     globalScore: number,
     globalPercentile: number
@@ -4027,14 +4024,13 @@ export default function ICFESAnalysisInterface() {
       }
 
       const currentDate = new Date();
-      const applicationDate = summary.fecha ? new Date(summary.fecha) : currentDate;
 
       // Generar HTML del PDF según la fase
       // Para Fase I y II: diseño simplificado con tarjetas de métricas
       // Para Fase III: diseño completo con tabla de resultados
       const pdfHTML = isPhase3 
-        ? generatePhase3PDFHTML(summary, studentName, studentId, institutionName, applicationDate, currentDate, phaseName, sortedSubjects, globalScore, globalPercentile)
-        : generatePhase1And2PDFHTML(summary, studentName, studentId, institutionName, applicationDate, currentDate, phaseName, phaseMetrics, studentRank, totalStudents, sortedSubjects);
+        ? generatePhase3PDFHTML(summary, studentName, studentId, institutionName, currentDate, sortedSubjects, globalScore, globalPercentile)
+        : generatePhase1And2PDFHTML(summary, studentName, studentId, institutionName, currentDate, phaseName, phaseMetrics, studentRank, totalStudents, sortedSubjects);
 
       printWindow.document.write(pdfHTML);
       printWindow.document.close();
@@ -4051,48 +4047,6 @@ export default function ICFESAnalysisInterface() {
       notifyError({
         title: 'Error',
         message: error.message || 'Error al generar el PDF. Por favor, inténtalo de nuevo.'
-      });
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  };
-
-  const handleExportAllPhases = async () => {
-    if (availablePhases.length === 0) {
-      notifyError({
-        title: 'No hay fases completas',
-        message: 'No hay fases con las 7 materias completadas para descargar.'
-      });
-      return;
-    }
-
-    setIsPDFPhaseDialogOpen(false);
-    setIsGeneratingPDF(true);
-
-    try {
-      // Descargar cada fase disponible (sin cerrar el diálogo entre descargas)
-      for (let i = 0; i < availablePhases.length; i++) {
-        const phase = availablePhases[i];
-        const isLast = i === availablePhases.length - 1;
-        
-        // Para la última descarga, no mantener el diálogo abierto
-        await handleExportPDF(phase, !isLast);
-        
-        // Pequeña pausa entre descargas para evitar saturar (excepto en la última)
-        if (!isLast) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-      }
-
-      notifySuccess({
-        title: 'Descarga completada',
-        message: `Se descargaron ${availablePhases.length} fase(s) completas.`
-      });
-    } catch (error: any) {
-      console.error('Error descargando todas las fases:', error);
-      notifyError({
-        title: 'Error',
-        message: 'Hubo un error al descargar algunas fases. Intenta descargarlas individualmente.'
       });
     } finally {
       setIsGeneratingPDF(false);
