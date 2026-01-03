@@ -145,7 +145,7 @@ const assignStudentToRector = async (studentId: string, institutionId: string): 
  */
 export const register = async (user: RegisterFormProps): Promise<Result<void>> => {
   try {
-    const { role, userdoc, email, grade, inst, campus, username, representativePhone } = user
+    const { role, userdoc, email, grade, inst, campus, username, representativePhone, academicYear } = user
     
     // Verificar que solo se registren estudiantes
     if (role !== 'student') {
@@ -182,6 +182,12 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     if (representativePhone) {
       dbUserData.representativePhone = representativePhone
     }
+
+    // Agregar año académico (obligatorio)
+    if (!academicYear) {
+      return failure(new ErrorAPI({ message: 'El año académico es obligatorio', statusCode: 400 }))
+    }
+    dbUserData.academicYear = academicYear
 
     const dbResult = await dbService.createUser(userAccount.data, dbUserData)
     if (!dbResult.success) throw dbResult.error

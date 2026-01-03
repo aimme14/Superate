@@ -16,6 +16,7 @@ export interface CreateStudentData {
   adminEmail?: string
   adminPassword?: string
   representativePhone?: string
+  academicYear: number // Año académico/cohorte (ej: 2026, 2027) - OBLIGATORIO
 }
 
 export interface UpdateStudentData extends Partial<CreateStudentData> {
@@ -25,6 +26,7 @@ export interface UpdateStudentData extends Partial<CreateStudentData> {
   institutionId?: string
   campusId?: string
   gradeId?: string
+  academicYear?: number // Año académico/cohorte (ej: 2026, 2027) - Opcional en actualización
 }
 
 export interface StudentFilters {
@@ -42,7 +44,7 @@ export interface StudentFilters {
  */
 export const createStudent = async (studentData: CreateStudentData): Promise<Result<User>> => {
   try {
-    const { name, email, institutionId, campusId, gradeId, userdoc, password, adminEmail, adminPassword, representativePhone } = studentData
+    const { name, email, institutionId, campusId, gradeId, userdoc, password, adminEmail, adminPassword, representativePhone, academicYear } = studentData
 
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = password || userdoc + '0'
@@ -69,6 +71,9 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     if (representativePhone) {
       dbUserData.representativePhone = representativePhone
     }
+
+    // Agregar año académico (obligatorio)
+    dbUserData.academicYear = academicYear
 
     const dbResult = await dbService.createUser(userAccount.data, dbUserData)
     if (!dbResult.success) throw dbResult.error
@@ -174,6 +179,8 @@ export const updateStudent = async (studentId: string, studentData: UpdateStuden
     if (studentData.institutionId) updateData.inst = studentData.institutionId
     if (studentData.campusId) updateData.campus = studentData.campusId
     if (studentData.gradeId) updateData.grade = studentData.gradeId
+    if (studentData.academicYear !== undefined) updateData.academicYear = studentData.academicYear
+    if (studentData.representativePhone !== undefined) updateData.representativePhone = studentData.representativePhone
 
     // Si se cambió la institución, sede o grado, necesitamos reasignar al estudiante
     if (studentData.institutionId || studentData.campusId || studentData.gradeId) {

@@ -79,6 +79,7 @@ export interface Teacher extends User {
 export interface Student extends User {
   role: 'student'
   gradeId: string
+  academicYear: number // Año académico/cohorte (ej: 2026, 2027) - OBLIGATORIO
   teacherIds?: string[] // IDs de docentes asignados
   institutionName?: string // Nombre de la institución
   campusName?: string // Nombre de la sede

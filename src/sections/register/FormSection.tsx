@@ -105,6 +105,19 @@ const FormSection = ({ theme }: FormSectionProps) => {
         </div>
       )}
 
+      <div className="[&>div]:space-y-1">
+        <InputField
+          name="academicYear"
+          type="number"
+          label="Año académico (Cohorte) *"
+          placeholder="Ej: 2026"
+          theme={theme}
+        />
+        <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+          Año en el que el estudiante se matricula (4 dígitos, ej: 2026). Campo obligatorio.
+        </p>
+      </div>
+
       {/* -------------------- Submit -------------------- */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

@@ -103,6 +103,14 @@ export default function InfoTab() {
             <Label htmlFor="doc" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Documento</Label>
             <Input id="doc" value={(userData?.userdoc || '').replace(/0$/, '')} readOnly className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')} />
           </div>
+          <div>
+            <Label htmlFor="academicYear" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Año académico (Cohorte)</Label>
+            <Input id="academicYear" value={userData?.academicYear || ''} readOnly className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')} />
+          </div>
+          <div>
+            <Label htmlFor="representativePhone" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono del representante</Label>
+            <Input id="representativePhone" value={userData?.representativePhone || 'No registrado'} readOnly className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')} />
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -64,6 +64,7 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
       campus: '',
       grade: '',
       representativePhone: '',
+      academicYear: new Date().getFullYear(), // Valor por defecto: año actual
     },
     mode: "onChange",
   })
@@ -77,7 +78,8 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
       inst: user.institution || '',
       campus: user.campus || '',
       grade: user.grade || '',
-      representativePhone: (user as any).representativePhone || ''
+      representativePhone: (user as any).representativePhone || '',
+      academicYear: (user as any).academicYear || new Date().getFullYear()
     })
   }, [id, user])
 

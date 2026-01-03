@@ -1023,7 +1023,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
     password: '',
     institution: '',
     campus: '',
-    grade: ''
+    grade: '',
+    academicYear: new Date().getFullYear() as number, // Valor por defecto: año actual
+    representativePhone: '' // Teléfono del representante
   })
   
   // Hooks para docentes
@@ -1075,7 +1077,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
     grade: '',
     password: '',
     confirmPassword: '',
-    representativePhone: ''
+    representativePhone: '',
+    academicYear: new Date().getFullYear() as number // Valor por defecto: año actual
   })
 
 
@@ -1632,7 +1635,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
       password: '',
       institution: student.inst || student.institutionId || '',
       campus: student.campus || student.campusId || '',
-      grade: student.grade || student.gradeId || ''
+      grade: student.grade || student.gradeId || '',
+      academicYear: student.academicYear || new Date().getFullYear(),
+      representativePhone: student.representativePhone || ''
     })
     setIsEditDialogOpen(true)
   }
@@ -1649,19 +1654,26 @@ export default function UserManagement({ theme }: UserManagementProps) {
       return
     }
 
+    // Validar año académico
+    if (!editStudentData.academicYear || editStudentData.academicYear.toString().length !== 4) {
+      notifyError({ title: 'Error', message: 'El año académico es obligatorio y debe tener 4 dígitos (ej: 2026)' })
+      return
+    }
+
     try {
       await updateStudent.mutateAsync({
         studentId: selectedStudent.id,
         studentData: {
           name: editStudentData.name,
           email: editStudentData.email,
-          phone: editStudentData.phone || undefined,
           isActive: editStudentData.isActive,
           userdoc: editStudentData.userdoc || undefined,
           // No se envía password para estudiantes
           institutionId: editStudentData.institution,
           campusId: editStudentData.campus,
-          gradeId: editStudentData.grade
+          gradeId: editStudentData.grade,
+          academicYear: editStudentData.academicYear,
+          representativePhone: editStudentData.representativePhone || undefined
         }
       })
       
@@ -1677,7 +1689,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
         password: '',
         institution: '',
         campus: '',
-        grade: ''
+        grade: '',
+        academicYear: new Date().getFullYear(),
+        representativePhone: ''
       })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el estudiante' })
@@ -1755,6 +1769,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
           return
         }
         
+        // Validar año académico
+        if (!newUser.academicYear || newUser.academicYear.toString().length !== 4) {
+          notifyError({ title: 'Error', message: 'El año académico es obligatorio y debe tener 4 dígitos (ej: 2026)' })
+          return
+        }
+
         const studentData = {
           name: newUser.name,
           email: newUser.email,
@@ -1765,7 +1785,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
           password: newUser.password,
           adminEmail: currentUser?.email,
           adminPassword: getAdminPassword(),
-          representativePhone: newUser.representativePhone || undefined
+          representativePhone: newUser.representativePhone || undefined,
+          academicYear: newUser.academicYear
         }
         
         console.log('🔍 Datos del estudiante desde el formulario:', studentData)
@@ -1925,7 +1946,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         grade: '',
         password: '',
         confirmPassword: '',
-        representativePhone: ''
+        representativePhone: '',
+        academicYear: new Date().getFullYear()
       })
       notifySuccess({ 
         title: 'Éxito', 
@@ -2103,17 +2125,44 @@ export default function UserManagement({ theme }: UserManagementProps) {
                     </div>
                   )}
                   {newUser.role === 'student' && (
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="representativePhone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono del representante</Label>
-                      <Input
-                        id="representativePhone"
-                        type="tel"
-                        value={newUser.representativePhone}
-                        onChange={(e) => setNewUser(prev => ({ ...prev, representativePhone: e.target.value }))}
-                        placeholder="Ej: +57 300 1234567"
-                        className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                      />
-                    </div>
+                    <>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="representativePhone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono del representante</Label>
+                        <Input
+                          id="representativePhone"
+                          type="tel"
+                          value={newUser.representativePhone}
+                          onChange={(e) => setNewUser(prev => ({ ...prev, representativePhone: e.target.value }))}
+                          placeholder="Ej: +57 300 1234567"
+                          className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                        />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="academicYear" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>
+                          Año académico (Cohorte) <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="academicYear"
+                          type="number"
+                          value={newUser.academicYear || ''}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            // Solo permitir números y máximo 4 dígitos
+                            if (value === '' || (value.length <= 4 && /^\d+$/.test(value))) {
+                              setNewUser(prev => ({ ...prev, academicYear: value ? parseInt(value) : new Date().getFullYear() }))
+                            }
+                          }}
+                          placeholder="Ej: 2026"
+                          min="2020"
+                          max="2100"
+                          required
+                          className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                        />
+                        <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          Año en el que el estudiante se matricula (4 dígitos, ej: 2026). Campo obligatorio.
+                        </p>
+                      </div>
+                    </>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                     <div className="grid gap-1.5">
@@ -2497,18 +2546,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
               {selectedStudent ? (
                 <>
                   <div className="grid gap-1.5">
-                    <Label htmlFor="edit-phone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono</Label>
-                    <Input
-                      id="edit-phone"
-                      value={editStudentData.phone}
-                      onChange={(e) => {
-                        setEditStudentData(prev => ({ ...prev, phone: e.target.value }))
-                      }}
-                      placeholder="Número de teléfono"
-                      className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                    />
-                  </div>
-                  <div className="grid gap-1.5">
                     <Label htmlFor="edit-userdoc" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Documento de identidad</Label>
                     <Input
                       id="edit-userdoc"
@@ -2578,6 +2615,44 @@ export default function UserManagement({ theme }: UserManagementProps) {
                       </Select>
                     </div>
                   )}
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-academicYear" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>
+                      Año académico (Cohorte) <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="edit-academicYear"
+                      type="number"
+                      value={editStudentData.academicYear || ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Solo permitir números y máximo 4 dígitos
+                        if (value === '' || (value.length <= 4 && /^\d+$/.test(value))) {
+                          setEditStudentData(prev => ({ ...prev, academicYear: value ? parseInt(value) : new Date().getFullYear() }))
+                        }
+                      }}
+                      placeholder="Ej: 2026"
+                      min="2020"
+                      max="2100"
+                      required
+                      className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                    <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      Año en el que el estudiante se matricula (4 dígitos, ej: 2026). Campo obligatorio.
+                    </p>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-representativePhone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono del representante</Label>
+                    <Input
+                      id="edit-representativePhone"
+                      type="tel"
+                      value={editStudentData.representativePhone}
+                      onChange={(e) => {
+                        setEditStudentData(prev => ({ ...prev, representativePhone: e.target.value }))
+                      }}
+                      placeholder="Ej: +57 300 1234567"
+                      className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
+                    />
+                  </div>
                 </>
               ) : (
                 /* Campos para docentes, coordinadores y rectores */

@@ -18,6 +18,10 @@ export const registerSchema = z.object({
   campus: z.string().min(1, "La sede es requerida"),
   grade: z.string().min(1, "El grado es requerido"),
   representativePhone: z.string().min(10, "El número de teléfono del representante debe tener al menos 10 caracteres").optional(),
+  academicYear: z.number().int().min(2020).max(2100, "El año académico debe ser un año válido")
+    .refine((val) => val.toString().length === 4, {
+      message: "El año académico debe tener exactamente 4 dígitos"
+    }),
 })
 
 /*--------------------------------------------------adminRegisterSchema--------------------------------------------------*/
