@@ -1801,6 +1801,93 @@ export default function ICFESAnalysisInterface() {
     }
   };
 
+  // Función para calcular el puntaje global de un estudiante para una fase específica
+  const calculateStudentGlobalScoreForPhase = async (studentId: string, phase: 'first' | 'second' | 'third'): Promise<number> => {
+    try {
+      const evaluations = await getPhaseEvaluations(studentId, phase);
+      
+      if (evaluations.length === 0) {
+        return 0;
+      }
+
+      // Materias de naturales (dividen 100 puntos entre las 3)
+      const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física'];
+      const POINTS_PER_NATURALES_SUBJECT = 100 / 3;
+      const POINTS_PER_REGULAR_SUBJECT = 100;
+
+      // Normalizar nombres de materias
+      const normalizeSubjectName = (subject: string): string => {
+        const normalized = subject.trim().toLowerCase();
+        const subjectMap: Record<string, string> = {
+          'biologia': 'Biologia',
+          'biología': 'Biologia',
+          'biology': 'Biologia',
+          'quimica': 'Quimica',
+          'química': 'Quimica',
+          'chemistry': 'Quimica',
+          'fisica': 'Física',
+          'física': 'Física',
+          'physics': 'Física',
+          'matematicas': 'Matemáticas',
+          'matemáticas': 'Matemáticas',
+          'math': 'Matemáticas',
+          'lenguaje': 'Lenguaje',
+          'language': 'Lenguaje',
+          'ciencias sociales': 'Ciencias Sociales',
+          'sociales': 'Ciencias Sociales',
+          'ingles': 'Inglés',
+          'inglés': 'Inglés',
+          'english': 'Inglés'
+        };
+        return subjectMap[normalized] || subject;
+      };
+
+      // Agrupar resultados por materia y tomar el mejor puntaje de cada una
+      const subjectScores: { [subject: string]: number } = {};
+
+      evaluations.forEach(evalData => {
+        const subject = normalizeSubjectName(evalData.subject || evalData.examTitle || '');
+        
+        let percentage = 0;
+        if (evalData.score?.overallPercentage !== undefined) {
+          percentage = evalData.score.overallPercentage;
+        } else if (evalData.score?.correctAnswers !== undefined && evalData.score?.totalQuestions !== undefined) {
+          const total = evalData.score.totalQuestions;
+          const correct = evalData.score.correctAnswers;
+          percentage = total > 0 ? (correct / total) * 100 : 0;
+        } else if (evalData.questionDetails && evalData.questionDetails.length > 0) {
+          const correct = evalData.questionDetails.filter((q: any) => q.isCorrect).length;
+          const total = evalData.questionDetails.length;
+          percentage = total > 0 ? (correct / total) * 100 : 0;
+        }
+
+        // Guardar el mejor puntaje de cada materia
+        if (!subjectScores[subject] || percentage > subjectScores[subject]) {
+          subjectScores[subject] = percentage;
+        }
+      });
+
+      // Calcular puntaje global
+      let globalScore = 0;
+      
+      Object.entries(subjectScores).forEach(([subject, percentage]) => {
+        let pointsForSubject: number;
+        if (NATURALES_SUBJECTS.includes(subject)) {
+          pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT;
+        } else {
+          pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT;
+        }
+        
+        globalScore += pointsForSubject;
+      });
+
+      return Math.round(globalScore * 100) / 100;
+    } catch (error) {
+      console.error('Error calculando puntaje del estudiante para fase:', error);
+      return 0;
+    }
+  };
+
   // Calcular el puesto del estudiante
   useEffect(() => {
     const calculateRank = async () => {
@@ -1846,14 +1933,27 @@ export default function ICFESAnalysisInterface() {
         // Guardar el total de estudiantes
         setTotalStudents(classmates.length);
         
-        // Calcular puntaje global de cada estudiante
+        // Determinar la fase actual basada en los datos disponibles
+        // Priorizar Fase III, luego Fase II, luego Fase I
+        let currentPhase: 'first' | 'second' | 'third' = 'third';
+        if (phase3Data) {
+          currentPhase = 'third';
+        } else if (phase2Data) {
+          currentPhase = 'second';
+        } else if (phase1Data) {
+          currentPhase = 'first';
+        }
+        
+        // Calcular puntaje global de cada estudiante para la fase actual
         const studentScores: { studentId: string; score: number }[] = [];
         
         for (const classmate of classmates) {
           const studentId = (classmate as any).id || (classmate as any).uid;
           if (studentId) {
-            const score = await calculateStudentGlobalScore(studentId);
-            studentScores.push({ studentId, score });
+            const score = await calculateStudentGlobalScoreForPhase(studentId, currentPhase);
+            if (score > 0) { // Solo incluir estudiantes con evaluaciones en esta fase
+              studentScores.push({ studentId, score });
+            }
           }
         }
 
@@ -1864,6 +1964,9 @@ export default function ICFESAnalysisInterface() {
         const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
         if (currentStudentIndex !== -1) {
           setStudentRank(currentStudentIndex + 1); // +1 porque el puesto empieza en 1
+          setTotalStudents(studentScores.length); // Actualizar con el total real de estudiantes con evaluaciones
+        } else {
+          setStudentRank(null);
         }
       } catch (error) {
         console.error('Error calculando puesto del estudiante:', error);
@@ -1875,7 +1978,7 @@ export default function ICFESAnalysisInterface() {
     if (analysisData && user?.uid) {
       calculateRank();
     }
-  }, [analysisData, user?.uid]);
+  }, [analysisData, user?.uid, phase1Data, phase2Data, phase3Data]);
 
   useEffect(() => {
     const fetchDataAndAnalyze = async () => {
@@ -2843,7 +2946,8 @@ export default function ICFESAnalysisInterface() {
       }
 
       // Contar intentos de fraude
-      if (evalData.tabChangeCount > 0) {
+      // Se considera fraude si hay cambios de pestaña o si el examen fue bloqueado por cambio de pestaña
+      if (evalData.tabChangeCount > 0 || evalData.lockedByTabChange === true) {
         fraudAttempts++;
       }
     });
@@ -3231,14 +3335,36 @@ const generatePhase1And2PDFHTML = (
             border-left: 4px solid #3b82f6;
             page-break-inside: avoid;
             }
-            .metadata {
-              background-color: #f3f4f6;
-              padding: 15px;
+          .metadata {
+            background-color: #f3f4f6;
+            padding: 15px;
             border: 1px solid #d1d5db;
-              margin-top: 30px;
+            margin-top: 30px;
             font-size: 9pt;
             color: #4b5563;
             page-break-inside: avoid;
+          }
+          .inspirational-section {
+            margin-top: 25px;
+            text-align: center;
+            padding: 15px 15px;
+            page-break-inside: avoid;
+          }
+          .philosophical-quote {
+            font-style: italic;
+            font-size: 10pt;
+            color: #374151;
+            margin-bottom: 15px;
+            line-height: 1.6;
+            font-family: Georgia, serif;
+          }
+          .bible-verse {
+            font-size: 11pt;
+            color: #1e40af;
+            font-weight: bold;
+            font-style: italic;
+            line-height: 1.6;
+            margin-top: 10px;
           }
           .inspirational-section {
             margin-top: 25px;
@@ -3473,7 +3599,7 @@ const generatePhase1And2PDFHTML = (
   const generatePhase3PDFHTML = (
     summary: any,
     studentName: string,
-    _studentId: string,
+    studentId: string,
     institutionName: string,
     currentDate: Date,
     sortedSubjects: any[],
@@ -3485,6 +3611,47 @@ const generatePhase1And2PDFHTML = (
     studentRank?: number | null,
     totalStudents?: number | null
   ): string => {
+    // Arrays de frases filosóficas y versículos bíblicos
+    const philosophicalQuotes = [
+      { quote: "La excelencia no es un acto, sino un hábito. Somos lo que repetidamente hacemos.", author: "Aristóteles" },
+      { quote: "El único modo de hacer un gran trabajo es amar lo que haces.", author: "Steve Jobs" },
+      { quote: "El éxito es la suma de pequeños esfuerzos repetidos día tras día.", author: "Robert Collier" },
+      { quote: "No te preocupes por los fracasos, preocúpate por las oportunidades que pierdes cuando ni siquiera lo intentas.", author: "Jack Canfield" },
+      { quote: "La diferencia entre lo imposible y lo posible reside en la determinación de una persona.", author: "Tommy Lasorda" },
+      { quote: "El único lugar donde el éxito viene antes que el trabajo es en el diccionario.", author: "Vidal Sassoon" },
+      { quote: "El futuro pertenece a aquellos que creen en la belleza de sus sueños.", author: "Eleanor Roosevelt" },
+      { quote: "La educación es el arma más poderosa que puedes usar para cambiar el mundo.", author: "Nelson Mandela" },
+      { quote: "El aprendizaje nunca agota la mente.", author: "Leonardo da Vinci" },
+      { quote: "No esperes el momento perfecto, comienza ahora. Hazlo ahora.", author: "George Herbert" }
+    ];
+    
+    const bibleVerses = [
+      { verse: "Todo lo puedo en Cristo que me fortalece.", reference: "Filipenses 4:13" },
+      { verse: "El Señor es mi fortaleza y mi escudo; en él confía mi corazón.", reference: "Salmos 28:7" },
+      { verse: "Con Dios todas las cosas son posibles.", reference: "Mateo 19:26" },
+      { verse: "El Señor te bendecirá y te guardará.", reference: "Números 6:24" },
+      { verse: "Fíate del Señor de todo corazón, y no te apoyes en tu propia prudencia.", reference: "Proverbios 3:5" },
+      { verse: "Porque yo sé los planes que tengo para ti... planes de bienestar y no de mal, para darte un futuro y una esperanza.", reference: "Jeremías 29:11" },
+      { verse: "Encomienda al Señor tu camino, confía en él, y él actuará.", reference: "Salmos 37:5" },
+      { verse: "El que comenzó en vosotros la buena obra, la perfeccionará hasta el día de Jesucristo.", reference: "Filipenses 1:6" },
+      { verse: "Esforzaos y cobrad ánimo; no temáis ni os intimidéis, porque el Señor tu Dios está contigo.", reference: "Josué 1:9" }
+    ];
+    
+    // Función simple para generar un índice determinístico basado en studentId
+    const getIndex = (str: string, arrayLength: number): number => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash) % arrayLength;
+    };
+    
+    // Seleccionar frase y versículo basado en studentId
+    const selectedQuote = philosophicalQuotes[getIndex(studentId, philosophicalQuotes.length)];
+    const selectedVerse = bibleVerses[getIndex(studentId + 'verse', bibleVerses.length)];
+
     // Preparar datos para las gráficas
     const phase3Subjects = sortedSubjects.map(s => ({ name: s.name, percentage: s.percentage }));
     
@@ -4176,6 +4343,17 @@ const generatePhase1And2PDFHTML = (
           </div>
           ` : ''}
 
+          <!-- Frase Inspiradora -->
+          <div class="inspirational-section">
+            <div class="philosophical-quote">
+              "${selectedQuote.quote}"
+            </div>
+            <div class="bible-verse">
+              "${selectedVerse.verse}"<br>
+              <span style="font-size: 8pt; color: #6b7280;">${selectedVerse.reference}</span>
+            </div>
+          </div>
+
           <!-- Metadatos -->
           <div class="metadata">
             <p><strong>Información del reporte:</strong></p>
@@ -4535,6 +4713,63 @@ const generatePhase1And2PDFHTML = (
 
       const currentDate = new Date();
 
+      // Calcular el puesto del estudiante para esta fase específica
+      let pdfStudentRank: number | null = null;
+      let pdfTotalStudents: number | null = null;
+      
+      try {
+        const userResult = await getUserById(user.uid);
+        if (userResult.success && userResult.data) {
+          const studentData = userResult.data as any;
+          const institutionId = studentData.inst || studentData.institutionId;
+          const campusId = studentData.campus || studentData.campusId;
+          const gradeId = studentData.grade || studentData.gradeId;
+
+          if (institutionId && campusId && gradeId) {
+            // Obtener todos los estudiantes del mismo colegio, sede y grado
+            const { getFilteredStudents } = await import('@/controllers/student.controller');
+            const studentsResult = await getFilteredStudents({
+              institutionId,
+              campusId,
+              gradeId,
+              isActive: true
+            });
+
+            if (studentsResult.success && studentsResult.data) {
+              const classmates = studentsResult.data;
+              
+              // Calcular puntaje global de cada estudiante para esta fase específica
+              const studentScores: { studentId: string; score: number }[] = [];
+              
+              for (const classmate of classmates) {
+                const classmateId = (classmate as any).id || (classmate as any).uid;
+                if (classmateId) {
+                  const score = await calculateStudentGlobalScoreForPhase(classmateId, phase);
+                  if (score > 0) { // Solo incluir estudiantes con evaluaciones en esta fase
+                    studentScores.push({ studentId: classmateId, score });
+                  }
+                }
+              }
+
+              // Ordenar por puntaje (mayor a menor)
+              studentScores.sort((a, b) => b.score - a.score);
+
+              // Encontrar el puesto del estudiante actual
+              const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
+              if (currentStudentIndex !== -1) {
+                pdfStudentRank = currentStudentIndex + 1; // +1 porque el puesto empieza en 1
+                pdfTotalStudents = studentScores.length; // Total real de estudiantes con evaluaciones
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error calculando puesto para PDF:', error);
+        // Si hay error, usar los valores del estado (pueden ser de otra fase)
+        pdfStudentRank = studentRank;
+        pdfTotalStudents = totalStudents;
+      }
+
       // Para Fase III, obtener datos de las fases anteriores para las gráficas
       let phase1SubjectsData: Array<{ name: string; percentage: number }> | undefined = undefined;
       let phase2SubjectsData: Array<{ name: string; percentage: number }> | undefined = undefined;
@@ -4561,8 +4796,8 @@ const generatePhase1And2PDFHTML = (
       // Para Fase I y II: diseño simplificado con tarjetas de métricas
       // Para Fase III: diseño completo con tabla de resultados
       const pdfHTML = isPhase3 
-        ? generatePhase3PDFHTML(summary, studentName, studentId, institutionName, currentDate, sortedSubjects, globalScore, globalPercentile, phase1SubjectsData, phase2SubjectsData, phaseMetrics, studentRank, totalStudents)
-        : generatePhase1And2PDFHTML(summary, studentName, studentId, institutionName, currentDate, phaseName, phaseMetrics, studentRank, totalStudents, sortedSubjects);
+        ? generatePhase3PDFHTML(summary, studentName, studentId, institutionName, currentDate, sortedSubjects, globalScore, globalPercentile, phase1SubjectsData, phase2SubjectsData, phaseMetrics, pdfStudentRank, pdfTotalStudents)
+        : generatePhase1And2PDFHTML(summary, studentName, studentId, institutionName, currentDate, phaseName, phaseMetrics, pdfStudentRank, pdfTotalStudents, sortedSubjects);
 
       printWindow.document.write(pdfHTML);
       printWindow.document.close();
