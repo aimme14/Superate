@@ -10,6 +10,7 @@ import { justificationService } from './services/justification.service';
 import { questionService } from './services/question.service';
 import { geminiService } from './services/gemini.service';
 import { studyPlanService, TopicWebSearchInfo } from './services/studyPlan.service';
+import { studentSummaryService } from './services/studentSummary.service';
 import { APIResponse } from './types/question.types';
 
 // =============================
@@ -732,6 +733,277 @@ export const health = functions
       
       res.status(200).json(response);
     } catch (error: any) {
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+// =============================
+// ENDPOINTS DE RESUMEN ACADÉMICO
+// =============================
+
+/**
+ * Genera resumen académico para un estudiante en una fase específica
+ * 
+ * POST /generateStudentSummary
+ * Body: { studentId: string, phase: 'first' | 'second' | 'third', force?: boolean }
+ */
+export const generateStudentSummary = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '1GB',
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { studentId, phase, force = false } = req.body;
+      
+      if (!studentId) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'studentId es requerido' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      if (!phase || !['first', 'second', 'third'].includes(phase)) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'phase es requerido y debe ser: first, second o third' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+      
+      const phaseName = phase === 'first' ? 'Fase I' : phase === 'second' ? 'Fase II' : 'Fase III';
+      console.log(`📊 Generando resumen académico para estudiante ${studentId}, ${phaseName}${force ? ' (forzado)' : ''}`);
+      
+      const result = await studentSummaryService.generateSummary(studentId, phase as 'first' | 'second' | 'third', force);
+      
+      const response: APIResponse = {
+        success: result.success,
+        data: result.summary,
+        error: result.error ? { message: result.error } : undefined,
+        metadata: {
+          processingTime: result.processingTimeMs,
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(result.success ? 200 : 500).json(response);
+    } catch (error: any) {
+      console.error('Error en generateStudentSummary:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Obtiene el resumen académico vigente de un estudiante para una fase específica
+ * 
+ * GET /getStudentSummary?studentId=...&phase=first|second|third
+ */
+export const getStudentSummary = functions
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'GET') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa GET' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { studentId, phase } = req.query;
+      
+      if (!studentId) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'studentId es requerido como query param' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      if (!phase || !['first', 'second', 'third'].includes(phase as string)) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'phase es requerido y debe ser: first, second o third' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+      
+      const summary = await studentSummaryService.getSummary(
+        studentId as string, 
+        phase as 'first' | 'second' | 'third'
+      );
+      
+      const response: APIResponse = {
+        success: true,
+        data: summary,
+        metadata: {
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en getStudentSummary:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Endpoint HTTP para verificar y generar resumen automáticamente
+ * Este endpoint puede ser llamado desde el frontend después de completar una evaluación
+ * o desde un sistema externo
+ * 
+ * POST /checkAndGenerateSummary
+ * Body: { studentId: string, phase: 'first' | 'second' | 'third' }
+ */
+export const checkAndGenerateSummary = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '1GB',
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { studentId, phase } = req.body;
+      
+      if (!studentId) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'studentId es requerido' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      if (!phase || !['first', 'second', 'third'].includes(phase)) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'phase es requerido y debe ser: first, second o third' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+      
+      const phaseName = phase === 'first' ? 'Fase I' : phase === 'second' ? 'Fase II' : 'Fase III';
+      console.log(`\n📝 Verificando evaluaciones completadas para estudiante: ${studentId}, ${phaseName}`);
+      
+      // Verificar si el estudiante tiene las 7 evaluaciones para esta fase
+      const hasAll = await studentSummaryService.hasAllEvaluations(studentId, phase as 'first' | 'second' | 'third');
+      
+      if (!hasAll) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: `El estudiante aún no ha completado las 7 evaluaciones requeridas para ${phaseName}` },
+          data: { hasAllEvaluations: false },
+        };
+        res.status(200).json(response);
+        return;
+      }
+      
+      // Verificar si ya existe un resumen
+      const existingSummary = await studentSummaryService.getSummary(studentId, phase as 'first' | 'second' | 'third');
+      if (existingSummary) {
+        const response: APIResponse = {
+          success: true,
+          data: { 
+            hasAllEvaluations: true,
+            summaryExists: true,
+            summary: existingSummary,
+          },
+        };
+        res.status(200).json(response);
+        return;
+      }
+      
+      // Generar resumen automáticamente
+      console.log(`   🚀 Generando resumen académico automáticamente para estudiante ${studentId}, ${phaseName}...`);
+      const result = await studentSummaryService.generateSummary(studentId, phase as 'first' | 'second' | 'third', false);
+      
+      const response: APIResponse = {
+        success: result.success,
+        data: result.summary ? {
+          hasAllEvaluations: true,
+          summaryExists: false,
+          summaryGenerated: true,
+          summary: result.summary,
+        } : undefined,
+        error: result.error ? { message: result.error } : undefined,
+        metadata: {
+          processingTime: result.processingTimeMs,
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(result.success ? 200 : 500).json(response);
+    } catch (error: any) {
+      console.error('Error en checkAndGenerateSummary:', error);
       const response: APIResponse = {
         success: false,
         error: { message: error.message || 'Error interno del servidor' },

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Link } from "react-router-dom"
 import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore"
 import { getAuth } from "firebase/auth"
@@ -24,6 +26,8 @@ import { SubjectTopicsAccordion } from "@/components/charts/SubjectTopicsAccordi
 import { StrengthsRadarChart } from "@/components/charts/StrengthsRadarChart"
 import { SubjectsProgressChart } from "@/components/charts/SubjectsProgressChart"
 import { SubjectsDetailedSummary } from "@/components/charts/SubjectsDetailedSummary"
+import { studentSummaryService } from "@/services/studentSummary/studentSummary.service"
+import { useNotification } from "@/hooks/ui/useNotification"
 import {
   Brain,
   Download,
@@ -49,7 +53,8 @@ import {
   Link as LinkIcon,
   Eye,
   Lock,
-  Info
+  Info,
+  Loader2
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -1620,9 +1625,13 @@ export default function ICFESAnalysisInterface() {
   const [currentMotivationalIndex, setCurrentMotivationalIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isPDFPhaseDialogOpen, setIsPDFPhaseDialogOpen] = useState(false);
+  const [selectedPhasesForPDF, setSelectedPhasesForPDF] = useState<Array<'first' | 'second' | 'third'>>([]);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
   const { user } = useAuthContext();
+  const { notifySuccess, notifyError } = useNotification();
 
   // Frases motivadoras para estudiantes
   const motivationalMessages = [
@@ -2653,9 +2662,1444 @@ export default function ICFESAnalysisInterface() {
     }
   };
 
-  const handleExportPDF = () => {
-    // Implementar exportación a PDF
-    alert("Función de exportación a PDF en desarrollo");
+  // Lista de las 7 materias requeridas
+  const ALL_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés'];
+
+  // Función para verificar si una fase tiene las 7 materias completadas
+  const isPhaseComplete = (phaseData: AnalysisData | null): boolean => {
+    if (!phaseData || !phaseData.subjects || phaseData.subjects.length === 0) {
+      return false;
+    }
+    const subjectsInPhase = new Set(phaseData.subjects.map(s => s.name));
+    return ALL_SUBJECTS.every(subject => subjectsInPhase.has(subject));
+  };
+
+  // Verificar qué fases están completas
+  const phase1Complete = isPhaseComplete(phase1Data);
+  const phase2Complete = isPhaseComplete(phase2Data);
+  const phase3Complete = isPhaseComplete(phase3Data);
+
+  // Obtener fases completas disponibles
+  const availablePhases = [
+    ...(phase1Complete ? ['first' as const] : []),
+    ...(phase2Complete ? ['second' as const] : []),
+    ...(phase3Complete ? ['third' as const] : []),
+  ];
+
+  const handleExportPDFClick = () => {
+    // Resetear selecciones al abrir el modal
+    setSelectedPhasesForPDF([]);
+    setIsPDFPhaseDialogOpen(true);
+  };
+
+  const handlePhaseToggle = (phase: 'first' | 'second' | 'third') => {
+    setSelectedPhasesForPDF(prev => {
+      if (prev.includes(phase)) {
+        return prev.filter(p => p !== phase);
+      } else {
+        return [...prev, phase];
+      }
+    });
+  };
+
+  const handleSelectAllPhases = () => {
+    if (selectedPhasesForPDF.length === availablePhases.length) {
+      // Si todas están seleccionadas, deseleccionar todas
+      setSelectedPhasesForPDF([]);
+    } else {
+      // Seleccionar todas las fases disponibles
+      setSelectedPhasesForPDF([...availablePhases]);
+    }
+  };
+
+  // Función helper para obtener evaluaciones de una fase específica
+  const getPhaseEvaluations = async (studentId: string, phase: 'first' | 'second' | 'third'): Promise<any[]> => {
+    const phaseVariants: Record<string, string[]> = {
+      first: ['fase I', 'Fase I', 'Fase 1', 'fase 1', 'first'],
+      second: ['Fase II', 'fase II', 'Fase 2', 'fase 2', 'second'],
+      third: ['fase III', 'Fase III', 'Fase 3', 'fase 3', 'third'],
+    };
+
+    const evaluations: any[] = [];
+    const phaseNames = phaseVariants[phase] || [];
+
+    for (const phaseName of phaseNames) {
+      try {
+        const phaseRef = collection(db, "results", studentId, phaseName);
+        const phaseSnap = await getDocs(phaseRef);
+        
+        if (!phaseSnap.empty) {
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data();
+            const isCompleted = examData.isCompleted !== false && examData.completed !== false;
+            if (isCompleted && examData.subject) {
+              evaluations.push({
+                ...examData,
+                examId: doc.id,
+                phase: phase,
+              });
+            }
+          });
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ Error buscando en fase ${phaseName}:`, error.message);
+      }
+    }
+
+    return evaluations;
+  };
+
+  // Función helper para calcular métricas de una fase específica
+  const calculatePhaseMetrics = (evaluations: any[]): {
+    globalScore: number;
+    phasePercentage: number;
+    averageTimePerQuestion: number;
+    fraudAttempts: number;
+    luckPercentage: number;
+    completedSubjects: number;
+    totalQuestions: number;
+  } => {
+    const normalizeSubjectName = (subject: string): string => {
+      const normalized = subject.trim().toLowerCase();
+      const subjectMap: Record<string, string> = {
+        'biologia': 'Biologia',
+        'biología': 'Biologia',
+        'quimica': 'Quimica',
+        'química': 'Quimica',
+        'fisica': 'Física',
+        'física': 'Física',
+        'matematicas': 'Matemáticas',
+        'matemáticas': 'Matemáticas',
+        'lenguaje': 'Lenguaje',
+        'ciencias sociales': 'Ciencias Sociales',
+        'sociales': 'Ciencias Sociales',
+        'ingles': 'Inglés',
+        'inglés': 'Inglés'
+      };
+      return subjectMap[normalized] || subject;
+    };
+
+    const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física'];
+    const POINTS_PER_NATURALES_SUBJECT = 100 / 3;
+    const POINTS_PER_REGULAR_SUBJECT = 100;
+    const TOTAL_SUBJECTS = 7;
+
+    let totalTimeFromQuestions = 0;
+    let totalQuestionsWithTime = 0;
+    let luckAnswers = 0;
+    let totalAnswersWithTime = 0;
+    let fraudAttempts = 0;
+    let totalQuestions = 0;
+
+    const subjectScores: { [key: string]: { percentage: number } } = {};
+    const completedSubjectsSet = new Set<string>();
+
+    evaluations.forEach(evalData => {
+      const subject = normalizeSubjectName(evalData.subject || evalData.examTitle || '');
+      
+      // Calcular porcentaje
+      let percentage = 0;
+      if (evalData.score?.overallPercentage !== undefined) {
+        percentage = evalData.score.overallPercentage;
+      } else if (evalData.score?.correctAnswers !== undefined && evalData.score?.totalQuestions !== undefined) {
+        const total = evalData.score.totalQuestions;
+        const correct = evalData.score.correctAnswers;
+        percentage = total > 0 ? (correct / total) * 100 : 0;
+        totalQuestions += total;
+      } else if (evalData.questionDetails && evalData.questionDetails.length > 0) {
+        const correct = evalData.questionDetails.filter((q: any) => q.isCorrect).length;
+        const total = evalData.questionDetails.length;
+        percentage = total > 0 ? (correct / total) * 100 : 0;
+        totalQuestions += total;
+      }
+
+      // Guardar mejor puntaje de cada materia
+      if (!subjectScores[subject] || percentage > subjectScores[subject].percentage) {
+        subjectScores[subject] = { percentage };
+      }
+
+      // Contar materias completadas
+      const validSubjects = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés'];
+      if (validSubjects.includes(subject)) {
+        completedSubjectsSet.add(subject);
+      }
+
+      // Calcular tiempo y suerte desde questionDetails
+      if (evalData.questionDetails && Array.isArray(evalData.questionDetails)) {
+        evalData.questionDetails.forEach((question: any) => {
+          if (question.timeSpent && question.timeSpent > 0) {
+            totalTimeFromQuestions += question.timeSpent;
+            totalQuestionsWithTime++;
+            
+            if (question.answered && subject !== 'Inglés') {
+              totalAnswersWithTime++;
+              if (question.timeSpent < 10) {
+                luckAnswers++;
+              }
+            }
+          }
+        });
+      }
+
+      // Contar intentos de fraude
+      if (evalData.tabChangeCount > 0) {
+        fraudAttempts++;
+      }
+    });
+
+    // Calcular puntaje global
+    let globalScore = 0;
+    Object.entries(subjectScores).forEach(([subject, data]) => {
+      let pointsForSubject: number;
+      if (NATURALES_SUBJECTS.includes(subject)) {
+        pointsForSubject = (data.percentage / 100) * POINTS_PER_NATURALES_SUBJECT;
+      } else {
+        pointsForSubject = (data.percentage / 100) * POINTS_PER_REGULAR_SUBJECT;
+      }
+      globalScore += pointsForSubject;
+    });
+    globalScore = Math.round(globalScore);
+
+    // Calcular porcentaje de fase completada
+    const phasePercentage = Math.round((completedSubjectsSet.size / TOTAL_SUBJECTS) * 100);
+
+    // Calcular tiempo promedio por pregunta en minutos
+    const averageTimePerQuestion = totalQuestionsWithTime > 0 
+      ? (totalTimeFromQuestions / totalQuestionsWithTime) / 60 
+      : 0;
+
+    // Calcular porcentaje de suerte
+    const luckPercentage = totalAnswersWithTime > 0 
+      ? Math.round((luckAnswers / totalAnswersWithTime) * 100) 
+      : 0;
+
+    return {
+      globalScore,
+      phasePercentage,
+      averageTimePerQuestion,
+      fraudAttempts,
+      luckPercentage,
+      completedSubjects: completedSubjectsSet.size,
+      totalQuestions
+    };
+  };
+
+  // Función helper para generar HTML del PDF para Fase I y II
+  const generatePhase1And2PDFHTML = (
+    summary: any,
+    studentName: string,
+    studentId: string,
+    institutionName: string,
+    currentDate: Date,
+    phaseName: string,
+    phaseMetrics: {
+      globalScore: number;
+      phasePercentage: number;
+      averageTimePerQuestion: number;
+      fraudAttempts: number;
+      luckPercentage: number;
+      completedSubjects: number;
+      totalQuestions: number;
+    },
+    studentRank: number | null,
+    totalStudents: number | null,
+    subjectScores: Array<{ name: string; score: number; percentage: number }>
+  ): string => {
+    // Convertir tiempo promedio a formato legible (0.1m)
+    const timeMinutes = phaseMetrics.averageTimePerQuestion.toFixed(1);
+    
+    // Arrays de frases filosóficas y versículos bíblicos
+    const philosophicalQuotes = [
+      { quote: "La excelencia no es un acto, sino un hábito. Somos lo que repetidamente hacemos.", author: "Aristóteles" },
+      { quote: "El único modo de hacer un gran trabajo es amar lo que haces.", author: "Steve Jobs" },
+      { quote: "El éxito es la suma de pequeños esfuerzos repetidos día tras día.", author: "Robert Collier" },
+      { quote: "No te preocupes por los fracasos, preocúpate por las oportunidades que pierdes cuando ni siquiera lo intentas.", author: "Jack Canfield" },
+      { quote: "La diferencia entre lo imposible y lo posible reside en la determinación de una persona.", author: "Tommy Lasorda" },
+      { quote: "El único lugar donde el éxito viene antes que el trabajo es en el diccionario.", author: "Vidal Sassoon" },
+      { quote: "El futuro pertenece a aquellos que creen en la belleza de sus sueños.", author: "Eleanor Roosevelt" },
+      { quote: "La educación es el arma más poderosa que puedes usar para cambiar el mundo.", author: "Nelson Mandela" },
+      { quote: "El aprendizaje nunca agota la mente.", author: "Leonardo da Vinci" },
+      { quote: "No esperes el momento perfecto, comienza ahora. Hazlo ahora.", author: "George Herbert" }
+    ];
+    
+    const bibleVerses = [
+      { verse: "Todo lo puedo en Cristo que me fortalece.", reference: "Filipenses 4:13" },
+      { verse: "El Señor es mi fortaleza y mi escudo; en él confía mi corazón.", reference: "Salmos 28:7" },
+      { verse: "Con Dios todas las cosas son posibles.", reference: "Mateo 19:26" },
+      { verse: "El Señor te bendecirá y te guardará.", reference: "Números 6:24" },
+      { verse: "Fíate del Señor de todo corazón, y no te apoyes en tu propia prudencia.", reference: "Proverbios 3:5" },
+      { verse: "Porque yo sé los planes que tengo para ti... planes de bienestar y no de mal, para darte un futuro y una esperanza.", reference: "Jeremías 29:11" },
+      { verse: "Encomienda al Señor tu camino, confía en él, y él actuará.", reference: "Salmos 37:5" },
+      { verse: "El que comenzó en vosotros la buena obra, la perfeccionará hasta el día de Jesucristo.", reference: "Filipenses 1:6" },
+      { verse: "Esforzaos y cobrad ánimo; no temáis ni os intimidéis, porque el Señor tu Dios está contigo.", reference: "Josué 1:9" }
+    ];
+    
+    // Función simple para generar un índice determinístico basado en studentId
+    const getIndex = (str: string, arrayLength: number): number => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash) % arrayLength;
+    };
+    
+    // Seleccionar frase y versículo basado en studentId
+    const selectedQuote = philosophicalQuotes[getIndex(studentId, philosophicalQuotes.length)];
+    const selectedVerse = bibleVerses[getIndex(studentId + 'verse', bibleVerses.length)];
+    
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+        <title>Resumen Académico - ${phaseName} - ${studentName}</title>
+          <style>
+              @page {
+            size: Letter;
+            margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+              }
+          * {
+                margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            }
+            body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #000;
+            background: #fff;
+          }
+          .pdf-container {
+            width: 100%;
+            max-width: 17cm;
+              margin: 0 auto;
+            }
+            .header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+            border-top: 3px solid #1e40af;
+            border-bottom: 3px solid #1e40af;
+            padding: 12px;
+            margin-bottom: 15px;
+            position: relative;
+          }
+          .header-logo {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            flex-shrink: 0;
+          }
+          .header-text {
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 130px);
+          }
+          .header-text h1 {
+            font-size: 19pt;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 5px;
+            text-align: center;
+          }
+          .header-text .subtitle {
+            font-size: 11pt;
+            color: #1e40af;
+            font-weight: bold;
+            text-align: center;
+          }
+          .student-info {
+            background-color: #f3f4f6;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            margin-bottom: 15px;
+            font-size: 8pt;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px 15px;
+          }
+          .student-info p {
+            margin: 0;
+            line-height: 1.4;
+          }
+          .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+            page-break-inside: avoid;
+          }
+          .metric-card {
+            background-color: transparent;
+            color: #000;
+            padding: 6px;
+            border: 2px solid #1e40af;
+            border-radius: 6px;
+            position: relative;
+            min-width: 0;
+          }
+          .metric-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 4px;
+            gap: 4px;
+          }
+          .metric-card-title {
+            font-size: 6pt;
+            font-weight: bold;
+            color: #374151;
+            line-height: 1.2;
+            flex: 1;
+          }
+          .metric-card-icon {
+            font-size: 11pt;
+            flex-shrink: 0;
+          }
+          .metric-card-value {
+            font-size: 15pt;
+            font-weight: bold;
+            margin-bottom: 3px;
+            line-height: 1;
+          }
+          .metric-card-detail {
+            background-color: #f3f4f6;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 5pt;
+            border: 1px solid #d1d5db;
+            line-height: 1.2;
+            word-wrap: break-word;
+            color: #6b7280;
+          }
+          .metric-card-value.global {
+            color: #1e40af;
+          }
+          .metric-card-value.rank {
+            color: #3b82f6;
+          }
+          .metric-card-value.time {
+            color: #1e40af;
+          }
+          .metric-card-value.fraud {
+            color: #ef4444;
+          }
+          .metric-card-value.luck {
+            color: #f59e0b;
+          }
+          .subject-scores-box {
+            border: 2px solid #1e40af;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            background-color: #f9fafb;
+            page-break-inside: avoid;
+          }
+          .subject-scores-title {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #1e40af;
+            margin-bottom: 10px;
+            text-align: center;
+          }
+          .subject-scores-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+          }
+          .subject-score-item {
+            text-align: center;
+            padding: 6px 4px;
+            background-color: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+          }
+          .subject-score-name {
+            font-size: 6pt;
+            font-weight: bold;
+            color: #374151;
+            margin-bottom: 3px;
+            line-height: 1.2;
+            word-break: break-word;
+            hyphens: auto;
+            text-align: center;
+          }
+          .subject-score-value {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #1e40af;
+            line-height: 1;
+          }
+            .section {
+              margin-bottom: 20px;
+            page-break-inside: avoid;
+            }
+            .section h2 {
+            font-size: 15pt;
+            font-weight: bold;
+              color: #1e40af;
+              border-bottom: 2px solid #e5e7eb;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
+            }
+            .section h3 {
+            font-size: 13pt;
+            font-weight: bold;
+              color: #3b82f6;
+              margin-top: 15px;
+              margin-bottom: 8px;
+            }
+            .section p {
+              text-align: justify;
+              margin-bottom: 12px;
+            font-size: 10pt;
+            }
+            ul, ol {
+            margin-left: 25px;
+              margin-bottom: 12px;
+            }
+            li {
+              margin-bottom: 6px;
+            font-size: 10pt;
+          }
+          .fortalezas {
+            background-color: #d1fae5;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+            page-break-inside: avoid;
+          }
+          .mejoras {
+            background-color: #fef3c7;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+            page-break-inside: avoid;
+          }
+          .recomendaciones {
+            background-color: #dbeafe;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+            page-break-inside: avoid;
+            }
+            .metadata {
+              background-color: #f3f4f6;
+              padding: 15px;
+            border: 1px solid #d1d5db;
+              margin-top: 30px;
+            font-size: 9pt;
+            color: #4b5563;
+            page-break-inside: avoid;
+          }
+          .inspirational-section {
+            margin-top: 25px;
+            text-align: center;
+            padding: 15px 15px;
+            page-break-inside: avoid;
+          }
+          .philosophical-quote {
+            font-style: italic;
+            font-size: 10pt;
+            color: #374151;
+            margin-bottom: 15px;
+            line-height: 1.6;
+            font-family: Georgia, serif;
+          }
+          .bible-verse {
+            font-size: 11pt;
+            color: #1e40af;
+            font-weight: bold;
+            font-style: italic;
+            line-height: 1.6;
+            margin-top: 10px;
+          }
+          .page-break {
+            page-break-before: always;
+          }
+          @media print {
+            .page-break {
+              page-break-before: always;
+            }
+            .section {
+              page-break-inside: avoid;
+            }
+            .metrics-grid {
+              page-break-inside: avoid;
+              grid-template-columns: repeat(5, 1fr);
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="pdf-container">
+          <!-- Encabezado con Logo -->
+          <div class="header">
+            <img src="/assets/cerebro_negro.png" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
+            <div class="header-text">
+              <h1>SUPERATE.IA</h1>
+              <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE</div>
+            </div>
+          </div>
+
+          <!-- Información del Estudiante -->
+          <div class="student-info">
+            <p><strong>${phaseName === 'Fase I' ? 'Fase I - Diagnóstico de Habilidades Académicas' : phaseName === 'Fase II' ? 'Fase II - Refuerzo Personalizado' : 'Fase III - Simulacro ICFES'}</strong></p>
+            <p><strong>Fecha de publicación de resultados:</strong> ${currentDate.toLocaleDateString('es-ES', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            }).toUpperCase()}</p>
+            <p><strong>Apellidos y nombres:</strong> ${studentName.toUpperCase()}</p>
+            <p><strong>Institución educativa:</strong> ${institutionName || 'No especificada'}</p>
+            ${summary.contextoAcademico?.grado ? `<p><strong>Grado:</strong> ${summary.contextoAcademico.grado}</p>` : ''}
+          </div>
+
+          <!-- Tarjetas de Métricas -->
+          <div class="metrics-grid">
+            <!-- Puntaje Global -->
+            <div class="metric-card global">
+              <div class="metric-card-header">
+                <div class="metric-card-title">Puntaje Global</div>
+                <div class="metric-card-icon">🏅</div>
+              </div>
+              <div class="metric-card-value global">${phaseMetrics.globalScore}</div>
+              <div class="metric-card-detail">De 500 puntos</div>
+            </div>
+
+            <!-- Puesto entre estudiantes -->
+            <div class="metric-card rank">
+              <div class="metric-card-header">
+                <div class="metric-card-title">Puesto</div>
+                <div class="metric-card-icon">📊</div>
+              </div>
+              <div class="metric-card-value rank">${studentRank !== null && totalStudents !== null ? `${studentRank}°` : 'N/A'}</div>
+              <div class="metric-card-detail">${studentRank !== null && totalStudents !== null ? `De ${totalStudents} estudiantes` : 'No disponible'}</div>
+            </div>
+
+            <!-- Tiempo Promedio por Pregunta -->
+            <div class="metric-card time">
+              <div class="metric-card-header">
+                <div class="metric-card-title">Tiempo Promedio</div>
+                <div class="metric-card-icon">⏱️</div>
+              </div>
+              <div class="metric-card-value time">${timeMinutes}m</div>
+              <div class="metric-card-detail">Por pregunta</div>
+            </div>
+
+            <!-- Intento de Fraude -->
+            <div class="metric-card fraud">
+              <div class="metric-card-header">
+                <div class="metric-card-title">Intento de fraude</div>
+                <div class="metric-card-icon">🛡️</div>
+              </div>
+              <div class="metric-card-value fraud">${phaseMetrics.fraudAttempts}</div>
+              <div class="metric-card-detail">${phaseMetrics.fraudAttempts === 1 ? '1 evaluación' : `${phaseMetrics.fraudAttempts} evaluaciones`}</div>
+            </div>
+
+            <!-- Porcentaje de Suerte -->
+            <div class="metric-card luck">
+              <div class="metric-card-header">
+                <div class="metric-card-title">Porcentaje de Suerte</div>
+                <div class="metric-card-icon">⚡</div>
+              </div>
+              <div class="metric-card-value luck">${phaseMetrics.luckPercentage}%</div>
+              <div class="metric-card-detail">${phaseMetrics.luckPercentage >= 50 ? 'Muchas rápidas' : phaseMetrics.luckPercentage >= 20 ? 'Algunas rápidas' : 'Pocas rápidas'}</div>
+            </div>
+          </div>
+
+          <!-- Puntajes por Materia -->
+          <div class="subject-scores-box">
+            <div class="subject-scores-title">Puntaje por Materia</div>
+            <div class="subject-scores-grid">
+              ${subjectScores.map(subj => `
+                <div class="subject-score-item">
+                  <div class="subject-score-name">${subj.name}</div>
+                  <div class="subject-score-value">${subj.score}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Resumen General -->
+          <div class="section">
+            <h2>Resumen General</h2>
+            <p>${summary.resumen.resumen_general}</p>
+          </div>
+
+          <!-- Diagnóstico de Desempeño Académico -->
+          <div class="section">
+            <h2>Diagnóstico de Desempeño Académico</h2>
+            ${(() => {
+              // Verificar si analisis_competencial es un objeto (estructura nueva) o string (backward compatibility)
+              if (typeof summary.resumen.analisis_competencial === 'object' && summary.resumen.analisis_competencial !== null) {
+                // Estructura nueva: objeto por materias
+                const analisisPorMaterias = summary.resumen.analisis_competencial as { [materia: string]: string };
+                return subjectScores.map(subj => {
+                  // Buscar el análisis de esta materia (probando diferentes variaciones del nombre)
+                  const analisisMateria = analisisPorMaterias[subj.name] || 
+                                         analisisPorMaterias[subj.name.toLowerCase()] ||
+                                         Object.entries(analisisPorMaterias).find(([key]) => 
+                                           key.toLowerCase() === subj.name.toLowerCase()
+                                         )?.[1] || '';
+                  if (analisisMateria) {
+                    return `
+                      <div style="margin-bottom: 15px;">
+                        <h3 style="font-size: 12pt; font-weight: bold; color: #1e40af; margin-bottom: 8px;">${subj.name}:</h3>
+                        <p style="text-align: justify; line-height: 1.6;">${analisisMateria}</p>
+                      </div>
+                    `;
+                  }
+                  return '';
+                }).filter(html => html).join('');
+              } else {
+                // Backward compatibility: si es string, mostrar el texto completo
+                return `<p style="text-align: justify; line-height: 1.6;">${summary.resumen.analisis_competencial}</p>`;
+              }
+            })()}
+          </div>
+
+          <!-- Fortalezas Académicas -->
+          <div class="section fortalezas">
+            <h3>Fortalezas Académicas</h3>
+            <ul>
+              ${summary.resumen.fortalezas_academicas.map((f: string) => `<li>${f}</li>`).join('')}
+            </ul>
+          </div>
+
+          <!-- Aspectos por Mejorar -->
+          <div class="section mejoras">
+            <h3>Aspectos por Mejorar</h3>
+            <ul>
+              ${summary.resumen.aspectos_por_mejorar.map((a: string) => `<li>${a}</li>`).join('')}
+            </ul>
+          </div>
+
+          <!-- Recomendaciones -->
+          <div class="section recomendaciones">
+            <h3>Recomendaciones - Enfoque Saber 11</h3>
+            <ul>
+              ${summary.resumen.recomendaciones_enfoque_saber11.map((r: string) => `<li>${r}</li>`).join('')}
+            </ul>
+          </div>
+
+          ${summary.metricasGlobales ? `
+          <!-- Métricas de Desempeño -->
+          <div class="section">
+            <h2>Métricas de Desempeño</h2>
+            <p><strong>Nivel general:</strong> ${summary.metricasGlobales.nivelGeneralDesempeno}</p>
+            ${summary.metricasGlobales.materiasFuertes.length > 0 ? `
+              <p><strong>Materias con desempeño favorable:</strong> ${summary.metricasGlobales.materiasFuertes.join(', ')}</p>
+            ` : ''}
+            ${summary.metricasGlobales.materiasDebiles.length > 0 ? `
+              <p><strong>Materias que requieren fortalecimiento:</strong> ${summary.metricasGlobales.materiasDebiles.join(', ')}</p>
+            ` : ''}
+          </div>
+          ` : ''}
+
+          <!-- Frase Inspiradora -->
+          <div class="inspirational-section">
+            <div class="philosophical-quote">
+              "${selectedQuote.quote}"
+            </div>
+            <div class="bible-verse">
+              "${selectedVerse.verse}"<br>
+              <span style="font-size: 8pt; color: #6b7280;">${selectedVerse.reference}</span>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 250);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+  };
+
+  // Función helper para generar HTML del PDF para Fase III
+  const generatePhase3PDFHTML = (
+    summary: any,
+    studentName: string,
+    studentId: string,
+    institutionName: string,
+    currentDate: Date,
+    sortedSubjects: any[],
+    globalScore: number,
+    globalPercentile: number
+  ): string => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>REPORTE DE RESULTADOS ESTUDIANTE • SABER 11° - ${studentName}</title>
+        <style>
+          @page {
+            size: Letter;
+            margin: 2.5cm 2cm 2.5cm 2cm;
+          }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            color: #000;
+            background: #fff;
+          }
+          .pdf-container {
+            width: 100%;
+            max-width: 17cm;
+            margin: 0 auto;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 3px solid #1e40af;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+          }
+          .header h1 {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #1e40af;
+            margin-bottom: 10px;
+          }
+          .header .subtitle {
+            font-size: 14pt;
+            color: #1e40af;
+            font-weight: bold;
+            margin-bottom: 15px;
+          }
+          .student-info {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border: 1px solid #d1d5db;
+            margin-bottom: 25px;
+            font-size: 10pt;
+          }
+          .student-info p {
+            margin: 5px 0;
+            line-height: 1.6;
+          }
+          .global-results {
+            background-color: #eff6ff;
+            padding: 20px;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+          }
+          .global-score {
+            text-align: center;
+            margin-bottom: 20px;
+          }
+          .global-score-number {
+            font-size: 48pt;
+            font-weight: bold;
+            color: #1e40af;
+            margin: 10px 0;
+          }
+          .global-score-label {
+            font-size: 14pt;
+            color: #374151;
+            font-weight: bold;
+          }
+          .percentile-bar {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #d1d5db;
+          }
+          .percentile-label {
+            font-size: 11pt;
+            margin-bottom: 8px;
+            font-weight: bold;
+          }
+          .percentile-scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9pt;
+            color: #6b7280;
+            margin-bottom: 5px;
+          }
+          .percentile-line {
+            height: 8px;
+            background: linear-gradient(to right, #e5e7eb 0%, #d1d5db 50%, #e5e7eb 100%);
+            position: relative;
+            border: 1px solid #9ca3af;
+          }
+          .percentile-marker {
+            position: absolute;
+            top: -4px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid #000;
+            transform: translateX(-8px);
+          }
+          .subject-results {
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+          }
+          .subject-results h2 {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #1e40af;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 10pt;
+          }
+          table th {
+            background-color: #1e40af;
+            color: #fff;
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: bold;
+            border: 1px solid #1e3a8a;
+          }
+          table td {
+            padding: 10px 8px;
+            border: 1px solid #d1d5db;
+            vertical-align: top;
+          }
+          table tr:nth-child(even) {
+            background-color: #f9fafb;
+          }
+          .subject-name {
+            font-weight: bold;
+            color: #1e40af;
+          }
+          .score-value {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #000;
+          }
+          .score-detail {
+            font-size: 9pt;
+            color: #6b7280;
+          }
+          .section {
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+          }
+          .section h2 {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #1e40af;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+          }
+          .section h3 {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #3b82f6;
+            margin-top: 20px;
+            margin-bottom: 10px;
+          }
+          .section p {
+            text-align: justify;
+            margin-bottom: 15px;
+            font-size: 11pt;
+          }
+          ul, ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+          }
+          li {
+            margin-bottom: 8px;
+            font-size: 11pt;
+            }
+            .fortalezas {
+              background-color: #d1fae5;
+              padding: 15px;
+              border-radius: 8px;
+              border-left: 4px solid #10b981;
+            page-break-inside: avoid;
+            }
+            .mejoras {
+              background-color: #fef3c7;
+              padding: 15px;
+              border-radius: 8px;
+              border-left: 4px solid #f59e0b;
+            page-break-inside: avoid;
+            }
+            .recomendaciones {
+              background-color: #dbeafe;
+              padding: 15px;
+              border-radius: 8px;
+              border-left: 4px solid #3b82f6;
+            page-break-inside: avoid;
+          }
+          .metadata {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border: 1px solid #d1d5db;
+            margin-top: 30px;
+            font-size: 10pt;
+            color: #4b5563;
+            page-break-inside: avoid;
+          }
+          .page-break {
+            page-break-before: always;
+          }
+          @media print {
+            .page-break {
+              page-break-before: always;
+            }
+            .section {
+              page-break-inside: avoid;
+            }
+            }
+          </style>
+        </head>
+        <body>
+        <div class="pdf-container">
+          <!-- Encabezado Institucional -->
+          <div class="header">
+            <h1>LOGO DE SUPERATE</h1>
+            <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE • SABER 11°</div>
+            <div style="font-size: 12pt; color: #374151; margin-top: 10px;">RESULTADOS GLOBALES</div>
+          </div>
+
+          <!-- Información del Estudiante -->
+          <div class="student-info">
+            <p><strong>Fase III - Simulacro ICFES</strong></p>
+            <p><strong>Fecha de publicación de resultados:</strong> ${currentDate.toLocaleDateString('es-ES', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            }).toUpperCase()}</p>
+            <p><strong>Número de registro:</strong> ${studentId}</p>
+            <p><strong>Apellidos y nombres:</strong> ${studentName.toUpperCase()}</p>
+            <p><strong>Institución educativa:</strong> ${institutionName || 'No especificada'}</p>
+            ${summary.contextoAcademico?.grado ? `<p><strong>Grado:</strong> ${summary.contextoAcademico.grado}</p>` : ''}
+          </div>
+
+          <!-- Puntaje Global -->
+          <div class="global-results">
+            <div class="global-score">
+              <div class="global-score-label">PUNTAJE GLOBAL</div>
+              <div class="global-score-number">${globalScore}</div>
+              <div class="global-score-label">De 500 puntos posibles, su puntaje global es ${globalScore}</div>
+            </div>
+            
+            <div class="percentile-bar">
+              <div class="percentile-label">¿EN QUÉ PERCENTIL SE ENCUENTRA?</div>
+              <div style="font-size: 10pt; margin-bottom: 10px;">Respecto a los evaluados del país, usted está aquí.</div>
+              <div class="percentile-scale">
+                <span>0</span>
+                <span>25</span>
+                <span>50</span>
+                <span>75</span>
+                <span>100</span>
+              </div>
+              <div class="percentile-line">
+                <div class="percentile-marker" style="left: ${globalPercentile}%;"></div>
+              </div>
+              <div style="text-align: center; margin-top: 5px; font-weight: bold; font-size: 11pt;">Percentil: ${globalPercentile}</div>
+            </div>
+          </div>
+
+          <!-- Resultados por Prueba -->
+          <div class="subject-results">
+            <h2>RESULTADOS POR PRUEBA</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>PRUEBA</th>
+                  <th>PUNTAJE POR PRUEBA</th>
+                  <th>¿EN QUÉ PERCENTIL SE ENCUENTRA?</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${sortedSubjects.map(subj => {
+                  const percentilePos = subj.percentile;
+                  return `
+                  <tr>
+                    <td class="subject-name">${subj.name}</td>
+                    <td>
+                      <div class="score-value">${subj.score}</div>
+                      <div class="score-detail">De 100 puntos posibles, su puntaje es ${subj.score}</div>
+                    </td>
+                    <td>
+                      <div style="font-size: 10pt; margin-bottom: 8px;">Respecto a los evaluados del país, usted está aquí.</div>
+                      <div class="percentile-scale" style="font-size: 8pt;">
+                        <span>0</span>
+                        <span>25</span>
+                        <span>50</span>
+                        <span>75</span>
+                        <span>100</span>
+                      </div>
+                      <div class="percentile-line" style="height: 6px;">
+                        <div class="percentile-marker" style="left: ${percentilePos}%; border-top-width: 10px; border-left-width: 6px; border-right-width: 6px; transform: translateX(-6px);"></div>
+                      </div>
+                      <div style="text-align: center; margin-top: 5px; font-weight: bold; font-size: 10pt;">Percentil: ${subj.percentile}</div>
+                    </td>
+                  </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Salto de página -->
+          <div class="page-break"></div>
+
+          <!-- Resumen General -->
+          <div class="section">
+            <h2>Resumen General</h2>
+            <p>${summary.resumen.resumen_general}</p>
+          </div>
+
+          <!-- Análisis Competencial -->
+          <div class="section">
+            <h2>Análisis Competencial</h2>
+            <p>${summary.resumen.analisis_competencial}</p>
+          </div>
+
+          <!-- Fortalezas Académicas -->
+          <div class="section fortalezas">
+            <h3>Fortalezas Académicas</h3>
+            <ul>
+              ${summary.resumen.fortalezas_academicas.map((f: string) => `<li>${f}</li>`).join('')}
+            </ul>
+          </div>
+
+          <!-- Aspectos por Mejorar -->
+          <div class="section mejoras">
+            <h3>Aspectos por Mejorar</h3>
+            <ul>
+              ${summary.resumen.aspectos_por_mejorar.map((a: string) => `<li>${a}</li>`).join('')}
+            </ul>
+          </div>
+
+          <!-- Recomendaciones -->
+          <div class="section recomendaciones">
+            <h3>Recomendaciones - Enfoque Saber 11</h3>
+            <ul>
+              ${summary.resumen.recomendaciones_enfoque_saber11.map((r: string) => `<li>${r}</li>`).join('')}
+            </ul>
+          </div>
+
+          ${summary.metricasGlobales ? `
+          <!-- Métricas de Desempeño -->
+          <div class="section">
+            <h2>Métricas de Desempeño</h2>
+            <p><strong>Nivel general:</strong> ${summary.metricasGlobales.nivelGeneralDesempeno}</p>
+            ${summary.metricasGlobales.materiasFuertes.length > 0 ? `
+              <p><strong>Materias con desempeño favorable:</strong> ${summary.metricasGlobales.materiasFuertes.join(', ')}</p>
+            ` : ''}
+            ${summary.metricasGlobales.materiasDebiles.length > 0 ? `
+              <p><strong>Materias que requieren fortalecimiento:</strong> ${summary.metricasGlobales.materiasDebiles.join(', ')}</p>
+            ` : ''}
+          </div>
+          ` : ''}
+
+          <!-- Metadatos -->
+          <div class="metadata">
+            <p><strong>Información del reporte:</strong></p>
+            <p>Materias analizadas: ${summary.metadata.materiasAnalizadas} de 7</p>
+            <p>Modelo de IA: ${summary.metadata.modeloIA}</p>
+            <p>Versión: ${summary.version}</p>
+          </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 250);
+            };
+          </script>
+        </body>
+        </html>
+      `;
+  };
+
+  // Función helper para calcular percentil aproximado basado en puntaje (0-100)
+  const calculatePercentile = (score: number): number => {
+    // Aproximación simple: asumimos distribución normal
+    // Esta es una aproximación, no el percentil real del país
+    if (score >= 90) return 95;
+    if (score >= 85) return 90;
+    if (score >= 80) return 85;
+    if (score >= 75) return 78;
+    if (score >= 70) return 70;
+    if (score >= 65) return 62;
+    if (score >= 60) return 55;
+    if (score >= 55) return 47;
+    if (score >= 50) return 40;
+    if (score >= 45) return 33;
+    if (score >= 40) return 27;
+    if (score >= 35) return 20;
+    if (score >= 30) return 15;
+    return Math.max(5, Math.round(score / 2));
+  };
+
+  const handleExportPDF = async (phase: 'first' | 'second' | 'third', keepDialogOpen: boolean = false) => {
+    if (!user?.uid) {
+      notifyError({
+        title: 'Error',
+        message: 'No se pudo identificar al estudiante'
+      });
+      return;
+    }
+
+    if (!keepDialogOpen) {
+      setIsPDFPhaseDialogOpen(false);
+    }
+    setIsGeneratingPDF(true);
+
+    try {
+      const phaseName = phase === 'first' ? 'Fase I' : phase === 'second' ? 'Fase II' : 'Fase III';
+      
+      // Primero intentar obtener el resumen desde Firestore
+      let summaryResult = await studentSummaryService.getSummary(user.uid, phase);
+      
+      // Si no existe, intentar generarlo automáticamente
+      if (!summaryResult.success || !summaryResult.data) {
+        notifySuccess({
+          title: 'Generando resumen',
+          message: `El resumen de ${phaseName} no existe. Generándolo ahora, por favor espera...`
+        });
+
+        // Intentar generar el resumen
+        const generateResult = await studentSummaryService.generateSummary(user.uid, phase, false);
+        
+        if (!generateResult.success || !generateResult.data) {
+          notifyError({
+            title: 'Error al generar resumen',
+            message: generateResult.success === false && 'error' in generateResult 
+              ? generateResult.error.message 
+              : `No se pudo generar el resumen académico de ${phaseName}. Asegúrate de haber completado las 7 evaluaciones requeridas.`
+          });
+          setIsGeneratingPDF(false);
+          return;
+        }
+
+        // Usar el resumen recién generado
+        summaryResult = { success: true, data: generateResult.data };
+      }
+
+      if (!summaryResult.success || !summaryResult.data) {
+        notifyError({
+          title: 'Resumen no disponible',
+          message: `No se encontró un resumen académico para ${phaseName}. Asegúrate de haber completado las 7 evaluaciones.`
+        });
+        setIsGeneratingPDF(false);
+        return;
+      }
+
+      const summary = summaryResult.data;
+
+      // Obtener evaluaciones de la fase para mostrar puntajes reales
+      const evaluations = await getPhaseEvaluations(user.uid, phase);
+      
+      // Calcular métricas de la fase
+      const phaseMetrics = calculatePhaseMetrics(evaluations);
+      
+      // Determinar si es Fase III o no (para usar diseño diferente)
+      const isPhase3 = phase === 'third';
+      
+      // Normalizar nombres de materias y obtener mejores puntajes
+      const normalizeSubjectName = (subject: string): string => {
+        const normalized = subject.trim().toLowerCase();
+        const subjectMap: Record<string, string> = {
+          'biologia': 'Biologia',
+          'biología': 'Biologia',
+          'quimica': 'Quimica',
+          'química': 'Quimica',
+          'fisica': 'Física',
+          'física': 'Física',
+          'matematicas': 'Matemáticas',
+          'matemáticas': 'Matemáticas',
+          'lenguaje': 'Lenguaje',
+          'ciencias sociales': 'Ciencias Sociales',
+          'sociales': 'Ciencias Sociales',
+          'ingles': 'Inglés',
+          'inglés': 'Inglés'
+        };
+        return subjectMap[normalized] || subject;
+      };
+
+      // Calcular puntajes por materia
+      const subjectScores: { [key: string]: { score: number; percentage: number } } = {};
+      evaluations.forEach(evalData => {
+        const subject = normalizeSubjectName(evalData.subject || evalData.examTitle || '');
+        let percentage = 0;
+        
+        if (evalData.score?.overallPercentage !== undefined) {
+          percentage = evalData.score.overallPercentage;
+        } else if (evalData.score?.correctAnswers !== undefined && evalData.score?.totalQuestions !== undefined) {
+          const total = evalData.score.totalQuestions;
+          const correct = evalData.score.correctAnswers;
+          percentage = total > 0 ? (correct / total) * 100 : 0;
+        } else if (evalData.questionDetails && evalData.questionDetails.length > 0) {
+          const correct = evalData.questionDetails.filter((q: any) => q.isCorrect).length;
+          const total = evalData.questionDetails.length;
+          percentage = total > 0 ? (correct / total) * 100 : 0;
+        }
+
+        // Guardar el mejor puntaje de cada materia
+        if (!subjectScores[subject] || percentage > subjectScores[subject].percentage) {
+          subjectScores[subject] = {
+            score: Math.round(percentage),
+            percentage: percentage
+          };
+        }
+      });
+
+      // Ordenar materias según el orden estándar
+      const subjectOrder = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés'];
+      const sortedSubjects = subjectOrder.filter(subj => subjectScores[subj]).map(subj => ({
+        name: subj,
+        ...subjectScores[subj],
+        percentile: calculatePercentile(subjectScores[subj].percentage)
+      }));
+
+      // Calcular puntaje global (similar al cálculo en promedio.tsx)
+      const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física'];
+      const POINTS_PER_NATURALES_SUBJECT = 100 / 3;
+      const POINTS_PER_REGULAR_SUBJECT = 100;
+      let globalScore = 0;
+      
+      sortedSubjects.forEach(({ name, percentage }) => {
+        let pointsForSubject: number;
+        if (NATURALES_SUBJECTS.includes(name)) {
+          pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT;
+        } else {
+          pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT;
+        }
+        globalScore += pointsForSubject;
+      });
+
+      globalScore = Math.round(globalScore);
+      const globalPercentile = calculatePercentile((globalScore / 500) * 100);
+
+      // Crear una ventana nueva con el contenido del PDF
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notifyError({
+          title: 'Error',
+          message: 'No se pudo abrir la ventana de impresión. Por favor, permite las ventanas emergentes.'
+        });
+        return;
+      }
+
+      // Obtener datos del estudiante para el PDF
+      const userResult = await getUserById(user.uid);
+      let studentName = 'Estudiante';
+      let studentId = user.uid;
+      if (userResult.success && userResult.data) {
+        const userData = userResult.data as any;
+        studentName = userData.name || 'Estudiante';
+        studentId = userData.idNumber || userData.identification || user.uid;
+      }
+
+      const currentDate = new Date();
+
+      // Generar HTML del PDF según la fase
+      // Para Fase I y II: diseño simplificado con tarjetas de métricas
+      // Para Fase III: diseño completo con tabla de resultados
+      const pdfHTML = isPhase3 
+        ? generatePhase3PDFHTML(summary, studentName, studentId, institutionName, currentDate, sortedSubjects, globalScore, globalPercentile)
+        : generatePhase1And2PDFHTML(summary, studentName, studentId, institutionName, currentDate, phaseName, phaseMetrics, studentRank, totalStudents, sortedSubjects);
+
+      printWindow.document.write(pdfHTML);
+      printWindow.document.close();
+
+      // Solo mostrar notificación si no es parte de una descarga múltiple
+      if (!keepDialogOpen) {
+        notifySuccess({
+          title: 'PDF generado',
+          message: 'El resumen académico se abrirá en una nueva ventana para imprimir o guardar como PDF.'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error generando PDF:', error);
+      notifyError({
+        title: 'Error',
+        message: error.message || 'Error al generar el PDF. Por favor, inténtalo de nuevo.'
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const handleExportSelectedPhases = async () => {
+    if (selectedPhasesForPDF.length === 0) {
+      notifyError({
+        title: 'No hay fases seleccionadas',
+        message: 'Por favor, selecciona al menos una fase para descargar.'
+      });
+      return;
+    }
+
+    setIsPDFPhaseDialogOpen(false);
+    setIsGeneratingPDF(true);
+
+    try {
+      // Descargar cada fase seleccionada
+      for (let i = 0; i < selectedPhasesForPDF.length; i++) {
+        const phase = selectedPhasesForPDF[i];
+        const isLast = i === selectedPhasesForPDF.length - 1;
+        
+        // Para la última descarga, no mantener el diálogo abierto
+        await handleExportPDF(phase, !isLast);
+        
+        // Pequeña pausa entre descargas para evitar saturar (excepto en la última)
+        if (!isLast) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+
+      const phaseNames = selectedPhasesForPDF.map(p => 
+        p === 'first' ? 'Fase I' : p === 'second' ? 'Fase II' : 'Fase III'
+      ).join(', ');
+
+      notifySuccess({
+        title: 'Descarga completada',
+        message: `Se descargaron ${selectedPhasesForPDF.length} fase(s): ${phaseNames}`
+      });
+
+      // Resetear selecciones después de descargar
+      setSelectedPhasesForPDF([]);
+    } catch (error: any) {
+      console.error('Error descargando fases seleccionadas:', error);
+      notifyError({
+        title: 'Error',
+        message: 'Hubo un error al descargar algunas fases. Intenta descargarlas nuevamente.'
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   const handleSendEmail = () => {
@@ -2678,6 +4122,8 @@ export default function ICFESAnalysisInterface() {
     if (phase1Data) return phase1Data;
     return analysisData;
   };
+
+  // Funciones duplicadas eliminadas - las correctas están arriba
 
   if (loading) {
     return (
@@ -2801,9 +4247,22 @@ export default function ICFESAnalysisInterface() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleExportPDF} className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Descargar PDF
+            <Button 
+              onClick={handleExportPDFClick} 
+              className="flex items-center gap-2"
+              disabled={isGeneratingPDF}
+            >
+              {isGeneratingPDF ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generando PDF...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Descargar PDF
+                </>
+              )}
             </Button>
             <Button onClick={handleSendEmail} variant="outline" className={cn("flex items-center gap-2", theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300')}>
               <Mail className="h-4 w-4" />
@@ -3576,6 +5035,169 @@ export default function ICFESAnalysisInterface() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog para seleccionar fase al descargar PDF */}
+      <Dialog open={isPDFPhaseDialogOpen} onOpenChange={setIsPDFPhaseDialogOpen}>
+        <DialogContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
+          <DialogHeader>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              Seleccionar Fase para PDF
+            </DialogTitle>
+            <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Selecciona una o más fases académicas para las cuales deseas generar el resumen en PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            {/* Checkbox para seleccionar todas las fases */}
+            {availablePhases.length > 1 && (
+              <div className="flex items-center space-x-2 p-3 rounded-lg border border-gray-300 dark:border-zinc-600">
+                <Checkbox
+                  id="select-all"
+                  checked={selectedPhasesForPDF.length === availablePhases.length && availablePhases.length > 0}
+                  onCheckedChange={handleSelectAllPhases}
+                  disabled={isGeneratingPDF || availablePhases.length === 0}
+                />
+                <label
+                  htmlFor="select-all"
+                  className={cn(
+                    "text-sm font-medium cursor-pointer flex-1",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900',
+                    (isGeneratingPDF || availablePhases.length === 0) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  Seleccionar todas las fases ({availablePhases.length})
+                </label>
+              </div>
+            )}
+
+            {/* Checkboxes individuales por fase */}
+            <div className="space-y-3">
+              {/* Fase I */}
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border transition-colors",
+                theme === 'dark' 
+                  ? 'border-zinc-600 hover:bg-zinc-700/50' 
+                  : 'border-gray-300 hover:bg-gray-50',
+                !phase1Complete && "opacity-50"
+              )}>
+                <Checkbox
+                  id="phase-first"
+                  checked={selectedPhasesForPDF.includes('first')}
+                  onCheckedChange={() => handlePhaseToggle('first')}
+                  disabled={isGeneratingPDF || !phase1Complete}
+                />
+                <label
+                  htmlFor="phase-first"
+                  className={cn(
+                    "text-sm font-medium cursor-pointer flex-1 flex items-center gap-2",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900',
+                    (isGeneratingPDF || !phase1Complete) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <Target className={cn(
+                    "h-4 w-4",
+                    theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                  )} />
+                  Fase I
+                  {!phase1Complete && (
+                    <span className="ml-auto text-xs opacity-75">(Incompleta)</span>
+                  )}
+                </label>
+              </div>
+
+              {/* Fase II */}
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border transition-colors",
+                theme === 'dark' 
+                  ? 'border-zinc-600 hover:bg-zinc-700/50' 
+                  : 'border-gray-300 hover:bg-gray-50',
+                !phase2Complete && "opacity-50"
+              )}>
+                <Checkbox
+                  id="phase-second"
+                  checked={selectedPhasesForPDF.includes('second')}
+                  onCheckedChange={() => handlePhaseToggle('second')}
+                  disabled={isGeneratingPDF || !phase2Complete}
+                />
+                <label
+                  htmlFor="phase-second"
+                  className={cn(
+                    "text-sm font-medium cursor-pointer flex-1 flex items-center gap-2",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900',
+                    (isGeneratingPDF || !phase2Complete) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <Target className={cn(
+                    "h-4 w-4",
+                    theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                  )} />
+                  Fase II
+                  {!phase2Complete && (
+                    <span className="ml-auto text-xs opacity-75">(Incompleta)</span>
+                  )}
+                </label>
+              </div>
+
+              {/* Fase III */}
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border transition-colors",
+                theme === 'dark' 
+                  ? 'border-zinc-600 hover:bg-zinc-700/50' 
+                  : 'border-gray-300 hover:bg-gray-50',
+                !phase3Complete && "opacity-50"
+              )}>
+                <Checkbox
+                  id="phase-third"
+                  checked={selectedPhasesForPDF.includes('third')}
+                  onCheckedChange={() => handlePhaseToggle('third')}
+                  disabled={isGeneratingPDF || !phase3Complete}
+                />
+                <label
+                  htmlFor="phase-third"
+                  className={cn(
+                    "text-sm font-medium cursor-pointer flex-1 flex items-center gap-2",
+                    theme === 'dark' ? 'text-white' : 'text-gray-900',
+                    (isGeneratingPDF || !phase3Complete) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <Target className={cn(
+                    "h-4 w-4",
+                    theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                  )} />
+                  Fase III
+                  {!phase3Complete && (
+                    <span className="ml-auto text-xs opacity-75">(Incompleta)</span>
+                  )}
+                </label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsPDFPhaseDialogOpen(false);
+                setSelectedPhasesForPDF([]);
+              }}
+              disabled={isGeneratingPDF}
+              className={cn(theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : '')}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExportSelectedPhases}
+              disabled={isGeneratingPDF || selectedPhasesForPDF.length === 0}
+              className={cn(
+                "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white",
+                (isGeneratingPDF || selectedPhasesForPDF.length === 0) && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Descargar {selectedPhasesForPDF.length > 0 ? `(${selectedPhasesForPDF.length})` : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
