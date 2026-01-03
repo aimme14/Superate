@@ -728,6 +728,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
   const removeEditInformativeImage = (index: number) => {
     setEditInformativeImages(editInformativeImages.filter((_, i) => i !== index))
+  }
+
+  // Función para eliminar imágenes existentes durante la edición
+  const removeExistingInformativeImage = (index: number) => {
     setInformativeImagePreviews(informativeImagePreviews.filter((_, i) => i !== index))
   }
 
@@ -9793,6 +9797,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                               alt={`Imagen informativa ${index + 1}`} 
                               className="w-full h-full object-cover rounded border" 
                             />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => removeExistingInformativeImage(index)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
                           </div>
                         ))}
                       </div>
