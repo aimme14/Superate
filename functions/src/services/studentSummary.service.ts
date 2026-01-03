@@ -129,7 +129,7 @@ interface AcademicSummary {
 /**
  * Resumen persistido en Firestore
  */
-interface PersistedSummary {
+export interface PersistedSummary {
   studentId: string;
   phase: 'first' | 'second' | 'third';
   fecha: string;
@@ -681,6 +681,7 @@ class StudentSummaryService {
   /**
    * Obtiene el resumen completo de fases anteriores para contexto comparativo
    * Retorna tanto las métricas como el análisis completo generado por IA
+   * Para Fase III, retorna solo Fase II (la más reciente)
    */
   private async getPreviousPhaseMetrics(
     studentId: string,
@@ -694,7 +695,7 @@ class StudentSummaryService {
       if (currentPhase === 'second') {
         previousPhases.push('first');
       } else if (currentPhase === 'third') {
-        previousPhases.push('second', 'first');
+        previousPhases.push('second'); // Para Fase III, solo retornamos Fase II (la más reciente)
       }
 
       // Obtener el resumen más reciente de las fases anteriores
@@ -727,6 +728,81 @@ class StudentSummaryService {
     } catch (error: any) {
       console.warn('⚠️ Error obteniendo métricas de fases anteriores:', error.message);
       return null;
+    }
+  }
+
+  /**
+   * Obtiene información de todas las fases anteriores necesarias para Fase III
+   * Retorna información completa de Fase I y Fase II
+   */
+  private async getAllPreviousPhasesForPhase3(
+    studentId: string
+  ): Promise<{
+    phase1: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
+    phase2: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
+  }> {
+    try {
+      const studentDb = getStudentDatabase();
+      
+      let phase1Data: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null = null;
+      let phase2Data: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null = null;
+
+      // Obtener Fase I
+      try {
+        const phase1Ref = studentDb
+          .collection('ResumenStudent')
+          .doc(studentId)
+          .collection('first')
+          .doc('resumenActual');
+        
+        const phase1Snap = await phase1Ref.get();
+        if (phase1Snap.exists) {
+          const data = phase1Snap.data() as PersistedSummary;
+          if (data.metricasGlobales) {
+            phase1Data = {
+              phase: 'Fase I',
+              metrics: data.metricasGlobales,
+              fullSummary: data,
+            };
+          }
+        }
+      } catch (error: any) {
+        console.warn('⚠️ Error obteniendo métricas de Fase I:', error.message);
+      }
+
+      // Obtener Fase II
+      try {
+        const phase2Ref = studentDb
+          .collection('ResumenStudent')
+          .doc(studentId)
+          .collection('second')
+          .doc('resumenActual');
+        
+        const phase2Snap = await phase2Ref.get();
+        if (phase2Snap.exists) {
+          const data = phase2Snap.data() as PersistedSummary;
+          if (data.metricasGlobales) {
+            phase2Data = {
+              phase: 'Fase II',
+              metrics: data.metricasGlobales,
+              fullSummary: data,
+            };
+          }
+        }
+      } catch (error: any) {
+        console.warn('⚠️ Error obteniendo métricas de Fase II:', error.message);
+      }
+
+      return {
+        phase1: phase1Data,
+        phase2: phase2Data,
+      };
+    } catch (error: any) {
+      console.warn('⚠️ Error obteniendo fases anteriores para Fase III:', error.message);
+      return {
+        phase1: null,
+        phase2: null,
+      };
     }
   }
 
@@ -773,12 +849,28 @@ class StudentSummaryService {
     // Lista de materias para el prompt
     const materiasLista = normalizedResults.map(r => r.materia).join(', ');
 
-    // Obtener métricas de fases anteriores para contexto comparativo
-    const previousPhaseMetrics = await this.getPreviousPhaseMetrics(studentId, phase);
+    // Para Fase III, obtener información de AMBAS fases anteriores (Fase I y Fase II)
+    // Para otras fases, obtener solo la fase anterior más reciente
+    let previousPhaseMetrics: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null = null;
+    let phase3PreviousPhases: {
+      phase1: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
+      phase2: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
+    } | null = null;
+
+    if (phase === 'third') {
+      // Para Fase III, obtener ambas fases anteriores
+      phase3PreviousPhases = await this.getAllPreviousPhasesForPhase3(studentId);
+      // También obtener la fase más reciente para mantener compatibilidad
+      previousPhaseMetrics = phase3PreviousPhases.phase2 || phase3PreviousPhases.phase1;
+    } else {
+      // Para otras fases, obtener solo la fase anterior más reciente
+      previousPhaseMetrics = await this.getPreviousPhaseMetrics(studentId, phase);
+    }
 
     // Construir sección de contexto comparativo (solo si hay fase anterior)
     let comparativeContextSection = '';
     let phase2ComparativeAnalysisSection = '';
+    let phase3ContextSection = '';
     
     if (previousPhaseMetrics) {
       // Construir mapa de niveles de Fase II por materia para comparación
@@ -924,6 +1016,96 @@ ${phase1FullAnalysisSection}
       }
     }
 
+    // Construir sección especial para Fase III con información de ambas fases anteriores
+    if (phase === 'third' && phase3PreviousPhases) {
+      let phase1Section = '';
+      let phase2Section = '';
+
+      // Sección de Fase I
+      if (phase3PreviousPhases.phase1 && phase3PreviousPhases.phase1.fullSummary) {
+        const phase1Resumen = phase3PreviousPhases.phase1.fullSummary.resumen;
+
+        phase1Section = `
+═══════════════════════════════════════════════════════════════
+📋 INFORMACIÓN DE FASE I (DIAGNÓSTICO INICIAL)
+═══════════════════════════════════════════════════════════════
+
+**RESUMEN GENERAL DE FASE I:**
+${phase1Resumen.resumen_general || 'No disponible'}
+
+**MÉTRICAS DE FASE I:**
+- Nivel general de desempeño: ${phase3PreviousPhases.phase1.metrics.nivelGeneralDesempeno}
+- Materias con desempeño favorable: ${phase3PreviousPhases.phase1.metrics.materiasFuertes.join(', ') || 'Ninguna'}
+- Materias que requerían fortalecimiento: ${phase3PreviousPhases.phase1.metrics.materiasDebiles.join(', ') || 'Ninguna'}
+
+**FORTALEZAS ACADÉMICAS IDENTIFICADAS EN FASE I:**
+${phase1Resumen.fortalezas_academicas && phase1Resumen.fortalezas_academicas.length > 0 
+  ? phase1Resumen.fortalezas_academicas.map(f => `- ${f}`).join('\n')
+  : 'Ninguna identificada'}
+
+**ASPECTOS POR MEJORAR IDENTIFICADOS EN FASE I:**
+${phase1Resumen.aspectos_por_mejorar && phase1Resumen.aspectos_por_mejorar.length > 0
+  ? phase1Resumen.aspectos_por_mejorar.map(a => `- ${a}`).join('\n')
+  : 'Ninguno identificado'}
+
+`;
+      }
+
+      // Sección de Fase II
+      if (phase3PreviousPhases.phase2 && phase3PreviousPhases.phase2.fullSummary) {
+        const phase2Resumen = phase3PreviousPhases.phase2.fullSummary.resumen;
+
+        phase2Section = `
+═══════════════════════════════════════════════════════════════
+📋 INFORMACIÓN DE FASE II (REFUERZO PERSONALIZADO)
+═══════════════════════════════════════════════════════════════
+
+**RESUMEN GENERAL DE FASE II:**
+${phase2Resumen.resumen_general || 'No disponible'}
+
+**MÉTRICAS DE FASE II:**
+- Nivel general de desempeño: ${phase3PreviousPhases.phase2.metrics.nivelGeneralDesempeno}
+- Materias con desempeño favorable: ${phase3PreviousPhases.phase2.metrics.materiasFuertes.join(', ') || 'Ninguna'}
+- Materias que requerían fortalecimiento: ${phase3PreviousPhases.phase2.metrics.materiasDebiles.join(', ') || 'Ninguna'}
+
+**FORTALEZAS ACADÉMICAS IDENTIFICADAS EN FASE II:**
+${phase2Resumen.fortalezas_academicas && phase2Resumen.fortalezas_academicas.length > 0 
+  ? phase2Resumen.fortalezas_academicas.map(f => `- ${f}`).join('\n')
+  : 'Ninguna identificada'}
+
+**ASPECTOS POR MEJORAR IDENTIFICADOS EN FASE II:**
+${phase2Resumen.aspectos_por_mejorar && phase2Resumen.aspectos_por_mejorar.length > 0
+  ? phase2Resumen.aspectos_por_mejorar.map(a => `- ${a}`).join('\n')
+  : 'Ninguno identificado'}
+
+`;
+      }
+
+      phase3ContextSection = `
+═══════════════════════════════════════════════════════════════
+📊 TRAYECTORIA ACADÉMICA DEL ESTUDIANTE (FASE I → FASE II → FASE III)
+═══════════════════════════════════════════════════════════════
+
+El estudiante ha completado las tres fases del proceso de preparación académica:
+
+${phase1Section}
+${phase2Section}
+
+⚠️ IMPORTANTE: Usa esta información completa de Fase I y Fase II para:
+1. Evaluar la trayectoria académica del estudiante a lo largo de las tres fases
+2. Identificar mejoras sostenidas, áreas que se mantuvieron estables, o retrocesos
+3. Determinar el estado actual del estudiante DESPUÉS de completar Fase I y Fase II
+4. Evaluar en qué condición se encuentra el estudiante para presentar las pruebas ICFES Saber 11
+5. Proporcionar un diagnóstico integral que considere todo el proceso de preparación
+
+Tu análisis en el "resumen_general" DEBE indicar claramente:
+- El estado del estudiante después de haber completado Fase I y Fase II
+- En qué condición se encuentra para presentar las pruebas ICFES Saber 11
+- Una evaluación integral que considere toda la trayectoria académica
+
+`;
+    }
+
     // Ajustar el prompt según la fase
     const isPhase3 = phase === 'third';
     const roleDescription = isPhase3 
@@ -1028,7 +1210,7 @@ Fase evaluativa ACTUAL: ${phaseName}
 ${academicContext.grado ? `Grado: ${academicContext.grado}` : 'Grado: No especificado'}
 ${academicContext.nivel ? `Nivel: ${academicContext.nivel}` : ''}
 
-${comparativeContextSection}
+${phase === 'third' ? phase3ContextSection : comparativeContextSection}
 ${phase2ComparativeAnalysisSection}
 ═══════════════════════════════════════════════════════════════
 RESULTADOS POR MATERIA - ${phaseName}
@@ -1072,12 +1254,17 @@ INSTRUCCIONES PARA EL ANÁLISIS
 ${isPhase3 ? `IMPORTANTE: Esta es la ${phaseName}, que simula una evaluación oficial tipo ICFES Saber 11. Tu análisis debe reflejar el formato y rigor de los informes oficiales del Ministerio de Educación Nacional.
 
 Analiza integralmente el desempeño del estudiante en ${phaseName}, considerando:
-- Niveles de desempeño por área evaluada (BASADOS SOLO EN ${phaseName})
+- Niveles de desempeño por área evaluada (BASADOS EN ${phaseName})
 - Fortalezas y debilidades por competencias según estándares nacionales (IDENTIFICADAS EN ${phaseName})
 - Coherencia y consistencia entre las áreas evaluadas en ${phaseName}
 - Estado general frente a las exigencias y estándares del examen oficial ICFES Saber 11
 - Interpretación del desempeño según los niveles establecidos por el ICFES
-${previousPhaseMetrics ? `- Trayectoria académica y evolución del desempeño respecto a ${previousPhaseMetrics.phase} (menciona mejoras sostenidas, mantenimientos o áreas que requieren fortalecimiento continuo, pero sin puntajes numéricos)` : ''}
+${phase3PreviousPhases ? `- Trayectoria académica completa: Debes considerar la información completa de Fase I y Fase II proporcionada anteriormente para evaluar:
+  • El estado del estudiante DESPUÉS de haber completado las dos primeras fases
+  • La evolución académica a lo largo de las tres fases (mejoras sostenidas, áreas que se mantuvieron estables, retrocesos)
+  • En qué condición se encuentra el estudiante para presentar las pruebas ICFES Saber 11
+  • Una evaluación integral que considere todo el proceso de preparación (Fase I → Fase II → Fase III)
+  (menciona mejoras sostenidas, mantenimientos o áreas que requieren fortalecimiento continuo, pero sin puntajes numéricos específicos)` : previousPhaseMetrics ? `- Trayectoria académica y evolución del desempeño respecto a ${previousPhaseMetrics.phase} (menciona mejoras sostenidas, mantenimientos o áreas que requieren fortalecimiento continuo, pero sin puntajes numéricos)` : ''}
 
 ⚠️ RESTRICCIONES CRÍTICAS (Estilo Oficial ICFES):
 - Tu análisis debe basarse EXCLUSIVAMENTE en los resultados de ${phaseName}
@@ -1170,9 +1357,9 @@ Para cada materia débil de Fase I (${previousPhaseMetrics.metrics.materiasDebil
 
 2. ⚠️ REGLA DE ORO - PRIMERA ORACIÓN OBLIGATORIA:
    Para CADA materia débil de Fase I, la PRIMERA ORACIÓN debe ser EXACTAMENTE:
-   - "El estudiante MEJORÓ." O
-   - "El estudiante se MANTUVO." O
-   - "El estudiante EMPEORÓ."
+   - "El estudiante tuvo una mejora significativa." O
+   - "El estudiante mantuvo su nivel de desempeño." O
+   - "El estudiante presentó un retroceso significativo."
    
    ⚠️ IMPORTANTE: NO repitas el nombre de la materia en el texto, ya que el nombre de la materia es la CLAVE del objeto JSON.
    
@@ -1234,7 +1421,26 @@ FORMATO DE RESPUESTA (JSON)
 Responde ÚNICAMENTE con un objeto JSON en este formato exacto:
 
 {
-  "resumen_general": "${isPhase3 ? `Resumen ejecutivo del desempeño del estudiante en la ${phaseName}, estructurado como un informe oficial ICFES. Debe presentar una evaluación integral del estado académico según los estándares nacionales, enfocándose en las competencias evaluadas bajo el marco oficial del examen Saber 11. Utiliza lenguaje institucional formal. ${previousPhaseMetrics ? `Puedes hacer referencia a la evolución académica respecto a ${previousPhaseMetrics.phase}, pero sin puntajes numéricos.` : ''} (250-350 palabras)` : phase === 'second' && previousPhaseMetrics ? `Resumen dirigido a padres de familia sobre el progreso académico del estudiante en Fase II. 
+  "resumen_general": "${isPhase3 ? `Resumen ejecutivo del desempeño del estudiante en la ${phaseName}, estructurado como un informe oficial ICFES. Debe presentar una evaluación integral del estado académico según los estándares nacionales, enfocándose en las competencias evaluadas bajo el marco oficial del examen Saber 11. Utiliza lenguaje institucional formal.
+
+⚠️ CONTENIDO OBLIGATORIO DEL RESUMEN GENERAL PARA FASE III:
+
+1. Debe indicar claramente el ESTADO DEL ESTUDIANTE DESPUÉS de haber completado las dos primeras fases (Fase I y Fase II), considerando:
+   - La trayectoria académica completa (Fase I → Fase II → Fase III)
+   - Mejoras sostenidas, áreas que se mantuvieron estables, o retrocesos
+   - El impacto del proceso de preparación en el desarrollo competencial
+
+2. Debe evaluar en QUÉ CONDICIÓN SE ENCUENTRA EL ESTUDIANTE PARA PRESENTAR LAS PRUEBAS ICFES SABER 11, considerando:
+   - Su nivel de preparación general
+   - Fortalezas y debilidades identificadas
+   - Nivel de dominio de las competencias requeridas
+   - Recomendaciones sobre su estado de preparación para el examen oficial
+
+3. Debe ser una evaluación integral que considere todo el proceso de preparación, no solo los resultados de Fase III.
+
+${phase3PreviousPhases ? `La información de Fase I y Fase II fue proporcionada anteriormente en este prompt. Úsala para fundamentar tu análisis.` : previousPhaseMetrics ? `Puedes hacer referencia a la evolución académica respecto a ${previousPhaseMetrics.phase}, pero sin puntajes numéricos.` : ''}
+
+(300-400 palabras)` : phase === 'second' && previousPhaseMetrics ? `Resumen dirigido a padres de familia sobre el progreso académico del estudiante en Fase II. 
 
 ⚠️ ESTRUCTURA OBLIGATORIA:
 
@@ -1258,32 +1464,23 @@ Responde ÚNICAMENTE con un objeto JSON en este formato exacto:
 - Mantén tecnicismo pero explícalo: "nivel básico (regular)", "competencias (habilidades)"
 - ⚠️ EVITA REDUNDANCIAS: NO repitas información que ya aparecerá en "analisis_competencial". El resumen general debe dar una visión general, los detalles van en el análisis por materia.
 - Sé específico pero conciso sobre mejoras, mantenimientos o retrocesos
-- Total: 100 palabras exactas` : phase === 'first' ? `⚠️ FORMATO OBLIGATORIO PARA RESUMEN GENERAL - FASE I:
+- Total: 100 palabras` : phase === 'first' ? `⚠️ FORMATO OBLIGATORIO PARA RESUMEN GENERAL - FASE I:
 
-ARRANCA DIRECTAMENTE con el análisis de las materias, SIN introducción general, SIN frases de apertura, SIN contexto previo.
 
-❌ PROHIBIDO empezar con:
-- "El desempeño del estudiante en la Fase I se caracteriza por..."
-- "El estudiante presenta..."
-- "El diagnóstico muestra que..."
-- Cualquier frase introductoria general
-
-✅ DEBES empezar directamente con:
-- "En Biología, la comprensión de [temas específicos] evidencia..."
-- "En Matemáticas, se observan dificultades en [temas específicos]..."
-- "En Lenguaje, el análisis de [competencias] muestra..."
-- Y así sucesivamente con TODAS las materias
-
-📋 OBLIGATORIO incluir TODAS estas materias en el resumen (en este orden o similar):
-1. Biología - menciona temas/competencias específicas
-2. Ciencias Sociales - menciona temas/competencias específicas
-3. Física - menciona temas/competencias específicas
-4. Matemáticas - menciona temas/competencias específicas
-5. Química - menciona temas/competencias específicas
-6. Lenguaje - menciona temas/competencias específicas
+📋 OBLIGATORIO incluir TODAS estas materias en el resumen (en este orden o similar) para descrbir el estado del estudiante con respecto a ellas pero a groso modo, de manera general:
+1. Biología 
+2. Ciencias Sociales 
+3. Física 
+4. Matemáticas
+5. Química
+6. Lenguaje
 7. Inglés - ⚠️ OBLIGATORIO: identifica el nivel MCER (A1, A2, B1, B2, C1 o C2) y explica qué significa ese nivel. NO menciones "pruebas del 1 al 7". Ejemplo: "En Inglés, el estudiante se encuentra en nivel A2, lo que indica competencia básica en el idioma, con capacidad para comprender frases y expresiones de uso frecuente."
 
-El resumen debe ser diagnóstico (no calificativo), analizando cada materia con sus temas/competencias específicas. Usa lenguaje claro y accesible. (150-200 palabras)` : `Descripción global del estado académico del estudiante en ${phaseName}, en relación con las competencias evaluadas bajo el enfoque Saber 11. Debe reflejar el nivel de preparación general frente a las exigencias académicas del nivel educativo. ${previousPhaseMetrics ? `Puedes mencionar si hay progreso respecto a ${previousPhaseMetrics.phase}, pero sin puntajes numéricos.` : ''} (100 palabras exactas)`}",
+Dato para tener en cuenta: No menciones los temas espesificos en el resumen general, solo menciona las materias de manera general.
+dato para tener en cuenta: al final se debe mencionar si el estudiante debe poner de su parte para mejorar su desempeño o mantener su compromiso con el estudio.
+
+
+IMPORTANTE: El resumen debe ser diagnóstico (no calificativo), analizando cada materia con sus temas/competencias específicas todo de manera global y general. como finalidad ofrecer una visión global y comprensible del estado académico general del estudiante en el momento inicial del proceso. Usa lenguaje claro y accesible. (150-200 palabras)` : `Descripción global del estado académico del estudiante en ${phaseName}, en relación con las competencias evaluadas bajo el enfoque Saber 11. Debe reflejar el nivel de preparación general frente a las exigencias académicas del nivel educativo. ${previousPhaseMetrics ? `Puedes mencionar si hay progreso respecto a ${previousPhaseMetrics.phase}, pero sin puntajes numéricos.` : ''} (100 palabras exactas)`}",
   
   "analisis_competencial": ${isPhase3 ? `"Análisis técnico-institucional del desarrollo de competencias (habilidades) del estudiante en la ${phaseName}, siguiendo el formato de informes oficiales del ICFES. Incluye: análisis por áreas evaluadas, coherencia entre competencias, patrones de desempeño según estándares nacionales. Usa términos técnicos cuando sean necesarios pero explícalos de forma clara. Por ejemplo: 'el estudiante evidencia dominio en...' (muestra buen nivel en...), 'se identifican áreas que requieren fortalecimiento en...' (se necesita mejorar en...). ${previousPhaseMetrics ? `Puedes mencionar la trayectoria académica y evolución del desempeño respecto a ${previousPhaseMetrics.phase}, siempre explicando los términos técnicos.` : ''} (300-400 palabras)"` : `Un OBJETO JSON donde cada clave es el nombre exacto de una materia (${materiasLista}) y el valor es el análisis ESPECÍFICO de esa materia. Debes generar un análisis INDEPENDIENTE para CADA materia.
 
@@ -1295,9 +1492,9 @@ ${phase === 'second' && previousPhaseMetrics ? `
 
 Para CADA materia que era débil en Fase I (${previousPhaseMetrics.metrics.materiasDebiles.join(', ')}), la PRIMERA ORACIÓN del análisis DEBE ser EXACTAMENTE una de estas tres opciones, SIN EXCEPCIÓN, SIN VARIACIONES, SIN RODEOS:
 
-✅ OPCIÓN 1 (si mejoró): "El estudiante MEJORÓ."
-✅ OPCIÓN 2 (si se mantuvo): "El estudiante se MANTUVO."
-✅ OPCIÓN 3 (si empeoró): "El estudiante EMPEORÓ."
+✅ OPCIÓN 1 (si mejoró): "El estudiante tuvo una mejora significativa."
+✅ OPCIÓN 2 (si presentó una mejora sustancial): "El estudiante presentó una mejora sustancial."
+✅ OPCIÓN 3 (si empeoró): "El estudiante presentó un retroceso significativo."
 
 ⚠️ PROHIBICIONES ABSOLUTAS:
 ❌ NO puedes empezar con: "En relación con Fase I...", "Comparado con la fase anterior...", "Respecto a Fase I...", "En [materia], el estudiante muestra...", "El análisis de [materia] indica...", "En [materia], se observa..."
@@ -1307,9 +1504,9 @@ Para CADA materia que era débil en Fase I (${previousPhaseMetrics.metrics.mater
 ❌ NO puedes repetir el nombre de la materia: "El estudiante MEJORÓ en Matemáticas" (INCORRECTO - el nombre de la materia ya está en la clave del JSON)
 
 ✅ EJEMPLOS CORRECTOS (PRIMERA ORACIÓN EXACTA):
-- "El estudiante MEJORÓ."
-- "El estudiante se MANTUVO."
-- "El estudiante EMPEORÓ."
+- "El estudiante tuvo una mejora significativa."
+  - "El estudiante presentó una mejora sustancial en su nivel de preparación académica."
+- "El estudiante presentó un retroceso significativo."
 
 ❌ EJEMPLOS INCORRECTOS (PROHIBIDOS):
 - "El estudiante MEJORÓ en Matemáticas." (repite el nombre de la materia)
@@ -1323,9 +1520,11 @@ ESTRUCTURA COMPLETA OBLIGATORIA:
 ⚠️ IMPORTANTE: NO repitas el nombre de la materia en el texto, ya que el nombre de la materia es la CLAVE del objeto JSON. Empieza directamente con la declaración del resultado.
 
 1. PRIMERA ORACIÓN (OBLIGATORIA - SIN EXCEPCIÓN):
-   Debe ser EXACTAMENTE: "El estudiante MEJORÓ." O "El estudiante se MANTUVO." O "El estudiante EMPEORÓ."
+   Debe ser EXACTAMENTE: "El estudiante tuvo una mejora significativa." O "El estudiante presentó una mejora sustancial." O "El estudiante presentó un retroceso significativo."
    ❌ NO digas: "El estudiante MEJORÓ en Matemáticas" (el nombre de la materia ya está en la clave del JSON)
-   ✅ CORRECTO: "El estudiante MEJORÓ."
+   ✅ CORRECTO: "El estudiante tuvo una mejora significativa."
+   ✅ CORRECTO: "El estudiante presentó una mejora sustancial."
+   ✅ CORRECTO: "El estudiante presentó un retroceso significativo."
 
 2. SEGUNDA ORACIÓN: Explicación del cambio en lenguaje sencillo
    ⚠️ VARIACIÓN OBLIGATORIA: Aunque el mensaje sea el mismo, DEBES variar la forma de expresarlo en cada materia. Usa diferentes estructuras, sinónimos y formas de redacción.
@@ -1335,17 +1534,31 @@ ESTRUCTURA COMPLETA OBLIGATORIA:
    - "Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos."
    - "Pasó de un nivel básico (regular) a un nivel alto (bueno). ¡Felicitaciones por este avance significativo! La dedicación del estudiante ha sido clave en este progreso."
    - "El progreso es evidente: de nivel básico (regular) a nivel alto (bueno). ¡Muy bien! El compromiso del estudiante con su proceso de aprendizaje ha sido fundamental para alcanzar estos resultados."
+   - "El estudiante presenta una mejora sustancial en su nivel de preparación académica. Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos."
+   - "Pasó de un nivel básico (regular) a un nivel alto (bueno). ¡Felicitaciones por este avance significativo! La dedicación del estudiante ha sido clave en este progreso."
+   - "El progreso es evidente: de nivel básico (regular) a nivel alto (bueno). ¡Muy bien! El compromiso del estudiante con su proceso de aprendizaje ha sido fundamental para alcanzar estos resultados."
+   - "El estudiante presenta una mejora sustancial en su nivel de preparación académica. Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos."
+   - "Pasó de un nivel básico (regular) a un nivel alto (bueno). ¡Felicitaciones por este avance significativo! La dedicación del estudiante ha sido clave en este progreso."
+   - "El progreso es evidente: de nivel básico (regular) a nivel alto (bueno). ¡Muy bien! El compromiso del estudiante con su proceso de aprendizaje ha sido fundamental para alcanzar estos resultados."
    
-   Si se mantuvo - VARIACIONES POSIBLES (elige diferentes formas para cada materia, ENFÓCATE EN FALTA DE DEDICACIÓN, NO en fallas del plan):
+   Si presentó una mejora sustancial - VARIACIONES POSIBLES (elige diferentes formas para cada materia, ENFÓCATE EN FALTA DE DEDICACIÓN, NO en fallas del plan):
    - "Se mantiene en nivel básico (regular), lo que indica que requiere mayor dedicación al estudio para poder mejorar. El plan de estudio está disponible, pero necesita más tiempo y esfuerzo del estudiante."
    - "Su desempeño (rendimiento) permanece en nivel básico (regular), señalando que necesita incrementar su dedicación al estudio. Con mayor compromiso y práctica constante, podrá avanzar."
    - "Continúa en nivel básico (regular), evidenciando que requiere más dedicación al estudio. El estudiante debe aumentar su tiempo de práctica y esfuerzo para lograr mejoras."
    - "El nivel básico (regular) se mantiene, lo que sugiere que necesita mayor dedicación al estudio. Es fundamental que el estudiante incremente su compromiso con el proceso de aprendizaje."
-   
+   - "El estudiante presenta una mejora sustancial en su nivel de preparación académica. Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos."
+   - "Pasó de un nivel básico (regular) a un nivel alto (bueno). ¡Felicitaciones por este avance significativo! La dedicación del estudiante ha sido clave en este progreso."
+   - "El progreso es evidente: de nivel básico (regular) a nivel alto (bueno). ¡Muy bien! El compromiso del estudiante con su proceso de aprendizaje ha sido fundamental para alcanzar estos resultados."
+   - "El estudiante presenta una mejora sustancial en su nivel de preparación académica. Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos."
+   - "Pasó de un nivel básico (regular) a un nivel alto (bueno). ¡Felicitaciones por este avance significativo! La dedicación del estudiante ha sido clave en este progreso."
+   - "El progreso es evidente: de nivel básico (regular) a nivel alto (bueno). ¡Muy bien! El compromiso del estudiante con su proceso de aprendizaje ha sido fundamental para alcanzar estos resultados."
    Si empeoró - VARIACIONES POSIBLES (elige diferentes formas para cada materia, ENFÓCATE EN FALTA DE DEDICACIÓN, NO en fallas del plan):
    - "Retrocedió de nivel básico a nivel bajo (necesita mejorar), lo que indica que requiere mayor dedicación al estudio. Es importante que el estudiante incremente su tiempo de práctica y esfuerzo."
    - "Su desempeño (rendimiento) descendió de básico a bajo (necesita mejorar), señalando la necesidad urgente de mayor dedicación al estudio. El estudiante debe comprometerse más con su proceso de aprendizaje."
    - "Pasó de nivel básico a nivel bajo (necesita mejorar), evidenciando que necesita incrementar significativamente su dedicación al estudio. Es fundamental un mayor compromiso y esfuerzo del estudiante."
+   - "El estudiante presenta una mejora sustancial en su nivel de preparación académica. Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos."
+   - "Pasó de un nivel básico (regular) a un nivel alto (bueno). ¡Felicitaciones por este avance significativo! La dedicación del estudiante ha sido clave en este progreso."
+   - "El progreso es evidente: de nivel básico (regular) a nivel alto (bueno). ¡Muy bien! El compromiso del estudiante con su proceso de aprendizaje ha sido fundamental para alcanzar estos resultados."
 
 3. TERCERA ORACIÓN EN ADELANTE: Detalles específicos
    ⚠️ VARIACIÓN OBLIGATORIA: Varía también la forma de expresar los detalles. Usa diferentes estructuras y vocabulario.
@@ -1355,27 +1568,103 @@ ESTRUCTURA COMPLETA OBLIGATORIA:
      * "¡Excelente! El plan de estudio mostró efectividad en [tema]"
      * "¡Muy bien! Las actividades personalizadas tuvieron impacto positivo en [tema]"
      * "El estudiante ha demostrado compromiso y ha mejorado en [tema]"
-   - Si se mantuvo o empeoró: Enfócate en la necesidad de mayor dedicación del estudiante, NO critiques el plan de estudio:
+   - Si presentó una mejora sustancial o empeoró: Enfócate en la necesidad de mayor dedicación del estudiante, NO critiques el plan de estudio:
      * "Aún requiere más práctica y dedicación en [tema]"
      * "Persisten dificultades en [tema], lo que indica necesidad de mayor dedicación al estudio"
      * "Sigue presentando desafíos en [tema], requiriendo más tiempo de práctica y esfuerzo del estudiante"
      * "El estudiante necesita incrementar su dedicación y práctica en [tema]"
-   - ⚠️ IMPORTANTE: Si se mantuvo o empeoró, NO digas que el plan de estudio no funcionó. En su lugar, enfócate en que el estudiante necesita más dedicación, tiempo de práctica y esfuerzo.
+   - ⚠️ IMPORTANTE: Si presentó una mejora sustancial o empeoró, NO digas que el plan de estudio no funcionó. En su lugar, enfócate en que el estudiante necesita más dedicación, tiempo de práctica y esfuerzo.
    - Usa lenguaje técnico pero accesible, explicando términos cuando sea necesario
 
 EJEMPLOS COMPLETOS CORRECTOS (varía la forma de expresar lo mismo):
 
-SI MEJORÓ - Ejemplo 1 (Matemáticas):
-"El estudiante MEJORÓ. En Fase I tenía un nivel básico (regular) y ahora tiene un nivel alto (bueno). ¡Felicitaciones por este progreso! Su dedicación al estudio y las estrategias de apoyo han sido efectivas. Específicamente, mejoró en álgebra y resolución de problemas, aunque aún requiere más práctica en geometría. ¡Excelente trabajo en su compromiso con el aprendizaje!"
+SI TUVO UNA MEJORA SIGNIFICATIVA - Ejemplo 1 (Matemáticas):
+"El estudiante tuvo una mejora significativa. En Fase I tenía un nivel básico (regular) y ahora tiene un nivel alto (bueno). ¡Felicitaciones por este progreso! Su dedicación al estudio y las estrategias de apoyo han sido efectivas. Específicamente, mejoró en álgebra y resolución de problemas, aunque aún requiere más práctica en geometría. ¡Excelente trabajo en su compromiso con el aprendizaje!"
 
-SI MEJORÓ - Ejemplo 2 (Lenguaje - VARIACIÓN):
-"El estudiante MEJORÓ. Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos. Los avances son notables en comprensión lectora y análisis textual, mientras que la producción escrita aún necesita refuerzo. ¡Felicitaciones por su dedicación!"
+SI EVIDENCIÓ UNA MEJORA SIGNIFICATIVA - Ejemplo 2 (Lenguaje - VARIACIÓN):
+"El estudiante evidencia una mejora significativa. Su desempeño (rendimiento) evolucionó de básico (regular) a alto (bueno). ¡Excelente trabajo! El esfuerzo y compromiso del estudiante, junto con el plan de estudio personalizado, han dado resultados positivos. Los avances son notables en comprensión lectora y análisis textual, mientras que la producción escrita aún necesita refuerzo. ¡Felicitaciones por su dedicación!"
 
-SI SE MANTUVO - Ejemplo 1 (Matemáticas):
-"El estudiante se MANTUVO. Se mantiene en nivel básico (regular), lo que indica que requiere mayor dedicación al estudio para poder mejorar. El plan de estudio está disponible, pero necesita más tiempo y esfuerzo del estudiante. Las dificultades en álgebra y geometría persisten, sugiriendo que el estudiante debe incrementar su tiempo de práctica y estudio para lograr avances."
+SI PRESENTÓ UNA MEJORA SUSTANCIAL - Ejemplo 1 (Matemáticas):
+"se observa una evolución positiva del rendimiento. Se mantiene en nivel básico (regular), lo que indica que requiere mayor dedicación al estudio para poder mejorar. El plan de estudio está disponible, pero necesita más tiempo y esfuerzo del estudiante. Las dificultades en álgebra y geometría persisten, sugiriendo que el estudiante debe incrementar su tiempo de práctica y estudio para lograr avances."
 
-SI SE MANTUVO - Ejemplo 2 (Lenguaje - VARIACIÓN):
-"El estudiante se MANTUVO. Su desempeño (rendimiento) permanece en nivel básico (regular), señalando que necesita incrementar su dedicación al estudio. Con mayor compromiso y práctica constante, podrá avanzar. Las áreas de comprensión lectora y análisis textual continúan presentando desafíos, lo que requiere un compromiso más intenso del estudiante con su proceso de aprendizaje y más tiempo de práctica."
+SI PRESENTÓ UNA MEJORA SUSTANCIAL - Ejemplo 2 (Lenguaje - VARIACIÓN):
+"El estudiante presenta una mejora sustancial en su nivel de preparación académica. Su desempeño (rendimiento) permanece en nivel básico (regular), señalando que necesita incrementar su dedicación al estudio. Con mayor compromiso y práctica constante, podrá avanzar. Las áreas de comprensión lectora y análisis textual continúan presentando desafíos, lo que requiere un compromiso más intenso del estudiante con su proceso de aprendizaje y más tiempo de práctica."
+
+Mejora progresiva (aunque permanezca en el mismo nivel)
+
+Muy importante para evitar desmotivación.
+
+“Aunque el estudiante se mantiene en el mismo nivel general, se evidencia un progreso interno relevante respecto a la Fase I.”
+
+“Los resultados indican una mejora progresiva del desempeño, acercándose al nivel esperado para su grado.”
+
+“Se identifican avances parciales pero consistentes en el estado académico general del estudiante.”
+
+“El desempeño global muestra una tendencia positiva de mejora, aun sin cambio de nivel.”
+
+C. Mejora moderada / en proceso
+
+Ideal cuando el avance es real pero aún insuficiente.
+
+“El estudiante presenta una mejora moderada en su desempeño general, lo que indica un proceso de avance en curso.”
+
+“Los resultados reflejan un progreso inicial, que requiere consolidación en fases posteriores.”
+
+“Se evidencia una evolución favorable, aunque todavía se mantienen brechas frente al estándar esperado.”
+
+“El desempeño general ha mejorado parcialmente, mostrando señales positivas de avance académico.”
+
+D. Mejora desde una perspectiva formativa (lenguaje motivador)
+
+Recomendado para informes dirigidos directamente al estudiante.
+
+“En comparación con la Fase I, el estudiante ha fortalecido su estado académico general.”
+
+“El proceso desarrollado ha permitido una mejora gradual del rendimiento, sentando bases para un progreso mayor.”
+
+“Los resultados actuales muestran que el estudiante avanza en la dirección adecuada.”
+
+“Se reconoce un proceso de mejora continua, coherente con el trabajo realizado.”
+Formas profesionales de expresar “se mantuvo”
+
+(clasificadas por enfoque pedagógico)
+
+A. Estabilidad académica clara
+
+Uso neutro y objetivo, ideal para informes institucionales.
+
+“El estudiante mantiene su desempeño académico general en comparación con la Fase I.”
+
+“Los resultados de la Fase II indican una estabilidad en el nivel general de preparación.”
+
+“No se evidencian cambios significativos en el estado académico global del estudiante.”
+
+“El desempeño general permanece consistente respecto al diagnóstico inicial.”
+
+B. Estabilidad con enfoque formativo (lenguaje positivo)
+
+Recomendado para informes dirigidos al estudiante.
+
+“El estudiante ha sostenido su nivel académico general, consolidando el estado alcanzado en la Fase I.”
+
+“Los resultados reflejan una continuidad en el desempeño, lo que indica estabilidad en el proceso de aprendizaje.”
+
+“Se observa un mantenimiento del estado académico, sobre el cual es posible seguir construyendo mejoras.”
+
+“El desempeño general se mantiene, sentando una base estable para avanzar en fases posteriores.”
+
+C. Estabilidad con necesidad de ajuste
+
+Cuando se requiere intervención, sin usar lenguaje negativo.
+
+“El estudiante mantiene su nivel general, lo que sugiere la necesidad de ajustar la estrategia de estudio para promover avances.”
+
+“La estabilidad observada indica que, aunque no hay retrocesos, se requiere reforzar el proceso de intervención.”
+
+“El desempeño se mantiene frente a la Fase I, evidenciando un progreso aún no consolidado a nivel global.”
+
+“El estado académico permanece estable, lo que señala oportunidades de optimización del plan de estudio.”
+
 
 ⚠️ RECUERDA: Aunque el mensaje sea el mismo (mejoró, se mantuvo, empeoró), DEBES variar la forma de expresarlo en cada materia usando diferentes estructuras, sinónimos y formas de redacción.
 

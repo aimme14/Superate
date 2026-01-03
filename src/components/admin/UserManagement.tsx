@@ -2104,7 +2104,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   )}
                   {newUser.role === 'student' && (
                     <div className="grid gap-1.5">
-                      <Label htmlFor="representativePhone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono del representante (WhatsApp)</Label>
+                      <Label htmlFor="representativePhone" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Número de teléfono del representante</Label>
                       <Input
                         id="representativePhone"
                         type="tel"

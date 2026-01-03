@@ -2692,6 +2692,7 @@ export default function ICFESAnalysisInterface() {
     setIsPDFPhaseDialogOpen(true);
   };
 
+
   const handlePhaseToggle = (phase: 'first' | 'second' | 'third') => {
     setSelectedPhasesForPDF(prev => {
       if (prev.includes(phase)) {
@@ -2884,8 +2885,44 @@ export default function ICFESAnalysisInterface() {
     };
   };
 
-  // Función helper para generar HTML del PDF para Fase I y II
-  const generatePhase1And2PDFHTML = (
+  // Función helper para obtener el trofeo y colores según el puesto
+  const getRankTrophyAndColors = (rank: number) => {
+    if (rank === 1) {
+      return {
+        trophy: '🏆',
+        bgGradient: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+        borderColor: '#fbbf24',
+        textColor: '#92400e',
+        detailColor: '#78350f'
+      };
+    } else if (rank === 2) {
+      return {
+        trophy: '🥈',
+        bgGradient: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+        borderColor: '#94a3b8',
+        textColor: '#475569',
+        detailColor: '#334155'
+      };
+    } else if (rank === 3) {
+      return {
+        trophy: '🥉',
+        bgGradient: 'linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%)',
+        borderColor: '#fb923c',
+        textColor: '#9a3412',
+        detailColor: '#7c2d12'
+      };
+    } else {
+      return {
+        trophy: '🏅',
+        bgGradient: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+        borderColor: '#9ca3af',
+        textColor: '#4b5563',
+        detailColor: '#374151'
+      };
+    }
+  };
+
+const generatePhase1And2PDFHTML = (
     summary: any,
     studentName: string,
     studentId: string,
@@ -3436,13 +3473,136 @@ export default function ICFESAnalysisInterface() {
   const generatePhase3PDFHTML = (
     summary: any,
     studentName: string,
-    studentId: string,
+    _studentId: string,
     institutionName: string,
     currentDate: Date,
     sortedSubjects: any[],
     globalScore: number,
-    globalPercentile: number
+    _globalPercentile: number,
+    phase1Subjects?: Array<{ name: string; percentage: number }>,
+    phase2Subjects?: Array<{ name: string; percentage: number }>,
+    _phaseMetrics?: { averageTimePerQuestion: number; fraudAttempts: number; luckPercentage: number },
+    studentRank?: number | null,
+    totalStudents?: number | null
   ): string => {
+    // Preparar datos para las gráficas
+    const phase3Subjects = sortedSubjects.map(s => ({ name: s.name, percentage: s.percentage }));
+    
+    // Función helper para generar SVG del gráfico de evolución
+    const generateEvolutionChartSVG = () => {
+      const width = 600;
+      const height = 240;
+      const margin = { top: 20, right: 30, bottom: 50, left: 50 };
+      const chartWidth = width - margin.left - margin.right;
+      const chartHeight = height - margin.top - margin.bottom;
+      
+      const subjects = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés'];
+      // Colores similares a SubjectsProgressChart (HSL convertidos a hex aproximados)
+      const colors = ['#3b82f6', '#9333ea', '#22c55e', '#fbbf24', '#ef4444', '#fb923c', '#06b6d4'];
+      
+      // Encontrar máximo valor
+      const allValues = [
+        ...(phase1Subjects || []).map(s => s.percentage),
+        ...(phase2Subjects || []).map(s => s.percentage),
+        ...phase3Subjects.map(s => s.percentage)
+      ];
+      const maxValue = Math.max(...allValues, 100);
+      
+      const getValue = (phase: 'phase1' | 'phase2' | 'phase3', subjectName: string) => {
+        const data = phase === 'phase1' ? phase1Subjects : phase === 'phase2' ? phase2Subjects : phase3Subjects;
+        if (!data) return null;
+        const subject = data.find(s => s.name === subjectName);
+        return subject ? subject.percentage : null;
+      };
+      
+      const phasePositions = { phase1: chartWidth * 0.05, phase2: chartWidth * 0.5, phase3: chartWidth * 0.95 };
+      const dataPositions = { phase1: chartWidth * 0.0, phase2: chartWidth * 0.5, phase3: chartWidth * 0.9 };
+      const scaleY = (value: number) => chartHeight - (value / maxValue) * chartHeight;
+      
+      let lines = '';
+      let dots = '';
+      let labels = '';
+      
+      subjects.forEach((subject, subjectIndex) => {
+        const color = colors[subjectIndex % colors.length];
+        const points: Array<{ x: number; y: number; value: number | null }> = [];
+        
+        ['phase1', 'phase2', 'phase3'].forEach(phase => {
+          const value = getValue(phase as 'phase1' | 'phase2' | 'phase3', subject);
+          if (value !== null) {
+            points.push({
+              x: dataPositions[phase as keyof typeof dataPositions],
+              y: scaleY(value),
+              value
+            });
+          }
+        });
+        
+        // Dibujar línea con curva suave (similar a monotone en Recharts)
+        if (points.length > 1) {
+          let path = `M ${points[0].x} ${points[0].y}`;
+          for (let i = 1; i < points.length; i++) {
+            const prevPoint = points[i - 1];
+            const currPoint = points[i];
+            // Usar curva de Bézier para línea más suave
+            const cp1x = prevPoint.x + (currPoint.x - prevPoint.x) * 0.5;
+            const cp1y = prevPoint.y;
+            const cp2x = prevPoint.x + (currPoint.x - prevPoint.x) * 0.5;
+            const cp2y = currPoint.y;
+            path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${currPoint.x} ${currPoint.y}`;
+          }
+          lines += `<path d="${path}" stroke="${color}" stroke-width="2" fill="none"/>`;
+        }
+        
+        // Dibujar puntos (sin valores encima, igual que en diagnóstico)
+        points.forEach(point => {
+          if (point.value !== null) {
+            dots += `<circle cx="${point.x}" cy="${point.y}" r="4" fill="${color}" stroke="#fff" stroke-width="2"/>`;
+          }
+        });
+      });
+      
+      // Etiquetas de fases con color claro para fondo oscuro
+      labels += `<text x="${phasePositions.phase1}" y="${chartHeight + 18}" text-anchor="middle" font-size="12" fill="#e5e7eb" font-weight="500">Fase I</text>`;
+      labels += `<text x="${phasePositions.phase2}" y="${chartHeight + 18}" text-anchor="middle" font-size="12" fill="#e5e7eb" font-weight="500">Fase II</text>`;
+      labels += `<text x="${phasePositions.phase3}" y="${chartHeight + 18}" text-anchor="middle" font-size="12" fill="#e5e7eb" font-weight="500">Fase III</text>`;
+      
+      // Grid lines con fondo oscuro
+      let gridLines = '';
+      for (let i = 0; i <= 5; i++) {
+        const y = (chartHeight / 5) * i;
+        const value = maxValue - (maxValue / 5) * i;
+        gridLines += `<line x1="0" y1="${y}" x2="${chartWidth}" y2="${y}" stroke="#4b5563" stroke-width="1" stroke-dasharray="2,2" opacity="0.5"/>`;
+        gridLines += `<text x="-10" y="${y + 4}" text-anchor="end" font-size="11" fill="#9ca3af" font-weight="500">${Math.round(value)}</text>`;
+      }
+      
+      // Generar leyenda horizontal al final (debajo de las etiquetas de fase)
+      const legendItems = subjects.map((subject, index) => {
+        const color = colors[index % colors.length];
+        // Distribuir uniformemente desde el inicio, con espacio para 7 materias
+        // Ajustar para que todas las materias quepan, especialmente "Inglés"
+        const availableWidth = width - margin.left - margin.right - 10; // Restar 10px para margen de seguridad
+        const spacing = availableWidth / 6; // Dividir entre 6 espacios (7 materias = 6 espacios entre ellas)
+        const x = margin.left + (index * spacing) + 2; // Empezar casi desde el borde izquierdo
+        const y = margin.top + chartHeight + 42 + Math.floor(index / 7) * 18;
+        return `<circle cx="${x}" cy="${y}" r="4" fill="${color}"/>
+                <text x="${x + 8}" y="${y + 4}" font-size="10" fill="#e5e7eb">${subject.length > 15 ? subject.substring(0, 15) + '...' : subject}</text>`;
+      }).join('');
+      
+      return `<svg width="100%" height="${height + 40}" viewBox="0 0 ${width} ${height + 40}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background-color: #2d2d2d; display: block; min-height: ${height + 40}px;">
+        <rect width="100%" height="100%" fill="#2d2d2d"/>
+        <g transform="translate(${margin.left},${margin.top})">
+          ${gridLines}
+          ${lines}
+          ${dots}
+          ${labels}
+        </g>
+        <g>${legendItems}</g>
+      </svg>`;
+    };
+    
+    // Generar gráfica de evolución si hay datos de fases anteriores
+    const evolutionSVG = phase1Subjects && phase2Subjects ? generateEvolutionChartSVG() : null;
     return `
       <!DOCTYPE html>
       <html>
@@ -3472,62 +3632,102 @@ export default function ICFESAnalysisInterface() {
             margin: 0 auto;
           }
           .header {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+            border-top: 3px solid #1e40af;
             border-bottom: 3px solid #1e40af;
-            padding-bottom: 15px;
-            margin-bottom: 25px;
-          }
-          .header h1 {
-            font-size: 18pt;
-            font-weight: bold;
-            color: #1e40af;
-            margin-bottom: 10px;
-          }
-          .header .subtitle {
-            font-size: 14pt;
-            color: #1e40af;
-            font-weight: bold;
+            padding: 12px;
             margin-bottom: 15px;
+            position: relative;
+          }
+          .header-logo {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            flex-shrink: 0;
+          }
+          .header-text {
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 130px);
+          }
+          .header-text h1 {
+            font-size: 19pt;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 5px;
+            text-align: center;
+          }
+          .header-text .subtitle {
+            font-size: 11pt;
+            color: #1e40af;
+            font-weight: bold;
+            text-align: center;
           }
           .student-info {
             background-color: #f3f4f6;
-            padding: 15px;
+            padding: 10px 12px;
             border: 1px solid #d1d5db;
-            margin-bottom: 25px;
-            font-size: 10pt;
+            margin-bottom: 15px;
+            font-size: 8pt;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px 15px;
           }
           .student-info p {
-            margin: 5px 0;
-            line-height: 1.6;
+            margin: 0;
+            line-height: 1.4;
           }
           .global-results {
             background-color: #eff6ff;
-            padding: 20px;
+            padding: 10px 15px;
             border: 2px solid #3b82f6;
             border-radius: 8px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             page-break-inside: avoid;
           }
           .global-score {
-            text-align: center;
-            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0;
+            gap: 15px;
           }
-          .global-score-number {
-            font-size: 48pt;
-            font-weight: bold;
-            color: #1e40af;
-            margin: 10px 0;
+          .global-score-left {
+            flex: 1;
           }
           .global-score-label {
-            font-size: 14pt;
+            font-size: 10pt;
             color: #374151;
             font-weight: bold;
+            margin-bottom: 2px;
+          }
+          .global-score-number {
+            font-size: 32pt;
+            font-weight: bold;
+            color: #1e40af;
+            line-height: 1;
+            margin-bottom: 1px;
+          }
+          .global-score-detail {
+            font-size: 9pt;
+            color: #6b7280;
+            margin-top: 0;
           }
           .percentile-bar {
-            margin-top: 15px;
             padding: 10px;
             background-color: #fff;
             border: 1px solid #d1d5db;
+            border-radius: 4px;
           }
           .percentile-label {
             font-size: 11pt;
@@ -3577,16 +3777,28 @@ export default function ICFESAnalysisInterface() {
           }
           table th {
             background-color: #1e40af;
-            color: #fff;
+            color: #000;
             padding: 10px 8px;
-            text-align: left;
+            text-align: center;
             font-weight: bold;
-            border: 1px solid #1e3a8a;
+            border-top: 1px solid #1e3a8a;
+            border-bottom: 1px solid #1e3a8a;
+            border-left: none;
+            border-right: none;
+          }
+          table th:nth-child(2),
+          table th:nth-child(3),
+          table th:nth-child(4) {
+            font-weight: normal;
+            color: #000;
           }
           table td {
             padding: 10px 8px;
-            border: 1px solid #d1d5db;
-            vertical-align: top;
+            border-top: 1px solid #d1d5db;
+            border-bottom: 1px solid #d1d5db;
+            border-left: none;
+            border-right: none;
+            vertical-align: middle;
           }
           table tr:nth-child(even) {
             background-color: #f9fafb;
@@ -3594,15 +3806,153 @@ export default function ICFESAnalysisInterface() {
           .subject-name {
             font-weight: bold;
             color: #1e40af;
+            text-align: center;
           }
           .score-value {
-            font-size: 14pt;
-            font-weight: bold;
+            font-size: 11pt;
+            font-weight: normal;
             color: #000;
           }
           .score-detail {
             font-size: 9pt;
             color: #6b7280;
+          }
+          .charts-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+            align-items: start;
+          }
+          .metrics-cards-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            flex: 1;
+          }
+          .metric-card {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            padding: 8px;
+            position: relative;
+            min-width: 0;
+          }
+          .metric-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+            gap: 4px;
+          }
+          .metric-card-title {
+            font-size: 7pt;
+            font-weight: bold;
+            color: #374151;
+            line-height: 1.2;
+            flex: 1;
+          }
+          .metric-card-icon {
+            font-size: 14pt;
+            flex-shrink: 0;
+          }
+          .metric-card-value {
+            font-size: 18pt;
+            font-weight: bold;
+            margin-bottom: 4px;
+            line-height: 1;
+          }
+          .metric-card-value.rank {
+            color: #3b82f6;
+          }
+          .metric-card-value.time {
+            color: #1e40af;
+          }
+          .metric-card-value.fraud {
+            color: #ef4444;
+          }
+          .metric-card-value.luck {
+            color: #f59e0b;
+          }
+          .metric-card-detail {
+            background-color: #f3f4f6;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 6pt;
+            border: 1px solid #d1d5db;
+            line-height: 1.2;
+            word-wrap: break-word;
+            color: #6b7280;
+          }
+          .chart-box {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: #fff;
+          }
+          .chart-box.evolution-box {
+            background-color: #2d2d2d !important;
+            border: 0.5px solid #404040;
+            border-radius: 4px;
+            padding: 8px 0 0 0;
+            margin: 0;
+            width: 100%;
+            overflow: hidden;
+          }
+          .chart-box.evolution-box .chart-title,
+          .chart-box.evolution-box .chart-subtitle {
+            padding: 0 8px;
+            background-color: #2d2d2d;
+            margin: 0;
+          }
+          .chart-box.evolution-box .chart-content {
+            background-color: #2d2d2d !important;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            display: block;
+            justify-content: stretch;
+            align-items: stretch;
+          }
+          .chart-box.evolution-box .chart-content svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            background-color: #2d2d2d !important;
+            margin: 0;
+            padding: 0;
+          }
+          .chart-box.evolution-box .chart-title {
+            font-size: 10pt;
+            font-weight: bold;
+            color: #e5e7eb;
+            margin-bottom: 4px;
+            text-align: center;
+          }
+          .chart-box.evolution-box .chart-subtitle {
+            font-size: 8pt;
+            color: #9ca3af;
+            margin-bottom: 8px;
+            text-align: center;
+          }
+          .chart-title {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #1e40af;
+            margin-bottom: 10px;
+            text-align: center;
+          }
+          .chart-subtitle {
+            font-size: 9pt;
+            color: #6b7280;
+            margin-bottom: 15px;
+            text-align: center;
+          }
+          .chart-content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
           }
           .section {
             margin-bottom: 30px;
@@ -3681,11 +4031,13 @@ export default function ICFESAnalysisInterface() {
         </head>
         <body>
         <div class="pdf-container">
-          <!-- Encabezado Institucional -->
+          <!-- Encabezado con Logo -->
           <div class="header">
-            <h1>LOGO DE SUPERATE</h1>
-            <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE • SABER 11°</div>
-            <div style="font-size: 12pt; color: #374151; margin-top: 10px;">RESULTADOS GLOBALES</div>
+            <img src="/assets/cerebro_negro.png" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
+            <div class="header-text">
+              <h1>SUPERATE.IA</h1>
+              <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE</div>
+            </div>
           </div>
 
           <!-- Información del Estudiante -->
@@ -3696,36 +4048,43 @@ export default function ICFESAnalysisInterface() {
               month: 'long', 
               day: 'numeric' 
             }).toUpperCase()}</p>
-            <p><strong>Número de registro:</strong> ${studentId}</p>
             <p><strong>Apellidos y nombres:</strong> ${studentName.toUpperCase()}</p>
             <p><strong>Institución educativa:</strong> ${institutionName || 'No especificada'}</p>
             ${summary.contextoAcademico?.grado ? `<p><strong>Grado:</strong> ${summary.contextoAcademico.grado}</p>` : ''}
           </div>
 
-          <!-- Puntaje Global -->
+          <!-- Resultado Final del Simulacro ICFES -->
           <div class="global-results">
             <div class="global-score">
-              <div class="global-score-label">PUNTAJE GLOBAL</div>
-              <div class="global-score-number">${globalScore}</div>
-              <div class="global-score-label">De 500 puntos posibles, su puntaje global es ${globalScore}</div>
-            </div>
-            
-            <div class="percentile-bar">
-              <div class="percentile-label">¿EN QUÉ PERCENTIL SE ENCUENTRA?</div>
-              <div style="font-size: 10pt; margin-bottom: 10px;">Respecto a los evaluados del país, usted está aquí.</div>
-              <div class="percentile-scale">
-                <span>0</span>
-                <span>25</span>
-                <span>50</span>
-                <span>75</span>
-                <span>100</span>
+              <div class="global-score-left">
+                <div class="global-score-label">RESULTADO FINAL DEL SIMULACRO ICFES</div>
+                <div class="global-score-number">${globalScore}</div>
+                <div class="global-score-detail">De 500 puntos posibles, su puntaje global es ${globalScore}</div>
               </div>
-              <div class="percentile-line">
-                <div class="percentile-marker" style="left: ${globalPercentile}%;"></div>
+              ${studentRank !== null && totalStudents !== null ? (() => {
+                const currentRank = studentRank as number;
+                const rankStyle = getRankTrophyAndColors(currentRank);
+                return `
+              <div style="flex: 0.8; margin-left: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: ${rankStyle.bgGradient}; border-radius: 12px; padding: 8px 16px; border: 2px solid ${rankStyle.borderColor}; transform: scale(0.8); transform-origin: center;">
+                <div style="font-size: 26pt; margin-bottom: 6px;">${rankStyle.trophy}</div>
+                <div style="font-weight: bold; font-size: 14pt; color: ${rankStyle.textColor}; margin-bottom: 3px;">Puesto ${currentRank}</div>
+                <div style="font-size: 8pt; color: ${rankStyle.detailColor}; text-align: center;">de ${totalStudents} estudiantes de su grado</div>
               </div>
-              <div style="text-align: center; margin-top: 5px; font-weight: bold; font-size: 11pt;">Percentil: ${globalPercentile}</div>
+              `;
+              })() : ''}
             </div>
           </div>
+
+          <!-- Gráfica de Evolución por Materia -->
+          ${evolutionSVG ? `
+          <div class="chart-box evolution-box" style="margin: 0; width: 100%; background-color: #2d2d2d !important; padding: 8px 0 0 0;">
+            <div class="chart-title" style="color: #e5e7eb; padding: 0 8px; margin: 0;">Evolución por Materia</div>
+            <div class="chart-subtitle" style="color: #9ca3af; padding: 0 8px; margin: 0 0 4px 0;">7 materias evaluadas</div>
+            <div class="chart-content" style="background-color: #2d2d2d !important; width: 100%; margin: 0; padding: 0;">
+              ${evolutionSVG}
+            </div>
+          </div>
+          ` : ''}
 
           <!-- Resultados por Prueba -->
           <div class="subject-results">
@@ -3734,33 +4093,34 @@ export default function ICFESAnalysisInterface() {
               <thead>
                 <tr>
                   <th>PRUEBA</th>
-                  <th>PUNTAJE POR PRUEBA</th>
-                  <th>¿EN QUÉ PERCENTIL SE ENCUENTRA?</th>
+                  <th>PUNTAJE</th>
+                  <th>POSICIÓN EN EL GRUPO</th>
+                  <th>NIVELES DE DESEMPEÑO</th>
                 </tr>
               </thead>
               <tbody>
-                ${sortedSubjects.map(subj => {
-                  const percentilePos = subj.percentile;
+                ${sortedSubjects.map((subj: any) => {
+                  const hasPosition = subj.position !== null && subj.totalStudentsInSubject !== null;
+                  const positionText = hasPosition 
+                    ? `Ranking: ${subj.position} / ${subj.totalStudentsInSubject}` 
+                    : 'Ranking: N/A';
+                  const performanceLevel = getPerformanceLevel(subj.percentage);
                   return `
                   <tr>
-                    <td class="subject-name">${subj.name}</td>
-                    <td>
-                      <div class="score-value">${subj.score}</div>
-                      <div class="score-detail">De 100 puntos posibles, su puntaje es ${subj.score}</div>
+                    <td class="subject-name" style="text-align: center; vertical-align: middle;">${subj.name}</td>
+                    <td style="text-align: center; vertical-align: middle;">
+                      <div class="score-value">${subj.score}/100</div>
                     </td>
-                    <td>
-                      <div style="font-size: 10pt; margin-bottom: 8px;">Respecto a los evaluados del país, usted está aquí.</div>
-                      <div class="percentile-scale" style="font-size: 8pt;">
-                        <span>0</span>
-                        <span>25</span>
-                        <span>50</span>
-                        <span>75</span>
-                        <span>100</span>
+                    <td style="text-align: center; vertical-align: middle;">
+                      <div style="font-size: 10pt; font-weight: normal; text-align: center; display: flex; align-items: center; justify-content: center; height: 100%;">
+                        ${positionText}
                       </div>
-                      <div class="percentile-line" style="height: 6px;">
-                        <div class="percentile-marker" style="left: ${percentilePos}%; border-top-width: 10px; border-left-width: 6px; border-right-width: 6px; transform: translateX(-6px);"></div>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                      <div style="font-size: 9pt; font-weight: normal; text-align: center;">
+                        <div style="font-weight: bold; margin-bottom: 3px;">${performanceLevel.level}</div>
+                        <div style="font-size: 8pt; color: #4b5563;">${performanceLevel.definition}</div>
                       </div>
-                      <div style="text-align: center; margin-top: 5px; font-weight: bold; font-size: 10pt;">Percentil: ${subj.percentile}</div>
                     </td>
                   </tr>
                   `;
@@ -3776,12 +4136,6 @@ export default function ICFESAnalysisInterface() {
           <div class="section">
             <h2>Resumen General</h2>
             <p>${summary.resumen.resumen_general}</p>
-          </div>
-
-          <!-- Análisis Competencial -->
-          <div class="section">
-            <h2>Análisis Competencial</h2>
-            <p>${summary.resumen.analisis_competencial}</p>
           </div>
 
           <!-- Fortalezas Académicas -->
@@ -3843,6 +4197,31 @@ export default function ICFESAnalysisInterface() {
       `;
   };
 
+  // Función helper para determinar el nivel de desempeño basado en el puntaje
+  const getPerformanceLevel = (score: number): { level: string; definition: string } => {
+    if (score >= 80) {
+      return {
+        level: 'Nivel Alto',
+        definition: 'Demuestra dominio adecuado de las competencias evaluadas.'
+      };
+    } else if (score >= 60) {
+      return {
+        level: 'Nivel Medio',
+        definition: 'Evidencia comprensión adecuada de los contenidos evaluados con algunas áreas de mejora.'
+      };
+    } else if (score >= 40) {
+      return {
+        level: 'Nivel Básico',
+        definition: 'Evidencia comprensión parcial de los contenidos fundamentales.'
+      };
+    } else {
+      return {
+        level: 'Nivel Bajo',
+        definition: 'Requiere refuerzo en los contenidos fundamentales de la materia.'
+      };
+    }
+  };
+
   // Función helper para calcular percentil aproximado basado en puntaje (0-100)
   const calculatePercentile = (score: number): number => {
     // Aproximación simple: asumimos distribución normal
@@ -3861,6 +4240,129 @@ export default function ICFESAnalysisInterface() {
     if (score >= 35) return 20;
     if (score >= 30) return 15;
     return Math.max(5, Math.round(score / 2));
+  };
+
+  // Función helper para calcular la posición por materia respecto a compañeros del mismo grado
+  const calculateSubjectRanks = async (
+    studentId: string,
+    subjectScores: { [key: string]: { score: number; percentage: number } }
+  ): Promise<{ [subjectName: string]: { position: number; totalStudents: number } }> => {
+    try {
+      // Obtener datos del estudiante actual
+      const userResult = await getUserById(studentId);
+      if (!userResult.success || !userResult.data) {
+        return {};
+      }
+
+      const studentData = userResult.data as any;
+      const institutionId = studentData.inst || studentData.institutionId;
+      const campusId = studentData.campus || studentData.campusId;
+      const gradeId = studentData.grade || studentData.gradeId;
+
+      if (!institutionId || !campusId || !gradeId) {
+        return {};
+      }
+
+      // Obtener todos los estudiantes del mismo colegio, sede y grado
+      const { getFilteredStudents } = await import('@/controllers/student.controller');
+      const studentsResult = await getFilteredStudents({
+        institutionId,
+        campusId,
+        gradeId,
+        isActive: true
+      });
+
+      if (!studentsResult.success || !studentsResult.data) {
+        return {};
+      }
+
+      const classmates = studentsResult.data;
+      const subjectRanks: { [subjectName: string]: { position: number; totalStudents: number } } = {};
+
+      // Normalizar nombres de materias
+      const normalizeSubjectName = (subject: string): string => {
+        const normalized = subject.trim().toLowerCase();
+        const subjectMap: Record<string, string> = {
+          'biologia': 'Biologia',
+          'biología': 'Biologia',
+          'quimica': 'Quimica',
+          'química': 'Quimica',
+          'fisica': 'Física',
+          'física': 'Física',
+          'matematicas': 'Matemáticas',
+          'matemáticas': 'Matemáticas',
+          'lenguaje': 'Lenguaje',
+          'ciencias sociales': 'Ciencias Sociales',
+          'sociales': 'Ciencias Sociales',
+          'ingles': 'Inglés',
+          'inglés': 'Inglés'
+        };
+        return subjectMap[normalized] || subject;
+      };
+
+      // Para cada materia, calcular la posición del estudiante
+      for (const [subjectName, currentScore] of Object.entries(subjectScores)) {
+        const subjectScoresList: { studentId: string; score: number }[] = [];
+
+        // Obtener puntajes de todos los compañeros para esta materia
+        for (const classmate of classmates) {
+          const classmateId = (classmate as any).id || (classmate as any).uid;
+          if (classmateId) {
+            try {
+              const evaluations = await getPhaseEvaluations(classmateId, 'third');
+              let bestScore = 0;
+
+              evaluations.forEach(evalData => {
+                const subject = normalizeSubjectName(evalData.subject || evalData.examTitle || '');
+                if (subject === subjectName) {
+                  let percentage = 0;
+                  if (evalData.score?.overallPercentage !== undefined) {
+                    percentage = evalData.score.overallPercentage;
+                  } else if (evalData.score?.correctAnswers !== undefined && evalData.score?.totalQuestions !== undefined) {
+                    const total = evalData.score.totalQuestions;
+                    const correct = evalData.score.correctAnswers;
+                    percentage = total > 0 ? (correct / total) * 100 : 0;
+                  } else if (evalData.questionDetails && evalData.questionDetails.length > 0) {
+                    const correct = evalData.questionDetails.filter((q: any) => q.isCorrect).length;
+                    const total = evalData.questionDetails.length;
+                    percentage = total > 0 ? (correct / total) * 100 : 0;
+                  }
+                  if (percentage > bestScore) {
+                    bestScore = percentage;
+                  }
+                }
+              });
+
+              if (bestScore > 0) {
+                subjectScoresList.push({ studentId: classmateId, score: bestScore });
+              }
+            } catch (error) {
+              console.warn(`Error obteniendo puntaje de ${classmateId} para ${subjectName}:`, error);
+            }
+          }
+        }
+
+        // Agregar el puntaje del estudiante actual
+        subjectScoresList.push({ studentId, score: currentScore.percentage });
+
+        // Ordenar por puntaje (mayor a menor)
+        subjectScoresList.sort((a, b) => b.score - a.score);
+
+        // Encontrar la posición del estudiante actual
+        const currentStudentIndex = subjectScoresList.findIndex(s => s.studentId === studentId);
+        if (currentStudentIndex !== -1) {
+          subjectRanks[subjectName] = {
+            position: currentStudentIndex + 1, // +1 porque el puesto empieza en 1
+            totalStudents: subjectScoresList.length
+          };
+        }
+      }
+
+      return subjectRanks;
+    } catch (error) {
+      console.error('Error calculando posiciones por materia:', error);
+      return {};
+    }
   };
 
   const handleExportPDF = async (phase: 'first' | 'second' | 'third', keepDialogOpen: boolean = false) => {
@@ -3976,13 +4478,21 @@ export default function ICFESAnalysisInterface() {
         }
       });
 
+      // Calcular posiciones por materia respecto a compañeros del mismo grado (solo para Fase III)
+      const subjectRanks = isPhase3 ? await calculateSubjectRanks(user.uid, subjectScores) : {};
+
       // Ordenar materias según el orden estándar
       const subjectOrder = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés'];
-      const sortedSubjects = subjectOrder.filter(subj => subjectScores[subj]).map(subj => ({
-        name: subj,
-        ...subjectScores[subj],
-        percentile: calculatePercentile(subjectScores[subj].percentage)
-      }));
+      const sortedSubjects = subjectOrder.filter(subj => subjectScores[subj]).map(subj => {
+        const rankInfo = subjectRanks[subj];
+        return {
+          name: subj,
+          ...subjectScores[subj],
+          percentile: calculatePercentile(subjectScores[subj].percentage), // Mantener para compatibilidad
+          position: rankInfo?.position || null,
+          totalStudentsInSubject: rankInfo?.totalStudents || null
+        };
+      });
 
       // Calcular puntaje global (similar al cálculo en promedio.tsx)
       const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física'];
@@ -4025,11 +4535,33 @@ export default function ICFESAnalysisInterface() {
 
       const currentDate = new Date();
 
+      // Para Fase III, obtener datos de las fases anteriores para las gráficas
+      let phase1SubjectsData: Array<{ name: string; percentage: number }> | undefined = undefined;
+      let phase2SubjectsData: Array<{ name: string; percentage: number }> | undefined = undefined;
+      
+      if (isPhase3) {
+        // Obtener datos de Fase I si están disponibles
+        if (phase1Data && phase1Data.subjects) {
+          phase1SubjectsData = phase1Data.subjects.map(s => ({ 
+            name: s.name, 
+            percentage: s.percentage 
+          }));
+        }
+        
+        // Obtener datos de Fase II si están disponibles
+        if (phase2Data && phase2Data.subjects) {
+          phase2SubjectsData = phase2Data.subjects.map(s => ({ 
+            name: s.name, 
+            percentage: s.percentage 
+          }));
+        }
+      }
+
       // Generar HTML del PDF según la fase
       // Para Fase I y II: diseño simplificado con tarjetas de métricas
       // Para Fase III: diseño completo con tabla de resultados
       const pdfHTML = isPhase3 
-        ? generatePhase3PDFHTML(summary, studentName, studentId, institutionName, currentDate, sortedSubjects, globalScore, globalPercentile)
+        ? generatePhase3PDFHTML(summary, studentName, studentId, institutionName, currentDate, sortedSubjects, globalScore, globalPercentile, phase1SubjectsData, phase2SubjectsData, phaseMetrics, studentRank, totalStudents)
         : generatePhase1And2PDFHTML(summary, studentName, studentId, institutionName, currentDate, phaseName, phaseMetrics, studentRank, totalStudents, sortedSubjects);
 
       printWindow.document.write(pdfHTML);
@@ -5201,3 +5733,4 @@ export default function ICFESAnalysisInterface() {
     </div>
   );
 }
+
