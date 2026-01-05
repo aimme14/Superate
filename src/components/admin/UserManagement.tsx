@@ -1025,7 +1025,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
     campus: '',
     grade: '',
     academicYear: new Date().getFullYear() as number, // Valor por defecto: año actual
-    representativePhone: '' // Teléfono del representante
+    representativePhone: '', // Teléfono del representante
+    jornada: '' as 'mañana' | 'tarde' | 'única' | ''
   })
   
   // Hooks para docentes
@@ -1078,7 +1079,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
     password: '',
     confirmPassword: '',
     representativePhone: '',
-    academicYear: new Date().getFullYear() as number // Valor por defecto: año actual
+    academicYear: new Date().getFullYear() as number, // Valor por defecto: año actual
+    jornada: '' as 'mañana' | 'tarde' | 'única' | ''
   })
 
 
@@ -1637,7 +1639,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
       campus: student.campus || student.campusId || '',
       grade: student.grade || student.gradeId || '',
       academicYear: student.academicYear || new Date().getFullYear(),
-      representativePhone: student.representativePhone || ''
+      representativePhone: student.representativePhone || '',
+      jornada: (student as any).jornada || '' as 'mañana' | 'tarde' | 'única' | ''
     })
     setIsEditDialogOpen(true)
   }
@@ -1673,7 +1676,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
           campusId: editStudentData.campus,
           gradeId: editStudentData.grade,
           academicYear: editStudentData.academicYear,
-          representativePhone: editStudentData.representativePhone || undefined
+          representativePhone: editStudentData.representativePhone || undefined,
+          jornada: editStudentData.jornada || undefined
         }
       })
       
@@ -1691,7 +1695,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         campus: '',
         grade: '',
         academicYear: new Date().getFullYear(),
-        representativePhone: ''
+        representativePhone: '',
+        jornada: '' as 'mañana' | 'tarde' | 'única' | ''
       })
     } catch (error) {
       notifyError({ title: 'Error', message: 'Error al actualizar el estudiante' })
@@ -1786,7 +1791,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
           adminEmail: currentUser?.email,
           adminPassword: getAdminPassword(),
           representativePhone: newUser.representativePhone || undefined,
-          academicYear: newUser.academicYear
+          academicYear: newUser.academicYear,
+          jornada: newUser.jornada || undefined
         }
         
         console.log('🔍 Datos del estudiante desde el formulario:', studentData)
@@ -1947,7 +1953,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         password: '',
         confirmPassword: '',
         representativePhone: '',
-        academicYear: new Date().getFullYear()
+        academicYear: new Date().getFullYear(),
+        jornada: '' as 'mañana' | 'tarde' | 'única' | ''
       })
       notifySuccess({ 
         title: 'Éxito', 
@@ -2122,6 +2129,21 @@ export default function UserManagement({ theme }: UserManagementProps) {
                       <div className={cn(theme === 'dark' ? 'text-purple-300' : 'text-purple-800')}>
                         <strong className="text-xs">ℹ️ Rector:</strong> Se asignará a toda la institución. Acceso completo a todas las sedes.
                       </div>
+                    </div>
+                  )}
+                  {newUser.role === 'student' && newUser.grade && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="jornada" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Jornada</Label>
+                      <Select value={newUser.jornada} onValueChange={(value) => setNewUser(prev => ({ ...prev, jornada: value as 'mañana' | 'tarde' | 'única' }))}>
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder="Seleccionar jornada" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mañana">Mañana</SelectItem>
+                          <SelectItem value="tarde">Tarde</SelectItem>
+                          <SelectItem value="única">Única</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
                   {newUser.role === 'student' && (
@@ -2611,6 +2633,24 @@ export default function UserManagement({ theme }: UserManagementProps) {
                               {grade.label}
                             </SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {editStudentData.grade && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="edit-jornada" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Jornada</Label>
+                      <Select 
+                        value={editStudentData.jornada} 
+                        onValueChange={(value) => setEditStudentData(prev => ({ ...prev, jornada: value as 'mañana' | 'tarde' | 'única' }))}
+                      >
+                        <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                          <SelectValue placeholder="Seleccionar jornada" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mañana">Mañana</SelectItem>
+                          <SelectItem value="tarde">Tarde</SelectItem>
+                          <SelectItem value="única">Única</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

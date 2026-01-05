@@ -17,6 +17,7 @@ export interface CreateStudentData {
   adminPassword?: string
   representativePhone?: string
   academicYear: number // Año académico/cohorte (ej: 2026, 2027) - OBLIGATORIO
+  jornada?: 'mañana' | 'tarde' | 'única' // Jornada del estudiante
 }
 
 export interface UpdateStudentData extends Partial<CreateStudentData> {
@@ -27,6 +28,7 @@ export interface UpdateStudentData extends Partial<CreateStudentData> {
   campusId?: string
   gradeId?: string
   academicYear?: number // Año académico/cohorte (ej: 2026, 2027) - Opcional en actualización
+  jornada?: 'mañana' | 'tarde' | 'única' // Jornada del estudiante
 }
 
 export interface StudentFilters {
@@ -44,7 +46,7 @@ export interface StudentFilters {
  */
 export const createStudent = async (studentData: CreateStudentData): Promise<Result<User>> => {
   try {
-    const { name, email, institutionId, campusId, gradeId, userdoc, password, adminEmail, adminPassword, representativePhone, academicYear } = studentData
+    const { name, email, institutionId, campusId, gradeId, userdoc, password, adminEmail, adminPassword, representativePhone, academicYear, jornada } = studentData
 
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = password || userdoc + '0'
@@ -65,6 +67,11 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
       createdAt: new Date().toISOString(),
       isActive: true,
       createdBy: 'admin'
+    }
+
+    // Agregar jornada si se proporciona
+    if (jornada) {
+      dbUserData.jornada = jornada
     }
 
     // Agregar teléfono del representante si se proporciona
@@ -181,6 +188,7 @@ export const updateStudent = async (studentId: string, studentData: UpdateStuden
     if (studentData.gradeId) updateData.grade = studentData.gradeId
     if (studentData.academicYear !== undefined) updateData.academicYear = studentData.academicYear
     if (studentData.representativePhone !== undefined) updateData.representativePhone = studentData.representativePhone
+    if (studentData.jornada !== undefined) updateData.jornada = studentData.jornada
 
     // Si se cambió la institución, sede o grado, necesitamos reasignar al estudiante
     if (studentData.institutionId || studentData.campusId || studentData.gradeId) {

@@ -17,6 +17,9 @@ export const registerSchema = z.object({
   inst: z.string().min(1, "La institución educativa es requerida"),
   campus: z.string().min(1, "La sede es requerida"),
   grade: z.string().min(1, "El grado es requerido"),
+  jornada: z.enum(['mañana', 'tarde', 'única'], {
+    errorMap: () => ({ message: "La jornada es requerida" })
+  }),
   representativePhone: z.string().min(10, "El número de teléfono del representante debe tener al menos 10 caracteres").optional(),
   academicYear: z.number().int().min(2020).max(2100, "El año académico debe ser un año válido")
     .refine((val) => val.toString().length === 4, {

@@ -22,6 +22,7 @@ const FormSection = ({ theme }: FormSectionProps) => {
   // Observar cambios en los campos del formulario
   const selectedInstitution = useWatch({ name: 'inst' })
   const selectedCampus = useWatch({ name: 'campus' })
+  const selectedGrade = useWatch({ name: 'grade' })
   
   // Obtener opciones de sedes basadas en la institución seleccionada
   const { options: campusOptions, isLoading: campusLoading } = useCampusOptions(selectedInstitution || '')
@@ -101,6 +102,22 @@ const FormSection = ({ theme }: FormSectionProps) => {
             placeholder={gradeLoading ? 'Cargando grados...' : 'Seleccionar grado'}
             options={gradeOptions}
             disabled={gradeLoading}
+          />
+        </div>
+      )}
+
+      {selectedGrade && (
+        <div className="[&>div]:space-y-1">
+          <SelectField
+            name='jornada'
+            theme={theme}
+            label='Jornada'
+            placeholder='Seleccionar jornada'
+            options={[
+              { value: 'mañana', label: 'Mañana' },
+              { value: 'tarde', label: 'Tarde' },
+              { value: 'única', label: 'Única' }
+            ]}
           />
         </div>
       )}

@@ -63,6 +63,7 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
       inst: '',
       campus: '',
       grade: '',
+      jornada: undefined,
       representativePhone: '',
       academicYear: new Date().getFullYear(), // Valor por defecto: año actual
     },
@@ -78,6 +79,7 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
       inst: user.institution || '',
       campus: user.campus || '',
       grade: user.grade || '',
+      jornada: (user as any).jornada || undefined,
       representativePhone: (user as any).representativePhone || '',
       academicYear: (user as any).academicYear || new Date().getFullYear()
     })
