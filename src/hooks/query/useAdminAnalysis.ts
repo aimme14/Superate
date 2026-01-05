@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { getAuth } from 'firebase/auth'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
 import { getFilteredStudents } from '@/controllers/student.controller'
@@ -73,7 +72,7 @@ export interface StudentAnalysis {
 /**
  * Obtiene todos los resultados de exámenes de una institución
  */
-const getInstitutionResults = async (institutionId: string, studentIds: string[]): Promise<ExamResult[]> => {
+const getInstitutionResults = async (_institutionId: string, studentIds: string[]): Promise<ExamResult[]> => {
   const allResults: ExamResult[] = []
   const phases = getAllPhases()
 
@@ -277,7 +276,7 @@ export const useAdminAnalysis = (jornada?: 'mañana' | 'tarde' | 'única', year?
             })
           }
 
-          const studentIds = students.map(s => s.id || s.uid).filter(Boolean) as string[]
+          const studentIds = students.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
 
           if (studentIds.length === 0) {
             analysis.push({

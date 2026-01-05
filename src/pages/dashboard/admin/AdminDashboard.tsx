@@ -5,14 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
-  Settings, 
   Users, 
   Building, 
-  Database,
   Activity,
   Server,
   Lock,
-  UserPlus,
   BarChart3,
   Home,
   BookOpen,
@@ -69,7 +66,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
     filterRankingYear
   )
 
-  const { data: institutions } = useInstitutions()
   const { options: gradeOptions } = useAllGradeOptions()
 
   // Obtener todos los grados únicos disponibles

@@ -88,7 +88,7 @@ export const useMonthlyRevenue = (year?: number) => {
                      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
       const revenueData: MonthlyRevenueData[] = Object.entries(monthlyData)
-        .map(([key, data]) => ({
+        .map(([, data]) => ({
           month: `${months[data.month - 1]} ${data.year}`,
           monthNumber: data.month,
           year: data.year,
