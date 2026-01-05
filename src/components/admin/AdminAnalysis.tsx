@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { 
   Building, 
   Users, 
@@ -13,10 +14,14 @@ import {
   BarChart3,
   Target,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Trophy,
+  Shield,
+  Clock,
+  Zap
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAdminAnalysis, useStudentAnalysis } from '@/hooks/query/useAdminAnalysis'
+import { useAdminAnalysis, useStudentAnalysis, useStudentsRanking } from '@/hooks/query/useAdminAnalysis'
 import { useFilteredStudents } from '@/hooks/query/useStudentQuery'
 import { useAdminStats } from '@/hooks/query/useAdminStats'
 import { useInstitutions } from '@/hooks/query/useInstitutionQuery'
@@ -27,9 +32,6 @@ import {
   Bar, 
   LineChart, 
   Line, 
-  PieChart as RechartsPieChart, 
-  Pie, 
-  Cell,
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -38,13 +40,12 @@ import {
   ResponsiveContainer 
 } from 'recharts'
 import { ChartContainer, type ChartConfig } from '@/components/ui/chart'
-import { PhaseProgressChart } from '@/components/charts/PhaseProgressChart'
+import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
 
 interface AdminAnalysisProps extends ThemeContextProps {}
 
 export default function AdminAnalysis({ theme }: AdminAnalysisProps) {
   const currentYear = new Date().getFullYear()
-  const [selectedInstitution, setSelectedInstitution] = useState<string | null>(null)
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('global')
   const [filterInstitution, setFilterInstitution] = useState<string>('all')
@@ -60,17 +61,6 @@ export default function AdminAnalysis({ theme }: AdminAnalysisProps) {
   const { totalCompletedExams } = useAdminStats()
   const { data: institutions } = useInstitutions()
   const { options: gradeOptions } = useAllGradeOptions()
-
-  // Colores para gráficos
-  const COLORS = [
-    '#3b82f6', // Azul
-    '#8b5cf6', // Púrpura
-    '#10b981', // Verde
-    '#f59e0b', // Amarillo
-    '#ef4444', // Rojo
-    '#06b6d4', // Cyan
-    '#f97316', // Naranja
-  ]
 
   if (isLoading) {
     return (
@@ -233,7 +223,6 @@ export default function AdminAnalysis({ theme }: AdminAnalysisProps) {
           <GlobalAnalysisTab 
             analysis={analysis} 
             theme={theme} 
-            COLORS={COLORS}
             institutions={institutions || []}
             gradeOptions={gradeOptions}
             filterInstitution={filterInstitution}
@@ -253,10 +242,7 @@ export default function AdminAnalysis({ theme }: AdminAnalysisProps) {
         {/* Tab: Análisis por Estudiantes */}
         <TabsContent value="students" className="space-y-6 mt-6">
           <StudentsAnalysisTab 
-            analysis={analysis} 
             theme={theme} 
-            selectedInstitution={selectedInstitution}
-            setSelectedInstitution={setSelectedInstitution}
             selectedStudent={selectedStudent}
             setSelectedStudent={setSelectedStudent}
           />
@@ -280,7 +266,6 @@ export default function AdminAnalysis({ theme }: AdminAnalysisProps) {
 function GlobalAnalysisTab({ 
   analysis, 
   theme, 
-  COLORS,
   institutions,
   gradeOptions,
   filterInstitution,
@@ -297,7 +282,6 @@ function GlobalAnalysisTab({
 }: { 
   analysis: any[]
   theme: 'light' | 'dark'
-  COLORS: string[]
   institutions: any[]
   gradeOptions: any[]
   filterInstitution: string
@@ -316,6 +300,10 @@ function GlobalAnalysisTab({
   const [filterRankingGrade, setFilterRankingGrade] = useState<string>('all')
   const [filterRankingJornada, setFilterRankingJornada] = useState<string>('all')
   const [filterRankingYear, setFilterRankingYear] = useState<number>(currentYear)
+  
+  // Estados para filtros del ranking de estudiantes
+  const [filterStudentRankingJornada, setFilterStudentRankingJornada] = useState<string>('all')
+  const [filterStudentRankingYear, setFilterStudentRankingYear] = useState<number>(currentYear)
 
   // Obtener datos por grado si se selecciona un grado específico (para el gráfico)
   const { data: gradeAnalysis, isLoading: isLoadingGradeAnalysis } = useGradeAnalysis(
@@ -336,6 +324,12 @@ function GlobalAnalysisTab({
     filterRankingGrade !== 'all',
     filterRankingJornada !== 'all' ? filterRankingJornada as 'mañana' | 'tarde' | 'única' : undefined,
     filterRankingYear
+  )
+  
+  // Obtener datos del ranking de estudiantes
+  const { data: studentsRanking, isLoading: isLoadingStudentsRanking } = useStudentsRanking(
+    filterStudentRankingJornada !== 'all' ? filterStudentRankingJornada as 'mañana' | 'tarde' | 'única' : undefined,
+    filterStudentRankingYear
   )
 
   // Crear un mapa de análisis por institución para búsqueda rápida
@@ -520,15 +514,6 @@ function GlobalAnalysisTab({
   }, [gradeOptions])
 
 
-  // Gráfico de pastel: Distribución de estudiantes por institución
-  const studentDistribution = filteredAnalysis
-    .map((inst) => ({
-      name: inst.institutionName.length > 15 
-        ? inst.institutionName.substring(0, 15) + '...' 
-        : inst.institutionName,
-      value: inst.totalStudents,
-    }))
-    .sort((a, b) => b.value - a.value)
 
   // Datos para el ranking: usar datos filtrados según filtros del ranking
   const rankingData = useMemo(() => {
@@ -722,36 +707,91 @@ function GlobalAnalysisTab({
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gráfico de pastel: Distribución de estudiantes */}
+        {/* Ranking de Estudiantes */}
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader>
-            <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              Distribución de Estudiantes
-            </CardTitle>
-            <CardDescription>
-              Estudiantes por institución
-            </CardDescription>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  Ranking de Estudiantes
+                </CardTitle>
+                <CardDescription>
+                  Mejor estudiante por institución (basado en Fase III)
+                </CardDescription>
+              </div>
+              <div className="ml-4 flex gap-2">
+                <Select value={filterStudentRankingJornada} onValueChange={setFilterStudentRankingJornada}>
+                  <SelectTrigger className={cn("w-[150px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                    <SelectValue placeholder="Todas las jornadas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las jornadas</SelectItem>
+                    <SelectItem value="mañana">Mañana</SelectItem>
+                    <SelectItem value="tarde">Tarde</SelectItem>
+                    <SelectItem value="única">Única</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filterStudentRankingYear.toString()} onValueChange={(value) => setFilterStudentRankingYear(parseInt(value))}>
+                  <SelectTrigger className={cn("w-[140px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                    <SelectValue placeholder="Año" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => currentYear - i).map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <RechartsPieChart>
-                <Pie
-                  data={studentDistribution}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {studentDistribution.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </RechartsPieChart>
-            </ResponsiveContainer>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto">
+              {isLoadingStudentsRanking ? (
+                <div className={cn("flex items-center justify-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  <div className="text-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-500 mx-auto mb-2" />
+                    <p>Cargando datos del ranking...</p>
+                  </div>
+                </div>
+              ) : !studentsRanking || studentsRanking.length === 0 ? (
+                <p className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  No hay datos disponibles para el ranking
+                </p>
+              ) : (
+                studentsRanking.map((student, index) => (
+                  <div
+                    key={student.studentId}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border",
+                      theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50'
+                    )}
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <Badge variant="outline" className={cn(
+                        theme === 'dark' ? 'border-zinc-600' : ''
+                      )}>
+                        #{index + 1}
+                      </Badge>
+                      <div className="flex-1">
+                        <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                          {student.studentName}
+                        </p>
+                        <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          {student.institutionName} · {student.totalExams} {student.totalExams === 1 ? 'examen' : 'exámenes'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={cn("font-bold text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {Math.round(student.score)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -872,20 +912,37 @@ function GlobalAnalysisTab({
 
 // Componente: Análisis por Estudiantes
 function StudentsAnalysisTab({ 
-  analysis, 
   theme, 
-  selectedInstitution, 
-  setSelectedInstitution,
   selectedStudent,
   setSelectedStudent
 }: { 
-  analysis: any[]
   theme: 'light' | 'dark'
-  selectedInstitution: string | null
-  setSelectedInstitution: (id: string | null) => void
   selectedStudent: string | null
   setSelectedStudent: (id: string | null) => void
 }) {
+  const { data: institutions } = useInstitutions()
+
+  // Función helper para obtener el año del estudiante
+  const getStudentYear = (student: any): number | null => {
+    if (student.academicYear) {
+      return student.academicYear
+    }
+    if (student.createdAt) {
+      let date: Date
+      if (typeof student.createdAt === 'string') {
+        date = new Date(student.createdAt)
+      } else if (student.createdAt?.toDate) {
+        date = student.createdAt.toDate()
+      } else if (student.createdAt?.seconds) {
+        date = new Date(student.createdAt.seconds * 1000)
+      } else {
+        return null
+      }
+      return date.getFullYear()
+    }
+    return null
+  }
+
   return (
     <div className="space-y-6">
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
@@ -894,49 +951,218 @@ function StudentsAnalysisTab({
             Análisis por Estudiante
           </CardTitle>
           <CardDescription>
-            Selecciona una institución para ver el análisis detallado de sus estudiantes
+            Expande las instituciones, años, sedes y grados para ver el análisis detallado de los estudiantes
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {analysis.map((inst) => (
-              <Button
-                key={inst.institutionId}
-                variant={selectedInstitution === inst.institutionId ? 'default' : 'outline'}
-                onClick={() => setSelectedInstitution(
-                  selectedInstitution === inst.institutionId ? null : inst.institutionId
-                )}
-                className={cn(
-                  "justify-start h-auto p-4",
-                  theme === 'dark' && selectedInstitution !== inst.institutionId 
-                    ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' 
-                    : ''
-                )}
-              >
-                <div className="text-left">
-                  <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {inst.institutionName}
-                  </p>
-                  <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    {inst.totalStudents} estudiantes
-                  </p>
-                </div>
-              </Button>
-            ))}
-          </div>
+          {!institutions || institutions.length === 0 ? (
+            <div className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              <p>No hay instituciones disponibles</p>
+            </div>
+          ) : (
+            <Accordion type="multiple" className="w-full">
+              {institutions.map((institution) => {
+                // Obtener estudiantes de esta institución
+                const { students: institutionStudents } = useFilteredStudents({
+                  institutionId: institution.id,
+                  isActive: true
+                })
+
+                // Agrupar estudiantes por año académico
+                const studentsByYear = useMemo(() => {
+                  const grouped: { [year: number]: any[] } = {}
+                  institutionStudents?.forEach((student: any) => {
+                    const year = getStudentYear(student)
+                    if (year) {
+                      if (!grouped[year]) {
+                        grouped[year] = []
+                      }
+                      grouped[year].push(student)
+                    }
+                  })
+                  return grouped
+                }, [institutionStudents])
+
+                const years = Object.keys(studentsByYear).map(Number).sort((a, b) => b - a)
+                const totalCampuses = institution.campuses?.length || 0
+                const totalGrades = institution.campuses?.reduce((sum: number, campus: any) => 
+                  sum + (campus.grades?.length || 0), 0
+                ) || 0
+                
+                return (
+                  <AccordionItem 
+                    key={institution.id} 
+                    value={institution.id}
+                    className={cn(
+                      "border rounded-lg mb-2 px-4",
+                      theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-white'
+                    )}
+                  >
+                    <AccordionTrigger className={cn(
+                      "hover:no-underline",
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    )}>
+                      <div className="flex items-center justify-between w-full pr-4">
+                        <div className="flex items-center gap-3">
+                          <Building className="h-5 w-5" />
+                          <span className="font-medium">{institution.name}</span>
+                        </div>
+                        <span className={cn(
+                          "text-sm",
+                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                        )}>
+                          ({totalGrades} {totalGrades === 1 ? 'grado' : 'grados'}, {totalCampuses} {totalCampuses === 1 ? 'sede' : 'sedes'})
+                        </span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="pt-2 pb-4 pl-8">
+                        <Accordion type="multiple" className="w-full">
+                          {years.map((year) => {
+                            const yearStudents = studentsByYear[year] || []
+                            // Agrupar estudiantes del año por sede y grado
+                            const studentsByCampusAndGrade: { [campusId: string]: { [gradeId: string]: any[] } } = {}
+                            
+                            yearStudents.forEach((student: any) => {
+                              const campusId = student.campus || student.campusId
+                              const gradeId = student.grade || student.gradeId
+                              if (campusId && gradeId) {
+                                if (!studentsByCampusAndGrade[campusId]) {
+                                  studentsByCampusAndGrade[campusId] = {}
+                                }
+                                if (!studentsByCampusAndGrade[campusId][gradeId]) {
+                                  studentsByCampusAndGrade[campusId][gradeId] = []
+                                }
+                                studentsByCampusAndGrade[campusId][gradeId].push(student)
+                              }
+                            })
+
+                            // Obtener sedes que tienen estudiantes de este año
+                            const campusesWithStudents = institution.campuses?.filter((campus: any) => 
+                              studentsByCampusAndGrade[campus.id]
+                            ) || []
+
+                            return (
+                              <AccordionItem
+                                key={`${institution.id}-year-${year}`}
+                                value={`${institution.id}-year-${year}`}
+                                className={cn(
+                                  "border rounded-lg mb-2 px-4",
+                                  theme === 'dark' ? 'border-zinc-700 bg-zinc-800/40' : 'border-gray-200 bg-gray-50/80'
+                                )}
+                              >
+                                <AccordionTrigger className={cn(
+                                  "hover:no-underline",
+                                  theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
+                                )}>
+                                  <div className="flex items-center justify-between w-full pr-4">
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-medium">Año {year}</span>
+                                    </div>
+                                    <span className={cn(
+                                      "text-sm",
+                                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                    )}>
+                                      ({yearStudents.length} {yearStudents.length === 1 ? 'estudiante' : 'estudiantes'})
+                                    </span>
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="pt-2 pb-4 pl-8">
+                                    <Accordion type="multiple" className="w-full">
+                                      {campusesWithStudents.map((campus: any) => {
+                                        const campusStudentsByGrade = studentsByCampusAndGrade[campus.id] || {}
+                                        const gradesWithStudents = campus.grades?.filter((grade: any) => 
+                                          campusStudentsByGrade[grade.id]
+                                        ) || []
+
+                                        return (
+                                          <AccordionItem
+                                            key={`${institution.id}-${year}-${campus.id}`}
+                                            value={`${institution.id}-${year}-${campus.id}`}
+                                            className={cn(
+                                              "border rounded-lg mb-2 px-4",
+                                              theme === 'dark' ? 'border-zinc-700 bg-zinc-800/30' : 'border-gray-200 bg-gray-50'
+                                            )}
+                                          >
+                                            <AccordionTrigger className={cn(
+                                              "hover:no-underline",
+                                              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                            )}>
+                                              <div className="flex items-center justify-between w-full pr-4">
+                                                <div className="flex items-center gap-3">
+                                                  <Building className="h-4 w-4" />
+                                                  <span className="font-medium">{campus.name}</span>
+                                                </div>
+                                                <span className={cn(
+                                                  "text-sm",
+                                                  theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                                )}>
+                                                  ({gradesWithStudents.length} {gradesWithStudents.length === 1 ? 'grado' : 'grados'})
+                                                </span>
+                                              </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                              <div className="pt-2 pb-4 pl-8">
+                                                <Accordion type="multiple" className="w-full">
+                                                  {gradesWithStudents.map((grade: any) => {
+                                                    return (
+                                                      <AccordionItem
+                                                        key={`${institution.id}-${year}-${campus.id}-${grade.id}`}
+                                                        value={`${institution.id}-${year}-${campus.id}-${grade.id}`}
+                                                        className={cn(
+                                                          "border rounded-lg mb-2 px-4",
+                                                          theme === 'dark' ? 'border-zinc-700 bg-zinc-800/20' : 'border-gray-200 bg-gray-50/50'
+                                                        )}
+                                                      >
+                                                        <AccordionTrigger className={cn(
+                                                          "hover:no-underline",
+                                                          theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                                        )}>
+                                                          <span className="font-medium">{grade.name}</span>
+                                                        </AccordionTrigger>
+                                                        <AccordionContent>
+                                                          <div className="pt-2 pb-4">
+                                                            <StudentList 
+                                                              institutionId={institution.id}
+                                                              campusId={campus.id}
+                                                              gradeId={grade.id}
+                                                              institutionName={institution.name}
+                                                              campusName={campus.name}
+                                                              theme={theme}
+                                                              selectedStudent={selectedStudent}
+                                                              setSelectedStudent={setSelectedStudent}
+                                                              year={year}
+                                                            />
+                                                          </div>
+                                                        </AccordionContent>
+                                                      </AccordionItem>
+                                                    )
+                                                  })}
+                                                </Accordion>
+                                              </div>
+                                            </AccordionContent>
+                                          </AccordionItem>
+                                        )
+                                      })}
+                                    </Accordion>
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            )
+                          })}
+                        </Accordion>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )
+              })}
+            </Accordion>
+          )}
         </CardContent>
       </Card>
 
-      {selectedInstitution && (
-        <StudentList 
-          institutionId={selectedInstitution}
-          institutionName={analysis.find(i => i.institutionId === selectedInstitution)?.institutionName || ''}
-          theme={theme}
-          selectedStudent={selectedStudent}
-          setSelectedStudent={setSelectedStudent}
-        />
-      )}
-
+      {/* Detalle del estudiante seleccionado */}
       {selectedStudent && (
         <StudentDetail 
           studentId={selectedStudent}
@@ -950,21 +1176,61 @@ function StudentsAnalysisTab({
 // Componente: Lista de estudiantes
 function StudentList({ 
   institutionId, 
+  campusId,
+  gradeId,
   institutionName, 
+  campusName,
   theme,
   selectedStudent,
-  setSelectedStudent
+  setSelectedStudent,
+  year
 }: { 
-  institutionId: string
-  institutionName: string
+  institutionId?: string
+  campusId?: string
+  gradeId?: string
+  institutionName?: string
+  campusName?: string
   theme: 'light' | 'dark'
   selectedStudent: string | null
   setSelectedStudent: (id: string | null) => void
+  year?: number
 }) {
-  const { students, isLoading } = useFilteredStudents({
+  // Función helper para obtener el año del estudiante
+  const getStudentYear = (student: any): number | null => {
+    if (student.academicYear) {
+      return student.academicYear
+    }
+    if (student.createdAt) {
+      let date: Date
+      if (typeof student.createdAt === 'string') {
+        date = new Date(student.createdAt)
+      } else if (student.createdAt?.toDate) {
+        date = student.createdAt.toDate()
+      } else if (student.createdAt?.seconds) {
+        date = new Date(student.createdAt.seconds * 1000)
+      } else {
+        return null
+      }
+      return date.getFullYear()
+    }
+    return null
+  }
+
+  const { students: allStudents, isLoading } = useFilteredStudents({
     institutionId,
+    campusId,
+    gradeId,
     isActive: true,
   })
+
+  // Filtrar estudiantes por año si se proporciona
+  const students = useMemo(() => {
+    if (!year) return allStudents || []
+    return (allStudents || []).filter((student: any) => {
+      const studentYear = getStudentYear(student)
+      return studentYear === year
+    })
+  }, [allStudents, year])
 
   if (isLoading) {
     return (
@@ -983,7 +1249,7 @@ function StudentList({
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardContent className="pt-6">
           <p className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-            No se encontraron estudiantes en esta institución
+            No se encontraron estudiantes con los filtros seleccionados
           </p>
         </CardContent>
       </Card>
@@ -991,17 +1257,13 @@ function StudentList({
   }
 
   return (
-    <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-      <CardHeader>
-        <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-          Estudiantes de {institutionName}
-        </CardTitle>
-        <CardDescription>
-          Haz clic en un estudiante para ver su análisis detallado
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto">
+    <div className="space-y-2">
+      {students.length === 0 ? (
+        <p className={cn("text-sm text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+          No hay estudiantes en este grado
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {students.map((student: any) => (
             <Button
               key={student.id || student.uid}
@@ -1029,14 +1291,15 @@ function StudentList({
             </Button>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }
 
 // Componente: Detalle de estudiante
 function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light' | 'dark' }) {
   const { data: studentAnalysis, isLoading } = useStudentAnalysis(studentId, !!studentId)
+  const [selectedPhase, setSelectedPhase] = useState<'all' | 'phase1' | 'phase2' | 'phase3'>('all')
 
   if (isLoading) {
     return (
@@ -1062,28 +1325,70 @@ function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light'
     )
   }
 
-  // Preparar datos para el gráfico de progreso por fase
-  const phaseProgressData = Object.entries(studentAnalysis.subjectStats).map(([subject]: [string, any]) => ({
-    subject,
-    phase1: studentAnalysis.phaseStats.phase1.count > 0 ? studentAnalysis.phaseStats.phase1.average : null,
-    phase2: studentAnalysis.phaseStats.phase2.count > 0 ? studentAnalysis.phaseStats.phase2.average : null,
-    phase3: studentAnalysis.phaseStats.phase3.count > 0 ? studentAnalysis.phaseStats.phase3.average : null,
-  }))
+  // Preparar datos para el gráfico de evolución por materia (SubjectsProgressChart)
+  const subjectPhaseStats = studentAnalysis.subjectPhaseStats || {}
+  
+  const phase1Data = Object.keys(subjectPhaseStats).length > 0 ? {
+    phase: 'phase1' as const,
+    subjects: Object.entries(subjectPhaseStats)
+      .filter(([_, stats]) => stats.phase1.count > 0)
+      .map(([subject, stats]) => ({
+        name: subject,
+        percentage: stats.phase1.average
+      }))
+  } : null
 
-  // Datos por materia
-  const subjectData = Object.entries(studentAnalysis.subjectStats).map(([subject, stats]: [string, any]) => ({
-    name: subject,
-    promedio: parseFloat(stats.average.toFixed(1)),
-    examenes: stats.count,
-  }))
+  const phase2Data = Object.keys(subjectPhaseStats).length > 0 ? {
+    phase: 'phase2' as const,
+    subjects: Object.entries(subjectPhaseStats)
+      .filter(([_, stats]) => stats.phase2.count > 0)
+      .map(([subject, stats]) => ({
+        name: subject,
+        percentage: stats.phase2.average
+      }))
+  } : null
+
+  const phase3Data = Object.keys(subjectPhaseStats).length > 0 ? {
+    phase: 'phase3' as const,
+    subjects: Object.entries(subjectPhaseStats)
+      .filter(([_, stats]) => stats.phase3.count > 0)
+      .map(([subject, stats]) => ({
+        name: subject,
+        percentage: stats.phase3.average
+      }))
+  } : null
+
+  // Contar materias completadas en Fase III
+  const phase3Subjects = new Set<string>()
+  Object.entries(subjectPhaseStats).forEach(([subject, stats]) => {
+    if (stats.phase3.count > 0) {
+      phase3Subjects.add(subject)
+    }
+  })
+
+  // Calcular total de preguntas según la fase seleccionada
+  const getTotalQuestionsForPhase = () => {
+    if (selectedPhase === 'all') {
+      return studentAnalysis.totalExams * 40 // Aproximación
+    }
+    // Contar exámenes de la fase seleccionada
+    const phaseCount = selectedPhase === 'phase1'
+      ? studentAnalysis.phaseStats.phase1.count
+      : selectedPhase === 'phase2'
+        ? studentAnalysis.phaseStats.phase2.count
+        : studentAnalysis.phaseStats.phase3.count
+    return phaseCount * 40 // Aproximación: cada examen tiene ~40 preguntas
+  }
+  const totalQuestions = getTotalQuestionsForPhase()
 
   return (
     <div className="space-y-6">
       {/* Resumen del estudiante */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader className="pb-3">
-            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+              <BookOpen className="h-4 w-4" />
               Exámenes Presentados
             </CardTitle>
           </CardHeader>
@@ -1091,12 +1396,16 @@ function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light'
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               {studentAnalysis.totalExams}
             </div>
+            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              Total de evaluaciones
+            </p>
           </CardContent>
         </Card>
 
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader className="pb-3">
-            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+              <TrendingUp className="h-4 w-4" />
               Promedio General
             </CardTitle>
           </CardHeader>
@@ -1104,12 +1413,16 @@ function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light'
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               {studentAnalysis.averageScore.toFixed(1)}%
             </div>
+            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              Rendimiento promedio
+            </p>
           </CardContent>
         </Card>
 
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader className="pb-3">
-            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+              <Target className="h-4 w-4" />
               Materias Evaluadas
             </CardTitle>
           </CardHeader>
@@ -1117,59 +1430,330 @@ function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light'
             <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               {Object.keys(studentAnalysis.subjectStats).length}
             </div>
+            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              Áreas de conocimiento
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+          <CardHeader className="pb-3">
+            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+              <BarChart3 className="h-4 w-4" />
+              Fases Completadas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {[
+                studentAnalysis.phaseStats.phase1.count > 0,
+                studentAnalysis.phaseStats.phase2.count > 0,
+                studentAnalysis.phaseStats.phase3.count > 0
+              ].filter(Boolean).length}
+            </div>
+            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              De 3 fases evaluativas
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Gráfico de progreso por fase */}
-      {phaseProgressData.length > 0 && (
-        <PhaseProgressChart
-          data={phaseProgressData}
-          theme={theme}
-          title="Evolución del Rendimiento por Fase"
-          description="Seguimiento del desempeño del estudiante a través de las fases evaluativas"
-        />
-      )}
+      {/* Filtro de Fases */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+          Filtrar por fase:
+        </span>
+        <div className="flex gap-2">
+          <Button
+            variant={selectedPhase === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelectedPhase('all')}
+            className={cn(
+              selectedPhase === 'all' 
+                ? '' 
+                : theme === 'dark' 
+                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            )}
+          >
+            Todas las Fases
+          </Button>
+          <Button
+            variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelectedPhase('phase1')}
+            className={cn(
+              selectedPhase === 'phase1' 
+                ? '' 
+                : theme === 'dark' 
+                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            )}
+          >
+            Fase I
+          </Button>
+          <Button
+            variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelectedPhase('phase2')}
+            className={cn(
+              selectedPhase === 'phase2' 
+                ? '' 
+                : theme === 'dark' 
+                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            )}
+          >
+            Fase II
+          </Button>
+          <Button
+            variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelectedPhase('phase3')}
+            className={cn(
+              selectedPhase === 'phase3' 
+                ? '' 
+                : theme === 'dark' 
+                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            )}
+          >
+            Fase III
+          </Button>
+        </div>
+      </div>
 
-      {/* Gráfico de barras: Rendimiento por materia */}
-      {subjectData.length > 0 && (
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader>
-            <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              Rendimiento por Materia
-            </CardTitle>
-            <CardDescription>
-              Promedio de rendimiento en cada materia evaluada
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={subjectData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#444' : '#e5e7eb'} />
-                <XAxis 
-                  dataKey="name" 
-                  angle={-45} 
-                  textAnchor="end" 
-                  height={100}
-                  tick={{ fill: theme === 'dark' ? '#9ca3af' : '#6b7280', fontSize: 12 }}
-                />
-                <YAxis 
-                  domain={[0, 100]}
-                  tick={{ fill: theme === 'dark' ? '#9ca3af' : '#6b7280', fontSize: 12 }}
-                />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: theme === 'dark' ? '#18181b' : '#fff',
-                    border: theme === 'dark' ? '1px solid #3f3f46' : '1px solid #e5e7eb',
-                    borderRadius: '8px',
+      {/* Gráfico de evolución por materia y tarjetas de estadísticas */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Gráfico - ocupa 3 columnas */}
+        <div className="lg:col-span-3">
+          {(phase1Data || phase2Data || phase3Data) && (
+            <SubjectsProgressChart
+              phase1Data={phase1Data}
+              phase2Data={phase2Data}
+              phase3Data={phase3Data}
+          theme={theme}
+            />
+          )}
+        </div>
+
+        {/* Tarjetas de estadísticas - ocupa 2 columnas, layout 2x2 */}
+        <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+          {/* Puntaje Global y Ranking */}
+          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+            <CardContent className="pt-3 pb-2.5">
+              <div className="flex items-start justify-between mb-1.5">
+                <Trophy className={cn('h-4 w-4', theme === 'dark' ? 'text-yellow-500' : 'text-yellow-600')} />
+              </div>
+              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                {selectedPhase === 'all'
+                  ? studentAnalysis.globalScore || Math.round(studentAnalysis.averageScore)
+                  : selectedPhase === 'phase1'
+                    ? (studentAnalysis.phaseMetrics?.phase1.globalScore || 0)
+                    : selectedPhase === 'phase2'
+                      ? (studentAnalysis.phaseMetrics?.phase2.globalScore || 0)
+                      : (studentAnalysis.phaseMetrics?.phase3.globalScore || 0)}
+              </div>
+              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                Puntaje Global
+              </p>
+              <div className={cn(
+                'inline-flex items-center gap-1.5 px-2 py-0.5 rounded',
+                theme === 'dark' ? 'bg-yellow-500/20 border border-yellow-500/30' : 'bg-yellow-50 border border-yellow-200'
+              )}>
+                <Trophy className="h-3 w-3 text-yellow-500" />
+                <span className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700')}>
+                  {(studentAnalysis as any).ranking 
+                    ? `${(studentAnalysis as any).ranking.position}º de ${(studentAnalysis as any).ranking.total}`
+                    : 'Sin ranking'}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Porcentaje de Fase */}
+          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+            <CardContent className="pt-3 pb-2.5">
+              <div className="flex items-start justify-between mb-1.5">
+                <TrendingUp className={cn('h-4 w-4', theme === 'dark' ? 'text-green-400' : 'text-green-600')} />
+              </div>
+              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
+                {selectedPhase === 'all' 
+                  ? Math.round(((phase3Subjects?.size || 0) / 7) * 100)
+                  : selectedPhase === 'phase1'
+                    ? (studentAnalysis.phaseMetrics?.phase1.phasePercentage || 0)
+                    : selectedPhase === 'phase2'
+                      ? (studentAnalysis.phaseMetrics?.phase2.phasePercentage || 0)
+                      : (studentAnalysis.phaseMetrics?.phase3.phasePercentage || 0)}%
+              </div>
+              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                Porcentaje de {selectedPhase === 'all' 
+                  ? 'Fase III'
+                  : selectedPhase === 'phase1'
+                    ? 'Fase I'
+                    : selectedPhase === 'phase2'
+                      ? 'Fase II'
+                      : 'Fase III'}
+              </p>
+              <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
+                <div 
+                  className="bg-blue-500 h-1.5 rounded-full" 
+                  style={{ 
+                    width: `${selectedPhase === 'all' 
+                      ? Math.round(((phase3Subjects?.size || 0) / 7) * 100)
+                      : selectedPhase === 'phase1'
+                        ? (studentAnalysis.phaseMetrics?.phase1.phasePercentage || 0)
+                        : selectedPhase === 'phase2'
+                          ? (studentAnalysis.phaseMetrics?.phase2.phasePercentage || 0)
+                          : (studentAnalysis.phaseMetrics?.phase3.phasePercentage || 0)}%` 
                   }}
                 />
-                <Bar dataKey="promedio" fill="#10b981" name="Promedio (%)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
+              </div>
+              <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                {selectedPhase === 'all'
+                  ? `${phase3Subjects?.size || 0} de 7 materias`
+                  : selectedPhase === 'phase1'
+                    ? `${studentAnalysis.phaseMetrics?.phase1.completedSubjects || 0} de 7 materias`
+                    : selectedPhase === 'phase2'
+                      ? `${studentAnalysis.phaseMetrics?.phase2.completedSubjects || 0} de 7 materias`
+                      : `${studentAnalysis.phaseMetrics?.phase3.completedSubjects || 0} de 7 materias`}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Tiempo Promedio por Pregunta */}
+          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+            <CardContent className="pt-3 pb-2.5">
+              <div className="flex items-start justify-between mb-1.5">
+                <Clock className={cn('h-4 w-4', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+              </div>
+              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                {(() => {
+                  const time = selectedPhase === 'all'
+                    ? studentAnalysis.averageTimePerQuestion || 0
+                    : selectedPhase === 'phase1'
+                      ? studentAnalysis.phaseMetrics?.phase1.averageTimePerQuestion || 0
+                      : selectedPhase === 'phase2'
+                        ? studentAnalysis.phaseMetrics?.phase2.averageTimePerQuestion || 0
+                        : studentAnalysis.phaseMetrics?.phase3.averageTimePerQuestion || 0
+                  return time > 0 ? `${time.toFixed(1)}m` : '0m'
+                })()}
+              </div>
+              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                Tiempo Promedio - {selectedPhase === 'all' 
+                  ? 'Fase III'
+                  : selectedPhase === 'phase1'
+                    ? 'Fase I'
+                    : selectedPhase === 'phase2'
+                      ? 'Fase II'
+                      : 'Fase III'}
+              </p>
+              <div className={cn(
+                'inline-flex items-center px-2 py-0.5 rounded',
+                theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-gray-50 border border-gray-200'
+              )}>
+                <span className={cn('text-[10px]', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                  {(() => {
+                    const questions = selectedPhase === 'all'
+                      ? totalQuestions
+                      : selectedPhase === 'phase1'
+                        ? (studentAnalysis.phaseMetrics?.phase1.totalQuestions || 0)
+                        : selectedPhase === 'phase2'
+                          ? (studentAnalysis.phaseMetrics?.phase2.totalQuestions || 0)
+                          : (studentAnalysis.phaseMetrics?.phase3.totalQuestions || 0)
+                    return `Promedio de ${questions} preguntas`
+                  })()}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Intento de Fraude */}
+          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+            <CardContent className="pt-3 pb-2.5">
+              <div className="flex items-start justify-between mb-1.5">
+                <Shield className={cn('h-4 w-4', theme === 'dark' ? 'text-red-400' : 'text-red-600')} />
+              </div>
+              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+                {selectedPhase === 'all'
+                  ? studentAnalysis.fraudAttempts || 0
+                  : selectedPhase === 'phase1'
+                    ? studentAnalysis.phaseMetrics?.phase1.fraudAttempts || 0
+                    : selectedPhase === 'phase2'
+                      ? studentAnalysis.phaseMetrics?.phase2.fraudAttempts || 0
+                      : studentAnalysis.phaseMetrics?.phase3.fraudAttempts || 0}
+              </div>
+              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                Intento de fraude
+              </p>
+              {(() => {
+                const fraudCount = selectedPhase === 'all'
+                  ? studentAnalysis.fraudAttempts || 0
+                  : selectedPhase === 'phase1'
+                    ? studentAnalysis.phaseMetrics?.phase1.fraudAttempts || 0
+                    : selectedPhase === 'phase2'
+                      ? studentAnalysis.phaseMetrics?.phase2.fraudAttempts || 0
+                      : studentAnalysis.phaseMetrics?.phase3.fraudAttempts || 0
+                return fraudCount > 0 && (
+                  <div className={cn(
+                    'inline-flex items-center px-2 py-0.5 rounded',
+                    theme === 'dark' ? 'bg-red-500/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
+                  )}>
+                    <span className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-red-300' : 'text-red-700')}>
+                      {fraudCount} {fraudCount === 1 ? 'evaluación' : 'evaluaciones'} con incidentes
+                    </span>
+                  </div>
+                )
+              })()}
+            </CardContent>
+          </Card>
+
+          {/* Porcentaje de Suerte - Primera fila, segunda columna */}
+          <Card className={cn('lg:col-span-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+            <CardContent className="pt-3 pb-2.5">
+              <div className="flex items-start justify-between mb-1.5">
+                <Zap className={cn('h-4 w-4', theme === 'dark' ? 'text-orange-400' : 'text-orange-600')} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
+                    {(() => {
+                      const luck = selectedPhase === 'all'
+                        ? studentAnalysis.luckPercentage || 0
+                        : selectedPhase === 'phase1'
+                          ? studentAnalysis.phaseMetrics?.phase1.luckPercentage || 0
+                          : selectedPhase === 'phase2'
+                            ? studentAnalysis.phaseMetrics?.phase2.luckPercentage || 0
+                            : studentAnalysis.phaseMetrics?.phase3.luckPercentage || 0
+                      return luck
+                    })()}%
+                  </div>
+                  <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                    Porcentaje de Suerte
+                  </p>
+                </div>
+                <div className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded',
+                  theme === 'dark' ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-orange-50 border border-orange-200'
+                )}>
+                  <span className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-orange-300' : 'text-orange-700')}>
+                    {(() => {
+                      const luck = selectedPhase === 'all'
+                        ? studentAnalysis.luckPercentage || 0
+                        : selectedPhase === 'phase1'
+                          ? studentAnalysis.phaseMetrics?.phase1.luckPercentage || 0
+                          : selectedPhase === 'phase2'
+                            ? studentAnalysis.phaseMetrics?.phase2.luckPercentage || 0
+                            : studentAnalysis.phaseMetrics?.phase3.luckPercentage || 0
+                      return luck > 50 ? 'Muchas respuestas rápidas' : 'Tiempo adecuado'
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
