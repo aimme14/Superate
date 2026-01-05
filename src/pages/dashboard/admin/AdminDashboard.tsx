@@ -31,7 +31,6 @@ import { useInstitutionUserCounts } from '@/hooks/query/useInstitutionUserCounts
 import AdminAnalysis from '@/components/admin/AdminAnalysis'
 import { useAdminAnalysis } from '@/hooks/query/useAdminAnalysis'
 import { useGradeAnalysis } from '@/hooks/query/useGradeAnalysis'
-import { useInstitutions } from '@/hooks/query/useInstitutionQuery'
 import { useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 
 interface AdminDashboardProps extends ThemeContextProps {}
