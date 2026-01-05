@@ -1127,8 +1127,6 @@ function StudentsAnalysisTab({
                                                               institutionId={institution.id}
                                                               campusId={campus.id}
                                                               gradeId={grade.id}
-                                                              institutionName={institution.name}
-                                                              campusName={campus.name}
                                                               theme={theme}
                                                               selectedStudent={selectedStudent}
                                                               setSelectedStudent={setSelectedStudent}
@@ -1178,8 +1176,6 @@ function StudentList({
   institutionId, 
   campusId,
   gradeId,
-  institutionName, 
-  campusName,
   theme,
   selectedStudent,
   setSelectedStudent,
@@ -1188,8 +1184,6 @@ function StudentList({
   institutionId?: string
   campusId?: string
   gradeId?: string
-  institutionName?: string
-  campusName?: string
   theme: 'light' | 'dark'
   selectedStudent: string | null
   setSelectedStudent: (id: string | null) => void
