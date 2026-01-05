@@ -21,6 +21,7 @@ import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { dbService } from "@/services/firebase/db.service";
 import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
+import { examRegistryService } from "@/services/firebase/examRegistry.service";
 
 const db = getFirestore(firebaseApp);
 
@@ -124,6 +125,30 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   
   console.log(`[saveExamResults] ✅ Examen guardado exitosamente en: results/${userId}/${phaseName}/${examId}`);
   console.log(`[saveExamResults] 📁 La carpeta "${phaseName}" ahora existe en Firestore`);
+  
+  // Registrar la prueba en el sistema de registro centralizado
+  try {
+    // Obtener el subject del examData o usar un valor por defecto
+    const subject = examData.subject || examData.examTitle || 'Sin materia';
+    // Obtener la fase del examData o usar la fase del componente
+    const examPhase = examData.phase || phaseName;
+    
+    const registryResult = await examRegistryService.registerExam(
+      subject,
+      examPhase,
+      userId,
+      examId
+    );
+    
+    if (registryResult.success) {
+      console.log(`[saveExamResults] ✅ Prueba registrada en el sistema: #${registryResult.data.number} - ${subject} - ${phaseName}`);
+    } else {
+      console.warn(`[saveExamResults] ⚠️ No se pudo registrar la prueba:`, registryResult.error);
+    }
+  } catch (error) {
+    // No fallar la operación principal si el registro falla
+    console.error(`[saveExamResults] ❌ Error al registrar prueba:`, error);
+  }
   
   return { success: true, id: `${userId}_${examId}` };
 };

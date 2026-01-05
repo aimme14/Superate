@@ -1222,6 +1222,9 @@ class DatabaseService {
       if (filters.gradeId) {
         conditions.push(where('grade', '==', filters.gradeId))
       }
+      if (filters.jornada) {
+        conditions.push(where('jornada', '==', filters.jornada))
+      }
       if (filters.isActive !== undefined) {
         conditions.push(where('isActive', '==', filters.isActive))
       }

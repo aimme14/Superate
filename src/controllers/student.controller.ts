@@ -37,6 +37,7 @@ export interface StudentFilters {
   gradeId?: string
   isActive?: boolean
   searchTerm?: string
+  jornada?: 'mañana' | 'tarde' | 'única'
 }
 
 /**
