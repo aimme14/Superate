@@ -27,13 +27,14 @@ export const useRole = () => {
         const userResult = await getUserById(user.uid)
         
         if (userResult.success && userResult.data) {
-          const userActive = userResult.data.isActive === true
+          const userData = userResult.data as any
+          const userActive = userData.isActive === true
           setIsUserActive(userActive)
           
           // Verificar institución si existe
-          if (userResult.data.institutionId || userResult.data.inst) {
+          if (userData.institutionId || userData.inst) {
             const { dbService } = await import('@/services/firebase/db.service')
-            const institutionId = userResult.data.institutionId || userResult.data.inst
+            const institutionId = userData.institutionId || userData.inst
             const institutionResult = await dbService.getInstitutionById(institutionId)
             
             if (institutionResult.success && institutionResult.data) {

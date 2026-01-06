@@ -213,7 +213,7 @@ class DatabaseService {
     try {
       const docSnap = await getDoc(doc(this.getCollection('institutions'), id))
       if (!docSnap.exists()) return failure(new NotFound({ message: 'Institución no encontrada' }))
-      const institutionData = { id: docSnap.id, ...docSnap.data() }
+      const institutionData = { id: docSnap.id, ...docSnap.data() } as any
       
       // Asegurar que isActive esté definido (por defecto true para retrocompatibilidad)
       if (institutionData.isActive === undefined) {

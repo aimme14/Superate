@@ -1,7 +1,6 @@
-import { success, failure, Result } from "@/interfaces/db.interface"
+import { success, failure, Result, User } from "@/interfaces/db.interface"
 import { dbService } from "@/services/firebase/db.service"
 import { RegisterFormProps } from "@/schemas/auth.schema"
-import { User } from "@/interfaces/context.interface"
 import { normalizeError } from "@/errors/handler"
 import ErrorAPI from "@/errors"
 

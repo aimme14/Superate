@@ -33,7 +33,8 @@ export default function RoleProtectedRoute({
           const userResult = await getUserById(user.uid)
           
           if (userResult.success && userResult.data) {
-            const isActive = userResult.data.isActive === true
+            const userData = userResult.data as any
+            const isActive = userData.isActive === true
             
             if (!isActive) {
               notifyError({
@@ -46,9 +47,9 @@ export default function RoleProtectedRoute({
             }
             
             // Verificar institución si existe
-            if (userResult.data.institutionId || userResult.data.inst) {
+            if (userData.institutionId || userData.inst) {
               const { dbService } = await import('@/services/firebase/db.service')
-              const institutionId = userResult.data.institutionId || userResult.data.inst
+              const institutionId = userData.institutionId || userData.inst
               const institutionResult = await dbService.getInstitutionById(institutionId)
               
               if (institutionResult.success && institutionResult.data) {
