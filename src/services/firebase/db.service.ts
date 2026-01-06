@@ -3,7 +3,7 @@ import { normalizeError } from "@/errors/handler"
 import ErrorAPI, { NotFound } from "@/errors"
 import { firebaseApp } from "@/services/db"
 
-import {
+import { 
   CollectionReference,
   getFirestore,
   collection,
@@ -16,6 +16,7 @@ import {
   query,
   where,
   doc,
+  writeBatch,
 } from "firebase/firestore"
 import { User } from "firebase/auth";
 
@@ -278,10 +279,101 @@ class DatabaseService {
     return obj
   }
 
+  /**
+   * Desactiva o activa todos los usuarios de una institución en cascada
+   * @param institutionId - ID de la institución
+   * @param isActive - Estado a aplicar (true = activar, false = desactivar)
+   */
+  private async updateUsersByInstitution(institutionId: string, isActive: boolean): Promise<void> {
+    try {
+      console.log(`🔄 ${isActive ? 'Activando' : 'Desactivando'} usuarios de la institución ${institutionId}...`)
+      
+      const usersCollection = this.getCollection('users')
+      
+      // Buscar usuarios con institutionId o inst igual a la institución
+      // Nota: Algunos usuarios pueden usar 'institutionId' y otros 'inst'
+      const queries = [
+        query(usersCollection, where('institutionId', '==', institutionId)),
+        query(usersCollection, where('inst', '==', institutionId))
+      ]
+      
+      const allUserDocs: any[] = []
+      
+      // Ejecutar ambas consultas
+      for (const q of queries) {
+        try {
+          const snapshot = await getDocs(q)
+          snapshot.docs.forEach(doc => {
+            // Evitar duplicados si un usuario tiene ambos campos
+            if (!allUserDocs.find(d => d.id === doc.id)) {
+              allUserDocs.push({ id: doc.id, data: doc.data() })
+            }
+          })
+        } catch (error) {
+          console.warn('⚠️ Error en consulta de usuarios:', error)
+          // Continuar con la otra consulta
+        }
+      }
+      
+      // Filtrar solo usuarios que no sean admin (los admins no pertenecen a instituciones)
+      const usersToUpdate = allUserDocs.filter(user => {
+        const role = user.data?.role
+        return role && ['student', 'teacher', 'principal', 'rector'].includes(role)
+      })
+      
+      console.log(`📊 Usuarios encontrados para ${isActive ? 'activar' : 'desactivar'}: ${usersToUpdate.length}`)
+      
+      if (usersToUpdate.length === 0) {
+        console.log('✅ No hay usuarios para actualizar')
+        return
+      }
+      
+      // Usar batch para actualizar todos los usuarios de una vez (máximo 500 por batch)
+      const batchSize = 500
+      const batches: any[] = []
+      
+      for (let i = 0; i < usersToUpdate.length; i += batchSize) {
+        const batch = writeBatch(this.db)
+        const chunk = usersToUpdate.slice(i, i + batchSize)
+        
+        chunk.forEach(user => {
+          const userRef = doc(usersCollection, user.id)
+          batch.update(userRef, {
+            isActive: isActive,
+            updatedAt: new Date().toISOString().split('T')[0],
+            ...(isActive ? {} : { deactivatedAt: new Date().toISOString().split('T')[0] })
+          })
+        })
+        
+        batches.push(batch)
+      }
+      
+      // Ejecutar todos los batches
+      for (let i = 0; i < batches.length; i++) {
+        await batches[i].commit()
+        console.log(`✅ Batch ${i + 1}/${batches.length} completado`)
+      }
+      
+      console.log(`✅ ${usersToUpdate.length} usuario(s) ${isActive ? 'activado(s)' : 'desactivado(s)'} exitosamente`)
+    } catch (e) {
+      console.error(`❌ Error al ${isActive ? 'activar' : 'desactivar'} usuarios de la institución:`, e)
+      // No lanzar error para no bloquear la actualización de la institución
+      // Solo loguear el error
+    }
+  }
+
   async updateInstitution(id: string, institutionData: any): Promise<Result<any>> {
     try {
       console.log('🔍 Actualizando institución con ID:', id)
       console.log('📊 Tamaño de datos a actualizar:', JSON.stringify(institutionData).length, 'caracteres')
+      
+      // Obtener el estado actual de la institución para detectar cambios en isActive
+      const currentInstitutionResult = await this.getInstitutionById(id)
+      const currentIsActive = currentInstitutionResult.success ? currentInstitutionResult.data?.isActive : undefined
+      const newIsActive = institutionData.isActive
+      
+      // Detectar si se está cambiando el estado de activación
+      const isActivationChange = newIsActive !== undefined && newIsActive !== currentIsActive
       
       const document = doc(this.getCollection('institutions'), id)
       const updatedData = {
@@ -296,6 +388,12 @@ class DatabaseService {
       console.log('💾 Guardando datos en Firebase...')
       await updateDoc(document, cleanedData)
       console.log('✅ Datos guardados exitosamente')
+      
+      // Si se cambió el estado de activación, actualizar usuarios en cascada
+      if (isActivationChange) {
+        console.log(`🔄 Estado de activación cambió: ${currentIsActive} → ${newIsActive}`)
+        await this.updateUsersByInstitution(id, newIsActive)
+      }
       
       const updatedInstitution = await this.getInstitutionById(id)
       return updatedInstitution
