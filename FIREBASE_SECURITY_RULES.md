@@ -16,9 +16,39 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Función auxiliar para verificar si el usuario está activo
+    function isUserActive() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.isActive == true;
+    }
+    
+    // Función auxiliar para verificar si la institución del usuario está activa
+    function isUserInstitutionActive() {
+      if (!isAuthenticated()) {
+        return false;
+      }
+      let userData = get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data;
+      let institutionId = userData.institutionId != null ? userData.institutionId : userData.inst;
+      
+      // Si no tiene institución, permitir acceso (usuarios admin pueden no tener institución)
+      if (institutionId == null) {
+        return true;
+      }
+      
+      // Verificar que la institución exista y esté activa
+      return exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) &&
+             get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true;
+    }
+    
+    // Función auxiliar para verificar si el usuario puede acceder (activo y su institución activa)
+    function canAccess() {
+      return isUserActive() && isUserInstitutionActive();
+    }
+    
     // Función auxiliar para verificar si el usuario es administrador
     function isAdmin() {
-      return isAuthenticated() && 
+      return canAccess() && 
         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin';
     }
     
@@ -47,11 +77,11 @@ service cloud.firestore {
     
     // Colección de preguntas
     match /superate/auth/questions/{questionId} {
-      // Lectura: Todos los usuarios autenticados pueden leer preguntas
-      allow read: if isAuthenticated();
+      // Lectura: Solo usuarios activos pueden leer preguntas
+      allow read: if canAccess();
       
-      // Creación: Solo usuarios autorizados pueden crear preguntas
-      allow create: if canCreateQuestions() && 
+      // Creación: Solo usuarios activos autorizados pueden crear preguntas
+      allow create: if canAccess() && canCreateQuestions() && 
         request.resource.data.keys().hasAll([
           'code', 'subject', 'subjectCode', 'topic', 'topicCode',
           'grade', 'level', 'levelCode', 'questionText', 'answerType',
@@ -78,38 +108,59 @@ service cloud.firestore {
     
     // Colección de contadores para códigos únicos
     match /superate/auth/counters/{counterId} {
-      // Solo usuarios autorizados pueden acceder a contadores
-      allow read: if canCreateQuestions();
+      // Solo usuarios activos autorizados pueden acceder a contadores
+      allow read: if canAccess() && canCreateQuestions();
       
-      // Solo usuarios autorizados pueden incrementar contadores
-      allow write: if canCreateQuestions();
+      // Solo usuarios activos autorizados pueden incrementar contadores
+      allow write: if canAccess() && canCreateQuestions();
     }
     
     // Colección de usuarios
     match /superate/auth/users/{userId} {
-      // Los usuarios pueden leer su propia información
-      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Los usuarios activos pueden leer su propia información
+      allow read: if canAccess() && request.auth.uid == userId;
       
-      // Solo admins pueden leer información de otros usuarios
+      // Solo admins activos pueden leer información de otros usuarios
       allow read: if isAdmin();
       
-      // Los usuarios pueden actualizar su propia información (campos limitados)
-      allow update: if isAuthenticated() && 
+      // Los usuarios activos pueden actualizar su propia información (campos limitados)
+      allow update: if canAccess() && 
         request.auth.uid == userId &&
-        // No permitir cambiar el rol
-        request.resource.data.role == resource.data.role;
+        // No permitir cambiar el rol o isActive (solo admin puede cambiar isActive)
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.isActive == resource.data.isActive;
       
-      // Solo admins pueden crear o eliminar usuarios
-      allow create, delete: if isAdmin();
+      // Solo admins activos pueden crear usuarios
+      // Al crear, isActive debe estar presente y ser true por defecto
+      allow create: if isAdmin() &&
+        request.resource.data.isActive != null;
+      
+      // Solo admins activos pueden actualizar isActive de otros usuarios
+      allow update: if isAdmin() &&
+        (request.resource.data.isActive == true || request.resource.data.isActive == false);
+      
+      // Solo admins activos pueden eliminar usuarios
+      allow delete: if isAdmin();
     }
     
     // Colección de instituciones
     match /superate/auth/institutions/{institutionId} {
-      // Todos los usuarios autenticados pueden leer instituciones
-      allow read: if isAuthenticated();
+      // Solo usuarios activos pueden leer instituciones activas
+      allow read: if canAccess() && 
+        (!exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) ||
+         get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true);
       
-      // Solo admins pueden crear, actualizar o eliminar instituciones
-      allow create, update, delete: if isAdmin();
+      // Solo admins activos pueden crear instituciones
+      // Al crear, isActive debe estar presente
+      allow create: if isAdmin() &&
+        request.resource.data.isActive != null;
+      
+      // Solo admins activos pueden actualizar instituciones
+      allow update: if isAdmin() &&
+        (request.resource.data.isActive == true || request.resource.data.isActive == false);
+      
+      // Solo admins activos pueden eliminar instituciones
+      allow delete: if isAdmin();
     }
     
     // Regla por defecto: denegar acceso a todo lo demás

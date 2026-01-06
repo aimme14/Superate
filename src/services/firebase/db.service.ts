@@ -98,11 +98,13 @@ class DatabaseService {
    */
   async createUser(auth: User, credentials: any): Promise<Result<any>> {
     try {
+      // Asegurar que isActive esté definido (por defecto true)
       const userData = {
         ...credentials,
         email: auth.email,
         name: auth.displayName,
-        uid: auth.uid
+        uid: auth.uid,
+        isActive: credentials.isActive !== undefined ? credentials.isActive : true
       }
       
       // Filtrar campos undefined para evitar errores de Firebase
@@ -112,6 +114,7 @@ class DatabaseService {
       
       console.log('📝 Creando usuario en Firestore con datos:', cleanUserData)
       console.log('🔍 Rol específico:', cleanUserData.role)
+      console.log('✅ Estado activo:', cleanUserData.isActive)
       console.log('🧹 Campos filtrados (undefined removidos):', Object.keys(userData).filter(key => userData[key] === undefined))
       
       await setDoc(doc(this.getCollection('users'), auth.uid), cleanUserData)
@@ -210,7 +213,14 @@ class DatabaseService {
     try {
       const docSnap = await getDoc(doc(this.getCollection('institutions'), id))
       if (!docSnap.exists()) return failure(new NotFound({ message: 'Institución no encontrada' }))
-      return success({ id: docSnap.id, ...docSnap.data() })
+      const institutionData = { id: docSnap.id, ...docSnap.data() }
+      
+      // Asegurar que isActive esté definido (por defecto true para retrocompatibilidad)
+      if (institutionData.isActive === undefined) {
+        institutionData.isActive = true
+      }
+      
+      return success(institutionData)
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener institución'))) }
   }
 
@@ -221,9 +231,15 @@ class DatabaseService {
    */
   async createInstitution(institutionData: any): Promise<Result<any>> {
     try {
+      // Asegurar que isActive esté definido (por defecto true)
+      const institutionWithDefaults = {
+        ...institutionData,
+        isActive: institutionData.isActive !== undefined ? institutionData.isActive : true
+      }
+      
       const docRef = doc(this.getCollection('institutions'))
       const institutionWithId = {
-        ...institutionData,
+        ...institutionWithDefaults,
         id: docRef.id,
         createdAt: new Date().toISOString().split('T')[0],
         updatedAt: new Date().toISOString().split('T')[0]

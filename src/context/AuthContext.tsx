@@ -82,7 +82,16 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
         if (!result.success) throw result.error
         setAuthStatus(result)
       } catch (e: any) {
-        if (e.message === 'Credenciales inválidas') { notifyError({ title: 'error al iniciar sección', message: `${e.message}` }) }
+        // Mostrar todos los errores de autenticación, especialmente los relacionados con usuarios inactivos
+        const errorMessage = e.message || 'Error al iniciar sesión'
+        const errorTitle = errorMessage.includes('desactivada') || errorMessage.includes('desactivado') 
+          ? 'Acceso denegado' 
+          : 'Error al iniciar sesión'
+        
+        notifyError({ 
+          title: errorTitle, 
+          message: errorMessage 
+        })
       }
       finally { setLoading(false) }
     })
@@ -217,12 +226,28 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
     try {
       const userData = await getById(uid, true)
       if (userData) {
-        // Verificar si el usuario está activo
-        const isActive = userData.isActive !== false // Por defecto true si no está definido
+        // Verificar si el usuario está activo (debe ser explícitamente true)
+        const isActive = userData.isActive === true
         
         if (!isActive) {
-          console.log('⚠️ Usuario desactivado o eliminado, no se puede cargar')
+          console.log('⚠️ Usuario inactivo, no se puede cargar')
           return undefined
+        }
+        
+        // Verificar si la institución está activa (si tiene institución)
+        if (userData.institutionId || userData.inst) {
+          const { dbService } = await import('@/services/firebase/db.service')
+          const institutionId = userData.institutionId || userData.inst
+          const institutionResult = await dbService.getInstitutionById(institutionId)
+          
+          if (institutionResult.success && institutionResult.data) {
+            const institutionIsActive = institutionResult.data.isActive === true
+            
+            if (!institutionIsActive) {
+              console.log('⚠️ Institución inactiva, no se puede cargar el usuario')
+              return undefined
+            }
+          }
         }
         
         return {

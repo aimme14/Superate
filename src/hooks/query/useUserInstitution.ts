@@ -47,6 +47,9 @@ export const useUserInstitution = () => {
     !!institutionId
   )
 
+  // Validar que la institución esté activa
+  const isInstitutionActive = institution ? institution.isActive === true : true
+
   // Determinar qué mostrar: institución del usuario o valores por defecto
   const institutionName = institution?.name || user?.institution || 'Colegio'
   const institutionLogo = institution?.logo || '/assets/agustina.png'
@@ -55,6 +58,7 @@ export const useUserInstitution = () => {
     institutionName,
     institutionLogo,
     institution,
+    isInstitutionActive,
     isLoading: isLoadingUser || isLoadingInstitution,
   }
 }

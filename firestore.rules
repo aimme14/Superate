@@ -1,9 +1,127 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Reglas básicas - ajustar según necesidades de seguridad
+    
+    // Función auxiliar para verificar si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Función auxiliar para verificar si el usuario está activo
+    function isUserActive() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.isActive == true;
+    }
+    
+    // Función auxiliar para verificar si la institución del usuario está activa
+    function isUserInstitutionActive() {
+      if (!isAuthenticated()) {
+        return false;
+      }
+      let userData = get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data;
+      let institutionId = userData.institutionId != null ? userData.institutionId : userData.inst;
+      
+      // Si no tiene institución, permitir acceso (usuarios admin pueden no tener institución)
+      if (institutionId == null) {
+        return true;
+      }
+      
+      // Verificar que la institución exista y esté activa
+      return exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) &&
+             get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true;
+    }
+    
+    // Función auxiliar para verificar si el usuario puede acceder (activo y su institución activa)
+    function canAccess() {
+      return isUserActive() && isUserInstitutionActive();
+    }
+    
+    // Función auxiliar para verificar si el usuario es administrador
+    function isAdmin() {
+      return canAccess() && 
+        get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Colección de usuarios
+    match /superate/auth/users/{userId} {
+      // Los usuarios activos pueden leer su propia información
+      allow read: if canAccess() && request.auth.uid == userId;
+      
+      // Solo admins activos pueden leer información de otros usuarios
+      allow read: if isAdmin();
+      
+      // Los usuarios activos pueden actualizar su propia información (campos limitados)
+      allow update: if canAccess() && 
+        request.auth.uid == userId &&
+        // No permitir cambiar el rol o isActive (solo admin puede cambiar isActive)
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.isActive == resource.data.isActive;
+      
+      // Solo admins activos pueden crear, actualizar o eliminar usuarios
+      // Al crear, isActive debe estar presente y ser true por defecto
+      allow create: if isAdmin() &&
+        request.resource.data.isActive != null;
+      
+      allow update: if isAdmin() &&
+        // Permitir cambiar isActive solo a admin
+        (request.resource.data.isActive == true || request.resource.data.isActive == false);
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Colección de instituciones
+    match /superate/auth/institutions/{institutionId} {
+      // Solo usuarios activos pueden leer instituciones activas
+      allow read: if canAccess() && 
+        (!exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) ||
+         get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true);
+      
+      // Solo admins activos pueden crear, actualizar o eliminar instituciones
+      // Al crear, isActive debe estar presente
+      allow create: if isAdmin() &&
+        request.resource.data.isActive != null;
+      
+      allow update: if isAdmin() &&
+        // Permitir cambiar isActive solo a admin
+        (request.resource.data.isActive == true || request.resource.data.isActive == false);
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Colección de preguntas
+    match /superate/auth/questions/{questionId} {
+      // Solo usuarios activos pueden leer preguntas
+      allow read: if canAccess();
+      
+      // Solo usuarios activos con permisos pueden crear preguntas
+      allow create: if canAccess() && 
+        (isAdmin() || 
+         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'teacher' ||
+         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'principal' ||
+         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'rector');
+      
+      // Solo el creador o un admin activo pueden actualizar
+      allow update: if canAccess() && 
+        (isAdmin() || resource.data.createdBy == request.auth.uid);
+      
+      // Solo admins activos pueden eliminar
+      allow delete: if isAdmin();
+    }
+    
+    // Colección de contadores
+    match /superate/auth/counters/{counterId} {
+      // Solo usuarios activos con permisos pueden acceder
+      allow read, write: if canAccess() && 
+        (isAdmin() || 
+         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'teacher' ||
+         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'principal' ||
+         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'rector');
+    }
+    
+    // Regla por defecto: denegar acceso a todo lo demás
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

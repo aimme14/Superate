@@ -1,13 +1,61 @@
 import { useAuthContext } from "@/context/AuthContext"
 import { UserRole } from "@/interfaces/context.interface"
 
+import { useEffect, useState } from 'react'
+
 /**
  * Hook personalizado para manejar roles y permisos de usuario
  */
 export const useRole = () => {
   const { user } = useAuthContext()
+  const [isUserActive, setIsUserActive] = useState<boolean>(true)
+  const [isInstitutionActive, setIsInstitutionActive] = useState<boolean>(true)
 
   const userRole: UserRole | undefined = user?.role
+
+  // Validar estado activo del usuario y su institución
+  useEffect(() => {
+    const validateStatus = async () => {
+      if (!user?.uid) {
+        setIsUserActive(false)
+        setIsInstitutionActive(false)
+        return
+      }
+
+      try {
+        const { getUserById } = await import('@/controllers/user.controller')
+        const userResult = await getUserById(user.uid)
+        
+        if (userResult.success && userResult.data) {
+          const userActive = userResult.data.isActive === true
+          setIsUserActive(userActive)
+          
+          // Verificar institución si existe
+          if (userResult.data.institutionId || userResult.data.inst) {
+            const { dbService } = await import('@/services/firebase/db.service')
+            const institutionId = userResult.data.institutionId || userResult.data.inst
+            const institutionResult = await dbService.getInstitutionById(institutionId)
+            
+            if (institutionResult.success && institutionResult.data) {
+              const institutionActive = institutionResult.data.isActive === true
+              setIsInstitutionActive(institutionActive)
+            } else {
+              setIsInstitutionActive(true) // Si no se puede verificar, asumir activa
+            }
+          } else {
+            setIsInstitutionActive(true) // Si no tiene institución, no aplica
+          }
+        } else {
+          setIsUserActive(false)
+        }
+      } catch (error) {
+        console.error('Error validando estado del usuario:', error)
+        setIsUserActive(false)
+      }
+    }
+    
+    validateStatus()
+  }, [user])
 
   // Permisos por rol
   const permissions = {
@@ -79,6 +127,8 @@ export const useRole = () => {
   }
 
   const hasPermission = (permission: keyof typeof permissions.student): boolean => {
+    // Si el usuario o su institución no están activos, no tiene permisos
+    if (!isUserActive || !isInstitutionActive) return false
     if (!userRole) return false
     return permissions[userRole][permission]
   }
@@ -157,6 +207,9 @@ export const useRole = () => {
     isAdmin,
     isStaff,
     getNavigationConfig,
+    isUserActive,
+    isInstitutionActive,
+    isActive: isUserActive && isInstitutionActive, // Estado combinado
   }
 }
 

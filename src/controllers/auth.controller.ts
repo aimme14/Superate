@@ -31,15 +31,34 @@ export const login = async ({ email, password }: { email: string, password: stri
     
     if (userData.success && userData.data) {
       const userRole = userData.data.role
-      const isActive = userData.data.isActive !== false // Por defecto true si no está definido
+      const isActive = userData.data.isActive === true // Debe ser explícitamente true
       
       console.log('👤 Rol del usuario:', userRole)
       console.log('👤 Usuario activo:', isActive)
       
       // Verificar si el usuario está activo
       if (!isActive) {
-        console.log('⚠️ Usuario desactivado o eliminado')
-        return failure(new Unauthorized({ message: 'Usuario no encontrado' }))
+        console.log('⚠️ Usuario inactivo - acceso denegado')
+        return failure(new Unauthorized({ 
+          message: 'Tu cuenta ha sido desactivada. No puedes iniciar sesión. Por favor, contacta al administrador del sistema para reactivar tu cuenta.' 
+        }))
+      }
+      
+      // Verificar si la institución del usuario está activa (si tiene institución)
+      if (userData.data.institutionId || userData.data.inst) {
+        const institutionId = userData.data.institutionId || userData.data.inst
+        const institutionResult = await dbService.getInstitutionById(institutionId)
+        
+        if (institutionResult.success && institutionResult.data) {
+          const institutionIsActive = institutionResult.data.isActive === true
+          
+          if (!institutionIsActive) {
+            console.log('⚠️ Institución inactiva - acceso denegado')
+            return failure(new Unauthorized({ 
+              message: 'La institución asociada a tu cuenta ha sido desactivada. No puedes iniciar sesión. Por favor, contacta al administrador del sistema para más información.' 
+            }))
+          }
+        }
       }
       
       // Solo estudiantes requieren verificación de email

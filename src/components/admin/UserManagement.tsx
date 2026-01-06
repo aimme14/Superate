@@ -795,11 +795,12 @@ function RectorTeacherCard({ theme, teacher }: RectorTeacherCardProps) {
   const teacherId = teacher.id || teacher.uid
   
   // También intentar obtener estudiantes directamente usando los filtros del docente
+  // Mostrar todos los estudiantes (activos e inactivos) para el docente
   const { students: filteredStudentsByTeacher } = useFilteredStudents({
     institutionId: teacher.institutionId || teacher.inst,
     campusId: teacher.campusId || teacher.campus,
     gradeId: teacher.gradeId || teacher.grade,
-    isActive: true
+    isActive: undefined // Mostrar todos los estudiantes
   })
   
   const { data: teacherStudents, isLoading: studentsLoading, error: studentsError } = useStudentsByTeacher(teacherId || '', showStudents)
@@ -1041,33 +1042,33 @@ export default function UserManagement({ theme }: UserManagementProps) {
   // Hooks para estudiantes
   const { createStudent, updateStudent, deleteStudent } = useStudentMutations()
   
-  // Filtros para docentes
+  // Filtros para docentes - mostrar todos (activos e inactivos)
   const { teachers: filteredTeachers, isLoading: filteredTeachersLoading } = useFilteredTeachers({
     searchTerm: searchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
-    isActive: true
+    isActive: undefined // Mostrar todos los usuarios
   })
 
-  // Filtros para coordinadores
+  // Filtros para coordinadores - mostrar todos (activos e inactivos)
   const { principals: filteredPrincipals, isLoading: filteredPrincipalsLoading } = useFilteredPrincipals({
     searchTerm: searchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
-    isActive: true
+    isActive: undefined // Mostrar todos los usuarios
   })
 
-  // Filtros para rectores
+  // Filtros para rectores - mostrar todos (activos e inactivos)
   const { rectors: filteredRectors, isLoading: filteredRectorsLoading } = useFilteredRectors({
     searchTerm: searchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
-    isActive: true
+    isActive: undefined // Mostrar todos los usuarios
   })
 
-  // Filtros para estudiantes
+  // Filtros para estudiantes - mostrar todos (activos e inactivos)
   const { students: filteredStudents, isLoading: filteredStudentsLoading } = useFilteredStudents({
     searchTerm: searchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
     gradeId: selectedGrade !== 'all' ? selectedGrade : undefined,
-    isActive: true
+    isActive: undefined // Mostrar todos los usuarios
   })
   const [newUser, setNewUser] = useState({
     name: '',
