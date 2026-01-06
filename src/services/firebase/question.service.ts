@@ -332,6 +332,52 @@ class QuestionService {
    * @param levelCode - Código del nivel (1 letra)
    * @returns Código único generado
    */
+  /**
+   * Intenta ejecutar una transacción con retry y backoff exponencial
+   * @param transactionFn - Función de transacción a ejecutar
+   * @param maxRetries - Número máximo de reintentos (default: 5)
+   * @param initialDelay - Delay inicial en ms (default: 1000)
+   * @returns Resultado de la transacción
+   */
+  private async executeTransactionWithRetry<T>(
+    transactionFn: () => Promise<T>,
+    maxRetries: number = 5,
+    initialDelay: number = 1000
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await transactionFn();
+      } catch (error: any) {
+        lastError = error;
+        
+        // Si es un error de conflicto de transacción, reintentar
+        if (error?.code === 'failed-precondition' || 
+            error?.message?.includes('transaction') ||
+            error?.message?.includes('concurrent') ||
+            error?.code === 'aborted') {
+          
+          const delay = initialDelay * Math.pow(2, attempt); // Backoff exponencial
+          const jitter = Math.random() * 1000; // Jitter aleatorio para evitar thundering herd
+          const totalDelay = delay + jitter;
+          
+          console.log(`⚠️ Intento ${attempt + 1}/${maxRetries} falló. Reintentando en ${Math.round(totalDelay)}ms...`);
+          
+          if (attempt < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, totalDelay));
+            continue;
+          }
+        }
+        
+        // Si no es un error de transacción, lanzar inmediatamente
+        throw error;
+      }
+    }
+    
+    throw lastError;
+  }
+
   async generateQuestionCode(
     subjectCode: string,
     topicCode: string,
@@ -357,33 +403,35 @@ class QuestionService {
       
       const counterRef = doc(db, 'superate', 'auth', 'counters', counterKey);
 
-      // Usar transacción para garantizar atomicidad
-      const newCode = await runTransaction(db, async (transaction) => {
-        const counterDoc = await transaction.get(counterRef);
-        
-        let currentCount = 1;
-        if (counterDoc.exists()) {
-          const existingCount = counterDoc.data().count || 0;
-          currentCount = existingCount + 1;
-          console.log(`📊 Contador existente: ${existingCount}, nuevo: ${currentCount}`);
-        } else {
-          console.log('📊 No existe contador, iniciando en 1');
-        }
+      // Usar transacción con retry y backoff exponencial para evitar saturación
+      const newCode = await this.executeTransactionWithRetry(async () => {
+        return await runTransaction(db, async (transaction) => {
+          const counterDoc = await transaction.get(counterRef);
+          
+          let currentCount = 1;
+          if (counterDoc.exists()) {
+            const existingCount = counterDoc.data().count || 0;
+            currentCount = existingCount + 1;
+            console.log(`📊 Contador existente: ${existingCount}, nuevo: ${currentCount}`);
+          } else {
+            console.log('📊 No existe contador, iniciando en 1');
+          }
 
-        // Actualizar el contador
-        transaction.set(counterRef, { count: currentCount }, { merge: true });
+          // Actualizar el contador
+          transaction.set(counterRef, { count: currentCount }, { merge: true });
 
-        // Generar el código con formato de 3 dígitos
-        const serie = String(currentCount).padStart(3, '0');
-        const generatedCode = `${counterKey}${serie}`;
-        console.log(`🔢 Código generado: ${generatedCode} (serie: ${serie})`);
-        return generatedCode;
-      });
+          // Generar el código con formato de 3 dígitos
+          const serie = String(currentCount).padStart(3, '0');
+          const generatedCode = `${counterKey}${serie}`;
+          console.log(`🔢 Código generado: ${generatedCode} (serie: ${serie})`);
+          return generatedCode;
+        });
+      }, 5, 2000); // 5 reintentos con delay inicial de 2 segundos
 
       console.log('✅ Código generado exitosamente:', newCode);
       return success(newCode);
     } catch (e) {
-      console.error('❌ Error al generar código:', e);
+      console.error('❌ Error al generar código después de reintentos:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar código de pregunta')));
     }
   }
@@ -680,9 +728,9 @@ class QuestionService {
     try {
       console.log('🎲 Obteniendo preguntas aleatorias:', { filters, count });
 
-      // Crear un timeout de 30 segundos
+      // Crear un timeout extendido de 60 segundos para consultas complejas
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout: La consulta tardó demasiado tiempo')), 30000);
+        setTimeout(() => reject(new Error('Timeout: La consulta tardó demasiado tiempo')), 60000);
       });
 
       // Obtener todas las preguntas que cumplen los filtros con timeout

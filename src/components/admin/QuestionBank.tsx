@@ -1101,10 +1101,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         console.log('⚠️ Usando archivo original como fallback')
         const reader = new FileReader()
         
-        // Timeout para evitar que se quede colgado
+        // Timeout extendido para evitar que se quede colgado
         const timeout = setTimeout(() => {
           reject(new Error('Timeout convirtiendo imagen a Base64'))
-        }, 15000) // 15 segundos
+        }, 30000) // 30 segundos
         
         reader.onloadend = () => {
           clearTimeout(timeout)
@@ -1481,8 +1481,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               file, 
               `questions/informative/${Date.now()}_${index}_${file.name}`
             )
+            // Timeout extendido a 30 segundos para subida de imágenes
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 10000) // 10 segundos
+              setTimeout(() => reject(new Error('Timeout')), 30000) // 30 segundos
             )
             
             const result = await Promise.race([storagePromise, timeoutPromise]) as any
@@ -1538,8 +1539,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               file, 
               `questions/question/${Date.now()}_${index}_${file.name}`
             )
+            // Timeout extendido a 30 segundos para subida de imágenes
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 10000) // 10 segundos
+              setTimeout(() => reject(new Error('Timeout')), 30000) // 30 segundos
             )
             
             const result = await Promise.race([storagePromise, timeoutPromise]) as any
@@ -1592,8 +1594,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               optionFiles[option.id]!, 
               `questions/options/${Date.now()}_${option.id}.jpg`
             )
+            // Timeout extendido a 30 segundos para subida de imágenes
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 10000) // 10 segundos
+              setTimeout(() => reject(new Error('Timeout')), 30000) // 30 segundos
             )
             
             const result = await Promise.race([storagePromise, timeoutPromise]) as any
@@ -1842,8 +1845,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
           try {
             console.log(`📝 Creando pregunta de cloze ${i + 1}/${sortedGaps.length} (Hueco ${gapNum})...`)
+            // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
             const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Timeout')), 20000)
+              setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (60 segundos)')), 60000)
             })
             
             const createPromise = questionService.createQuestion(questionData, currentUser.uid)
@@ -2029,8 +2033,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
           try {
             console.log(`📝 Creando pregunta ${i + 1}/${readingQuestions.length}...`)
+            // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
             const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Timeout')), 20000)
+              setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (60 segundos)')), 60000)
             })
             
             const createPromise = questionService.createQuestion(questionData, currentUser.uid)
@@ -2216,8 +2221,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
           try {
             console.log(`📝 Creando pregunta ${i + 1}/${otherSubjectsReadingQuestions.length}...`)
+            // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
             const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Timeout')), 20000)
+              setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (60 segundos)')), 60000)
             })
             
             const createPromise = questionService.createQuestion(questionData, currentUser.uid)
@@ -2317,9 +2323,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             message: 'Guardando en la base de datos...' 
           })
           
-          // Agregar timeout para evitar que se cuelgue
+          // Agregar timeout extendido para evitar que se cuelgue (aumentado a 60 segundos para dar tiempo a las transacciones)
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (20 segundos)')), 20000)
+            setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (60 segundos)')), 60000)
           })
           
           const createPromise = questionService.createQuestion(questionData, currentUser.uid)
