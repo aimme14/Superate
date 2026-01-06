@@ -1,24 +1,22 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
-  Settings, 
   Users, 
   Building, 
-  Shield,
-  Database,
   Activity,
-  AlertCircle,
-  TrendingUp,
   Server,
   Lock,
-  UserPlus,
   BarChart3,
   Home,
   BookOpen,
-  Brain
+  Brain,
+  ClipboardCheck,
+  Loader2,
+  DollarSign
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
@@ -26,51 +24,70 @@ import InstitutionManagement from '@/components/admin/InstitutionManagement'
 import QuestionBank from '@/components/admin/QuestionBank'
 import PhaseAuthorizationManagement from '@/components/admin/PhaseAuthorizationManagement'
 import StudyPlanAuthorizationManagement from '@/components/admin/StudyPlanAuthorizationManagement'
+import { useAdminStats } from '@/hooks/query/useAdminStats'
+import DailyUsageChart from '@/components/admin/DailyUsageChart'
+import MonthlyRevenueChart from '@/components/admin/MonthlyRevenueChart'
+import { useInstitutionUserCounts } from '@/hooks/query/useInstitutionUserCounts'
+import AdminAnalysis from '@/components/admin/AdminAnalysis'
+import { useAdminAnalysis } from '@/hooks/query/useAdminAnalysis'
+import { useGradeAnalysis } from '@/hooks/query/useGradeAnalysis'
+import { useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
 export default function AdminDashboard({ theme }: AdminDashboardProps) {
-  // const { userRole, permissions } = useRole()
   const [activeTab, setActiveTab] = useState('overview')
+  const currentYear = new Date().getFullYear()
+  const [filterYear, setFilterYear] = useState<number>(currentYear)
+  const [filterBudgetYear, setFilterBudgetYear] = useState<string | number>(currentYear)
+  
+  const { totalUsers, totalInstitutions, activeSessions, systemUptimeDays, totalCompletedExams, isLoading } = useAdminStats()
+  const { data: institutionUserCounts, isLoading: isLoadingInstitutions } = useInstitutionUserCounts(filterYear)
+  const { data: budgetInstitutionUserCounts, isLoading: isLoadingBudgetInstitutions } = useInstitutionUserCounts(
+    filterBudgetYear === 'total' ? undefined : (typeof filterBudgetYear === 'number' ? filterBudgetYear : parseInt(filterBudgetYear.toString()))
+  )
 
-  // Datos de ejemplo para el dashboard del administrador
-  const dashboardData = {
-    systemStats: {
-      totalUsers: 15420,
-      totalInstitutions: 125,
-      activeSessions: 2847,
-      systemUptime: 99.9
-    },
-    performanceMetrics: {
-      responseTime: 145,
-      errorRate: 0.02,
-      cpuUsage: 45.2,
-      memoryUsage: 67.8
-    },
-    recentActivities: [
-      { id: 1, type: 'user_created', title: 'Nuevo usuario registrado: Institución XYZ', time: '5 minutos atrás' },
-      { id: 2, type: 'system_update', title: 'Actualización del sistema completada', time: '1 hora atrás' },
-      { id: 3, type: 'backup_completed', title: 'Respaldo de base de datos completado', time: '2 horas atrás' },
-      { id: 4, type: 'security_alert', title: 'Intento de acceso no autorizado bloqueado', time: '3 horas atrás' },
-    ],
-    systemAlerts: [
-      { id: 1, type: 'warning', message: 'Uso de CPU elevado en servidor principal', priority: 'medium' },
-      { id: 2, type: 'info', message: 'Actualización de seguridad disponible', priority: 'low' },
-      { id: 3, type: 'success', message: 'Todos los sistemas funcionando correctamente', priority: 'low' },
-    ],
-    userActivity: [
-      { institution: 'Colegio San José', users: 450, lastActivity: '2 minutos atrás', status: 'active' },
-      { institution: 'Instituto Nacional', users: 320, lastActivity: '5 minutos atrás', status: 'active' },
-      { institution: 'Escuela Primaria ABC', users: 180, lastActivity: '10 minutos atrás', status: 'active' },
-      { institution: 'Liceo Moderno', users: 280, lastActivity: '15 minutos atrás', status: 'active' },
-    ],
-    securityMetrics: {
-      blockedAttempts: 23,
-      successfulLogins: 15420,
-      failedLogins: 45,
-      securityScore: 98.5
+  // Estados para filtros del ranking
+  const [filterRankingGrade, setFilterRankingGrade] = useState<string>('all')
+  const [filterRankingJornada, setFilterRankingJornada] = useState<string>('all')
+  const [filterRankingYear, setFilterRankingYear] = useState<number>(currentYear)
+
+  // Obtener datos para el ranking
+  const { data: rankingAnalysis } = useAdminAnalysis(
+    filterRankingJornada !== 'all' ? filterRankingJornada as 'mañana' | 'tarde' | 'única' : undefined,
+    filterRankingYear
+  )
+  
+  const { data: rankingGradeAnalysis, isLoading: isLoadingRankingGradeAnalysis } = useGradeAnalysis(
+    filterRankingGrade !== 'all' ? filterRankingGrade : '',
+    filterRankingGrade !== 'all',
+    filterRankingJornada !== 'all' ? filterRankingJornada as 'mañana' | 'tarde' | 'única' : undefined,
+    filterRankingYear
+  )
+
+  const { options: gradeOptions } = useAllGradeOptions()
+
+  // Obtener todos los grados únicos disponibles
+  const uniqueGrades = useMemo(() => {
+    const gradeSet = new Set<string>()
+    gradeOptions.forEach(grade => {
+      if (grade.label) {
+        gradeSet.add(grade.label)
+      }
+    })
+    return Array.from(gradeSet).sort()
+  }, [gradeOptions])
+
+  // Datos para el ranking: usar datos filtrados según filtros del ranking
+  const rankingData = useMemo(() => {
+    // Si hay un filtro de grado activo en el ranking, usar los datos del análisis por grado
+    if (filterRankingGrade !== 'all' && rankingGradeAnalysis) {
+      return rankingGradeAnalysis
     }
-  }
+    
+    // Si no hay filtro de grado, usar datos generales
+    return rankingAnalysis || []
+  }, [rankingAnalysis, filterRankingGrade, rankingGradeAnalysis])
 
   return (
     <div className="space-y-6">
@@ -118,14 +135,14 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           </TabsTrigger>
           <TabsTrigger value="analytics" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <BarChart3 className="h-4 w-4" />
-            <span>Analíticas</span>
+            <span>Análisis</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
 
       {/* Estadísticas principales del sistema */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
@@ -134,12 +151,20 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
             <Users className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.systemStats.totalUsers.toLocaleString()}
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              +125 esta semana
-            </p>
+            {isLoading ? (
+              <div className={cn('text-2xl font-bold animate-pulse', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                Cargando...
+              </div>
+            ) : (
+              <>
+                <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {totalUsers.toLocaleString()}
+                </div>
+                <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Todos los roles
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -151,12 +176,20 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
             <Building className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.systemStats.totalInstitutions}
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              Activas
-            </p>
+            {isLoading ? (
+              <div className={cn('text-2xl font-bold animate-pulse', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                Cargando...
+              </div>
+            ) : (
+              <>
+                <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {totalInstitutions}
+                </div>
+                <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Total registradas
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -168,12 +201,20 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
             <Activity className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.systemStats.activeSessions.toLocaleString()}
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              En tiempo real
-            </p>
+            {isLoading ? (
+              <div className={cn('text-2xl font-bold animate-pulse', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                Cargando...
+              </div>
+            ) : (
+              <>
+                <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {activeSessions.toLocaleString()}
+                </div>
+                <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
+                  Actualizado cada 5 min
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -185,233 +226,379 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
             <Server className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.systemStats.systemUptime}%
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              Excelente
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Métricas de rendimiento del sistema */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              Tiempo de Respuesta
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.performanceMetrics.responseTime}ms
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              Óptimo
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              Tasa de Error
-            </CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.performanceMetrics.errorRate}%
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              Muy bajo
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              Uso de CPU
-            </CardTitle>
-            <Database className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.performanceMetrics.cpuUsage}%
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-              Normal
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              Uso de Memoria
-            </CardTitle>
-            <Server className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {dashboardData.performanceMetrics.memoryUsage}%
-            </div>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-amber-400' : 'text-amber-600')}>
-              Moderado
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Alertas del sistema */}
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-        <CardHeader>
-          <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            <Shield className="h-5 w-5 text-blue-500" />
-            Alertas del Sistema
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {dashboardData.systemAlerts.map((alert) => (
-              <div key={alert.id} className={cn("flex items-center justify-between p-3 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
-                <div className="flex items-center space-x-3">
-                  <div className={`w-2 h-2 rounded-full ${
-                    alert.priority === 'high' ? 'bg-red-500' : 
-                    alert.priority === 'medium' ? 'bg-amber-500' : 'bg-green-500'
-                  }`} />
-                  <p className={cn('text-sm', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {alert.message}
-                  </p>
-                </div>
-                <Badge variant={alert.priority === 'high' ? 'destructive' : 'secondary'} className={cn(theme === 'dark' && alert.priority !== 'high' ? 'bg-zinc-700 text-white border-zinc-600' : '')}>
-                  {alert.priority === 'high' ? 'Crítico' : alert.priority === 'medium' ? 'Medio' : 'Bajo'}
-                </Badge>
+            {isLoading ? (
+              <div className={cn('text-2xl font-bold animate-pulse', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                Cargando...
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            ) : (
+              <>
+                <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {systemUptimeDays}
+                </div>
+                <p className={cn('text-xs', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
+                  {systemUptimeDays === 1 ? 'día en operación' : 'días en operación'}
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+              Pruebas Presentadas
+            </CardTitle>
+            <ClipboardCheck className="h-4 w-4 text-indigo-500" />
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className={cn('text-2xl font-bold animate-pulse', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                Cargando...
+              </div>
+            ) : (
+              <>
+                <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {totalCompletedExams.toLocaleString()}
+                </div>
+                <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Exámenes completados
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex-1">
+              <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                Presupuesto Total
+              </CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select 
+                value={filterBudgetYear.toString()} 
+                onValueChange={(value) => setFilterBudgetYear(value === 'total' ? 'total' : parseInt(value))}
+              >
+                <SelectTrigger className={cn("w-[110px] h-7 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                  <SelectValue placeholder="Año" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="total">Total</SelectItem>
+                  {Array.from({ length: 5 }, (_, i) => currentYear - i).map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <DollarSign className="h-4 w-4 text-green-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoadingBudgetInstitutions ? (
+              <div className={cn('text-2xl font-bold animate-pulse', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                Cargando...
+              </div>
+            ) : (
+              <>
+                <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  ${(() => {
+                    const totalStudents = budgetInstitutionUserCounts.reduce((sum, inst) => sum + inst.students, 0)
+                    const totalBudget = totalStudents * 120000
+                    return totalBudget.toLocaleString('es-CO')
+                  })()}
+                </div>
+                <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Ingresos esperados ({(() => {
+                    const totalStudents = budgetInstitutionUserCounts.reduce((sum, inst) => sum + inst.students, 0)
+                    return totalStudents.toLocaleString('es-CO')
+                  })()} estudiantes × $120.000)
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gráfica de uso diario */}
+      <DailyUsageChart theme={theme} />
+
+      {/* Gráfica de ingresos mensuales */}
+      <MonthlyRevenueChart theme={theme} />
 
       {/* Contenido principal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Actividades recientes del sistema */}
+        {/* Ranking de Instituciones */}
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader>
-            <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              Actividades del Sistema
-            </CardTitle>
-            <CardDescription>
-              Últimas acciones y eventos del sistema
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {dashboardData.recentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-center space-x-3">
-                <div className="flex-shrink-0">
-                  {activity.type === 'user_created' && <UserPlus className="h-5 w-5 text-green-500" />}
-                  {activity.type === 'system_update' && <Settings className="h-5 w-5 text-blue-500" />}
-                  {activity.type === 'backup_completed' && <Database className="h-5 w-5 text-purple-500" />}
-                  {activity.type === 'security_alert' && <Lock className="h-5 w-5 text-red-500" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {activity.title}
-                  </p>
-                  <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    {activity.time}
-                  </p>
-                </div>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  Ranking de Instituciones
+                </CardTitle>
+                <CardDescription>
+                  Ordenadas por puntaje de Fase III
+                </CardDescription>
               </div>
-            ))}
+              <div className="ml-4 flex gap-2">
+                <Select value={filterRankingGrade} onValueChange={setFilterRankingGrade}>
+                  <SelectTrigger className={cn("w-[180px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                    <SelectValue placeholder="Todos los grados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los grados</SelectItem>
+                    {uniqueGrades.map((gradeName) => (
+                      <SelectItem key={gradeName} value={gradeName}>
+                        {gradeName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={filterRankingJornada} onValueChange={setFilterRankingJornada}>
+                  <SelectTrigger className={cn("w-[150px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                    <SelectValue placeholder="Todas las jornadas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las jornadas</SelectItem>
+                    <SelectItem value="mañana">Mañana</SelectItem>
+                    <SelectItem value="tarde">Tarde</SelectItem>
+                    <SelectItem value="única">Única</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filterRankingYear.toString()} onValueChange={(value) => setFilterRankingYear(parseInt(value))}>
+                  <SelectTrigger className={cn("w-[140px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                    <SelectValue placeholder="Año" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => currentYear - i).map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto">
+              {isLoadingRankingGradeAnalysis && filterRankingGrade !== 'all' ? (
+                <div className={cn("flex items-center justify-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  <div className="text-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-500 mx-auto mb-2" />
+                    <p>Cargando datos del ranking...</p>
+                  </div>
+                </div>
+              ) : rankingData.length === 0 ? (
+                <p className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  No hay datos disponibles para el ranking
+                </p>
+              ) : (
+                rankingData
+                  .sort((a, b) => {
+                    const phase3A = a.phaseStats?.phase3?.average || 0
+                    const phase3B = b.phaseStats?.phase3?.average || 0
+                    return phase3B - phase3A
+                  })
+                  .map((inst, index) => {
+                    const phase3Score = inst.phaseStats?.phase3?.average || 0
+                    const phase3Exams = inst.phaseStats?.phase3?.count || 0
+                    return (
+                      <div
+                        key={inst.institutionId}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-lg border",
+                          theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50'
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className={cn(
+                            theme === 'dark' ? 'border-zinc-600' : ''
+                          )}>
+                            #{index + 1}
+                          </Badge>
+                          <div>
+                            <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                              {inst.institutionName}
+                            </p>
+                            <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                              {inst.totalStudents} estudiantes · {phase3Exams} exámenes
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={cn("font-bold text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                            {Math.round(phase3Score)}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Actividad de instituciones */}
+        {/* Usuarios por institución */}
         <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
           <CardHeader>
-            <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              Actividad por Institución
-            </CardTitle>
-            <CardDescription>
-              Usuarios activos por institución
-            </CardDescription>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  Usuarios por Institución
+                </CardTitle>
+                <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Cantidad de usuarios activos por institución
+                </CardDescription>
+              </div>
+              <div className="ml-4">
+                <Select 
+                  value={filterYear.toString()} 
+                  onValueChange={(value) => setFilterYear(parseInt(value))}
+                >
+                  <SelectTrigger className={cn("w-[140px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+                    <SelectValue placeholder="Año" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => currentYear - i).map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {dashboardData.userActivity.map((institution, index) => (
-              <div key={index} className={cn("flex items-center justify-between p-3 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
-                <div>
-                  <p className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {institution.institution}
-                  </p>
-                  <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    {institution.users} usuarios activos
-                  </p>
-                </div>
-                <div className="text-right">
-                  <Badge variant={institution.status === 'active' ? 'default' : 'secondary'} className={cn(theme === 'dark' && institution.status === 'active' ? 'bg-blue-600 text-white' : theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600' : '')}>
-                    {institution.status === 'active' ? 'Activo' : 'Inactivo'}
-                  </Badge>
-                  <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    {institution.lastActivity}
-                  </p>
-                </div>
+            {isLoadingInstitutions ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className={cn("p-3 rounded-lg border animate-pulse", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
+                    <div className={cn("h-4 w-3/4 rounded mb-2", theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-200')} />
+                    <div className={cn("h-3 w-1/2 rounded", theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-200')} />
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : institutionUserCounts.length === 0 ? (
+              <div className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                <Building className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No hay instituciones registradas</p>
+              </div>
+            ) : (
+              institutionUserCounts.map((institution) => (
+                <div 
+                  key={institution.institutionId} 
+                  className={cn(
+                    "p-4 rounded-lg border transition-all",
+                    theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200',
+                    !institution.isActive && 'opacity-60'
+                  )}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('font-medium truncate mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {institution.institutionName}
+                      </p>
+                      <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                        {institution.userCount.toLocaleString()} {institution.userCount === 1 ? 'usuario' : 'usuarios'}
+                      </p>
+                    </div>
+                    <div className="ml-4 flex-shrink-0">
+                      <Badge 
+                        variant={institution.isActive ? 'default' : 'secondary'} 
+                        className={cn(
+                          theme === 'dark' && institution.isActive 
+                            ? 'bg-blue-600 text-white' 
+                            : theme === 'dark' 
+                              ? 'bg-zinc-700 text-white border-zinc-600' 
+                              : ''
+                        )}
+                      >
+                        {institution.isActive ? 'Activa' : 'Inactiva'}
+                      </Badge>
+                    </div>
+                  </div>
+                  
+                  {/* Desglose por rol */}
+                  <div className={cn(
+                    "grid grid-cols-2 md:grid-cols-4 gap-2 pt-3 border-t",
+                    theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+                  )}>
+                    <div className="text-center">
+                      <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Rectores
+                      </p>
+                      <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {institution.rectors}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Coordinadores
+                      </p>
+                      <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {institution.coordinators}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Docentes
+                      </p>
+                      <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {institution.teachers}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        Estudiantes
+                      </p>
+                      <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {institution.students}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Desglose por jornada (solo si hay estudiantes) */}
+                  {institution.students > 0 && (
+                    <div className={cn(
+                      "grid grid-cols-3 gap-2 pt-3 border-t",
+                      theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+                    )}>
+                      <div className="text-center">
+                        <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          Mañana
+                        </p>
+                        <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                          {institution.jornadaManana || 0}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          Tarde
+                        </p>
+                        <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                          {institution.jornadaTarde || 0}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          Única
+                        </p>
+                        <p className={cn('text-sm font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                          {institution.jornadaUnica || 0}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Métricas de seguridad */}
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-        <CardHeader>
-          <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            Métricas de Seguridad
-          </CardTitle>
-          <CardDescription>
-            Estadísticas de seguridad y acceso
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-                {dashboardData.securityMetrics.blockedAttempts}
-              </div>
-              <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Intentos Bloqueados
-              </p>
-            </div>
-            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-                {dashboardData.securityMetrics.successfulLogins.toLocaleString()}
-              </div>
-              <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Accesos Exitosos
-              </p>
-            </div>
-            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')}>
-                {dashboardData.securityMetrics.failedLogins}
-              </div>
-              <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Accesos Fallidos
-              </p>
-            </div>
-            <div className={cn("text-center p-4 rounded-lg border", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200')}>
-              <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
-                {dashboardData.securityMetrics.securityScore}%
-              </div>
-              <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Puntuación de Seguridad
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
         </TabsContent>
 
         <TabsContent value="users">
@@ -435,27 +622,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
         </TabsContent>
 
         <TabsContent value="analytics">
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardHeader>
-              <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                Analíticas del Sistema
-              </CardTitle>
-              <CardDescription>
-                Métricas y estadísticas del sistema educativo
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <BarChart3 className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                <h3 className={cn('text-lg font-medium mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  Analíticas Avanzadas
-                </h3>
-                <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  Próximamente: gráficos detallados, reportes de rendimiento y métricas avanzadas
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <AdminAnalysis theme={theme} />
         </TabsContent>
       </Tabs>
     </div>

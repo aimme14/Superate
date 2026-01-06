@@ -5,6 +5,7 @@ import { useAuthContext } from '@/context/AuthContext'
 import ScrollToTop from '@/hooks/ui/useScrollTop'
 import { useState, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import { useUserActivity } from '@/hooks/useUserActivity'
 
 import { AnimatedBackground as AnimatedBG } from '#/layout/AnimatedBackground'
 import { SidebarInset, SidebarProvider } from '#/ui/sidebar'
@@ -19,6 +20,9 @@ const RootLayout = () => {
   const location = useLocation()
   const [openSidebar, setOpenSidebar] = useState(true)
   const isExpanded = !isAuth || (user?.displayName === 'aimme')
+  
+  // Rastrear actividad del usuario para sesiones activas
+  useUserActivity()
   
   // Detectar si estamos en la ruta de quiz
   const isQuizRoute = location.pathname.startsWith('/quiz')
