@@ -165,7 +165,7 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
         if (rectorId) {
           try {
             const userResult = await dbService.getUserById(rectorId)
-            if (userResult.success && userResult.data) {
+            if (userResult.success) {
               // Combinar los datos de la estructura jerárquica con los datos completos del usuario
               rectorData = {
                 ...userResult.data,
@@ -174,7 +174,8 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
                 uid: rectorId // Asegurar que el UID esté presente
               }
             } else {
-              console.warn(`⚠️ No se pudieron obtener los datos completos del rector ${rectorId}:`, userResult.error)
+              // TypeScript sabe que aquí userResult.success es false, así que tiene error
+              console.warn(`⚠️ No se pudieron obtener los datos completos del rector ${rectorId}:`, userResult.error.message)
               // Usar los datos de la estructura jerárquica como fallback
               rectorData = {
                 ...institution.rector,
