@@ -40,6 +40,20 @@ export const createPrincipal = async (data: CreatePrincipalData): Promise<Result
       return failure(new ErrorAPI({ message: 'Nombre, email, institución y sede son obligatorios', statusCode: 400 }))
     }
 
+    // Validar que la institución esté activa
+    const institutionResult = await dbService.getInstitutionById(data.institutionId)
+    if (!institutionResult.success) {
+      return failure(new ErrorAPI({ message: 'Institución no encontrada', statusCode: 404 }))
+    }
+    
+    const institution = institutionResult.data
+    if (institution.isActive !== true) {
+      return failure(new ErrorAPI({ 
+        message: 'No se pueden crear usuarios para una institución inactiva. Por favor, activa la institución primero.', 
+        statusCode: 400 
+      }))
+    }
+
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = data.password || data.name.toLowerCase().replace(/\s+/g, '') + '123'
     console.log('🔐 Contraseña generada para coordinador (longitud):', generatedPassword.length)

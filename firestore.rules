@@ -72,16 +72,20 @@ service cloud.firestore {
     
     // Colección de instituciones
     match /superate/auth/institutions/{institutionId} {
-      // Solo usuarios activos pueden leer instituciones activas
-      allow read: if canAccess() && 
-        (!exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) ||
-         get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true);
+      // Los admins pueden leer todas las instituciones (activas e inactivas)
+      // Los usuarios regulares solo pueden leer instituciones activas
+      allow read: if isAdmin() || 
+        (canAccess() && 
+         (!exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) ||
+          get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true));
       
       // Solo admins activos pueden crear, actualizar o eliminar instituciones
       // Al crear, isActive debe estar presente
       allow create: if isAdmin() &&
         request.resource.data.isActive != null;
       
+      // Los admins pueden actualizar instituciones incluso si están inactivas
+      // Esto permite reactivar instituciones
       allow update: if isAdmin() &&
         // Permitir cambiar isActive solo a admin
         (request.resource.data.isActive == true || request.resource.data.isActive == false);

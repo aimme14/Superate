@@ -948,9 +948,12 @@ interface InstitutionManagementProps {
 }
 
 export default function InstitutionManagement({ theme }: InstitutionManagementProps) {
-  const { notifySuccess, notifyError } = useNotification()
+  const { notifySuccess, notifyError, notifyInfo } = useNotification()
   const { data: institutions = [], isLoading, error } = useInstitutions()
   const { createCampus, createGrade, updateInstitution, deleteInstitution, updateCampus, deleteCampus, updateGrade, deleteGrade } = useInstitutionMutations()
+  
+  // Estado local para controlar el loading del botón de actualizar
+  const [isUpdating, setIsUpdating] = useState(false)
   
   // Obtener rectores y coordinadores para los selects
   const { data: allRectors = [] } = useRectors()
@@ -1317,21 +1320,55 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       return
     }
 
+    if (isUpdating) return // Prevenir múltiples clics
+
+    setIsUpdating(true)
+    
     try {
       // Convertir 'none' a string vacío antes de guardar
       const dataToSave = {
         ...editInstitution,
         rector: editInstitution.rector === 'none' ? '' : editInstitution.rector
       }
-      await updateInstitution.mutateAsync({
+      
+      // Mostrar notificación de proceso
+      const isActivationChange = editInstitution.isActive !== selectedInstitution.isActive
+      if (isActivationChange) {
+        notifyInfo({ 
+          title: 'Procesando...', 
+          message: editInstitution.isActive 
+            ? 'Activando institución y actualizando componentes...' 
+            : 'Desactivando institución y actualizando componentes...'
+        })
+      }
+      
+      const result = await updateInstitution.mutateAsync({
         id: selectedInstitution.id,
         data: dataToSave
       })
+      
+      // Verificar que la actualización fue exitosa
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Error al actualizar la institución')
+      }
+      
       setIsEditInstitutionDialogOpen(false)
+      setIsUpdating(false)
+      
       // El efecto sincronizará el estado automáticamente
-      notifySuccess({ title: 'Éxito', message: 'Institución actualizada correctamente' })
-    } catch (error) {
-      notifyError({ title: 'Error', message: 'Error al actualizar la institución' })
+      notifySuccess({ 
+        title: 'Éxito', 
+        message: isActivationChange 
+          ? `Institución ${editInstitution.isActive ? 'activada' : 'desactivada'} correctamente. Los usuarios se están actualizando en segundo plano.`
+          : 'Institución actualizada correctamente'
+      })
+    } catch (error: any) {
+      console.error('Error al actualizar institución:', error)
+      setIsUpdating(false)
+      notifyError({ 
+        title: 'Error', 
+        message: error?.message || 'Error al actualizar la institución. Por favor, intenta nuevamente.' 
+      })
     }
   }
 
@@ -2047,16 +2084,37 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                   />
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="editInstitutionActive"
-                    checked={editInstitution.isActive}
-                    onChange={(e) => setEditInstitution(prev => ({ ...prev, isActive: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <Label htmlFor="editInstitutionActive" className={cn('font-bold', theme === 'dark' ? 'text-gray-300' : 'text-black')}>Institución activa</Label>
+                <div className={cn("flex items-center justify-between p-4 rounded-lg border", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="editInstitutionActive"
+                      checked={editInstitution.isActive}
+                      onChange={(e) => setEditInstitution(prev => ({ ...prev, isActive: e.target.checked }))}
+                      className="w-5 h-5 rounded cursor-pointer"
+                    />
+                    <Label htmlFor="editInstitutionActive" className={cn('font-bold cursor-pointer', theme === 'dark' ? 'text-gray-300' : 'text-black')}>
+                      Institución activa
+                    </Label>
+                  </div>
+                  <Badge variant={editInstitution.isActive ? 'default' : 'secondary'} className="ml-2">
+                    {editInstitution.isActive ? 'Activa' : 'Inactiva'}
+                  </Badge>
                 </div>
+                {!editInstitution.isActive && (
+                  <div className={cn("p-3 rounded-lg border", theme === 'dark' ? 'bg-amber-900/20 border-amber-700 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800')}>
+                    <p className="text-sm font-semibold">
+                      ⚠️ Al desactivar esta institución, también se desactivarán automáticamente todos sus campus, grados y usuarios asociados.
+                    </p>
+                  </div>
+                )}
+                {editInstitution.isActive && selectedInstitution && !selectedInstitution.isActive && (
+                  <div className={cn("p-3 rounded-lg border", theme === 'dark' ? 'bg-green-900/20 border-green-700 text-green-300' : 'bg-green-50 border-green-200 text-green-800')}>
+                    <p className="text-sm font-semibold">
+                      ✅ Al reactivar esta institución, también se reactivarán automáticamente todos sus campus, grados y usuarios asociados.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2196,8 +2254,19 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             <Button variant="outline" onClick={() => setIsEditInstitutionDialogOpen(false)} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdateInstitution} className="bg-black text-white hover:bg-gray-800">
-              Actualizar Institución
+            <Button 
+              onClick={handleUpdateInstitution} 
+              disabled={isUpdating || updateInstitution.isPending}
+              className="bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isUpdating || updateInstitution.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Actualizando...
+                </>
+              ) : (
+                'Actualizar Institución'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

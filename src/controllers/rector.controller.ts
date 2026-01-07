@@ -52,6 +52,20 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
       return failure(new ErrorAPI({ message: 'El formato del email no es válido', statusCode: 400 }))
     }
 
+    // Validar que la institución esté activa
+    const institutionResult = await dbService.getInstitutionById(data.institutionId)
+    if (!institutionResult.success) {
+      return failure(new ErrorAPI({ message: 'Institución no encontrada', statusCode: 404 }))
+    }
+    
+    const institution = institutionResult.data
+    if (institution.isActive !== true) {
+      return failure(new ErrorAPI({ 
+        message: 'No se pueden crear usuarios para una institución inactiva. Por favor, activa la institución primero.', 
+        statusCode: 400 
+      }))
+    }
+
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = data.password || data.name.toLowerCase().replace(/\s+/g, '') + '123'
     console.log('🔐 Contraseña generada para rector (longitud):', generatedPassword.length)
@@ -97,12 +111,12 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
 
     // Crear también en la estructura jerárquica de instituciones
     console.log('📊 Agregando rector a la estructura jerárquica de instituciones...')
-    const institutionResult = await dbService.addRectorToInstitution(data.institutionId, {
+    const addRectorResult = await dbService.addRectorToInstitution(data.institutionId, {
       ...rectorData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
-    if (!institutionResult.success) {
-      console.warn('⚠️ No se pudo crear el rector en la estructura jerárquica:', institutionResult.error)
+    if (!addRectorResult.success) {
+      console.warn('⚠️ No se pudo crear el rector en la estructura jerárquica:', addRectorResult.error)
       // No es crítico, el usuario ya existe en Firestore
     } else {
       console.log('✅ Rector agregado a la estructura jerárquica de instituciones')
@@ -138,8 +152,49 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
     }
 
     const rectors: any[] = []
-    institutionsResult.data.forEach((institution: any) => {
+    
+    // Procesar cada institución
+    for (const institution of institutionsResult.data) {
       if (institution.rector) {
+        // Obtener el UID o ID del rector
+        const rectorId = institution.rector.uid || institution.rector.id
+        
+        // Obtener los datos completos del rector desde la colección de usuarios
+        let rectorData = { ...institution.rector }
+        
+        if (rectorId) {
+          try {
+            const userResult = await dbService.getUserById(rectorId)
+            if (userResult.success && userResult.data) {
+              // Combinar los datos de la estructura jerárquica con los datos completos del usuario
+              rectorData = {
+                ...userResult.data,
+                ...institution.rector, // Los datos de la estructura jerárquica tienen prioridad para campos específicos
+                id: rectorId, // Asegurar que el ID esté presente
+                uid: rectorId // Asegurar que el UID esté presente
+              }
+            } else {
+              console.warn(`⚠️ No se pudieron obtener los datos completos del rector ${rectorId}:`, userResult.error)
+              // Usar los datos de la estructura jerárquica como fallback
+              rectorData = {
+                ...institution.rector,
+                id: rectorId,
+                uid: rectorId
+              }
+            }
+          } catch (error) {
+            console.warn(`⚠️ Error al obtener datos del rector ${rectorId}:`, error)
+            // Usar los datos de la estructura jerárquica como fallback
+            rectorData = {
+              ...institution.rector,
+              id: rectorId,
+              uid: rectorId
+            }
+          }
+        } else {
+          console.warn(`⚠️ Rector sin UID o ID en la institución ${institution.id}`)
+        }
+
         // Calcular estadísticas para el rector
         let campusCount = 0
         let principalCount = 0
@@ -170,19 +225,20 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
         }
 
         rectors.push({
-          ...institution.rector,
+          ...rectorData,
           institutionName: institution.name,
           institutionId: institution.id,
           campusCount,
           principalCount,
           teacherCount,
-          studentCount: institution.rector.studentCount || 0 // Usar el contador actualizado del rector
+          studentCount: institution.rector.studentCount || studentCount
         })
       }
-    })
+    }
 
     return success(rectors)
   } catch (error) {
+    console.error('❌ Error al obtener rectores:', error)
     return failure(new ErrorAPI({ message: 'Error al obtener rectores', statusCode: 500 }))
   }
 }

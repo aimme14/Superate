@@ -31,6 +31,22 @@ export const createUserByAdmin = async (userData: CreateUserData): Promise<Resul
       throw new Error('Solo se pueden crear usuarios con rol de docente o rector')
     }
 
+    // Validar que la institución esté activa
+    if (institution) {
+      const institutionResult = await dbService.getInstitutionById(institution)
+      if (!institutionResult.success) {
+        return failure(new ErrorAPI({ message: 'Institución no encontrada', statusCode: 404 }))
+      }
+      
+      const institutionData = institutionResult.data
+      if (institutionData.isActive !== true) {
+        return failure(new ErrorAPI({ 
+          message: 'No se pueden crear usuarios para una institución inactiva. Por favor, activa la institución primero.', 
+          statusCode: 400 
+        }))
+      }
+    }
+
     // Crear cuenta en Firebase Auth
     const userAccount = await authFB.registerAccount(username, email, password)
     if (!userAccount.success) throw userAccount.error

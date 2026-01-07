@@ -60,15 +60,21 @@ export const useInstitution = (id: string, enabled: boolean = true) => {
 }
 
 // Hook para obtener instituciones como opciones para select
-export const useInstitutionOptions = () => {
+export const useInstitutionOptions = (onlyActive: boolean = false) => {
   const { data: institutions, isLoading, error } = useInstitutions()
   
-  const options = institutions?.map(institution => ({
+  // Filtrar por estado activo si se solicita (útil para formularios de creación de usuarios)
+  const filteredInstitutions = onlyActive 
+    ? institutions?.filter(institution => institution.isActive === true) || []
+    : institutions || []
+  
+  const options = filteredInstitutions.map(institution => ({
     label: institution.name,
     value: institution.id,
     type: institution.type,
-    campuses: institution.campuses
-  })) || []
+    campuses: institution.campuses,
+    isActive: institution.isActive
+  }))
 
   return {
     options,

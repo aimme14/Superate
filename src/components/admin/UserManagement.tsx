@@ -492,30 +492,52 @@ interface RectorCardProps {
 function RectorCard({ rector, theme, onEdit, onDelete }: RectorCardProps) {
   const [showCampuses, setShowCampuses] = useState(false)
   
+  // Validar que el rector tenga los datos necesarios
+  if (!rector) {
+    return null
+  }
+
+  // Validar que el rector tenga institutionId antes de hacer las consultas
+  const institutionId = rector.institutionId || rector.inst || null
+  
   // Obtener coordinadores, docentes y estudiantes de la institución del rector
+  // Solo hacer la consulta si hay institutionId
   const { principals: coordinators } = useFilteredPrincipals({
-    institutionId: rector.institutionId,
+    institutionId: institutionId || undefined,
     isActive: true
   })
   
   const { teachers } = useFilteredTeachers({
-    institutionId: rector.institutionId,
+    institutionId: institutionId || undefined,
     isActive: true
   })
+
+  // Validar que el rector tenga nombre y email
+  const rectorName = rector.name || 'Sin nombre'
+  const rectorEmail = rector.email || 'Sin email'
+  
+  // Generar iniciales de forma segura
+  const getInitials = (name: string) => {
+    if (!name || typeof name !== 'string') return '??'
+    const parts = name.trim().split(' ').filter(p => p.length > 0)
+    if (parts.length === 0) return '??'
+    if (parts.length === 1) return parts[0][0].toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
 
   return (
     <div className={cn('p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-gray-50')}>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium">
-            {rector.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+            {getInitials(rectorName)}
           </div>
           <div>
             <h3 className={cn('font-medium text-lg', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {rector.name}
+              {rectorName}
             </h3>
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              {rector.email}
+              {rectorEmail}
             </p>
             <div className="flex items-center space-x-4 mt-2">
               <div className="text-sm">
@@ -591,14 +613,21 @@ function RectorCard({ rector, theme, onEdit, onDelete }: RectorCardProps) {
       </div>
 
       {/* Sección expandible para mostrar sedes */}
-      {showCampuses && (
+      {showCampuses && institutionId && (
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-zinc-600">
           <RectorCampusList
             theme={theme}
-            institutionId={rector.institutionId}
+            institutionId={institutionId}
             coordinators={coordinators || []}
             teachers={teachers || []}
           />
+        </div>
+      )}
+      {showCampuses && !institutionId && (
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-zinc-600">
+          <p className={cn('text-sm text-center', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            No se pudo cargar la información de sedes. El rector no tiene una institución asignada.
+          </p>
         </div>
       )}
     </div>
@@ -614,6 +643,15 @@ interface RectorCampusListProps {
 }
 
 function RectorCampusList({ theme, institutionId, coordinators, teachers }: RectorCampusListProps) {
+  // Validar que institutionId exista antes de hacer la consulta
+  if (!institutionId) {
+    return (
+      <div className={cn('text-center py-4 text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+        No se pudo cargar la información de sedes. El rector no tiene una institución asignada.
+      </div>
+    )
+  }
+
   const { options: campusOptions, isLoading } = useCampusOptions(institutionId)
 
   if (isLoading) {
@@ -1085,8 +1123,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
   })
 
 
-  // Obtener opciones dinámicas de instituciones
-  const { options: institutionOptions, isLoading: institutionsLoading } = useInstitutionOptions()
+  // Obtener opciones dinámicas de instituciones - solo activas para crear usuarios
+  const { options: institutionOptions, isLoading: institutionsLoading } = useInstitutionOptions(true)
   
   // Obtener opciones de sedes basadas en la institución seleccionada
   const { options: campusOptions, isLoading: campusLoading } = useCampusOptions(newUser.institution || '')
@@ -1647,60 +1685,79 @@ export default function UserManagement({ theme }: UserManagementProps) {
   }
 
   const handleUpdateStudent = async () => {
+    // Validaciones rápidas antes de iniciar
     if (!selectedStudent || !editStudentData.name || !editStudentData.email) {
       notifyError({ title: 'Error', message: 'Nombre y email son obligatorios' })
       return
     }
 
-    // Validar que se hayan seleccionado institución, sede y grado
     if (!editStudentData.institution || !editStudentData.campus || !editStudentData.grade) {
       notifyError({ title: 'Error', message: 'Institución, sede y grado son obligatorios' })
       return
     }
 
-    // Validar año académico
     if (!editStudentData.academicYear || editStudentData.academicYear.toString().length !== 4) {
       notifyError({ title: 'Error', message: 'El año académico es obligatorio y debe tener 4 dígitos (ej: 2026)' })
       return
     }
 
+    // Preparar datos para actualización - proceso optimizado
+    const updatePayload: any = {
+      name: editStudentData.name,
+      email: editStudentData.email,
+      isActive: editStudentData.isActive,
+      institutionId: editStudentData.institution,
+      campusId: editStudentData.campus,
+      gradeId: editStudentData.grade,
+      academicYear: editStudentData.academicYear
+    }
+    
+    // Agregar campos opcionales solo si tienen valor definido
+    if (editStudentData.userdoc !== undefined && editStudentData.userdoc !== null && editStudentData.userdoc !== '') {
+      updatePayload.userdoc = editStudentData.userdoc
+    }
+    if (editStudentData.representativePhone !== undefined && editStudentData.representativePhone !== null) {
+      updatePayload.representativePhone = editStudentData.representativePhone
+    }
+    if (editStudentData.jornada !== undefined && editStudentData.jornada !== null && editStudentData.jornada !== '') {
+      updatePayload.jornada = editStudentData.jornada
+    }
+    if (editStudentData.phone !== undefined && editStudentData.phone !== null && editStudentData.phone !== '') {
+      updatePayload.phone = editStudentData.phone
+    }
+    
     try {
-      await updateStudent.mutateAsync({
+      // La mutación maneja el estado de carga (isPending) automáticamente
+      // El botón mostrará "Actualizando..." mientras se procesa
+      const result = await updateStudent.mutateAsync({
         studentId: selectedStudent.id,
-        studentData: {
-          name: editStudentData.name,
-          email: editStudentData.email,
-          isActive: editStudentData.isActive,
-          userdoc: editStudentData.userdoc || undefined,
-          // No se envía password para estudiantes
-          institutionId: editStudentData.institution,
-          campusId: editStudentData.campus,
-          gradeId: editStudentData.grade,
-          academicYear: editStudentData.academicYear,
-          representativePhone: editStudentData.representativePhone || undefined,
-          jornada: editStudentData.jornada || undefined
-        }
+        studentData: updatePayload
       })
       
-      notifySuccess({ title: 'Éxito', message: 'Estudiante actualizado correctamente' })
-      setIsEditDialogOpen(false)
-      setSelectedStudent(null)
-      setEditStudentData({
-        name: '',
-        email: '',
-        phone: '',
-        isActive: true,
-        userdoc: '',
-        password: '',
-        institution: '',
-        campus: '',
-        grade: '',
-        academicYear: new Date().getFullYear(),
-        representativePhone: '',
-        jornada: '' as 'mañana' | 'tarde' | 'única' | ''
-      })
+      // Solo cerrar y limpiar si fue exitoso (la mutación ya notificó)
+      if (result.success) {
+        setIsEditDialogOpen(false)
+        setSelectedStudent(null)
+        setEditStudentData({
+          name: '',
+          email: '',
+          phone: '',
+          isActive: true,
+          userdoc: '',
+          password: '',
+          institution: '',
+          campus: '',
+          grade: '',
+          academicYear: new Date().getFullYear(),
+          representativePhone: '',
+          jornada: '' as 'mañana' | 'tarde' | 'única' | ''
+        })
+      }
     } catch (error) {
-      notifyError({ title: 'Error', message: 'Error al actualizar el estudiante' })
+      // El error ya fue manejado por la mutación (onError)
+      // El botón volverá a su estado normal automáticamente
+      console.error('Error al actualizar estudiante:', error)
+      // No cerrar el modal si hay error para que el usuario pueda corregir
     }
   }
 
@@ -2463,7 +2520,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
           <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
             <CardHeader>
               <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                Rectores ({filteredRectors.length})
+                Rectores ({filteredRectors?.length || 0})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -2471,17 +2528,27 @@ export default function UserManagement({ theme }: UserManagementProps) {
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
-              ) : (
+              ) : filteredRectors && Array.isArray(filteredRectors) ? (
                 <div className="space-y-4">
-                  {filteredRectors.map((rector) => (
-                    <RectorCard
-                      key={rector.id}
-                      rector={rector}
-                      theme={theme}
-                      onEdit={handleEditRector}
-                      onDelete={handleDeleteRector}
-                    />
-                  ))}
+                  {filteredRectors.map((rector, index) => {
+                    // Validar que el rector exista
+                    if (!rector) {
+                      return null
+                    }
+                    
+                    // Generar una clave única para el rector (usar índice si no hay ID)
+                    const rectorKey = rector.id || rector.uid || `rector-${index}`
+                    
+                    return (
+                      <RectorCard
+                        key={rectorKey}
+                        rector={rector}
+                        theme={theme}
+                        onEdit={handleEditRector}
+                        onDelete={handleDeleteRector}
+                      />
+                    )
+                  })}
                   {filteredRectors.length === 0 && (
                     <div className="text-center py-8">
                       <p className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
@@ -2489,6 +2556,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
                       </p>
                     </div>
                   )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className={cn('text-gray-500', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                    Error al cargar los rectores. Por favor, intenta recargar la página.
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -2941,13 +3014,26 @@ export default function UserManagement({ theme }: UserManagementProps) {
             </div>
           </div>
           <DialogFooter className="px-6 pb-4 pt-3 border-t border-gray-200 dark:border-zinc-700 shrink-0 bg-inherit">
-            <Button variant="outline" onClick={() => {
-              setIsEditDialogOpen(false)
-              setSelectedTeacher(null)
-              setSelectedPrincipal(null)
-              setSelectedRector(null)
-              setSelectedStudent(null)
-            }} className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsEditDialogOpen(false)
+                setSelectedTeacher(null)
+                setSelectedPrincipal(null)
+                setSelectedRector(null)
+                setSelectedStudent(null)
+              }}
+              disabled={
+                (selectedStudent && updateStudent.isPending) ||
+                (selectedTeacher && updateTeacherInGrade.isPending) ||
+                (selectedPrincipal && updatePrincipal.isPending) ||
+                (selectedRector && updateRector.isPending)
+              }
+              className={cn(
+                theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            >
               Cancelar
             </Button>
             <Button 
@@ -2955,13 +3041,31 @@ export default function UserManagement({ theme }: UserManagementProps) {
                       selectedPrincipal ? handleUpdatePrincipal : 
                       selectedRector ? handleUpdateRector : 
                       handleUpdateStudent} 
-              className="bg-black text-white hover:bg-gray-800"
+              disabled={
+                (selectedStudent && updateStudent.isPending) ||
+                (selectedTeacher && updateTeacherInGrade.isPending) ||
+                (selectedPrincipal && updatePrincipal.isPending) ||
+                (selectedRector && updateRector.isPending)
+              }
+              className="bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
             >
-              Actualizar {selectedTeacher ? 'Docente' : 
-                        selectedPrincipal ? 'Coordinador' : 
-                        selectedRector ? 'Rector' : 
-                        selectedStudent ? 'Estudiante' : 
-                        'Usuario'}
+              {(selectedStudent && updateStudent.isPending) ||
+               (selectedTeacher && updateTeacherInGrade.isPending) ||
+               (selectedPrincipal && updatePrincipal.isPending) ||
+               (selectedRector && updateRector.isPending) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Actualizando...
+                </>
+              ) : (
+                <>
+                  Actualizar {selectedTeacher ? 'Docente' : 
+                            selectedPrincipal ? 'Coordinador' : 
+                            selectedRector ? 'Rector' : 
+                            selectedStudent ? 'Estudiante' : 
+                            'Usuario'}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

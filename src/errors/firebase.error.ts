@@ -140,6 +140,15 @@ class HandlerErrors {
     'storage/server-file-wrong-size': {
       message: 'El tamaño del archivo en el cliente no coincide con el recibido por el servidor',
       errorType: Conflict
+    },
+    // Firebase Firestore - Cuota excedida
+    'resource-exhausted': {
+      message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.',
+      errorType: ErrorAPI
+    },
+    'quota-exceeded': {
+      message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.',
+      errorType: ErrorAPI
     }
   }
 }

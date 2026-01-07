@@ -176,6 +176,20 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
       return failure(new ErrorAPI({ message: 'Institución, sede y grado son obligatorios para el registro', statusCode: 400 }))
     }
     
+    // Validar que la institución esté activa
+    const institutionResult = await dbService.getInstitutionById(inst)
+    if (!institutionResult.success) {
+      return failure(new ErrorAPI({ message: 'Institución no encontrada', statusCode: 404 }))
+    }
+    
+    const institution = institutionResult.data
+    if (institution.isActive !== true) {
+      return failure(new ErrorAPI({ 
+        message: 'No se pueden crear usuarios para una institución inactiva. Por favor, contacta al administrador del sistema.', 
+        statusCode: 400 
+      }))
+    }
+    
     // Generamos la contraseña automáticamente a partir del documento más un 0
     const generatedPassword = userdoc + '0'
 

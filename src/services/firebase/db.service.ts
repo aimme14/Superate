@@ -128,24 +128,239 @@ class DatabaseService {
   }
 
   /**
-   * Actualiza un usuario existente.
-   * @param {Partial<User>} user - El usuario con los nuevos datos.
-   * @returns {Promise<Result<void>>} Actualiza un usuario.
+   * Limpia recursivamente valores undefined, null problemáticos y normaliza los datos
+   * @param obj - Objeto a limpiar
+   * @param depth - Profundidad actual para evitar recursión infinita
+   * @param excludeFields - Campos a excluir en el nivel raíz
+   * @returns Objeto limpio
    */
-  async updateUser(id: string, { ...user }: any): Promise<Result<void>> {
+  private deepCleanData(obj: any, depth: number = 0, excludeFields: string[] = ['role', 'uid', 'id', 'createdAt']): any {
+    // Protección contra recursión infinita
+    if (depth > 10) {
+      console.warn('⚠️ Profundidad máxima alcanzada al limpiar datos')
+      return null
+    }
+
+    // Manejar null y undefined
+    if (obj === null || obj === undefined) {
+      return undefined // Retornar undefined para que se filtre
+    }
+
+    // Manejar arrays
+    if (Array.isArray(obj)) {
+      const cleaned = obj
+        .map(item => this.deepCleanData(item, depth + 1, []))
+        .filter(item => item !== null && item !== undefined)
+      return cleaned.length > 0 ? cleaned : undefined
+    }
+
+    // Manejar objetos
+    if (typeof obj === 'object' && obj.constructor === Object) {
+      const cleaned: any = {}
+      let hasValidFields = false
+      
+      for (const [key, value] of Object.entries(obj)) {
+        // Excluir campos que no deben actualizarse solo en el nivel raíz
+        if (depth === 0 && excludeFields.includes(key)) {
+          continue
+        }
+        
+        // PRESERVAR el nombre original de la clave (no capitalizar)
+        // Limpiar recursivamente (sin excluir campos en niveles anidados)
+        const cleanedValue = this.deepCleanData(value, depth + 1, [])
+        
+        // Solo agregar si el valor no es undefined
+        // PERMITIR valores falsy válidos: 0, '', false, null (si es intencional)
+        if (cleanedValue !== undefined) {
+          // Preservar el nombre de la clave original
+          cleaned[key] = cleanedValue
+          hasValidFields = true
+        }
+      }
+      
+      return hasValidFields ? cleaned : undefined
+    }
+
+    // Manejar fechas - convertir a string ISO
+    if (obj instanceof Date) {
+      return obj.toISOString().split('T')[0]
+    }
+
+    // Retornar valores primitivos tal cual (string, number, boolean)
+    // Incluyendo valores falsy válidos como 0, '', false
+    return obj
+  }
+
+  /**
+   * Ejecuta una actualización con reintentos y manejo robusto de errores
+   * @param updateFn - Función que ejecuta la actualización
+   * @param maxRetries - Número máximo de reintentos (default: 3)
+   * @returns Resultado de la actualización
+   */
+  private async executeUpdateWithRetry<T>(
+    updateFn: () => Promise<T>,
+    maxRetries: number = 3
+  ): Promise<Result<T>> {
+    let lastError: any = null
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const result = await updateFn()
+        if (attempt > 0) {
+          console.log(`✅ Actualización exitosa en el intento ${attempt + 1}`)
+        }
+        return success(result)
+      } catch (error: any) {
+        lastError = error
+        
+        // Si es un error de permisos o no encontrado, no reintentar
+        if (error?.code === 'permission-denied' || 
+            error?.code === 'not-found' ||
+            error?.code === 'unauthenticated') {
+          console.error(`❌ Error no recuperable (${error?.code}), no se reintentará`)
+          break
+        }
+        
+        // Si es un error de red o timeout, reintentar
+        if (attempt < maxRetries - 1) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000) // Backoff exponencial, máximo 5s
+          console.warn(`⚠️ Error en intento ${attempt + 1}/${maxRetries}, reintentando en ${delay}ms...`)
+          console.warn(`   Error: ${error?.message || error}`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
+      }
+    }
+    
+    return failure(new ErrorAPI(normalizeError(lastError, 'actualizar datos')))
+  }
+
+  /**
+   * Actualiza un usuario existente con manejo robusto de errores y validaciones.
+   * @param {string} id - ID del usuario a actualizar
+   * @param {Partial<User>} user - El usuario con los nuevos datos.
+   * @returns {Promise<Result<void>>} Resultado de la actualización
+   */
+  async updateUser(id: string, { ...user }: any, options?: { skipValidation?: boolean, currentUserData?: any }): Promise<Result<void>> {
     try {
-      console.log('🔄 Actualizando usuario:', id)
+      // Validar que el ID sea válido
+      if (!id || typeof id !== 'string' || id.trim() === '') {
+        return failure(new ErrorAPI({ 
+          message: 'ID de usuario inválido', 
+          statusCode: 400 
+        }))
+      }
+
+      // Limpiar datos - versión simplificada y rápida
+      const cleanedData: any = {}
+      const excludeFields = ['role', 'uid', 'id', 'createdAt']
       
-      // Filtrar campos undefined para evitar errores de Firebase
-      const cleanUserData = Object.fromEntries(
-        Object.entries(user).filter(([_, value]) => value !== undefined)
-      ) as any
+      for (const [key, value] of Object.entries(user)) {
+        // Excluir campos protegidos
+        if (excludeFields.includes(key)) continue
+        
+        // Solo agregar si el valor no es undefined
+        if (value !== undefined) {
+          // Manejar fechas
+          if (value instanceof Date) {
+            cleanedData[key] = value.toISOString().split('T')[0]
+          } else if (value !== null) {
+            cleanedData[key] = value
+          }
+        }
+      }
       
-      console.log('🧹 Datos limpios para actualización:', cleanUserData)
+      // Validar que haya datos para actualizar
+      if (Object.keys(cleanedData).length === 0) {
+        return failure(new ErrorAPI({ 
+          message: 'No se proporcionaron datos válidos para actualizar', 
+          statusCode: 400 
+        }))
+      }
+      
+      // Asegurar que updatedAt esté presente SIEMPRE
+      cleanedData.updatedAt = new Date().toISOString().split('T')[0]
+      
+      // Validar institución activa SOLO si:
+      // 1. Se está activando un usuario (isActive === true)
+      // 2. No se está saltando la validación
+      // 3. Tenemos datos del usuario actual (para evitar llamada adicional)
+      if (!options?.skipValidation && cleanedData.isActive === true && options?.currentUserData) {
+        const currentUser = options.currentUserData
+        const currentIsActive = currentUser.isActive
+        
+        // Solo validar si el usuario está pasando de inactivo a activo
+        if ((currentIsActive === false || currentIsActive === undefined) && currentUser.role === 'student') {
+          const institutionId = cleanedData.inst || cleanedData.institutionId || currentUser.inst || currentUser.institutionId
+          if (institutionId) {
+            try {
+              const institutionResult = await this.getInstitutionById(institutionId)
+              if (institutionResult.success && institutionResult.data.isActive === false) {
+                return failure(new ErrorAPI({ 
+                  message: 'No se puede activar un estudiante de una institución inactiva. Por favor, activa la institución primero.', 
+                  statusCode: 400 
+                }))
+              }
+            } catch (validationError) {
+              // Si falla la validación, continuar con la actualización (no bloquear)
+              console.warn('⚠️ Error en validación de institución, continuando con actualización')
+            }
+          }
+        }
+      }
       
       const document = doc(this.getCollection('users'), String(id))
-      return await updateDoc(document, cleanUserData).then(() => success(undefined))
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'actualizar usuario'))) }
+      
+      // Actualizar directamente sin reintentos excesivos
+      try {
+        await updateDoc(document, cleanedData)
+        return success(undefined)
+      } catch (error: any) {
+        // Manejar error de cuota excedida
+        if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
+          return failure(new ErrorAPI({ 
+            message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.', 
+            statusCode: 429 
+          }))
+        }
+        
+        // Solo reintentar una vez para errores de red/timeout
+        if (error?.code === 'unavailable' || error?.code === 'deadline-exceeded' || error?.message?.includes('network')) {
+          console.warn('⚠️ Error de red, reintentando una vez...')
+          await new Promise(resolve => setTimeout(resolve, 500))
+          try {
+            await updateDoc(document, cleanedData)
+            return success(undefined)
+          } catch (retryError: any) {
+            if (retryError?.code === 'resource-exhausted' || retryError?.code === 'quota-exceeded') {
+              return failure(new ErrorAPI({ 
+                message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.', 
+                statusCode: 429 
+              }))
+            }
+            throw retryError
+          }
+        }
+        
+        // Para otros errores, lanzar inmediatamente
+        if (error?.code === 'not-found') {
+          return failure(new ErrorAPI({ 
+            message: 'Usuario no encontrado en la base de datos', 
+            statusCode: 404 
+          }))
+        }
+        
+        if (error?.code === 'permission-denied') {
+          return failure(new ErrorAPI({ 
+            message: 'No tienes permisos para actualizar este usuario. Verifica que eres administrador.', 
+            statusCode: 403 
+          }))
+        }
+        
+        throw error
+      }
+    } catch (e: any) {
+      return failure(new ErrorAPI(normalizeError(e, 'actualizar usuario'))) 
+    }
   }
 
   /**
@@ -256,27 +471,9 @@ class DatabaseService {
    * @param {object} institutionData - Los nuevos datos de la institución.
    * @returns {Promise<Result<any>>} La institución actualizada.
    */
-  // Función para limpiar valores undefined de un objeto
+  // Función para limpiar valores undefined de un objeto (mantener para retrocompatibilidad)
   private cleanUndefinedValues(obj: any): any {
-    if (obj === null || obj === undefined) {
-      return null
-    }
-    
-    if (Array.isArray(obj)) {
-      return obj.map(item => this.cleanUndefinedValues(item))
-    }
-    
-    if (typeof obj === 'object') {
-      const cleaned: any = {}
-      for (const [key, value] of Object.entries(obj)) {
-        if (value !== undefined) {
-          cleaned[key] = this.cleanUndefinedValues(value)
-        }
-      }
-      return cleaned
-    }
-    
-    return obj
+    return this.deepCleanData(obj)
   }
 
   /**
@@ -288,6 +485,29 @@ class DatabaseService {
     try {
       console.log(`🔄 ${isActive ? 'Activando' : 'Desactivando'} usuarios de la institución ${institutionId}...`)
       
+      // Esperar un momento para asegurar que la actualización de la institución se haya completado completamente
+      console.log('⏳ Esperando a que la actualización de la institución se complete...')
+      await new Promise(resolve => setTimeout(resolve, 2000)) // Aumentado a 2 segundos para dar más tiempo
+      
+      // Verificar nuevamente la institución para asegurar que tenemos los datos más recientes
+      let institutionResult = await this.getInstitutionById(institutionId)
+      let retries = 3
+      
+      while (!institutionResult.success && retries > 0) {
+        console.log(`⚠️ No se pudo obtener la institución, reintentando... (${retries} intentos restantes)`)
+        await new Promise(resolve => setTimeout(resolve, 1000)) // Esperar 1 segundo antes de reintentar
+        institutionResult = await this.getInstitutionById(institutionId)
+        retries--
+      }
+      
+      if (!institutionResult.success) {
+        console.warn('⚠️ No se pudo obtener la institución para actualización en cascada después de varios intentos')
+        return
+      }
+      
+      console.log(`✅ Institución verificada, procediendo a actualizar usuarios...`)
+      
+      // Actualizar usuarios (campus y grados ya se actualizaron en updateInstitution)
       const usersCollection = this.getCollection('users')
       
       // Buscar usuarios con institutionId o inst igual a la institución
@@ -299,19 +519,31 @@ class DatabaseService {
       
       const allUserDocs: any[] = []
       
-      // Ejecutar ambas consultas
+      // Ejecutar ambas consultas con reintentos para asegurar que se completen
       for (const q of queries) {
-        try {
-          const snapshot = await getDocs(q)
-          snapshot.docs.forEach(doc => {
-            // Evitar duplicados si un usuario tiene ambos campos
-            if (!allUserDocs.find(d => d.id === doc.id)) {
-              allUserDocs.push({ id: doc.id, data: doc.data() })
+        let queryRetries = 5 // Aumentado a 5 reintentos
+        let querySuccess = false
+        
+        while (queryRetries > 0 && !querySuccess) {
+          try {
+            const snapshot = await getDocs(q)
+            snapshot.docs.forEach(doc => {
+              // Evitar duplicados si un usuario tiene ambos campos
+              if (!allUserDocs.find(d => d.id === doc.id)) {
+                allUserDocs.push({ id: doc.id, data: doc.data() })
+              }
+            })
+            querySuccess = true
+            console.log(`✅ Consulta de usuarios completada: ${snapshot.docs.length} usuarios encontrados`)
+          } catch (error) {
+            queryRetries--
+            if (queryRetries > 0) {
+              console.warn(`⚠️ Error en consulta de usuarios, reintentando... (${queryRetries} intentos restantes)`)
+              await new Promise(resolve => setTimeout(resolve, 1500)) // Aumentado a 1.5 segundos
+            } else {
+              console.warn('⚠️ Error en consulta de usuarios después de reintentos:', error)
             }
-          })
-        } catch (error) {
-          console.warn('⚠️ Error en consulta de usuarios:', error)
-          // Continuar con la otra consulta
+          }
         }
       }
       
@@ -338,23 +570,59 @@ class DatabaseService {
         
         chunk.forEach(user => {
           const userRef = doc(usersCollection, user.id)
-          batch.update(userRef, {
+          const updateData: any = {
             isActive: isActive,
-            updatedAt: new Date().toISOString().split('T')[0],
-            ...(isActive ? {} : { deactivatedAt: new Date().toISOString().split('T')[0] })
-          })
+            updatedAt: new Date().toISOString().split('T')[0]
+          }
+          
+          if (isActive) {
+            // Si se está activando, eliminar el campo deactivatedAt si existe
+            updateData.activatedAt = new Date().toISOString().split('T')[0]
+          } else {
+            // Si se está desactivando, agregar el campo deactivatedAt
+            updateData.deactivatedAt = new Date().toISOString().split('T')[0]
+          }
+          
+          batch.update(userRef, updateData)
         })
         
         batches.push(batch)
       }
       
-      // Ejecutar todos los batches
+      // Ejecutar todos los batches con delays entre ellos para no sobrecargar Firebase
       for (let i = 0; i < batches.length; i++) {
-        await batches[i].commit()
-        console.log(`✅ Batch ${i + 1}/${batches.length} completado`)
+        let batchRetries = 3
+        let batchSuccess = false
+        const chunkSize = Math.min(batchSize, usersToUpdate.length - (i * batchSize))
+        
+        while (batchRetries > 0 && !batchSuccess) {
+          try {
+            await batches[i].commit()
+            console.log(`✅ Batch ${i + 1}/${batches.length} completado (${chunkSize} usuarios actualizados)`)
+            batchSuccess = true
+            
+            // Delay entre batches para no sobrecargar Firebase y dar tiempo a que se procesen
+            if (i < batches.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 1500)) // Aumentado a 1.5 segundos
+            }
+          } catch (error) {
+            batchRetries--
+            if (batchRetries > 0) {
+              console.warn(`⚠️ Error al ejecutar batch ${i + 1}, reintentando... (${batchRetries} intentos restantes)`)
+              await new Promise(resolve => setTimeout(resolve, 2000)) // Esperar 2 segundos antes de reintentar
+            } else {
+              console.error(`❌ Error al ejecutar batch ${i + 1} después de reintentos:`, error)
+              // Continuar con los siguientes batches aunque uno falle
+            }
+          }
+        }
       }
       
       console.log(`✅ ${usersToUpdate.length} usuario(s) ${isActive ? 'activado(s)' : 'desactivado(s)'} exitosamente`)
+      
+      // Esperar un momento adicional para asegurar que todas las actualizaciones se hayan propagado
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
     } catch (e) {
       console.error(`❌ Error al ${isActive ? 'activar' : 'desactivar'} usuarios de la institución:`, e)
       // No lanzar error para no bloquear la actualización de la institución
@@ -364,41 +632,136 @@ class DatabaseService {
 
   async updateInstitution(id: string, institutionData: any): Promise<Result<any>> {
     try {
-      console.log('🔍 Actualizando institución con ID:', id)
-      console.log('📊 Tamaño de datos a actualizar:', JSON.stringify(institutionData).length, 'caracteres')
+      // Validar que el ID sea válido
+      if (!id || typeof id !== 'string' || id.trim() === '') {
+        return failure(new ErrorAPI({ 
+          message: 'ID de institución inválido', 
+          statusCode: 400 
+        }))
+      }
+
+      console.log('🔍 Iniciando actualización de institución con ID:', id)
+      console.log('📊 Datos recibidos para actualizar:', Object.keys(institutionData))
       
       // Obtener el estado actual de la institución para detectar cambios en isActive
-      const currentInstitutionResult = await this.getInstitutionById(id)
-      const currentIsActive = currentInstitutionResult.success ? currentInstitutionResult.data?.isActive : undefined
-      const newIsActive = institutionData.isActive
+      let currentInstitutionResult = await this.getInstitutionById(id)
+      let retries = 3
+      
+      // Reintentar si falla la primera vez
+      while (!currentInstitutionResult.success && retries > 0) {
+        console.warn(`⚠️ No se pudo obtener la institución, reintentando... (${retries} intentos restantes)`)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        currentInstitutionResult = await this.getInstitutionById(id)
+        retries--
+      }
+      
+      if (!currentInstitutionResult.success) {
+        return failure(currentInstitutionResult.error)
+      }
+      
+      const currentInstitution = currentInstitutionResult.data
+      const currentIsActive = currentInstitution?.isActive ?? true // Por defecto true si no está definido
+      const newIsActive = institutionData.isActive !== undefined ? institutionData.isActive : currentIsActive
       
       // Detectar si se está cambiando el estado de activación
-      const isActivationChange = newIsActive !== undefined && newIsActive !== currentIsActive
+      const isActivationChange = newIsActive !== currentIsActive
+      
+      // Si hay cambio de activación, actualizar campus y grados en los datos antes de guardar
+      if (isActivationChange && currentInstitution.campuses && currentInstitution.campuses.length > 0) {
+        console.log(`🔄 Actualizando campus y grados en cascada: ${newIsActive ? 'activando' : 'desactivando'}`)
+        institutionData.campuses = currentInstitution.campuses.map((campus: any) => ({
+          ...campus,
+          isActive: newIsActive,
+          updatedAt: new Date().toISOString().split('T')[0],
+          grades: campus.grades ? campus.grades.map((grade: any) => ({
+            ...grade,
+            isActive: newIsActive,
+            updatedAt: new Date().toISOString().split('T')[0]
+          })) : []
+        }))
+      } else if (!institutionData.campuses && currentInstitution.campuses) {
+        // Si no se están actualizando campus, mantener los existentes
+        institutionData.campuses = currentInstitution.campuses
+      }
+      
+      // Limpiar datos recursivamente antes de guardar
+      const cleanedData = this.deepCleanData(institutionData)
+      
+      // Validar que haya datos para actualizar
+      if (!cleanedData || Object.keys(cleanedData).length === 0) {
+        console.warn('⚠️ No hay datos válidos para actualizar')
+        return failure(new ErrorAPI({ 
+          message: 'No se proporcionaron datos válidos para actualizar', 
+          statusCode: 400 
+        }))
+      }
+      
+      // Asegurar que updatedAt esté presente SIEMPRE
+      cleanedData.updatedAt = new Date().toISOString().split('T')[0]
+      
+      console.log('📋 Campos después de limpiar:', Object.keys(cleanedData))
+      console.log('📊 Total de campos a actualizar:', Object.keys(cleanedData).length)
       
       const document = doc(this.getCollection('institutions'), id)
-      const updatedData = {
-        ...institutionData,
-        updatedAt: new Date().toISOString().split('T')[0]
+      
+      // Ejecutar actualización con reintentos
+      const updateResult = await this.executeUpdateWithRetry(async () => {
+        await updateDoc(document, cleanedData)
+        console.log('✅ Institución guardada exitosamente en Firebase')
+        return undefined
+      }, 3)
+      
+      if (!updateResult.success) {
+        return failure(updateResult.error)
       }
       
-      // Limpiar valores undefined antes de guardar
-      const cleanedData = this.cleanUndefinedValues(updatedData)
-      console.log('🧹 Datos limpiados de valores undefined')
+      // Construir la respuesta con los datos actualizados sin necesidad de leer de nuevo
+      const updatedInstitution = {
+        ...currentInstitution,
+        ...cleanedData,
+        id: id
+      }
       
-      console.log('💾 Guardando datos en Firebase...')
-      await updateDoc(document, cleanedData)
-      console.log('✅ Datos guardados exitosamente')
+      // Retornar inmediatamente sin esperar el proceso en cascada
+      const result = success(updatedInstitution)
       
-      // Si se cambió el estado de activación, actualizar usuarios en cascada
+      // Si se cambió el estado de activación, actualizar usuarios en cascada (completamente en segundo plano)
       if (isActivationChange) {
         console.log(`🔄 Estado de activación cambió: ${currentIsActive} → ${newIsActive}`)
-        await this.updateUsersByInstitution(id, newIsActive)
+        console.log(`⏳ Iniciando actualización en cascada de usuarios en segundo plano...`)
+        
+        // Ejecutar completamente en segundo plano sin bloquear - usar setTimeout para dar tiempo a que se complete la transacción
+        setTimeout(() => {
+          // Ejecutar en segundo plano sin bloquear
+          this.updateUsersByInstitution(id, newIsActive)
+            .then(() => {
+              console.log(`✅ Proceso en cascada completado para institución ${id}`)
+            })
+            .catch(error => {
+              console.error('❌ Error al actualizar usuarios en cascada (no crítico):', error)
+            })
+        }, 500) // Esperar 500ms antes de iniciar el proceso en cascada para asegurar que la transacción se complete
       }
       
-      const updatedInstitution = await this.getInstitutionById(id)
-      return updatedInstitution
-    } catch (e) { 
-      console.error('❌ Error al actualizar institución:', e)
+      return result
+    } catch (e: any) { 
+      console.error('❌ Error general al actualizar institución:', e)
+      
+      // Manejar errores específicos
+      if (e?.code === 'not-found') {
+        return failure(new ErrorAPI({ 
+          message: 'Institución no encontrada en la base de datos', 
+          statusCode: 404 
+        }))
+      }
+      
+      if (e?.code === 'permission-denied') {
+        return failure(new ErrorAPI({ 
+          message: 'No tienes permisos para actualizar esta institución. Verifica que eres administrador.', 
+          statusCode: 403 
+        }))
+      }
+      
       return failure(new ErrorAPI(normalizeError(e, 'actualizar institución'))) 
     }
   }
@@ -600,13 +963,26 @@ class DatabaseService {
         return failure(new ErrorAPI({ message: 'Coordinador no encontrado en la sede', statusCode: 404 }))
       }
 
+      // Filtrar campos undefined y campos que no deben actualizarse
+      const fieldsToExclude = ['adminEmail', 'adminPassword', 'currentPassword', 'password']
+      const cleanedPrincipalData = Object.fromEntries(
+        Object.entries(principalData).filter(([key, value]) => 
+          value !== undefined && !fieldsToExclude.includes(key)
+        )
+      ) as any
+
+      // Si no hay datos para actualizar, retornar el coordinador actual
+      if (Object.keys(cleanedPrincipalData).length === 0) {
+        return success(institution.campuses[campusIndex].principal)
+      }
+
       // Actualizar el coordinador en la sede
       const updatedCampuses = [...institution.campuses]
       updatedCampuses[campusIndex] = {
         ...updatedCampuses[campusIndex],
         principal: {
           ...updatedCampuses[campusIndex].principal,
-          ...principalData,
+          ...cleanedPrincipalData,
           updatedAt: new Date().toISOString().split('T')[0]
         },
         updatedAt: new Date().toISOString().split('T')[0]
@@ -760,12 +1136,25 @@ class DatabaseService {
         return failure(new ErrorAPI({ message: 'Rector no encontrado en la institución', statusCode: 404 }))
       }
 
+      // Filtrar campos undefined y campos que no deben actualizarse
+      const fieldsToExclude = ['adminEmail', 'adminPassword', 'currentPassword', 'password']
+      const cleanedRectorData = Object.fromEntries(
+        Object.entries(rectorData).filter(([key, value]) => 
+          value !== undefined && !fieldsToExclude.includes(key)
+        )
+      ) as any
+
+      // Si no hay datos para actualizar, retornar el rector actual
+      if (Object.keys(cleanedRectorData).length === 0) {
+        return success(institution.rector)
+      }
+
       // Actualizar el rector en la institución
       const updatedInstitution = {
         ...institution,
         rector: {
           ...institution.rector,
-          ...rectorData,
+          ...cleanedRectorData,
           updatedAt: new Date().toISOString().split('T')[0]
         },
         updatedAt: new Date().toISOString().split('T')[0]
@@ -1111,6 +1500,19 @@ class DatabaseService {
         return failure(new ErrorAPI({ message: 'Docente no encontrado en el grado', statusCode: 404 }))
       }
 
+      // Filtrar campos undefined y campos que no deben actualizarse
+      const fieldsToExclude = ['adminEmail', 'adminPassword', 'currentPassword', 'password']
+      const cleanedTeacherData = Object.fromEntries(
+        Object.entries(teacherData).filter(([key, value]) => 
+          value !== undefined && !fieldsToExclude.includes(key)
+        )
+      ) as any
+
+      // Si no hay datos para actualizar, retornar el docente actual
+      if (Object.keys(cleanedTeacherData).length === 0) {
+        return success(teachers[teacherIndex])
+      }
+
       // Actualizar el docente en el grado
       const updatedCampuses = [...institution.campuses]
       const updatedGrades = [...updatedCampuses[campusIndex].grades]
@@ -1118,7 +1520,7 @@ class DatabaseService {
       
       updatedTeachers[teacherIndex] = {
         ...updatedTeachers[teacherIndex],
-        ...teacherData,
+        ...cleanedTeacherData,
         updatedAt: new Date().toISOString().split('T')[0]
       }
 
@@ -1359,85 +1761,71 @@ class DatabaseService {
         )
       }
 
-      // Enriquecer los datos de estudiantes con nombres de institución, sede y grado
+      // OPTIMIZADO: Enriquecer datos usando caché para evitar múltiples llamadas
+      // Agrupar estudiantes por institución para hacer una sola llamada por institución
+      const institutionCache = new Map<string, any>()
+      
       const enrichedStudents = await Promise.all(
         students.map(async (student: any) => {
           try {
-            console.log('🔍 Enriqueciendo estudiante:', student.name, 'con IDs:', {
-              inst: student.inst,
-              campus: student.campus,
-              grade: student.grade
-            })
-            
-            // Obtener nombre de la institución
-            let institutionName = student.inst || student.institutionId
             const institutionId = student.inst || student.institutionId
-            if (institutionId) {
-              // Usar la misma ruta que getAllInstitutions que sí funciona
-              const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
-              if (institutionDoc.exists()) {
-                institutionName = institutionDoc.data().name || institutionId
-                console.log('✅ Institución encontrada:', institutionName)
-              } else {
-                console.log('❌ Institución no encontrada para ID:', institutionId)
-              }
-            }
-
-            // Obtener nombre de la sede y grado desde el documento completo de la institución
-            let campusName = student.campus || student.campusId
-            let gradeName = student.grade || student.gradeId
             const campusId = student.campus || student.campusId
             const gradeId = student.grade || student.gradeId
             
-            if (institutionId && campusId) {
-              // Obtener el documento completo de la institución para buscar en sus arrays
-              const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
-              if (institutionDoc.exists()) {
-                const institutionData = institutionDoc.data()
-                console.log('📋 Datos de la institución:', institutionData)
+            let institutionName = institutionId
+            let campusName = campusId
+            let gradeName = gradeId
+            
+            // Solo enriquecer si tenemos IDs válidos
+            if (institutionId) {
+              // Usar caché para evitar llamadas duplicadas
+              if (!institutionCache.has(institutionId)) {
+                try {
+                  const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
+                  if (institutionDoc.exists()) {
+                    institutionCache.set(institutionId, institutionDoc.data())
+                  }
+                } catch (error: any) {
+                  // Si es error de cuota, no intentar más
+                  if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
+                    console.warn('⚠️ Cuota excedida, omitiendo enriquecimiento de datos')
+                    return student // Retornar sin enriquecer
+                  }
+                }
+              }
+              
+              const institutionData = institutionCache.get(institutionId)
+              if (institutionData) {
+                institutionName = institutionData.name || institutionId
                 
-                // Buscar la sede en el array de sedes
-                if (institutionData.campuses && Array.isArray(institutionData.campuses)) {
+                // Buscar sede y grado en los datos cacheados
+                if (campusId && institutionData.campuses && Array.isArray(institutionData.campuses)) {
                   const campus = institutionData.campuses.find((c: any) => c.id === campusId)
                   if (campus) {
                     campusName = campus.name || campusId
-                    console.log('✅ Sede encontrada:', campusName)
                     
-                    // Buscar el grado en el array de grados de la sede
-                    if (campus.grades && Array.isArray(campus.grades) && gradeId) {
+                    if (gradeId && campus.grades && Array.isArray(campus.grades)) {
                       const grade = campus.grades.find((g: any) => g.id === gradeId)
                       if (grade) {
                         gradeName = grade.name || gradeId
-                        console.log('✅ Grado encontrado:', gradeName)
-                      } else {
-                        console.log('❌ Grado no encontrado para ID:', gradeId)
                       }
                     }
-                  } else {
-                    console.log('❌ Sede no encontrada para ID:', campusId)
                   }
                 }
-              } else {
-                console.log('❌ Institución no encontrada para obtener sedes/grados')
               }
             }
 
-            const enrichedStudent = {
+            return {
               ...student,
               institutionName,
               campusName,
               gradeName
             }
-            
-            console.log('🎉 Estudiante enriquecido:', {
-              name: enrichedStudent.name,
-              institutionName,
-              campusName,
-              gradeName
-            })
-            
-            return enrichedStudent
-          } catch (error) {
+          } catch (error: any) {
+            // Si es error de cuota, retornar sin enriquecer
+            if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
+              return student
+            }
             console.warn(`Error al enriquecer datos del estudiante ${student.id}:`, error)
             return student
           }

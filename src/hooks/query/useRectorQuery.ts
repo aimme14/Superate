@@ -137,13 +137,23 @@ export const useFilteredRectors = (filters: {
   const { data: rectors, isLoading, error } = useRectors()
 
   const filteredRectors = rectors?.filter(rector => {
+    // Validar que el rector exista
+    if (!rector) {
+      return false
+    }
+
+    // Filtro de búsqueda - solo aplicar si hay término de búsqueda
     const matchesSearch = !filters.searchTerm || 
-      rector.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      rector.email.toLowerCase().includes(filters.searchTerm.toLowerCase())
+      (rector.name && typeof rector.name === 'string' && rector.name.toLowerCase().includes(filters.searchTerm.toLowerCase())) ||
+      (rector.email && typeof rector.email === 'string' && rector.email.toLowerCase().includes(filters.searchTerm.toLowerCase()))
 
+    // Filtro de institución - solo aplicar si hay filtro de institución y no es 'all'
     const matchesInstitution = !filters.institutionId || 
-      rector.institutionId === filters.institutionId
+      filters.institutionId === 'all' ||
+      rector.institutionId === filters.institutionId ||
+      rector.inst === filters.institutionId
 
+    // Filtro de estado - solo aplicar si hay filtro de estado
     const matchesStatus = filters.isActive === undefined || 
       rector.isActive === filters.isActive
 

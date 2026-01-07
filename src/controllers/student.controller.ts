@@ -49,6 +49,20 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
   try {
     const { name, email, institutionId, campusId, gradeId, userdoc, password, adminEmail, adminPassword, representativePhone, academicYear, jornada } = studentData
 
+    // Validar que la institución esté activa
+    const institutionResult = await dbService.getInstitutionById(institutionId)
+    if (!institutionResult.success) {
+      return failure(new ErrorAPI({ message: 'Institución no encontrada', statusCode: 404 }))
+    }
+    
+    const institution = institutionResult.data
+    if (institution.isActive !== true) {
+      return failure(new ErrorAPI({ 
+        message: 'No se pueden crear usuarios para una institución inactiva. Por favor, activa la institución primero.', 
+        statusCode: 400 
+      }))
+    }
+
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = password || userdoc + '0'
 
@@ -167,61 +181,106 @@ export const getStudentsByPrincipal = async (principalId: string): Promise<Resul
  */
 export const updateStudent = async (studentId: string, studentData: UpdateStudentData): Promise<Result<void>> => {
   try {
-    // Obtener el estudiante actual para conseguir su email y datos actuales
-    const studentResult = await dbService.getUserById(studentId)
-    if (!studentResult.success) {
-      return failure(studentResult.error)
+    // Obtener el estudiante actual UNA SOLA VEZ (solo si es necesario)
+    let currentStudent: any = null
+    let needsReassignment = false
+    
+    // Solo obtener datos actuales si:
+    // 1. Se está cambiando institución/sede/grado (necesita reasignación)
+    // 2. Se está activando el usuario (necesita validación)
+    if (studentData.institutionId || studentData.campusId || studentData.gradeId || studentData.isActive === true) {
+      try {
+        const studentResult = await dbService.getUserById(studentId)
+        if (!studentResult.success) {
+          // Si es error de cuota, continuar sin validación (no crítico)
+          if (studentResult.error?.statusCode === 429) {
+            console.warn('⚠️ Cuota excedida al obtener estudiante, continuando sin validación')
+          } else {
+            return failure(studentResult.error)
+          }
+        } else {
+          currentStudent = studentResult.data
+          
+          // Verificar si realmente cambió la ubicación
+          const instChanged = Boolean(studentData.institutionId && studentData.institutionId !== currentStudent.inst)
+          const campusChanged = Boolean(studentData.campusId && studentData.campusId !== currentStudent.campus)
+          const gradeChanged = Boolean(studentData.gradeId && studentData.gradeId !== currentStudent.grade)
+          needsReassignment = instChanged || campusChanged || gradeChanged
+        }
+      } catch (error: any) {
+        // Si es error de cuota, continuar sin validación
+        if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
+          console.warn('⚠️ Cuota excedida, continuando sin validación de datos actuales')
+        } else {
+          throw error
+        }
+      }
     }
-
-    const currentStudent = studentResult.data
-    const oldEmail = currentStudent.email
-    const oldName = currentStudent.name
 
     // Preparar datos para actualizar en Firestore
     const updateData: any = {}
-    if (studentData.name) updateData.name = studentData.name
-    if (studentData.email) updateData.email = studentData.email
+    if (studentData.name !== undefined) updateData.name = studentData.name
+    if (studentData.email !== undefined) updateData.email = studentData.email
     if (studentData.phone !== undefined) updateData.phone = studentData.phone
     if (studentData.userdoc !== undefined) updateData.userdoc = studentData.userdoc
-    if (studentData.isActive !== undefined) updateData.isActive = studentData.isActive
-    if (studentData.institutionId) updateData.inst = studentData.institutionId
-    if (studentData.campusId) updateData.campus = studentData.campusId
-    if (studentData.gradeId) updateData.grade = studentData.gradeId
+    if (studentData.isActive !== undefined) updateData.isActive = Boolean(studentData.isActive)
+    if (studentData.institutionId !== undefined) updateData.inst = studentData.institutionId
+    if (studentData.campusId !== undefined) updateData.campus = studentData.campusId
+    if (studentData.gradeId !== undefined) updateData.grade = studentData.gradeId
     if (studentData.academicYear !== undefined) updateData.academicYear = studentData.academicYear
     if (studentData.representativePhone !== undefined) updateData.representativePhone = studentData.representativePhone
     if (studentData.jornada !== undefined) updateData.jornada = studentData.jornada
 
-    // Si se cambió la institución, sede o grado, necesitamos reasignar al estudiante
-    if (studentData.institutionId || studentData.campusId || studentData.gradeId) {
+    // Actualizar datos en Firestore PRIMERO (más importante, debe completarse)
+    const result = await dbService.updateUser(studentId, updateData, {
+      skipValidation: !needsReassignment && studentData.isActive !== true,
+      currentUserData: currentStudent
+    })
+    
+    if (!result.success) {
+      // Si es error de cuota, retornar error específico
+      if (result.error?.statusCode === 429) {
+        return failure(new ErrorAPI({ 
+          message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente. La actualización no se completó.', 
+          statusCode: 429 
+        }))
+      }
+      throw result.error
+    }
+
+    // Reasignar SOLO si realmente cambió la ubicación (en segundo plano, no bloquea, no crítico)
+    if (needsReassignment && currentStudent) {
       const newInstitutionId = studentData.institutionId || currentStudent.inst
       const newCampusId = studentData.campusId || currentStudent.campus
       const newGradeId = studentData.gradeId || currentStudent.grade
 
-      // Remover de asignaciones anteriores
-      await removeStudentFromAllAssignments(studentId)
-
-      // Asignar a nuevas ubicaciones
-      await assignStudentToTeachers(studentId, newInstitutionId, newCampusId, newGradeId)
-      await assignStudentToPrincipal(studentId, newInstitutionId, newCampusId)
-      await assignStudentToRector(studentId, newInstitutionId)
-    }
-
-    // Actualizar datos en Firestore
-    const result = await dbService.updateUser(studentId, updateData)
-    if (!result.success) throw result.error
-
-    // Intentar actualizar credenciales en Firebase Auth si se proporcionaron
-    if ((studentData.email && studentData.email !== oldEmail) || (studentData.name && studentData.name !== oldName) || studentData.password) {
-      console.log('ℹ️ Actualización de credenciales en Firebase Auth')
-      console.log('ℹ️ El estudiante deberá hacer login con las nuevas credenciales después de la actualización')
-      console.log('ℹ️ Si se cambió el email, el usuario deberá usar el nuevo email para iniciar sesión')
-      
-      // Nota: Firebase Auth desde el cliente no permite actualizar credenciales de otros usuarios
-      // Para una solución completa, se necesitaría Firebase Admin SDK en el backend
+      // Ejecutar reasignación en segundo plano con delay para no sobrecargar
+      setTimeout(() => {
+        Promise.all([
+          removeStudentFromAllAssignments(studentId),
+          assignStudentToTeachers(studentId, newInstitutionId, newCampusId, newGradeId),
+          assignStudentToPrincipal(studentId, newInstitutionId, newCampusId),
+          assignStudentToRector(studentId, newInstitutionId)
+        ]).catch(error => {
+          // Si es error de cuota, solo loguear (no crítico, la actualización ya se completó)
+          if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
+            console.warn('⚠️ Cuota excedida durante reasignación (no crítico, actualización completada)')
+          } else {
+            console.warn('⚠️ Error en reasignación (no crítico):', error)
+          }
+        })
+      }, 2000) // Esperar 2 segundos para no sobrecargar Firebase
     }
 
     return success(undefined)
-  } catch (e) {
+  } catch (e: any) {
+    // Manejar error de cuota específicamente
+    if (e?.code === 'resource-exhausted' || e?.code === 'quota-exceeded' || e?.statusCode === 429) {
+      return failure(new ErrorAPI({ 
+        message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.', 
+        statusCode: 429 
+      }))
+    }
     return failure(new ErrorAPI(normalizeError(e, 'actualizar estudiante')))
   }
 }

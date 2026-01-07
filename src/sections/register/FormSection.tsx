@@ -16,8 +16,8 @@ interface FormSectionProps extends ThemeContextProps { }
 const FormSection = ({ theme }: FormSectionProps) => {
   const navigate = useNavigate()
   
-  // Obtener opciones dinámicas de instituciones
-  const { options: institutionOptions, isLoading: institutionsLoading } = useInstitutionOptions()
+  // Obtener opciones dinámicas de instituciones - solo activas para registro
+  const { options: institutionOptions, isLoading: institutionsLoading } = useInstitutionOptions(true)
   
   // Observar cambios en los campos del formulario
   const selectedInstitution = useWatch({ name: 'inst' })
