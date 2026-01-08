@@ -145,99 +145,179 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
 
 export const getAllRectors = async (): Promise<Result<any[]>> => {
   try {
-    // Obtener todas las instituciones y extraer los rectores
+    console.log('🔍 Iniciando obtención de rectores desde múltiples fuentes...')
+    
+    // ESTRATEGIA: Obtener rectores desde DOS fuentes y combinarlos
+    // 1. Desde la colección de usuarios (users) con role='rector'
+    // 2. Desde la estructura jerárquica de instituciones
+    
+    // PASO 1: Obtener todos los usuarios y filtrar por rol 'rector'
+    const allUsersResult = await dbService.getAllUsers()
+    if (!allUsersResult.success) {
+      console.warn('⚠️ No se pudieron obtener usuarios desde la colección users:', allUsersResult.error)
+    }
+    
+    const allRectorsFromUsers = allUsersResult.success 
+      ? allUsersResult.data.filter((user: any) => user.role === 'rector' && user.isActive !== false)
+      : []
+    
+    console.log(`📊 Rectores encontrados en colección users: ${allRectorsFromUsers.length}`)
+    
+    // PASO 2: Obtener todas las instituciones y extraer los rectores de la estructura jerárquica
     const institutionsResult = await dbService.getAllInstitutions()
     if (!institutionsResult.success) {
+      console.warn('⚠️ No se pudieron obtener instituciones:', institutionsResult.error)
+      // Si falla obtener instituciones, retornar solo los rectores de la colección users
+      if (allRectorsFromUsers.length > 0) {
+        return success(allRectorsFromUsers.map((rector: any) => ({
+          ...rector,
+          id: rector.id || rector.uid,
+          uid: rector.uid || rector.id,
+          institutionId: rector.institutionId || rector.inst,
+          institutionName: rector.institutionName || 'Institución no asignada',
+          campusCount: 0,
+          principalCount: 0,
+          teacherCount: 0,
+          studentCount: rector.studentCount || 0
+        })))
+      }
       return failure(institutionsResult.error)
     }
 
-    const rectors: any[] = []
+    // Crear un mapa de rectores desde la estructura jerárquica para facilitar la combinación
+    const rectorsFromHierarchy = new Map<string, any>()
+    const institutionMap = new Map<string, any>()
     
-    // Procesar cada institución
+    // Procesar cada institución para obtener rectores de la estructura jerárquica
     for (const institution of institutionsResult.data) {
+      institutionMap.set(institution.id, institution)
+      
       if (institution.rector) {
-        // Obtener el UID o ID del rector
         const rectorId = institution.rector.uid || institution.rector.id
-        
-        // Obtener los datos completos del rector desde la colección de usuarios
-        let rectorData = { ...institution.rector }
-        
         if (rectorId) {
-          try {
-            const userResult = await dbService.getUserById(rectorId)
-            if (userResult.success) {
-              // Combinar los datos de la estructura jerárquica con los datos completos del usuario
-              rectorData = {
-                ...userResult.data,
-                ...institution.rector, // Los datos de la estructura jerárquica tienen prioridad para campos específicos
-                id: rectorId, // Asegurar que el ID esté presente
-                uid: rectorId // Asegurar que el UID esté presente
+          // Calcular estadísticas para el rector desde la estructura jerárquica
+          let campusCount = 0
+          let principalCount = 0
+          let teacherCount = 0
+          let studentCount = 0
+
+          if (institution.campuses && Array.isArray(institution.campuses)) {
+            campusCount = institution.campuses.length
+            
+            institution.campuses.forEach((campus: any) => {
+              if (campus.principal) {
+                principalCount++
               }
-            } else {
-              // TypeScript sabe que aquí userResult.success es false, así que tiene error
-              console.warn(`⚠️ No se pudieron obtener los datos completos del rector ${rectorId}:`, userResult.error.message)
-              // Usar los datos de la estructura jerárquica como fallback
-              rectorData = {
-                ...institution.rector,
-                id: rectorId,
-                uid: rectorId
+
+              if (campus.grades && Array.isArray(campus.grades)) {
+                campus.grades.forEach((grade: any) => {
+                  if (grade.teachers && Array.isArray(grade.teachers)) {
+                    teacherCount += grade.teachers.length
+                  }
+                  if (grade.students && Array.isArray(grade.students)) {
+                    studentCount += grade.students.length
+                  }
+                })
               }
-            }
-          } catch (error) {
-            console.warn(`⚠️ Error al obtener datos del rector ${rectorId}:`, error)
-            // Usar los datos de la estructura jerárquica como fallback
-            rectorData = {
-              ...institution.rector,
-              id: rectorId,
-              uid: rectorId
-            }
+            })
           }
-        } else {
-          console.warn(`⚠️ Rector sin UID o ID en la institución ${institution.id}`)
-        }
 
-        // Calcular estadísticas para el rector
-        let campusCount = 0
-        let principalCount = 0
-        let teacherCount = 0
-        let studentCount = 0
-
-        if (institution.campuses && Array.isArray(institution.campuses)) {
-          campusCount = institution.campuses.length
-          
-          institution.campuses.forEach((campus: any) => {
-            // Contar coordinadores
-            if (campus.principal) {
-              principalCount++
-            }
-
-            // Contar docentes y estudiantes por grado
-            if (campus.grades && Array.isArray(campus.grades)) {
-              campus.grades.forEach((grade: any) => {
-                if (grade.teachers && Array.isArray(grade.teachers)) {
-                  teacherCount += grade.teachers.length
-                }
-                if (grade.students && Array.isArray(grade.students)) {
-                  studentCount += grade.students.length
-                }
-              })
-            }
+          rectorsFromHierarchy.set(rectorId, {
+            ...institution.rector,
+            id: rectorId,
+            uid: rectorId,
+            institutionName: institution.name,
+            institutionId: institution.id,
+            campusCount,
+            principalCount,
+            teacherCount,
+            studentCount: institution.rector.studentCount || studentCount
           })
         }
-
-        rectors.push({
-          ...rectorData,
-          institutionName: institution.name,
-          institutionId: institution.id,
-          campusCount,
-          principalCount,
-          teacherCount,
-          studentCount: institution.rector.studentCount || studentCount
+      }
+    }
+    
+    console.log(`📊 Rectores encontrados en estructura jerárquica: ${rectorsFromHierarchy.size}`)
+    
+    // PASO 3: Combinar ambas fuentes, evitando duplicados
+    // Crear un mapa de usuarios por ID para acceso rápido
+    const usersMap = new Map<string, any>()
+    if (allUsersResult.success) {
+      allUsersResult.data.forEach((user: any) => {
+        const userId = user.id || user.uid
+        if (userId) {
+          usersMap.set(userId, user)
+        }
+      })
+    }
+    
+    const combinedRectors = new Map<string, any>()
+    
+    // Primero agregar todos los rectores de la colección users
+    for (const rectorFromUsers of allRectorsFromUsers) {
+      const rectorId = rectorFromUsers.id || rectorFromUsers.uid
+      if (!rectorId) {
+        console.warn('⚠️ Rector sin ID o UID encontrado en colección users:', rectorFromUsers.email)
+        continue
+      }
+      
+      const institutionId = rectorFromUsers.institutionId || rectorFromUsers.inst
+      const institution = institutionId ? institutionMap.get(institutionId) : null
+      
+      // Si existe en la estructura jerárquica, combinar datos (dar prioridad a la estructura jerárquica)
+      const rectorFromHierarchy = rectorsFromHierarchy.get(rectorId)
+      
+      if (rectorFromHierarchy) {
+        // Combinar: datos de users como base, estructura jerárquica tiene prioridad para campos específicos
+        combinedRectors.set(rectorId, {
+          ...rectorFromUsers, // Base: datos completos de la colección users
+          ...rectorFromHierarchy, // Prioridad: estructura jerárquica sobreescribe campos específicos
+          id: rectorId,
+          uid: rectorId
+        })
+      } else {
+        // Rector existe en users pero NO en estructura jerárquica - aún así incluirlo
+        console.warn(`⚠️ Rector ${rectorId} (${rectorFromUsers.email}) existe en colección users pero NO en estructura jerárquica`)
+        
+        combinedRectors.set(rectorId, {
+          ...rectorFromUsers,
+          id: rectorId,
+          uid: rectorId,
+          institutionId: institutionId || null,
+          institutionName: institution?.name || rectorFromUsers.institutionName || 'Institución no asignada',
+          campusCount: 0,
+          principalCount: 0,
+          teacherCount: 0,
+          studentCount: rectorFromUsers.studentCount || 0
         })
       }
     }
-
-    return success(rectors)
+    
+    // Agregar rectores que solo existen en la estructura jerárquica (por si acaso)
+    for (const [rectorId, rectorFromHierarchy] of rectorsFromHierarchy.entries()) {
+      if (!combinedRectors.has(rectorId)) {
+        console.warn(`⚠️ Rector ${rectorId} existe en estructura jerárquica pero NO en colección users`)
+        
+        // Buscar en el mapa de usuarios (ya cargado)
+        const userFromMap = usersMap.get(rectorId)
+        if (userFromMap && userFromMap.role === 'rector') {
+          combinedRectors.set(rectorId, {
+            ...userFromMap,
+            ...rectorFromHierarchy,
+            id: rectorId,
+            uid: rectorId
+          })
+        } else {
+          // Si no existe en users, usar solo datos de estructura jerárquica
+          combinedRectors.set(rectorId, rectorFromHierarchy)
+        }
+      }
+    }
+    
+    const finalRectors = Array.from(combinedRectors.values())
+    console.log(`✅ Total de rectores encontrados y combinados: ${finalRectors.length}`)
+    
+    return success(finalRectors)
   } catch (error) {
     console.error('❌ Error al obtener rectores:', error)
     return failure(new ErrorAPI({ message: 'Error al obtener rectores', statusCode: 500 }))
