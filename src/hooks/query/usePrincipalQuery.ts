@@ -81,16 +81,22 @@ export const useFilteredPrincipals = (filters: {
   const { data: principals, isLoading, error } = usePrincipals()
 
   const filteredPrincipals = principals?.filter(principal => {
+    // Validar búsqueda por texto
     const matchesSearch = !filters.searchTerm || 
-      principal.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      principal.email.toLowerCase().includes(filters.searchTerm.toLowerCase())
+      principal.name?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+      principal.email?.toLowerCase().includes(filters.searchTerm.toLowerCase())
 
+    // Validar institución - CRÍTICO: debe coincidir exactamente
+    // Verificar tanto institutionId como inst para compatibilidad
+    const principalInstitutionId = principal.institutionId || principal.inst
     const matchesInstitution = !filters.institutionId || 
-      principal.institutionId === filters.institutionId
+      (principalInstitutionId && principalInstitutionId === filters.institutionId)
 
+    // Validar estado activo
     const matchesStatus = filters.isActive === undefined || 
       principal.isActive === filters.isActive
 
+    // Solo incluir si TODOS los filtros coinciden
     return matchesSearch && matchesInstitution && matchesStatus
   }) || []
 

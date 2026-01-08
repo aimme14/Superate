@@ -218,20 +218,28 @@ export const useFilteredTeachers = (filters: {
 }) => {
   const { data: teachers, isLoading, error } = useTeachers()
 
-  const filteredTeachers = teachers?.filter(teacher => {
+  const filteredTeachers = teachers?.filter((teacher: any) => {
+    // Validar búsqueda por texto
     const matchesSearch = !filters.searchTerm || 
-      teacher.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(filters.searchTerm.toLowerCase())
+      teacher.name?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+      teacher.email?.toLowerCase().includes(filters.searchTerm.toLowerCase())
 
+    // Validar institución - CRÍTICO: debe coincidir exactamente
+    // Verificar tanto institutionId como inst para compatibilidad
+    const teacherInstitutionId = teacher.institutionId || teacher.inst
     const matchesInstitution = !filters.institutionId || 
-      teacher.institutionId === filters.institutionId
+      (teacherInstitutionId && teacherInstitutionId === filters.institutionId)
 
+    // Validar sede - verificar tanto campusId como campus para compatibilidad
+    const teacherCampusId = teacher.campusId || teacher.campus
     const matchesCampus = !filters.campusId || 
-      teacher.campusId === filters.campusId
+      (teacherCampusId && teacherCampusId === filters.campusId)
 
+    // Validar estado activo
     const matchesStatus = filters.isActive === undefined || 
       teacher.isActive === filters.isActive
 
+    // Solo incluir si TODOS los filtros coinciden
     return matchesSearch && matchesInstitution && matchesCampus && matchesStatus
   }) || []
 

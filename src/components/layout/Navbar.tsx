@@ -18,7 +18,7 @@ const Navbar = () => {
     <header className={cn(
       'sticky top-0 z-20 bg-gradient-to-r',
       'backdrop-blur-sm transition-colors duration-500',
-      theme === 'dark' ? 'from-zinc-800 to-zinc-800/30 text-zinc-100' : 'from-white to-white/30 text-gray-900'
+      theme === 'dark' ? 'from-zinc-800 to-zinc-800/30 text-zinc-100' : 'from-gray-200 to-gray-200/30 text-gray-900'
     )}>
       <div className="container flex h-16 p-4 items-center justify-between">
         <div className="flex items-center space-x-2">
