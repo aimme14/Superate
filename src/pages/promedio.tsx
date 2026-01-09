@@ -462,6 +462,7 @@ interface StudyPlanData {
     title: string;
     url: string;
     description: string;
+    topic?: string; // Tema al que pertenece el video
   }>;
   practice_exercises: Array<{
     question: string;
@@ -474,6 +475,7 @@ interface StudyPlanData {
     title: string;
     url: string;
     description: string;
+    topic?: string; // Tema al que pertenece el enlace
   }>;
 }
 
@@ -1217,32 +1219,95 @@ function PersonalizedStudyPlan({
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="space-y-3">
-                        {plan.video_resources?.map((video, idx) => (
-                          <a
-                            key={idx}
-                            href={video.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn(
-                              "block p-3 rounded-lg border transition-colors",
-                              theme === 'dark' 
-                                ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
-                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                            )}
-                          >
-                            <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
-                              {video.title}
-                            </h4>
-                            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                              {video.description}
-                            </p>
-                            <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
-                              {video.url}
-                            </p>
-                          </a>
-                        ))}
-                      </div>
+                      {(() => {
+                        // Agrupar videos por tema
+                        const videosByTopic = (plan.video_resources || []).reduce((acc, video) => {
+                          const topic = video.topic || 'Sin categorizar';
+                          if (!acc[topic]) {
+                            acc[topic] = [];
+                          }
+                          acc[topic].push(video);
+                          return acc;
+                        }, {} as Record<string, typeof plan.video_resources>);
+
+                        const topics = Object.keys(videosByTopic);
+
+                        // Si no hay temas o solo hay uno sin categorizar, mostrar lista simple
+                        if (topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar')) {
+                          return (
+                            <div className="space-y-3">
+                              {plan.video_resources?.map((video, idx) => (
+                                <a
+                                  key={idx}
+                                  href={video.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={cn(
+                                    "block p-3 rounded-lg border transition-colors",
+                                    theme === 'dark' 
+                                      ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
+                                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                  )}
+                                >
+                                  <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
+                                    {video.title}
+                                  </h4>
+                                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                    {video.description}
+                                  </p>
+                                  <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
+                                    {video.url}
+                                  </p>
+                                </a>
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        // Mostrar agrupado por temas
+                        return (
+                          <div className="space-y-4">
+                            {topics.map((topic) => (
+                              <div key={topic} className="space-y-2">
+                                <h5 className={cn(
+                                  "font-semibold text-sm mb-2 pb-1 border-b",
+                                  theme === 'dark' 
+                                    ? 'text-purple-300 border-zinc-600' 
+                                    : 'text-purple-700 border-gray-300'
+                                )}>
+                                  {topic}
+                                </h5>
+                                <div className="space-y-2 pl-2">
+                                  {videosByTopic[topic]?.map((video, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={video.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={cn(
+                                        "block p-3 rounded-lg border transition-colors",
+                                        theme === 'dark' 
+                                          ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
+                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                      )}
+                                    >
+                                      <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
+                                        {video.title}
+                                      </h4>
+                                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                        {video.description}
+                                      </p>
+                                      <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
+                                        {video.url}
+                                      </p>
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
@@ -1257,32 +1322,95 @@ function PersonalizedStudyPlan({
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="space-y-3">
-                        {plan.study_links?.map((link, idx) => (
-                          <a
-                            key={idx}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn(
-                              "block p-3 rounded-lg border transition-colors",
-                              theme === 'dark' 
-                                ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
-                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                            )}
-                          >
-                            <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
-                              {link.title}
-                            </h4>
-                            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                              {link.description}
-                            </p>
-                            <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
-                              {link.url}
-                            </p>
-                          </a>
-                        ))}
-                      </div>
+                      {(() => {
+                        // Agrupar enlaces por tema
+                        const linksByTopic = (plan.study_links || []).reduce((acc, link) => {
+                          const topic = link.topic || 'Sin categorizar';
+                          if (!acc[topic]) {
+                            acc[topic] = [];
+                          }
+                          acc[topic].push(link);
+                          return acc;
+                        }, {} as Record<string, typeof plan.study_links>);
+
+                        const topics = Object.keys(linksByTopic);
+
+                        // Si no hay temas o solo hay uno sin categorizar, mostrar lista simple
+                        if (topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar')) {
+                          return (
+                            <div className="space-y-3">
+                              {plan.study_links?.map((link, idx) => (
+                                <a
+                                  key={idx}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={cn(
+                                    "block p-3 rounded-lg border transition-colors",
+                                    theme === 'dark' 
+                                      ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
+                                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                  )}
+                                >
+                                  <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
+                                    {link.title}
+                                  </h4>
+                                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                    {link.description}
+                                  </p>
+                                  <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
+                                    {link.url}
+                                  </p>
+                                </a>
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        // Mostrar agrupado por temas
+                        return (
+                          <div className="space-y-4">
+                            {topics.map((topic) => (
+                              <div key={topic} className="space-y-2">
+                                <h5 className={cn(
+                                  "font-semibold text-sm mb-2 pb-1 border-b",
+                                  theme === 'dark' 
+                                    ? 'text-purple-300 border-zinc-600' 
+                                    : 'text-purple-700 border-gray-300'
+                                )}>
+                                  {topic}
+                                </h5>
+                                <div className="space-y-2 pl-2">
+                                  {linksByTopic[topic]?.map((link, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={link.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={cn(
+                                        "block p-3 rounded-lg border transition-colors",
+                                        theme === 'dark' 
+                                          ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
+                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                      )}
+                                    >
+                                      <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
+                                        {link.title}
+                                      </h4>
+                                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                        {link.description}
+                                      </p>
+                                      <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
+                                        {link.url}
+                                      </p>
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>

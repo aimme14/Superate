@@ -110,8 +110,13 @@ export const COLLECTIONS = {
   AUTH: 'auth',
   QUESTIONS: 'questions',
   COUNTERS: 'counters',
-  USERS: 'users',
+  USERS: 'users', // @deprecated - Usar nueva estructura jerárquica por institución y rol
   INSTITUTIONS: 'institutions',
+  // Nueva estructura jerárquica
+  RECTORES: 'rectores',
+  COORDINADORES: 'coordinadores',
+  PROFESORES: 'profesores',
+  ESTUDIANTES: 'estudiantes',
 } as const;
 
 /**

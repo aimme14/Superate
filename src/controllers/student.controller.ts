@@ -70,14 +70,17 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     const userAccount = await authService.registerAccount(name, email, generatedPassword, true, adminEmail, adminPassword)
     if (!userAccount.success) throw userAccount.error
 
-    // Crear documento en Firestore
+    // Crear documento en Firestore usando la nueva estructura jerárquica
     const dbUserData: any = {
       role: 'student',
       name,
       email,
       grade: gradeId,
-      inst: institutionId,
+      gradeId: gradeId, // Mantener ambos campos para consistencia
+      institutionId: institutionId, // Usar institutionId para nueva estructura
+      inst: institutionId, // Mantener inst para retrocompatibilidad
       campus: campusId,
+      campusId: campusId, // Mantener campusId para consistencia
       userdoc: generatedPassword,
       createdAt: new Date().toISOString(),
       isActive: true,
@@ -97,7 +100,9 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     // Agregar año académico (obligatorio)
     dbUserData.academicYear = academicYear
 
-    const dbResult = await dbService.createUser(userAccount.data, dbUserData)
+    // Usar directamente la nueva estructura jerárquica para estudiantes
+    console.log('🆕 Creando estudiante usando nueva estructura jerárquica')
+    const dbResult = await dbService.createUserInNewStructure(userAccount.data, dbUserData)
     if (!dbResult.success) throw dbResult.error
 
     // Asignar automáticamente a docentes del mismo grado

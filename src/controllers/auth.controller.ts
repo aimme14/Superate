@@ -61,12 +61,9 @@ export const login = async ({ email, password }: { email: string, password: stri
         }
       }
       
-      // Solo estudiantes requieren verificación de email
-      // Docentes, coordinadores y administradores no requieren verificación
-      if (userRole === 'student' && !result.data.emailVerified) {
-        console.log('⚠️ Email no verificado para estudiante')
-        return failure(new Unauthorized({ message: 'Email no verificado' }))
-      }
+      // Ningún rol requiere verificación de email para iniciar sesión
+      // La verificación de email es opcional y se envía al crear la cuenta
+      // pero no es un requisito para iniciar sesión
       
       console.log('✅ Login completado exitosamente')
       return success(result.data)
@@ -197,14 +194,17 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     const userAccount = await authFB.registerAccount(username, email, generatedPassword)
     if (!userAccount.success) throw userAccount.error
 
-    // Crear documento en Firestore con los mismos campos que cuando se crea por admin
+    // Crear documento en Firestore usando la nueva estructura jerárquica
     const dbUserData: any = {
       role: 'student',
       name: username,
       email,
-      grade,
-      inst,
-      campus,
+      grade: grade,
+      gradeId: grade, // Mantener ambos campos para consistencia
+      institutionId: inst, // Usar institutionId para nueva estructura
+      inst: inst, // Mantener inst para retrocompatibilidad
+      campus: campus,
+      campusId: campus, // Mantener campusId para consistencia
       userdoc: generatedPassword,
       createdAt: new Date().toISOString(),
       isActive: true,
@@ -227,7 +227,9 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     }
     dbUserData.academicYear = academicYear
 
-    const dbResult = await dbService.createUser(userAccount.data, dbUserData)
+    // Usar directamente la nueva estructura jerárquica para estudiantes
+    console.log('🆕 Registrando estudiante usando nueva estructura jerárquica')
+    const dbResult = await dbService.createUserInNewStructure(userAccount.data, dbUserData)
     if (!dbResult.success) throw dbResult.error
 
     // Asignar automáticamente a docentes del mismo grado

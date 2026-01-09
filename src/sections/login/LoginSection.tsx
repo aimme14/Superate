@@ -20,12 +20,12 @@ const LoginSection = ({ theme }: ThemeContextProps) => {
         onSubmit={onSubmit}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
+          transition={{ duration: 0.2 }}
           whileHover={{ scale: 1.01 }}
           className="relative"
         >

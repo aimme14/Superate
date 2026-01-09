@@ -582,20 +582,56 @@ class StudentSummaryService {
 
   /**
    * Obtiene el contexto académico del estudiante
+   * NUEVA ESTRUCTURA: Busca primero en la nueva estructura jerárquica, luego en la antigua
    */
   private async getAcademicContext(studentId: string): Promise<AcademicContext> {
     try {
       const studentDb = getStudentDatabase();
-      const userRef = studentDb.collection('auth').doc(studentId);
+      
+      // PRIMERO: Intentar buscar en la nueva estructura jerárquica
+      try {
+        // Obtener todas las instituciones para buscar el estudiante
+        const institutionsRef = studentDb.collection('superate').doc('auth').collection('institutions');
+        const institutionsSnap = await institutionsRef.get();
+
+        if (!institutionsSnap.empty) {
+          // Buscar en cada institución en la colección de estudiantes
+          for (const institutionDoc of institutionsSnap.docs) {
+            const institutionId = institutionDoc.id;
+            const estudiantesRef = institutionDoc.ref.collection('estudiantes').doc(studentId);
+            const estudianteSnap = await estudiantesRef.get();
+
+            if (estudianteSnap.exists) {
+              const userData = estudianteSnap.data();
+              console.log(`✅ Estudiante encontrado en nueva estructura jerárquica: institutions/${institutionId}/estudiantes/${studentId}`);
+              return {
+                grado: userData?.gradeName || userData?.grade || undefined,
+                nivel: userData?.gradeName || undefined,
+                institutionId: institutionId,
+                sedeId: userData?.campusId || userData?.campus || undefined,
+                gradeId: userData?.gradeId || userData?.grade || undefined,
+              };
+            }
+          }
+        }
+      } catch (newStructureError: any) {
+        console.warn('⚠️ Error al buscar en nueva estructura jerárquica:', newStructureError.message);
+        // Continuar con búsqueda en estructura antigua
+      }
+
+      // SEGUNDO: Buscar en la estructura antigua (retrocompatibilidad)
+      console.log(`⚠️ Estudiante no encontrado en nueva estructura, buscando en estructura antigua...`);
+      const userRef = studentDb.collection('superate').doc('auth').collection('users').doc(studentId);
       const userSnap = await userRef.get();
 
       if (userSnap.exists) {
         const userData = userSnap.data();
+        console.log(`✅ Estudiante encontrado en estructura antigua (deprecated): users/${studentId}`);
         return {
           grado: userData?.gradeName || userData?.grade || undefined,
           nivel: userData?.gradeName || undefined,
           institutionId: userData?.inst || userData?.institutionId || undefined,
-          sedeId: userData?.campusId || undefined,
+          sedeId: userData?.campusId || userData?.campus || undefined,
           gradeId: userData?.gradeId || userData?.grade || undefined,
         };
       }

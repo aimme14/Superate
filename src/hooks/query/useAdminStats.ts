@@ -18,7 +18,8 @@ export const useAdminStats = () => {
       return result.data
     },
     refetchInterval: 5 * 60 * 1000, // Refetch cada 5 minutos para sesiones activas
-    staleTime: 2 * 60 * 1000, // Los datos se consideran frescos por 2 minutos
+    staleTime: 5 * 60 * 1000, // Los datos se consideran frescos por 5 minutos (igual que el refetch interval)
+    gcTime: 10 * 60 * 1000, // Mantener en cache por 10 minutos
   })
 
   // Actualizar sesiones activas cada 5 minutos

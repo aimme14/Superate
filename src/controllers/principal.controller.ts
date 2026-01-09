@@ -67,13 +67,15 @@ export const createPrincipal = async (data: CreatePrincipalData): Promise<Result
     }
     console.log('✅ Cuenta creada en Firebase Auth con UID:', userAccount.data.uid)
 
-    // Crear documento en Firestore
+    // Crear documento en Firestore usando la nueva estructura jerárquica
     const principalData = {
       role: 'principal',
       name: data.name,
       email: data.email,
       institutionId: data.institutionId,
+      inst: data.institutionId, // Mantener inst para retrocompatibilidad
       campusId: data.campusId,
+      campus: data.campusId, // Mantener campus para retrocompatibilidad
       phone: data.phone,
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -83,21 +85,27 @@ export const createPrincipal = async (data: CreatePrincipalData): Promise<Result
     console.log('👔 Datos del coordinador a guardar en Firestore:', principalData)
     console.log('🎯 Rol del coordinador:', principalData.role)
 
-    const dbResult = await dbService.createUser(userAccount.data, principalData)
+    // Usar directamente la nueva estructura jerárquica para coordinadores
+    console.log('🆕 Creando coordinador usando nueva estructura jerárquica')
+    const dbResult = await dbService.createUserInNewStructure(userAccount.data, {
+      ...principalData,
+      uid: userAccount.data.uid // Pasar el UID de Firebase Auth
+    })
     if (!dbResult.success) {
-      console.error('❌ Error al crear usuario coordinador en Firestore:', dbResult.error)
+      console.error('❌ Error al crear usuario coordinador en nueva estructura:', dbResult.error)
       throw dbResult.error
     }
-    console.log('✅ Usuario coordinador creado en Firestore con datos completos')
+    console.log('✅ Usuario coordinador creado en nueva estructura jerárquica')
 
-    // Crear también en la estructura jerárquica de sedes
+    // Crear también en la estructura jerárquica de sedes (para referencias)
     console.log('📊 Agregando coordinador a la estructura jerárquica de sedes...')
     const campusResult = await dbService.addPrincipalToCampus(data.institutionId, data.campusId, {
       ...principalData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
     if (!campusResult.success) {
-      console.warn('⚠️ No se pudo crear el coordinador en la estructura jerárquica:', campusResult.error)
+      console.warn('⚠️ No se pudo crear el coordinador en la estructura jerárquica de sedes:', campusResult.error)
+      // No es crítico, el usuario ya existe en la nueva estructura jerárquica
     } else {
       console.log('✅ Coordinador agregado a la estructura jerárquica de sedes')
     }

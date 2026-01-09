@@ -97,14 +97,17 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
     }
     console.log('✅ Cuenta creada en Firebase Auth con UID:', userAccount.data.uid)
 
-    // Crear documento en Firestore
+    // Crear documento en Firestore usando la nueva estructura jerárquica
     const teacherData = {
       role: 'teacher',
       name: data.name,
       email: data.email,
       institutionId: data.institutionId,
+      inst: data.institutionId, // Mantener inst para retrocompatibilidad
       campusId: data.campusId,
+      campus: data.campusId, // Mantener campus para retrocompatibilidad
       gradeId: data.gradeId,
+      grade: data.gradeId, // Mantener grade para retrocompatibilidad
       subjects: data.subjects || [], // Si no se proporcionan materias, usar array vacío
       phone: data.phone,
       isActive: true,
@@ -115,21 +118,27 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
     console.log('👨‍🏫 Datos del docente a guardar en Firestore:', teacherData)
     console.log('🎯 Rol del docente:', teacherData.role)
 
-    const dbResult = await dbService.createUser(userAccount.data, teacherData)
+    // Usar directamente la nueva estructura jerárquica para profesores
+    console.log('🆕 Creando docente usando nueva estructura jerárquica')
+    const dbResult = await dbService.createUserInNewStructure(userAccount.data, {
+      ...teacherData,
+      uid: userAccount.data.uid // Pasar el UID de Firebase Auth
+    })
     if (!dbResult.success) {
-      console.error('❌ Error al crear usuario docente en Firestore:', dbResult.error)
+      console.error('❌ Error al crear usuario docente en nueva estructura:', dbResult.error)
       throw dbResult.error
     }
-    console.log('✅ Usuario docente creado en Firestore con datos completos')
+    console.log('✅ Usuario docente creado en nueva estructura jerárquica')
 
-    // Crear también en la estructura jerárquica de grados
+    // Crear también en la estructura jerárquica de grados (para referencias)
     console.log('📊 Agregando docente a la estructura jerárquica de grados...')
     const gradeResult = await dbService.createTeacherInGrade({
       ...teacherData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
     if (!gradeResult.success) {
-      console.warn('⚠️ No se pudo crear el docente en la estructura jerárquica:', gradeResult.error)
+      console.warn('⚠️ No se pudo crear el docente en la estructura jerárquica de grados:', gradeResult.error)
+      // No es crítico, el usuario ya existe en la nueva estructura jerárquica
     } else {
       console.log('✅ Docente agregado a la estructura jerárquica de grados')
     }

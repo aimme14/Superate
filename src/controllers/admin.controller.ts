@@ -51,21 +51,32 @@ export const createUserByAdmin = async (userData: CreateUserData): Promise<Resul
     const userAccount = await authFB.registerAccount(username, email, password)
     if (!userAccount.success) throw userAccount.error
 
-    // Crear documento en Firestore
+    // Crear documento en Firestore usando la nueva estructura jerárquica
     const dbUserData = {
       role,
       name: username,
       email,
       grade: grade || 'N/A',
-      inst: institution,
+      institutionId: institution, // Usar institutionId para nueva estructura
+      inst: institution, // Mantener inst para retrocompatibilidad
       campus: campus || '',
+      campusId: campus || '', // Mantener campusId para consistencia
       userdoc: password,
       createdAt: new Date().toISOString(),
       isActive: true,
       createdBy: 'admin' // Marcar que fue creado por admin
     }
 
-    const dbResult = await dbService.createUser(userAccount.data, dbUserData)
+    // Usar directamente la nueva estructura si tiene institutionId
+    let dbResult
+    if (institution && (role === 'teacher' || role === 'principal')) {
+      console.log('🆕 Creando usuario usando nueva estructura jerárquica')
+      dbResult = await dbService.createUserInNewStructure(userAccount.data, dbUserData)
+    } else {
+      // Fallback a método general (que tiene retrocompatibilidad)
+      dbResult = await dbService.createUser(userAccount.data, dbUserData)
+    }
+    
     if (!dbResult.success) throw dbResult.error
 
     // Enviar verificación de email
@@ -173,40 +184,70 @@ export const recalculateStudentCounts = async (): Promise<Result<void>> => {
 
 /**
  * Cuenta el total de pruebas presentadas en el sistema
- * Usa el registro centralizado de pruebas para un conteo más eficiente
+ * Cuenta directamente desde la colección results para obtener el total real de todos los exámenes
  * @returns {Promise<Result<number>>} - Total de pruebas completadas
  */
 export const getTotalCompletedExams = async (): Promise<Result<number>> => {
   try {
-    // Importar el servicio de registro de pruebas
-    const { examRegistryService } = await import('@/services/firebase/examRegistry.service')
+    const db = getFirestore(firebaseApp)
     
-    // Obtener el total desde el contador del registro
-    const result = await examRegistryService.getTotalExams()
-    
-    if (!result.success) {
-      throw result.error
-    }
-
-    console.log(`✅ Total de pruebas registradas: ${result.data}`)
-
-    return success(result.data)
-  } catch (e) {
-    // Si falla, intentar método alternativo (conteo manual)
-    console.warn('⚠️ Error al obtener total desde registro, intentando método alternativo:', e)
-    
+    // Intentar primero usar el contador del registro si está disponible (más rápido)
     try {
-      const db = getFirestore(firebaseApp)
-      const registryRef = collection(db, 'examRegistry')
-      const snapshot = await getDocs(registryRef)
-      
-      // Contar todos los documentos excepto el contador
-      const totalExams = snapshot.docs.filter(doc => doc.id !== 'examCounter').length
-      
-      return success(totalExams)
-    } catch (fallbackError) {
-      return failure(new ErrorAPI(normalizeError(e, 'contar pruebas completadas')))
+      const { examRegistryService } = await import('@/services/firebase/examRegistry.service')
+      const registryResult = await examRegistryService.getTotalExams()
+      if (registryResult.success && registryResult.data > 0) {
+        console.log(`✅ Total de exámenes desde registro: ${registryResult.data}`)
+        return success(registryResult.data)
+      }
+    } catch (registryError) {
+      // Si falla el registro, continuar con el conteo manual
+      console.log('⚠️ No se pudo obtener desde registro, contando manualmente...')
     }
+    
+    // Si el registro no tiene datos o falla, hacer conteo manual (más lento pero más preciso)
+    const resultsRef = collection(db, 'results')
+    const usersSnapshot = await getDocs(resultsRef)
+    
+    if (usersSnapshot.empty) {
+      return success(0)
+    }
+    
+    let totalExams = 0
+    const mainPhases = ['fase I', 'Fase II', 'fase III']
+    
+    // Crear promesas para consultar todas las fases de todos los usuarios en paralelo
+    const promises: Promise<number>[] = []
+    
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id
+      
+      // Para cada fase, crear una promesa que cuenta los documentos
+      for (const phaseName of mainPhases) {
+        const promise = (async () => {
+          try {
+            const phaseRef = collection(db, 'results', userId, phaseName)
+            const phaseSnapshot = await getDocs(phaseRef)
+            return phaseSnapshot.empty ? 0 : phaseSnapshot.docs.length
+          } catch {
+            // Si no existe la subcolección, retornar 0
+            return 0
+          }
+        })()
+        
+        promises.push(promise)
+      }
+    }
+    
+    // Ejecutar todas las consultas en paralelo (mucho más rápido)
+    const results = await Promise.all(promises)
+    totalExams = results.reduce((sum, count) => sum + count, 0)
+    
+    console.log(`✅ Total de exámenes encontrados: ${totalExams} (${usersSnapshot.size} usuarios, ${promises.length} consultas en paralelo)`)
+    
+    return success(totalExams)
+  } catch (e) {
+    console.error('❌ Error al contar pruebas completadas:', e)
+    return failure(new ErrorAPI(normalizeError(e, 'contar pruebas completadas')))
   }
 }
 

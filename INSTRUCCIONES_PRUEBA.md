@@ -23,8 +23,9 @@
   - Información de grados y docentes
 
 ### 3. Sistema de Login ✅
-- **Estudiantes**: Requieren verificación de email
-- **Docentes y Coordinadores**: NO requieren verificación de email, pueden ingresar inmediatamente después de ser creados
+- **Todos los usuarios**: NO requieren verificación de email para iniciar sesión
+- **Estudiantes, Docentes y Coordinadores**: Pueden ingresar inmediatamente después de ser creados
+- La verificación de email es opcional y se envía al crear la cuenta, pero no es un requisito para iniciar sesión
 
 ### 4. Logs de Depuración ✅
 Se agregaron logs detallados en todo el proceso de creación y login para facilitar la depuración:

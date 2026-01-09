@@ -95,11 +95,13 @@ export interface StudyPlanResponse {
     videoId?: string;
     duration?: string;
     language?: string;
+    topic?: string; // Tema al que pertenece el video
   }>;
   study_links: Array<{
     title: string;
     url: string;
     description: string;
+    topic?: string; // Tema al que pertenece el enlace
   }>;
 }
 
@@ -1223,7 +1225,11 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
               console.warn(`   ⚠️ No se encontraron enlaces para topic "${topic.name}"`);
             }
             
-            return links;
+            // Retornar enlaces con información del topic para referencia
+            return links.map(link => ({
+              ...link,
+              topic: topic.name, // Agregar el nombre del topic para referencia
+            }));
           } catch (error: any) {
             console.error(`   ❌ Error procesando enlaces para topic "${topic.name}":`, error.message);
             console.error(`   Stack:`, error.stack);
@@ -1434,6 +1440,99 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
               data.practice_exercises = [];
             } else {
               console.log(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
+            }
+            
+            // Si los enlaces no tienen el campo 'topic', obtener todos los temas desde Firestore y agrupar enlaces
+            if (data.study_links && Array.isArray(data.study_links) && data.study_links.length > 0) {
+              const linksWithoutTopic = data.study_links.filter(link => !link.topic);
+              
+              if (linksWithoutTopic.length > 0) {
+                console.log(`   🔄 Algunos enlaces no tienen campo 'topic', obteniendo todos los temas desde Firestore...`);
+                
+                try {
+                  // Obtener todos los temas disponibles en Firestore para esta materia y fase
+                  const allTopicsFromFirestore = await this.getAllTopicsFromFirestore(phase, subject);
+                  
+                  if (allTopicsFromFirestore.length > 0) {
+                    console.log(`   📚 Encontrados ${allTopicsFromFirestore.length} tema(s) en Firestore`);
+                    
+                    // Obtener enlaces desde Firestore para cada tema encontrado
+                    // Los topicName ya son los IDs de los documentos (nombres normalizados)
+                    const linksByTopicPromises = allTopicsFromFirestore.map(async (topicId) => {
+                      try {
+                        // topicId ya está normalizado, pero getCachedLinks lo normalizará de nuevo
+                        // Esto está bien porque normalizeTopicId es idempotente
+                        const links = await this.getCachedLinks(phase, subject, topicId);
+                        // Los enlaces ya tienen el campo topic con el topicId (nombre del documento)
+                        return links;
+                      } catch (error) {
+                        console.warn(`   ⚠️ Error obteniendo enlaces para topic "${topicId}":`, error);
+                        return [];
+                      }
+                    });
+                    
+                    const allLinksByTopic = await Promise.all(linksByTopicPromises);
+                    const newLinks = allLinksByTopic.flat();
+                    
+                    if (newLinks.length > 0) {
+                      console.log(`   ✅ Obtenidos ${newLinks.length} enlace(s) desde Firestore organizados por tema`);
+                      // Reemplazar todos los enlaces con los nuevos que tienen topic desde Firestore
+                      data.study_links = newLinks;
+                    } else {
+                      console.warn(`   ⚠️ No se encontraron enlaces en Firestore`);
+                    }
+                  } else {
+                    console.warn(`   ⚠️ No se encontraron temas en Firestore para ${subject} en ${phase}`);
+                  }
+                } catch (error) {
+                  console.warn(`   ⚠️ Error obteniendo enlaces desde Firestore:`, error);
+                  // Continuar con los enlaces originales si hay error
+                }
+              }
+            }
+            
+            // Verificar que los videos tienen el campo 'topic'
+            if (data.video_resources && Array.isArray(data.video_resources) && data.video_resources.length > 0) {
+              const videosWithoutTopic = data.video_resources.filter(video => !video.topic);
+              
+              if (videosWithoutTopic.length > 0 && data.topics && Array.isArray(data.topics) && data.topics.length > 0) {
+                console.log(`   🔄 Algunos videos no tienen campo 'topic', intentando obtener desde Firestore organizados por tema...`);
+                
+                try {
+                  // Obtener videos desde Firestore para cada topic
+                  const videosByTopicPromises = data.topics.map(async (topic) => {
+                    try {
+                      if (!topic.keywords || !Array.isArray(topic.keywords) || topic.keywords.length === 0) {
+                        return [];
+                      }
+                      const videos = await this.getCachedVideos(phase, subject, topic.name);
+                      return videos.map(video => ({
+                        ...video,
+                        topic: topic.name,
+                      }));
+                    } catch (error) {
+                      console.warn(`   ⚠️ Error obteniendo videos para topic "${topic.name}":`, error);
+                      return [];
+                    }
+                  });
+                  
+                  const allVideosByTopic = await Promise.all(videosByTopicPromises);
+                  const newVideos = allVideosByTopic.flat();
+                  
+                  if (newVideos.length > 0) {
+                    console.log(`   ✅ Obtenidos ${newVideos.length} video(s) desde Firestore organizados por tema`);
+                    // Reemplazar los videos sin topic con los nuevos que tienen topic
+                    // Mantener los videos que ya tenían topic
+                    const videosWithTopic = data.video_resources.filter(video => video.topic);
+                    data.video_resources = [...videosWithTopic, ...newVideos];
+                  } else {
+                    console.warn(`   ⚠️ No se encontraron videos en Firestore para los topics del plan`);
+                  }
+                } catch (error) {
+                  console.warn(`   ⚠️ Error obteniendo videos desde Firestore:`, error);
+                  // Continuar con los videos originales si hay error
+                }
+              }
             }
             
             return data;
@@ -1760,6 +1859,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     videoId?: string;
     duration?: string;
     language?: string;
+    topic?: string;
   }>> {
     try {
       // Mapear fase a nombre de subcolección
@@ -1815,6 +1915,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
             videoId: data.videoId || '',
             duration: data.duración || data.duration || '',
             language: data.idioma || data.language || 'es',
+            topic: topic, // Agregar el nombre del topic desde el parámetro
           };
         })
         .filter((video): video is NonNullable<typeof video> => video !== null);
@@ -2527,6 +2628,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     title: string;
     url: string;
     description: string;
+    topic?: string;
   }>> {
     const TARGET_LINKS_IN_DB = 50; // Número objetivo de enlaces almacenados en DB por tema
     const LINKS_TO_RETURN = 10; // Número de enlaces a retornar por topic
@@ -2544,8 +2646,11 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       // 2. Si hay ≥50 enlaces en caché, retornar solo 10 (para tener variedad en la DB)
       if (cachedLinks.length >= TARGET_LINKS_IN_DB) {
         console.log(`   ✅ Usando ${LINKS_TO_RETURN} enlace(s) desde caché (hay ${cachedLinks.length} disponibles, no se consulta búsqueda externa)`);
-        // Retornar 10 enlaces ordenados
-        return cachedLinks.slice(0, LINKS_TO_RETURN);
+        // Retornar 10 enlaces ordenados con el campo topic
+        return cachedLinks.slice(0, LINKS_TO_RETURN).map(link => ({
+          ...link,
+          topic: topic, // Asegurar que todos los enlaces tengan el campo topic
+        }));
       }
       
       // 3. Si hay <50 enlaces, calcular cuántos faltan y buscar nuevos
@@ -2557,8 +2662,11 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       
       if (newLinks.length === 0) {
         console.warn(`   ⚠️ No se encontraron enlaces nuevos para "${topic}"`);
-        // Retornar los que hay en caché (hasta 10)
-        return cachedLinks.slice(0, LINKS_TO_RETURN);
+        // Retornar los que hay en caché (hasta 10) con el campo topic
+        return cachedLinks.slice(0, LINKS_TO_RETURN).map(link => ({
+          ...link,
+          topic: topic, // Asegurar que todos los enlaces tengan el campo topic
+        }));
       }
       
       // 5. Filtrar enlaces duplicados (comparar URLs)
@@ -2577,8 +2685,11 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       // 7. Obtener todos los enlaces desde Firestore (incluyendo los nuevos)
       const allLinks = await this.getCachedLinks(phase, subject, topic);
       
-      // 8. Retornar exactamente 10 enlaces (o menos si no hay suficientes)
-      const linksToReturn = allLinks.slice(0, LINKS_TO_RETURN);
+      // 8. Retornar exactamente 10 enlaces (o menos si no hay suficientes) con el campo topic
+      const linksToReturn = allLinks.slice(0, LINKS_TO_RETURN).map(link => ({
+        ...link,
+        topic: topic, // Asegurar que todos los enlaces tengan el campo topic
+      }));
       console.log(`   📤 Retornando ${linksToReturn.length} enlace(s) para el estudiante (de ${allLinks.length} disponibles en DB)`);
       return linksToReturn;
     } catch (error: any) {
@@ -2629,6 +2740,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     title: string;
     url: string;
     description: string;
+    topic?: string;
   }>> {
     try {
       // Mapear fase a nombre de subcolección
@@ -2674,6 +2786,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
           title: data.title || '',
           url: data.url || '',
           description: data.description || '',
+          topic: topicId, // Usar el ID del documento (nombre del tema tal como está en Firestore)
         };
       });
       
@@ -2769,6 +2882,58 @@ Responde SOLO con JSON válido, sin texto adicional.`;
    * @param topic - Nombre del tema
    * @returns ID normalizado
    */
+  /**
+   * Obtiene todos los temas disponibles en Firestore para una materia y fase
+   * Retorna los IDs de los documentos (nombres de temas) tal como están almacenados
+   * Estructura: WebLinks/{phaseName}/{subject}/{topicId}
+   * @param phase - Fase del estudiante
+   * @param subject - Materia
+   * @returns Array de nombres de temas (IDs de documentos) tal como están en Firestore
+   */
+  private async getAllTopicsFromFirestore(
+    phase: 'first' | 'second' | 'third',
+    subject: string
+  ): Promise<string[]> {
+    try {
+      // Mapear fase a nombre de subcolección
+      const phaseMap: Record<string, string> = {
+        first: 'Fase I',
+        second: 'Fase II',
+        third: 'Fase III',
+      };
+      
+      const phaseName = phaseMap[phase];
+      
+      // Obtener la base de datos correcta (superate-6c730)
+      const studentDb = this.getStudentDatabase();
+      
+      // Estructura: WebLinks/{phaseName}/{subject}/{topicId}
+      const subjectRef = studentDb
+        .collection('WebLinks')
+        .doc(phaseName)
+        .collection(subject);
+      
+      // Obtener todos los documentos (temas) en esta colección
+      const snapshot = await subjectRef.get();
+      
+      if (snapshot.empty) {
+        console.log(`   ℹ️ No se encontraron temas en Firestore para ${subject} en ${phaseName}`);
+        return [];
+      }
+      
+      // Retornar los IDs de los documentos (nombres de temas tal como están en Firestore)
+      const topics = snapshot.docs.map(doc => doc.id);
+      
+      console.log(`   📚 Encontrados ${topics.length} tema(s) en Firestore para ${subject} en ${phaseName}:`);
+      topics.forEach(topic => console.log(`      - ${topic}`));
+      
+      return topics;
+    } catch (error: any) {
+      console.error(`❌ Error obteniendo temas desde Firestore:`, error.message);
+      return [];
+    }
+  }
+
   private normalizeTopicId(topic: string): string {
     // Convertir a formato URL-safe y limitar longitud
     return topic

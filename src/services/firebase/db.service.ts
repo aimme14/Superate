@@ -37,38 +37,77 @@ class DatabaseService {
   /*-----------------> users <-----------------*/
   /**
    * Obtiene todos los usuarios
+   * NUEVA ESTRUCTURA: Obtiene usuarios exclusivamente de la nueva estructura jerárquica.
+   * La ruta antigua 'users' ha sido eliminada completamente.
    * @returns {Promise<Result<any[]>>} Una lista de usuarios.
    */
   async getAllUsers(): Promise<Result<any[]>> {
     try {
-      const snapshot = await getDocs(this.getCollection('users'))
-      return success(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener usuarios'))) }
+      const allUsers: any[] = []
+      const userIds = new Set<string>() // Para evitar duplicados
+
+      // Obtener usuarios de la nueva estructura jerárquica
+      const roles = ['rector', 'principal', 'teacher', 'student']
+      for (const role of roles) {
+        const roleUsersResult = await this.getAllUsersByRoleFromNewStructure(role)
+        if (roleUsersResult.success) {
+          roleUsersResult.data.forEach(user => {
+            if (!userIds.has(user.id)) {
+              allUsers.push(user)
+              userIds.add(user.id)
+            }
+          })
+        }
+      }
+      
+      console.log(`✅ Usuarios obtenidos de nueva estructura: ${allUsers.length}`)
+      return success(allUsers)
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'obtener usuarios'))) 
+    }
   }
 
   /**
    * id represent the uid of the user (this is the name folder of each user)
+   * NUEVA ESTRUCTURA: Busca primero en la nueva estructura jerárquica.
+   * Si no encuentra, busca en estructura antigua SOLO si es admin (los admins no tienen institutionId).
    * @param {string} id - El identificador del usuario, corresponde al uid del usuario en cuestión (auth).
    * @returns {Promise<Result<any>>} Un usuario.
    */
   async getUserById(id: string): Promise<Result<any>> {
     try {
       console.log('🔍 Buscando usuario con UID:', id)
-      const docRef = doc(this.getCollection('users'), id)
-      console.log('📂 Referencia del documento:', docRef.path)
       
+      // PRIMERO: Buscar en la nueva estructura jerárquica
+      const newStructureResult = await this.getUserByIdFromNewStructure(id)
+      if (newStructureResult.success) {
+        console.log('✅ Usuario encontrado en nueva estructura jerárquica')
+        return newStructureResult
+      }
+
+      // SEGUNDO: Si no se encuentra en nueva estructura, buscar en estructura antigua
+      // SOLO para admin (los admins no tienen institutionId y no están en nueva estructura)
+      console.log('⚠️ Usuario no encontrado en nueva estructura, buscando en estructura antigua (solo para admin)...')
+      const docRef = doc(this.getCollection('users'), id)
       const docSnap = await getDoc(docRef)
-      console.log('📄 Documento existe:', docSnap.exists())
       
       if (!docSnap.exists()) {
-        console.log('❌ Usuario no encontrado en Firestore')
+        console.log('❌ Usuario no encontrado en ninguna estructura')
         return failure(new NotFound({ message: 'Usuario no encontrado' }))
       }
       
       const userData = { id: docSnap.id, ...docSnap.data() } as any
-      console.log('✅ Usuario encontrado:', userData)
-      console.log('👤 Rol del usuario encontrado:', userData.role)
       
+      // Verificar que sea admin - si no es admin, no debería estar en estructura antigua
+      if (userData.role !== 'admin') {
+        console.log('⚠️ Usuario encontrado en estructura antigua pero NO es admin:', userData.role)
+        console.log('⚠️ Este usuario debería haber sido migrado a la nueva estructura')
+        return failure(new NotFound({ 
+          message: 'Usuario no encontrado. Este usuario debería estar en la nueva estructura jerárquica.' 
+        }))
+      }
+      
+      console.log('✅ Usuario admin encontrado en estructura antigua')
       return success(userData)
     } catch (e) { 
       console.log('❌ Error al obtener usuario:', e)
@@ -78,49 +117,62 @@ class DatabaseService {
 
   /**
    * Permite buscar usuarios por nombre.
+   * NUEVA ESTRUCTURA: Busca exclusivamente en la nueva estructura jerárquica.
+   * La ruta antigua 'users' ha sido eliminada completamente.
    * @param {string} searchTerm - El término de búsqueda.
    * @returns {Promise<Result<any>>} Una lista de usuarios.
    */
   async getUserByQuery(searchTerm: string): Promise<Result<any>> {
     try {
-      const queryRef = query(
-        this.getCollection('users'),
-        where('name', '>=', searchTerm),
-        where('name', '<=', searchTerm + '\uf8ff')
-      )
-      const snapshot = await getDocs(queryRef)
-      return success(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'buscar usuarios'))) }
+      // Buscar en nueva estructura jerárquica
+      const allUsers: any[] = []
+      const roles = ['rector', 'principal', 'teacher', 'student']
+      
+      for (const role of roles) {
+        const roleUsersResult = await this.getAllUsersByRoleFromNewStructure(role)
+        if (roleUsersResult.success) {
+          const filtered = roleUsersResult.data.filter(user => 
+            user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+          allUsers.push(...filtered)
+        }
+      }
+      
+      return success(allUsers)
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'buscar usuarios'))) 
+    }
   }
-
+  
   /**
    * Crea un usuario con las credenciales del usuario asociado.
+   * NUEVA ESTRUCTURA: Usa exclusivamente la estructura jerárquica por institución y rol.
+   * La ruta antigua 'users' ha sido eliminada completamente.
    * @param {object} credentials - Corresponde a las credenciales del usuario, contiene el rol del usuario en validacion.
    */
   async createUser(auth: User, credentials: any): Promise<Result<any>> {
     try {
-      // Asegurar que isActive esté definido (por defecto true)
-      const userData = {
-        ...credentials,
-        email: auth.email,
-        name: auth.displayName,
-        uid: auth.uid,
-        isActive: credentials.isActive !== undefined ? credentials.isActive : true
+      const institutionId = credentials.institutionId || credentials.inst
+      const role = credentials.role
+
+      // Validar que tenga institutionId y rol válido (requerido para nueva estructura)
+      if (!institutionId) {
+        return failure(new ErrorAPI({ 
+          message: 'institutionId es requerido. La estructura antigua ha sido eliminada.', 
+          statusCode: 400 
+        }))
       }
-      
-      // Filtrar campos undefined para evitar errores de Firebase
-      const cleanUserData = Object.fromEntries(
-        Object.entries(userData).filter(([_, value]) => value !== undefined)
-      )
-      
-      console.log('📝 Creando usuario en Firestore con datos:', cleanUserData)
-      console.log('🔍 Rol específico:', cleanUserData.role)
-      console.log('✅ Estado activo:', cleanUserData.isActive)
-      console.log('🧹 Campos filtrados (undefined removidos):', Object.keys(userData).filter(key => userData[key] === undefined))
-      
-      await setDoc(doc(this.getCollection('users'), auth.uid), cleanUserData)
-      console.log('✅ Usuario guardado exitosamente en Firestore')
-      return success(cleanUserData)
+
+      if (!role || !['rector', 'principal', 'teacher', 'student'].includes(role)) {
+        return failure(new ErrorAPI({ 
+          message: 'Rol válido es requerido. Roles válidos: rector, principal, teacher, student', 
+          statusCode: 400 
+        }))
+      }
+
+      console.log('🆕 Creando usuario en nueva estructura jerárquica')
+      return await this.createUserInNewStructure(auth, credentials)
     } catch (e) { 
       console.log('❌ Error al guardar usuario en Firestore:', e)
       return failure(new ErrorAPI(normalizeError(e, 'Registrar credenciales del usuario'))) 
@@ -236,6 +288,7 @@ class DatabaseService {
 
   /**
    * Actualiza un usuario existente con manejo robusto de errores y validaciones.
+   * NUEVA ESTRUCTURA: Ahora actualiza primero en la nueva estructura, luego en la antigua si no se encuentra.
    * @param {string} id - ID del usuario a actualizar
    * @param {Partial<User>} user - El usuario con los nuevos datos.
    * @returns {Promise<Result<void>>} Resultado de la actualización
@@ -308,56 +361,18 @@ class DatabaseService {
         }
       }
       
-      const document = doc(this.getCollection('users'), String(id))
-      
-      // Actualizar directamente sin reintentos excesivos
-      try {
-        await updateDoc(document, cleanedData)
-        return success(undefined)
-      } catch (error: any) {
-        // Manejar error de cuota excedida
-        if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
-          return failure(new ErrorAPI({ 
-            message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.', 
-            statusCode: 429 
-          }))
-        }
-        
-        // Solo reintentar una vez para errores de red/timeout
-        if (error?.code === 'unavailable' || error?.code === 'deadline-exceeded' || error?.message?.includes('network')) {
-          console.warn('⚠️ Error de red, reintentando una vez...')
-          await new Promise(resolve => setTimeout(resolve, 500))
-          try {
-            await updateDoc(document, cleanedData)
-            return success(undefined)
-          } catch (retryError: any) {
-            if (retryError?.code === 'resource-exhausted' || retryError?.code === 'quota-exceeded') {
-              return failure(new ErrorAPI({ 
-                message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.', 
-                statusCode: 429 
-              }))
-            }
-            throw retryError
-          }
-        }
-        
-        // Para otros errores, lanzar inmediatamente
-        if (error?.code === 'not-found') {
-          return failure(new ErrorAPI({ 
-            message: 'Usuario no encontrado en la base de datos', 
-            statusCode: 404 
-          }))
-        }
-        
-        if (error?.code === 'permission-denied') {
-          return failure(new ErrorAPI({ 
-            message: 'No tienes permisos para actualizar este usuario. Verifica que eres administrador.', 
-            statusCode: 403 
-          }))
-        }
-        
-        throw error
+      // Actualizar exclusivamente en la nueva estructura jerárquica
+      const newStructureResult = await this.updateUserInNewStructure(id, cleanedData)
+      if (newStructureResult.success) {
+        console.log('✅ Usuario actualizado en nueva estructura jerárquica')
+        return newStructureResult
       }
+      
+      // Si no se encuentra en nueva estructura, retornar error
+      return failure(new ErrorAPI({ 
+        message: 'Usuario no encontrado. La estructura antigua ha sido eliminada.', 
+        statusCode: 404 
+      }))
     } catch (e: any) {
       return failure(new ErrorAPI(normalizeError(e, 'actualizar usuario'))) 
     }
@@ -365,13 +380,46 @@ class DatabaseService {
 
   /**
    * Elimina un usuario existente
+   * NUEVA ESTRUCTURA: Elimina exclusivamente de la nueva estructura jerárquica.
+   * La ruta antigua 'users' ha sido eliminada completamente.
    * @param {string} id - El identificador del documento usuario, representa el uid (auth)
    * @returns {Promise<Result<void>>} Elimina un usuario
    */
   async deleteUser(id: string): Promise<Result<void>> {
     try {
-      return await deleteDoc(doc(this.getCollection('users'), id)).then(() => success(undefined))
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'eliminar usuario'))) }
+      let deleted = false
+      
+      // PRIMERO: Intentar eliminar de la nueva estructura jerárquica
+      const deleteResult = await this.deleteUserFromNewStructure(id)
+      if (deleteResult.success) {
+        deleted = true
+      }
+      
+      // SEGUNDO: También intentar eliminar de la colección antigua 'users' si existe
+      try {
+        const usersCollection = this.getCollection('users')
+        const userDocRef = doc(usersCollection, id)
+        const userDocSnap = await getDoc(userDocRef)
+        
+        if (userDocSnap.exists()) {
+          await deleteDoc(userDocRef)
+          console.log(`✅ Usuario eliminado de colección antigua users: ${id}`)
+          deleted = true
+        }
+      } catch (oldStructureError: any) {
+        // Si no existe en la colección antigua, no es un error
+        console.log('ℹ️ Usuario no encontrado en colección antigua users')
+      }
+      
+      if (deleted) {
+        return success(undefined)
+      }
+      
+      // Si no se encontró en ninguna ubicación, retornar error
+      return failure(new NotFound({ message: 'Usuario no encontrado en ninguna estructura' }))
+    } catch (e) { 
+      return failure(new ErrorAPI(normalizeError(e, 'eliminar usuario'))) 
+    }
   }
   /*----------------------------------------------------*/
 
@@ -507,45 +555,30 @@ class DatabaseService {
       
       console.log(`✅ Institución verificada, procediendo a actualizar usuarios...`)
       
-      // Actualizar usuarios (campus y grados ya se actualizaron en updateInstitution)
-      const usersCollection = this.getCollection('users')
-      
-      // Buscar usuarios con institutionId o inst igual a la institución
-      // Nota: Algunos usuarios pueden usar 'institutionId' y otros 'inst'
-      const queries = [
-        query(usersCollection, where('institutionId', '==', institutionId)),
-        query(usersCollection, where('inst', '==', institutionId))
-      ]
-      
+      // Actualizar usuarios en nueva estructura jerárquica
       const allUserDocs: any[] = []
+      const roles = ['rector', 'principal', 'teacher', 'student']
       
-      // Ejecutar ambas consultas con reintentos para asegurar que se completen
-      for (const q of queries) {
-        let queryRetries = 5 // Aumentado a 5 reintentos
-        let querySuccess = false
-        
-        while (queryRetries > 0 && !querySuccess) {
-          try {
-            const snapshot = await getDocs(q)
-            snapshot.docs.forEach(doc => {
-              // Evitar duplicados si un usuario tiene ambos campos
-              if (!allUserDocs.find(d => d.id === doc.id)) {
-                allUserDocs.push({ id: doc.id, data: doc.data() })
+      // Obtener usuarios de cada rol en la nueva estructura
+      for (const role of roles) {
+        try {
+          const roleUsersResult = await this.getAllUsersByRoleFromNewStructure(role)
+          if (roleUsersResult.success) {
+            roleUsersResult.data.forEach(user => {
+              // Solo usuarios de esta institución
+              if (user.institutionId === institutionId || user.inst === institutionId) {
+                if (!allUserDocs.find(d => d.id === user.id)) {
+                  allUserDocs.push({ id: user.id, data: user })
+                }
               }
             })
-            querySuccess = true
-            console.log(`✅ Consulta de usuarios completada: ${snapshot.docs.length} usuarios encontrados`)
-          } catch (error) {
-            queryRetries--
-            if (queryRetries > 0) {
-              console.warn(`⚠️ Error en consulta de usuarios, reintentando... (${queryRetries} intentos restantes)`)
-              await new Promise(resolve => setTimeout(resolve, 1500)) // Aumentado a 1.5 segundos
-            } else {
-              console.warn('⚠️ Error en consulta de usuarios después de reintentos:', error)
-            }
           }
+        } catch (error) {
+          console.warn(`⚠️ Error al obtener usuarios de rol ${role}:`, error)
         }
       }
+      
+      console.log(`✅ Usuarios encontrados en nueva estructura: ${allUserDocs.length}`)
       
       // Filtrar solo usuarios que no sean admin (los admins no pertenecen a instituciones)
       const usersToUpdate = allUserDocs.filter(user => {
@@ -569,7 +602,28 @@ class DatabaseService {
         const chunk = usersToUpdate.slice(i, i + batchSize)
         
         chunk.forEach(user => {
-          const userRef = doc(usersCollection, user.id)
+          // Actualizar en nueva estructura jerárquica
+          const userData = user.data
+          const role = userData?.role
+          const userId = user.id
+          
+          if (!role || !institutionId) return
+          
+          // Determinar la colección según el rol
+          let collectionPath: string
+          if (role === 'rector') {
+            collectionPath = `superate/auth/institutions/${institutionId}/rectores`
+          } else if (role === 'principal') {
+            collectionPath = `superate/auth/institutions/${institutionId}/coordinadores`
+          } else if (role === 'teacher') {
+            collectionPath = `superate/auth/institutions/${institutionId}/profesores`
+          } else if (role === 'student') {
+            collectionPath = `superate/auth/institutions/${institutionId}/estudiantes`
+          } else {
+            return // Rol no válido
+          }
+          
+          const userRef = doc(this.db, collectionPath, userId)
           const updateData: any = {
             isActive: isActive,
             updatedAt: new Date().toISOString().split('T')[0]
@@ -1720,46 +1774,117 @@ class DatabaseService {
   /*-----------------> students <-----------------*/
   /**
    * Obtiene estudiantes filtrados por criterios específicos
+   * NUEVA ESTRUCTURA: Busca primero en la nueva estructura jerárquica, luego combina con la antigua
    * @param {object} filters - Filtros para la búsqueda
    * @returns {Promise<Result<any[]>>} Lista de estudiantes filtrados
    */
   async getFilteredStudents(filters: any): Promise<Result<any[]>> {
     try {
       console.log('🚀 Iniciando getFilteredStudents con filtros:', filters)
-      const collectionRef = this.getCollection('users')
-      const conditions = [where('role', '==', 'student')]
+      let allStudents: any[] = []
+      const studentIds = new Set<string>()
 
-      if (filters.institutionId) {
-        conditions.push(where('inst', '==', filters.institutionId))
-      }
-      if (filters.campusId) {
-        conditions.push(where('campus', '==', filters.campusId))
-      }
-      if (filters.gradeId) {
-        conditions.push(where('grade', '==', filters.gradeId))
-      }
-      if (filters.jornada) {
-        conditions.push(where('jornada', '==', filters.jornada))
-      }
-      if (filters.isActive !== undefined) {
-        conditions.push(where('isActive', '==', filters.isActive))
+      // PRIMERO: Buscar estudiantes en la nueva estructura jerárquica
+      try {
+        if (filters.institutionId) {
+          // Obtener estudiantes de la institución específica desde la nueva estructura
+          const studentsResult = await this.getUsersByInstitutionFromNewStructure(filters.institutionId, 'student')
+          if (studentsResult.success) {
+            studentsResult.data.forEach((student: any) => {
+              if (!studentIds.has(student.id)) {
+                // Aplicar filtros en memoria
+                let matches = true
+
+                if (filters.campusId && student.campus !== filters.campusId && student.campusId !== filters.campusId) {
+                  matches = false
+                }
+                if (filters.gradeId && student.grade !== filters.gradeId && student.gradeId !== filters.gradeId) {
+                  matches = false
+                }
+                if (filters.jornada && student.jornada !== filters.jornada) {
+                  matches = false
+                }
+                if (filters.isActive !== undefined && student.isActive !== filters.isActive) {
+                  matches = false
+                }
+                if (filters.searchTerm) {
+                  const searchTerm = filters.searchTerm.toLowerCase()
+                  const matchesSearch = 
+                    student.name?.toLowerCase().includes(searchTerm) ||
+                    student.email?.toLowerCase().includes(searchTerm)
+                  if (!matchesSearch) {
+                    matches = false
+                  }
+                }
+
+                if (matches) {
+                  allStudents.push(student)
+                  studentIds.add(student.id)
+                }
+              }
+            })
+          }
+        } else {
+          // Si no hay institutionId, obtener todos los estudiantes de todas las instituciones
+          const allStudentsResult = await this.getAllUsersByRoleFromNewStructure('student')
+          if (allStudentsResult.success) {
+            allStudentsResult.data.forEach((student: any) => {
+              if (!studentIds.has(student.id)) {
+                // Aplicar filtros
+                let matches = true
+
+                if (filters.campusId && student.campus !== filters.campusId && student.campusId !== filters.campusId) {
+                  matches = false
+                }
+                if (filters.gradeId && student.grade !== filters.gradeId && student.gradeId !== filters.gradeId) {
+                  matches = false
+                }
+                if (filters.jornada && student.jornada !== filters.jornada) {
+                  matches = false
+                }
+                if (filters.isActive !== undefined && student.isActive !== filters.isActive) {
+                  matches = false
+                }
+                if (filters.searchTerm) {
+                  const searchTerm = filters.searchTerm.toLowerCase()
+                  const matchesSearch = 
+                    student.name?.toLowerCase().includes(searchTerm) ||
+                    student.email?.toLowerCase().includes(searchTerm)
+                  if (!matchesSearch) {
+                    matches = false
+                  }
+                }
+
+                if (matches) {
+                  allStudents.push(student)
+                  studentIds.add(student.id)
+                }
+              }
+            })
+          }
+        }
+        console.log(`✅ Estudiantes encontrados en nueva estructura: ${allStudents.length}`)
+      } catch (error) {
+        console.warn('⚠️ Error al obtener estudiantes de nueva estructura:', error)
       }
 
-      const queryRef = query(collectionRef, ...conditions)
-      const snapshot = await getDocs(queryRef)
-      let students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      // La estructura antigua ha sido eliminada - solo usar nueva estructura
       
-      console.log('📊 Estudiantes encontrados antes del enriquecimiento:', students.length)
-      console.log('📋 Primer estudiante (sin enriquecer):', students[0])
-
-      // Aplicar filtro de búsqueda por texto si se proporciona
-      if (filters.searchTerm) {
+      // Aplicar filtro de búsqueda por texto si se proporciona (si no se aplicó ya en el loop)
+      if (filters.searchTerm && !filters.institutionId) {
         const searchTerm = filters.searchTerm.toLowerCase()
-        students = students.filter((student: any) => 
+        allStudents = allStudents.filter((student: any) => 
           student.name?.toLowerCase().includes(searchTerm) ||
           student.email?.toLowerCase().includes(searchTerm)
         )
       }
+
+      console.log(`✅ Estudiantes totales (nueva estructura): ${allStudents.length}`)
+
+      let students = allStudents
+      
+      console.log('📊 Estudiantes encontrados antes del enriquecimiento:', students.length)
+      console.log('📋 Primer estudiante (sin enriquecer):', students[0])
 
       // OPTIMIZADO: Enriquecer datos usando caché para evitar múltiples llamadas
       // Agrupar estudiantes por institución para hacer una sola llamada por institución
@@ -2405,12 +2530,422 @@ class DatabaseService {
   }
   /*----------------------------------------------------*/
 
+  /*---------------> Nueva Estructura Jerárquica de Usuarios <---------------*/
+  /**
+   * Obtiene una referencia a la colección de rectores de una institución
+   * Nueva estructura: superate/auth/institutions/{institutionId}/rectores/{rectorId}
+   * @param {string} institutionId - ID de la institución
+   * @returns {CollectionReference} Referencia a la colección de rectores
+   */
+  getRectoresCollection(institutionId: string): CollectionReference {
+    return collection(this.db, 'superate', 'auth', 'institutions', institutionId, 'rectores')
+  }
+
+  /**
+   * Obtiene una referencia a la colección de coordinadores de una institución
+   * Nueva estructura: superate/auth/institutions/{institutionId}/coordinadores/{coordinadorId}
+   * @param {string} institutionId - ID de la institución
+   * @returns {CollectionReference} Referencia a la colección de coordinadores
+   */
+  getCoordinadoresCollection(institutionId: string): CollectionReference {
+    return collection(this.db, 'superate', 'auth', 'institutions', institutionId, 'coordinadores')
+  }
+
+  /**
+   * Obtiene una referencia a la colección de profesores de una institución
+   * Nueva estructura: superate/auth/institutions/{institutionId}/profesores/{profesorId}
+   * @param {string} institutionId - ID de la institución
+   * @returns {CollectionReference} Referencia a la colección de profesores
+   */
+  getProfesoresCollection(institutionId: string): CollectionReference {
+    return collection(this.db, 'superate', 'auth', 'institutions', institutionId, 'profesores')
+  }
+
+  /**
+   * Obtiene una referencia a la colección de estudiantes de una institución
+   * Nueva estructura: superate/auth/institutions/{institutionId}/estudiantes/{estudianteId}
+   * @param {string} institutionId - ID de la institución
+   * @returns {CollectionReference} Referencia a la colección de estudiantes
+   */
+  getEstudiantesCollection(institutionId: string): CollectionReference {
+    return collection(this.db, 'superate', 'auth', 'institutions', institutionId, 'estudiantes')
+  }
+
+  /**
+   * Obtiene el nombre de la colección según el rol del usuario
+   * @param {string} role - Rol del usuario (rector, principal, teacher, student)
+   * @returns {string} Nombre de la colección
+   */
+  private getRoleCollectionName(role: string): string {
+    const roleMap: Record<string, string> = {
+      'rector': 'rectores',
+      'principal': 'coordinadores',
+      'teacher': 'profesores',
+      'student': 'estudiantes'
+    }
+    return roleMap[role] || 'users'
+  }
+
+  /**
+   * Obtiene una referencia a la colección de usuarios según rol e institución
+   * @param {string} institutionId - ID de la institución
+   * @param {string} role - Rol del usuario
+   * @returns {CollectionReference} Referencia a la colección correspondiente
+   */
+  private getUserRoleCollection(institutionId: string, role: string): CollectionReference {
+    const collectionName = this.getRoleCollectionName(role)
+    return collection(this.db, 'superate', 'auth', 'institutions', institutionId, collectionName)
+  }
+
+  /**
+   * Crea un usuario en la nueva estructura jerárquica
+   * @param {User} auth - Usuario de Firebase Auth
+   * @param {any} credentials - Credenciales del usuario (debe incluir role e institutionId)
+   * @returns {Promise<Result<any>>} Usuario creado
+   */
+  async createUserInNewStructure(auth: User, credentials: any): Promise<Result<any>> {
+    try {
+      const { role, institutionId, inst } = credentials
+      const finalInstitutionId = institutionId || inst
+
+      if (!finalInstitutionId) {
+        return failure(new ErrorAPI({ 
+          message: 'institutionId es requerido para la nueva estructura', 
+          statusCode: 400 
+        }))
+      }
+
+      if (!role) {
+        return failure(new ErrorAPI({ 
+          message: 'role es requerido', 
+          statusCode: 400 
+        }))
+      }
+
+      // Validar que el rol sea válido para la nueva estructura
+      const validRoles = ['rector', 'principal', 'teacher', 'student']
+      if (!validRoles.includes(role)) {
+        // Si es admin, usar la estructura antigua temporalmente
+        return await this.createUser(auth, credentials)
+      }
+
+      // Preparar datos del usuario
+      const userData = {
+        ...credentials,
+        email: auth.email,
+        name: auth.displayName || credentials.name,
+        uid: auth.uid,
+        id: auth.uid, // Asegurar que id esté presente
+        isActive: credentials.isActive !== undefined ? credentials.isActive : true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      // Filtrar campos undefined
+      const cleanUserData = Object.fromEntries(
+        Object.entries(userData).filter(([_, value]) => value !== undefined)
+      )
+
+      // Obtener referencia a la colección correcta según el rol
+      const userCollection = this.getUserRoleCollection(finalInstitutionId, role)
+      const userDocRef = doc(userCollection, auth.uid)
+
+      console.log(`📝 Creando ${role} en nueva estructura:`, userDocRef.path)
+      console.log('📊 Datos:', cleanUserData)
+
+      await setDoc(userDocRef, cleanUserData)
+      console.log('✅ Usuario guardado exitosamente en nueva estructura')
+
+      return success(cleanUserData)
+    } catch (e) {
+      console.error('❌ Error al guardar usuario en nueva estructura:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'Registrar credenciales del usuario en nueva estructura')))
+    }
+  }
+
+  /**
+   * Obtiene un usuario por ID desde la nueva estructura jerárquica
+   * Busca en todas las instituciones y roles hasta encontrar el usuario
+   * @param {string} id - ID del usuario (uid)
+   * @returns {Promise<Result<any>>} Usuario encontrado
+   */
+  async getUserByIdFromNewStructure(id: string): Promise<Result<any>> {
+    try {
+      console.log('🔍 Buscando usuario con UID en nueva estructura:', id)
+
+      // Obtener todas las instituciones
+      const institutionsResult = await this.getAllInstitutions()
+      if (!institutionsResult.success) {
+        return failure(institutionsResult.error)
+      }
+
+      // Buscar en cada institución y cada rol
+      const roles = ['rectores', 'coordinadores', 'profesores', 'estudiantes']
+      
+      for (const institution of institutionsResult.data) {
+        const institutionId = institution.id
+
+        for (const roleCollection of roles) {
+          try {
+            const userCollection = collection(
+              this.db, 
+              'superate', 
+              'auth', 
+              'institutions', 
+              institutionId, 
+              roleCollection
+            )
+            const userDocRef = doc(userCollection, id)
+            const docSnap = await getDoc(userDocRef)
+
+            if (docSnap.exists()) {
+              const userData = { id: docSnap.id, ...docSnap.data() } as any
+              console.log(`✅ Usuario encontrado en: ${userDocRef.path}`)
+              console.log('👤 Rol del usuario:', userData.role)
+              return success(userData)
+            }
+          } catch (error) {
+            // Continuar buscando en otras colecciones
+            continue
+          }
+        }
+      }
+
+      console.log('❌ Usuario no encontrado en nueva estructura')
+      return failure(new NotFound({ message: 'Usuario no encontrado en nueva estructura' }))
+    } catch (e) {
+      console.error('❌ Error al obtener usuario de nueva estructura:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'obtener usuario de nueva estructura')))
+    }
+  }
+
+  /**
+   * Obtiene todos los usuarios de un rol específico desde todas las instituciones
+   * @param {string} role - Rol a buscar (rector, principal, teacher, student)
+   * @returns {Promise<Result<any[]>>} Lista de usuarios
+   */
+  async getAllUsersByRoleFromNewStructure(role: string): Promise<Result<any[]>> {
+    try {
+      const validRoles = ['rector', 'principal', 'teacher', 'student']
+      if (!validRoles.includes(role)) {
+        return failure(new ErrorAPI({ 
+          message: 'Rol inválido', 
+          statusCode: 400 
+        }))
+      }
+
+      const roleCollectionName = this.getRoleCollectionName(role)
+      const allUsers: any[] = []
+
+      // Obtener todas las instituciones
+      const institutionsResult = await this.getAllInstitutions()
+      if (!institutionsResult.success) {
+        return failure(institutionsResult.error)
+      }
+
+      // Buscar usuarios en cada institución
+      for (const institution of institutionsResult.data) {
+        try {
+          const userCollection = collection(
+            this.db,
+            'superate',
+            'auth',
+            'institutions',
+            institution.id,
+            roleCollectionName
+          )
+          const snapshot = await getDocs(userCollection)
+          
+          snapshot.docs.forEach(doc => {
+            allUsers.push({
+              id: doc.id,
+              ...doc.data(),
+              institutionId: institution.id,
+              institutionName: institution.name
+            })
+          })
+        } catch (error) {
+          console.warn(`⚠️ Error al obtener ${roleCollectionName} de institución ${institution.id}:`, error)
+          continue
+        }
+      }
+
+      return success(allUsers)
+    } catch (e) {
+      return failure(new ErrorAPI(normalizeError(e, `obtener todos los ${role}s de nueva estructura`)))
+    }
+  }
+
+  /**
+   * Actualiza un usuario en la nueva estructura jerárquica
+   * @param {string} userId - ID del usuario (uid)
+   * @param {any} updateData - Datos a actualizar
+   * @returns {Promise<Result<void>>} Resultado de la actualización
+   */
+  async updateUserInNewStructure(userId: string, updateData: any): Promise<Result<void>> {
+    try {
+      // Primero encontrar el usuario en la nueva estructura
+      const userResult = await this.getUserByIdFromNewStructure(userId)
+      if (!userResult.success) {
+        return failure(userResult.error)
+      }
+
+      const user = userResult.data
+      const institutionId = user.institutionId || user.inst
+      const role = user.role
+
+      if (!institutionId || !role) {
+        return failure(new ErrorAPI({ 
+          message: 'No se pudo determinar la institución o rol del usuario', 
+          statusCode: 400 
+        }))
+      }
+
+      // Limpiar datos
+      const cleanedData: any = {}
+      const excludeFields = ['role', 'uid', 'id', 'createdAt', 'institutionId', 'inst']
+      
+      for (const [key, value] of Object.entries(updateData)) {
+        if (excludeFields.includes(key)) continue
+        if (value !== undefined) {
+          if (value instanceof Date) {
+            cleanedData[key] = value.toISOString()
+          } else if (value !== null) {
+            cleanedData[key] = value
+          }
+        }
+      }
+
+      if (Object.keys(cleanedData).length === 0) {
+        return failure(new ErrorAPI({ 
+          message: 'No se proporcionaron datos válidos para actualizar', 
+          statusCode: 400 
+        }))
+      }
+
+      cleanedData.updatedAt = new Date().toISOString()
+
+      // Obtener referencia al documento del usuario
+      const userCollection = this.getUserRoleCollection(institutionId, role)
+      const userDocRef = doc(userCollection, userId)
+
+      await updateDoc(userDocRef, cleanedData)
+      console.log(`✅ Usuario actualizado en nueva estructura: ${userDocRef.path}`)
+
+      return success(undefined)
+    } catch (e) {
+      return failure(new ErrorAPI(normalizeError(e, 'actualizar usuario en nueva estructura')))
+    }
+  }
+
+  /**
+   * Elimina un usuario de la nueva estructura jerárquica
+   * @param {string} userId - ID del usuario (uid)
+   * @param {string} institutionId - ID de la institución (opcional, si se proporciona evita buscar primero)
+   * @param {string} role - Rol del usuario (opcional, si se proporciona evita buscar primero)
+   * @returns {Promise<Result<void>>} Resultado de la eliminación
+   */
+  async deleteUserFromNewStructure(userId: string, institutionId?: string, role?: string): Promise<Result<void>> {
+    try {
+      let targetInstitutionId = institutionId
+      let targetRole = role
+
+      // Si no se proporcionaron institutionId y role, buscar primero el usuario
+      if (!targetInstitutionId || !targetRole) {
+        const userResult = await this.getUserByIdFromNewStructure(userId)
+        if (!userResult.success) {
+          // Si no se encuentra y tampoco se proporcionaron institutionId y role, retornar error
+          if (!targetInstitutionId || !targetRole) {
+            return failure(userResult.error)
+          }
+        } else {
+          // Si se encontró, usar los datos del usuario
+          const user = userResult.data
+          targetInstitutionId = targetInstitutionId || user.institutionId || user.inst
+          targetRole = targetRole || user.role
+        }
+      }
+
+      if (!targetInstitutionId || !targetRole) {
+        return failure(new ErrorAPI({ 
+          message: 'No se pudo determinar la institución o rol del usuario', 
+          statusCode: 400 
+        }))
+      }
+
+      // Eliminar el documento
+      const userCollection = this.getUserRoleCollection(targetInstitutionId, targetRole)
+      const userDocRef = doc(userCollection, userId)
+
+      // Verificar que el documento existe antes de intentar eliminarlo
+      const docSnap = await getDoc(userDocRef)
+      if (!docSnap.exists()) {
+        console.warn(`⚠️ Usuario ${userId} no encontrado en ${userDocRef.path}`)
+        // No retornar error, solo advertir - puede que el usuario ya haya sido eliminado
+        return success(undefined)
+      }
+
+      await deleteDoc(userDocRef)
+      console.log(`✅ Usuario eliminado de nueva estructura: ${userDocRef.path}`)
+
+      return success(undefined)
+    } catch (e) {
+      return failure(new ErrorAPI(normalizeError(e, 'eliminar usuario de nueva estructura')))
+    }
+  }
+
+  /**
+   * Obtiene usuarios filtrados por institución y rol desde la nueva estructura
+   * @param {string} institutionId - ID de la institución
+   * @param {string} role - Rol del usuario (opcional)
+   * @returns {Promise<Result<any[]>>} Lista de usuarios
+   */
+  async getUsersByInstitutionFromNewStructure(institutionId: string, role?: string): Promise<Result<any[]>> {
+    try {
+      const allUsers: any[] = []
+      const rolesToSearch = role 
+        ? [this.getRoleCollectionName(role)] 
+        : ['rectores', 'coordinadores', 'profesores', 'estudiantes']
+
+      for (const roleCollection of rolesToSearch) {
+        try {
+          const userCollection = collection(
+            this.db,
+            'superate',
+            'auth',
+            'institutions',
+            institutionId,
+            roleCollection
+          )
+          const snapshot = await getDocs(userCollection)
+          
+          snapshot.docs.forEach(doc => {
+            allUsers.push({
+              id: doc.id,
+              ...doc.data(),
+              institutionId
+            })
+          })
+        } catch (error) {
+          console.warn(`⚠️ Error al obtener ${roleCollection} de institución ${institutionId}:`, error)
+          continue
+        }
+      }
+
+      return success(allUsers)
+    } catch (e) {
+      return failure(new ErrorAPI(normalizeError(e, 'obtener usuarios por institución de nueva estructura')))
+    }
+  }
+
   /*---------------> getReferences <---------------*/
   /**
    * Obtiene una referencia a una subcolección desde la colección principal (auth).
-   * La abreviatura de la colección es 'gs' (gestion_salud).
+   * DEPRECATED: Esta función sigue existiendo para retrocompatibilidad,
+   * pero se recomienda usar los métodos específicos de la nueva estructura jerárquica.
    * @param {string} name - El nombre de la subcolección a obtener.
    * @returns {CollectionReference} Una referencia a la subcolección.
+   * @deprecated Use los métodos específicos de la nueva estructura jerárquica
    */
   getCollection(name: string): CollectionReference { return collection(this.db, 'superate', 'auth', name) }
 }

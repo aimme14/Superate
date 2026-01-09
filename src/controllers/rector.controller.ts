@@ -83,12 +83,13 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
     }
     console.log('✅ Cuenta creada en Firebase Auth con UID:', userAccount.data.uid)
 
-    // Crear documento en Firestore
+    // Crear documento en Firestore usando la nueva estructura jerárquica
     const rectorData = {
       role: 'rector',
       name: data.name,
       email: data.email,
       institutionId: data.institutionId,
+      inst: data.institutionId, // Mantener inst para retrocompatibilidad
       phone: data.phone || null,
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -98,26 +99,31 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
     console.log('👔 Datos del rector a guardar en Firestore:', rectorData)
     console.log('🎯 Rol del rector:', rectorData.role)
 
-    const dbResult = await dbService.createUser(userAccount.data, rectorData)
+    // Usar directamente la nueva estructura jerárquica para rectores
+    console.log('🆕 Creando rector usando nueva estructura jerárquica')
+    const dbResult = await dbService.createUserInNewStructure(userAccount.data, {
+      ...rectorData,
+      uid: userAccount.data.uid // Pasar el UID de Firebase Auth
+    })
     if (!dbResult.success) {
-      console.error('❌ Error al crear usuario rector en Firestore:', dbResult.error)
+      console.error('❌ Error al crear usuario rector en nueva estructura:', dbResult.error)
       return failure(new ErrorAPI({ 
         message: `Error al crear usuario en Firestore: ${dbResult.error.message}`, 
         statusCode: 500,
         details: dbResult.error
       }))
     }
-    console.log('✅ Usuario rector creado en Firestore con datos completos')
+    console.log('✅ Usuario rector creado en nueva estructura jerárquica')
 
-    // Crear también en la estructura jerárquica de instituciones
+    // Crear también en la estructura jerárquica de instituciones (para referencias)
     console.log('📊 Agregando rector a la estructura jerárquica de instituciones...')
     const addRectorResult = await dbService.addRectorToInstitution(data.institutionId, {
       ...rectorData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
     if (!addRectorResult.success) {
-      console.warn('⚠️ No se pudo crear el rector en la estructura jerárquica:', addRectorResult.error)
-      // No es crítico, el usuario ya existe en Firestore
+      console.warn('⚠️ No se pudo crear el rector en la estructura jerárquica de instituciones:', addRectorResult.error)
+      // No es crítico, el usuario ya existe en la nueva estructura jerárquica
     } else {
       console.log('✅ Rector agregado a la estructura jerárquica de instituciones')
     }
@@ -630,32 +636,117 @@ export const deleteRector = async (
 
       // SIEMPRE eliminar de Firestore (esto impedirá el login incluso si no se eliminó de Firebase Auth)
       try {
+        // Intentar eliminar de Firestore (esto intenta en nueva estructura y colección antigua)
         const deleteResult = await dbService.deleteUser(rectorUid)
         if (deleteResult.success) {
           console.log('✅ Usuario eliminado de Firestore')
         } else {
-          console.warn('⚠️ Error al eliminar usuario de Firestore, marcando como inactivo...')
-          // Si falla la eliminación, al menos marcar como inactivo - CRÍTICO para prevenir login
-          const updateResult = await dbService.updateUser(rectorUid, { isActive: false, deletedAt: new Date().toISOString() })
-          if (!updateResult.success) {
-            console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario de Firestore')
-            return failure(new ErrorAPI({ message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', statusCode: 500 }))
+          console.warn('⚠️ No se pudo eliminar usuario de Firestore:', deleteResult.error?.message)
+          console.warn('⚠️ Intentando eliminar directamente de la estructura jerárquica...')
+          
+          // Si falla, intentar eliminar directamente de la estructura jerárquica usando institutionId y role
+          try {
+            const deleteResultNewStructure = await dbService.deleteUserFromNewStructure(
+              rectorUid, 
+              institution.id, 
+              'rector'
+            )
+            if (deleteResultNewStructure.success) {
+              console.log('✅ Usuario eliminado de nueva estructura (intento directo)')
+            } else {
+              // Si aún falla, marcar como inactivo - CRÍTICO para prevenir login
+              console.warn('⚠️ No se pudo eliminar, marcando como inactivo...')
+              let markedAsInactive = false
+              
+              // Intentar marcar como inactivo en nueva estructura
+              try {
+                const updateResultNewStructure = await dbService.updateUserInNewStructure(rectorUid, { 
+                  isActive: false, 
+                  deletedAt: new Date().toISOString() 
+                })
+                if (updateResultNewStructure.success) {
+                  console.log('✅ Usuario marcado como inactivo en Firestore (nueva estructura)')
+                  markedAsInactive = true
+                }
+              } catch (updateNewStructureError) {
+                console.warn('⚠️ Error al marcar como inactivo en nueva estructura:', updateNewStructureError)
+              }
+              
+              // Si no se pudo en nueva estructura, intentar en colección antigua
+              if (!markedAsInactive) {
+                const updateResult = await dbService.updateUser(rectorUid, { 
+                  isActive: false, 
+                  deletedAt: new Date().toISOString() 
+                })
+                if (!updateResult.success) {
+                  console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario de Firestore')
+                  return failure(new ErrorAPI({ 
+                    message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
+                    statusCode: 500 
+                  }))
+                }
+                console.log('✅ Usuario marcado como inactivo en Firestore')
+              }
+            }
+          } catch (directDeleteError: any) {
+            console.error('❌ Error al intentar eliminación directa:', directDeleteError)
+            // Intentar marcar como inactivo como último recurso
+            try {
+              const updateResultNewStructure = await dbService.updateUserInNewStructure(rectorUid, { 
+                isActive: false, 
+                deletedAt: new Date().toISOString() 
+              })
+              if (!updateResultNewStructure.success) {
+                const updateResult = await dbService.updateUser(rectorUid, { 
+                  isActive: false, 
+                  deletedAt: new Date().toISOString() 
+                })
+                if (!updateResult.success) {
+                  console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
+                  return failure(new ErrorAPI({ 
+                    message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
+                    statusCode: 500 
+                  }))
+                }
+              }
+              console.log('✅ Usuario marcado como inactivo en Firestore (último recurso)')
+            } catch (updateError) {
+              console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
+              return failure(new ErrorAPI({ 
+                message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
+                statusCode: 500 
+              }))
+            }
           }
-          console.log('✅ Usuario marcado como inactivo en Firestore')
         }
-      } catch (userError) {
+      } catch (userError: any) {
         console.error('❌ Error crítico al eliminar usuario de Firestore:', userError)
         // Intentar marcar como inactivo como último recurso
         try {
-          const updateResult = await dbService.updateUser(rectorUid, { isActive: false, deletedAt: new Date().toISOString() })
-          if (!updateResult.success) {
-            console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
-            return failure(new ErrorAPI({ message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', statusCode: 500 }))
+          const updateResultNewStructure = await dbService.updateUserInNewStructure(rectorUid, { 
+            isActive: false, 
+            deletedAt: new Date().toISOString() 
+          })
+          if (!updateResultNewStructure.success) {
+            const updateResult = await dbService.updateUser(rectorUid, { 
+              isActive: false, 
+              deletedAt: new Date().toISOString() 
+            })
+            if (!updateResult.success) {
+              console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
+              return failure(new ErrorAPI({ 
+                message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
+                statusCode: 500 
+              }))
+            }
           }
           console.log('✅ Usuario marcado como inactivo en Firestore (último recurso)')
         } catch (updateError) {
           console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
-          return failure(new ErrorAPI({ message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', statusCode: 500 }))
+          return failure(new ErrorAPI({ 
+            message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
+            statusCode: 500 
+          }))
         }
       }
     } else {
