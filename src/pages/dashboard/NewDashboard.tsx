@@ -1,4 +1,4 @@
-import { ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
+import { ContactRound, NotepadText, BarChart2, BookOpen } from "lucide-react"
 import { Link } from "react-router-dom"
 import InnovativeHero from "../inovativeGero"
 import { motion } from "framer-motion"
@@ -49,7 +49,7 @@ export function Home() {
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" active theme={theme}/>
+            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" active theme={theme}/>
           </nav>
         </div>
       </header>
