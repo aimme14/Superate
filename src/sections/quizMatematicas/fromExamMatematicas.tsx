@@ -1735,15 +1735,15 @@ const ExamWithFirebase = () => {
       >
         {/* Contenido principal del examen */}
         <div className="flex-1 relative z-10">
-          <div className={cn(`${theme.cardBackground} border rounded-lg p-3 mb-2 shadow-lg backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <div className={cn(`${theme.cardBackground} border rounded-lg p-2 mb-2 shadow-lg backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
-                  <Calculator className={cn("w-12 h-12", appTheme === 'dark' ? 'text-blue-400' : 'text-blue-500')} />
+              <div className="flex items-center gap-2">
+                <div className="relative h-8 w-8 flex-shrink-0 rounded-md overflow-hidden">
+                  <Calculator className={cn("w-8 h-8", appTheme === 'dark' ? 'text-blue-400' : 'text-blue-500')} />
                 </div>
                 <div>
-                  <h3 className={cn("text-xs font-medium", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estás realizando:</h3>
-                  <h2 className={cn("text-base font-normal", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{quizData.title}</h2>
+                  <h3 className={cn("text-[10px] font-medium", appTheme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estás realizando:</h3>
+                  <h2 className={cn("text-sm font-normal", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>{quizData.title}</h2>
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1992,11 +1992,17 @@ const ExamWithFirebase = () => {
                 No sé
               </Button>
               <Button
-                onClick={nextQuestion}
-                disabled={currentQuestion === quizData.questions.length - 1 || !answers[questionId]}
+                onClick={() => {
+                  if (currentQuestion === quizData.questions.length - 1) {
+                    showSubmitWarning();
+                  } else {
+                    nextQuestion();
+                  }
+                }}
+                disabled={!answers[questionId]}
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
-                Siguiente <ChevronRight className="h-4 w-4" />
+                {currentQuestion === quizData.questions.length - 1 ? 'Finalizar examen' : 'Siguiente'} <ChevronRight className="h-4 w-4" />
               </Button>
             </CardFooter>
           </Card>

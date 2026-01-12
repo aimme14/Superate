@@ -1198,15 +1198,15 @@ const ExamWithFirebase = () => {
       >
         {/* Contenido principal del examen */}
         <div className="flex-1 relative z-10">
-          <div className={`${theme.cardBackground} border rounded-lg p-3 mb-2 shadow-lg backdrop-blur-sm`}>
+          <div className={`${theme.cardBackground} border rounded-lg p-2 mb-2 shadow-lg backdrop-blur-sm`}>
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
-                  <Leaf className="w-12 h-12 text-pink-500" />
+              <div className="flex items-center gap-2">
+                <div className="relative h-8 w-8 flex-shrink-0 rounded-md overflow-hidden">
+                  <Leaf className="w-8 h-8 text-pink-500" />
                 </div>
                 <div>
-                  <h3 className="text-xs text-gray-500 font-medium">Estás realizando:</h3>
-                  <h2 className="text-base font-normal text-gray-600">{examData.module || examData.title}</h2>
+                  <h3 className="text-[10px] text-gray-500 font-medium">Estás realizando:</h3>
+                  <h2 className="text-sm font-normal text-gray-600">{examData.module || examData.title}</h2>
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1309,11 +1309,17 @@ const ExamWithFirebase = () => {
                 No sé
               </Button>
               <Button
-                onClick={nextQuestion}
-                disabled={currentQuestion === examData.questions.length - 1 || !answers[currentQ.id]}
+                onClick={() => {
+                  if (currentQuestion === examData.questions.length - 1) {
+                    showSubmitWarning();
+                  } else {
+                    nextQuestion();
+                  }
+                }}
+                disabled={!answers[currentQ.id]}
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
-                Siguiente <ChevronRight className="h-4 w-4" />
+                {currentQuestion === examData.questions.length - 1 ? 'Finalizar examen' : 'Siguiente'} <ChevronRight className="h-4 w-4" />
               </Button>
             </CardFooter>
           </Card>
