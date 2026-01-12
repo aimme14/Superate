@@ -156,6 +156,7 @@ const ExamWithFirebase = () => {
   // Estados principales
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
+  const answersRef = useRef<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -518,11 +519,11 @@ const ExamWithFirebase = () => {
     // Finalizar tiempo de las preguntas del grupo actual
     if (quizData.subject === 'Inglés' && questionGroups.length > 0 && questionGroups[currentGroupIndex]) {
       questionGroups[currentGroupIndex].forEach(q => {
-        const questionId = q.id || '';
+        const questionId = q.id || q.code;
         if (questionId) finalizeQuestionTime(questionId);
       });
     } else {
-      const currentQuestionId = quizData.questions[currentQuestion].id || '';
+      const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
       finalizeQuestionTime(currentQuestionId);
     }
 
@@ -545,7 +546,7 @@ const ExamWithFirebase = () => {
             
             // Inicializar tiempo de la primera pregunta del nuevo grupo
             if (questionGroups.length > 0 && questionGroups[foundGroupIndex]) {
-              const firstQuestionId = questionGroups[foundGroupIndex][0].id || '';
+              const firstQuestionId = questionGroups[foundGroupIndex][0].id || questionGroups[foundGroupIndex][0].code;
               if (firstQuestionId) initializeQuestionTime(firstQuestionId);
             }
     } else {
@@ -560,7 +561,7 @@ const ExamWithFirebase = () => {
     
     // Finalizar tiempo del grupo actual
     questionGroups[currentGroupIndex].forEach(q => {
-      const questionId = q.id || '';
+      const questionId = q.id || q.code;
       if (questionId) finalizeQuestionTime(questionId);
     });
     
@@ -575,7 +576,7 @@ const ExamWithFirebase = () => {
     setCurrentQuestion(questionIndex);
     
     // Inicializar tiempo de la primera pregunta del nuevo grupo
-    const firstQuestionId = questionGroups[newGroupIndex][0].id || '';
+    const firstQuestionId = questionGroups[newGroupIndex][0].id || questionGroups[newGroupIndex][0].code;
     if (firstQuestionId) initializeQuestionTime(firstQuestionId);
   };
 
@@ -593,7 +594,7 @@ const ExamWithFirebase = () => {
       setExamStartTime(now);
       // Inicializar la primera pregunta y marcar como alcanzada
       setMaxReachedQuestion(0);
-      const firstQuestionId = quizData.questions[0].id || '';
+      const firstQuestionId = quizData.questions[0].id || quizData.questions[0].code;
       if (firstQuestionId) {
         initializeQuestionTime(firstQuestionId);
       }
@@ -601,7 +602,7 @@ const ExamWithFirebase = () => {
   }, [examState, quizData]);
 
   // Función para calcular la puntuación
-  const calculateScore = () => {
+  const calculateScore = (answersToUse?: { [key: string]: string }) => {
     if (!quizData) {
       return {
         correctAnswers: 0,
@@ -612,16 +613,19 @@ const ExamWithFirebase = () => {
       };
     }
 
+    // Usar las respuestas proporcionadas o el estado answers por defecto
+    const answersMap = answersToUse || answers;
+
     let correctAnswers = 0
     let totalAnswered = 0
 
     quizData.questions.forEach(question => {
-      const questionId = question.id || ''
+      const questionId = question.id || question.code
       const correctOption = question.options.find(opt => opt.isCorrect)
       const correctAnswer = correctOption?.id || ''
-      if (answers[questionId]) {
+      if (answersMap[questionId]) {
         totalAnswered++
-        if (answers[questionId] === correctAnswer) {
+        if (answersMap[questionId] === correctAnswer) {
           correctAnswers++
         }
       }
@@ -643,20 +647,28 @@ const ExamWithFirebase = () => {
     setIsSubmitting(true)
 
     // Finalizar el tiempo de la pregunta actual antes de enviar
-    const currentQuestionId = quizData.questions[currentQuestion].id || '';
+    const currentQuestionId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code;
     finalizeQuestionTime(currentQuestionId);
 
     try {
-      const score = calculateScore()
+      // Usar answersRef.current para obtener el valor más actualizado
+      const currentAnswers = answersRef.current;
+      
+      const score = calculateScore(currentAnswers)
       const examEndTime = Date.now();
       const totalExamTime = Math.floor((examEndTime - examStartTime) / 1000);
+
+      // DEBUG: Verificar el objeto answers antes de guardar
+      console.log('🔍 DEBUG - Objeto answers antes de guardar:', currentAnswers);
+      console.log('🔍 DEBUG - Total de respuestas guardadas:', Object.keys(currentAnswers).length);
+      console.log('🔍 DEBUG - IDs de preguntas en quizData:', quizData.questions.map(q => ({ id: q.id, code: q.code })));
 
       const examResult = {
         userId,
         examId: quizData.id,
         examTitle: quizData.title,
         subject: quizData.subject || examConfig.subject, // IMPORTANTE: Incluir el campo subject
-        answers,
+        answers: currentAnswers,
         score,
         topic: quizData.questions[currentQuestion]?.topic || '',
         timeExpired,
@@ -674,19 +686,35 @@ const ExamWithFirebase = () => {
         questionDetails: quizData.questions.map(question => {
           const correctOption = question.options.find(opt => opt.isCorrect)
           const correctAnswer = correctOption?.id || ''
-          const questionId = question.id || ''
+          const questionId = question.id || question.code
+          const userAnswer = currentAnswers[questionId] || null
+          
+          // DEBUG: Verificar cada pregunta
+          if (!userAnswer) {
+            console.warn(`⚠️ Pregunta sin respuesta: questionId=${questionId}, question.id=${question.id}, question.code=${question.code}, answers keys:`, Object.keys(currentAnswers));
+          }
+          
           return {
             questionId: questionId,
             questionText: stripHtmlTags(question.questionText || ''),
-            userAnswer: answers[questionId] || null,
+            userAnswer: userAnswer,
             correctAnswer: correctAnswer,
             topic: question.topic,
-            isCorrect: answers[questionId] === correctAnswer,
-            answered: !!answers[questionId],
+            isCorrect: userAnswer === correctAnswer,
+            answered: !!userAnswer,
             timeSpent: questionTimeData[questionId]?.timeSpent || 0,
           }
         })
       }
+
+      console.log('📤 Guardando en Firebase:', {
+        userId,
+        examId: quizData.id,
+        subject: quizData.subject || examConfig.subject,
+        phase: quizData.phase,
+        totalAnswers: Object.keys(currentAnswers).length,
+        score: score.overallPercentage + '%'
+      });
 
       if (!userId || !quizData.id) {
         throw new Error("Falta userId o quizData.id");
@@ -1516,17 +1544,27 @@ const ExamWithFirebase = () => {
 
   // Función para manejar el cambio de respuesta
   const handleAnswerChange = (questionId: string, answer: string) => {
+    console.log('🔵 handleAnswerChange llamado:', { questionId, answer });
     setAnswers(prev => {
       // Solo actualizar si el valor realmente cambió
       if (prev[questionId] === answer) {
         return prev;
       }
-      return {
+      const newAnswers = {
         ...prev,
         [questionId]: answer
       };
+      // Actualizar también la ref
+      answersRef.current = newAnswers;
+      console.log('🔵 Respuesta guardada en answers:', { questionId, answer, totalAnswers: Object.keys(newAnswers).length });
+      return newAnswers;
     });
   }
+  
+  // Sincronizar answersRef con answers cuando cambia
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   // Función para ir a la siguiente pregunta o grupo
   const nextQuestion = () => {
@@ -1900,7 +1938,7 @@ const ExamWithFirebase = () => {
                                 
                                 const question = gapData.question;
                                 const options = gapData.options;
-                                const questionId = question.id || '';
+                                const questionId = question.id || question.code;
                                 const selectedAnswer = answers[questionId] || '';
                                 const isOpen = openSelects[questionId] || false;
                                 
@@ -2046,7 +2084,7 @@ const ExamWithFirebase = () => {
                     {isMatchingColumns ? (
                       /* Formato especial para Matching Columns: dos columnas */
                       currentGroupQuestions.map((question, qIndex) => {
-                        const questionId = question.id || '';
+                        const questionId = question.id || question.code;
                         const selectedAnswer = answers[questionId] || '';
                         const isOpen = openSelects[questionId] || false;
                         
@@ -2172,14 +2210,16 @@ const ExamWithFirebase = () => {
                           
                           {/* Opciones de respuesta */}
                           <RadioGroup
-                            value={answers[question.id || ''] || ""}
-                            onValueChange={(value) => handleAnswerChange(question.id || '', value)}
+                            value={answers[question.id || question.code] || ""}
+                            onValueChange={(value) => handleAnswerChange(question.id || question.code, value)}
                             className="space-y-0.5"
                           >
-                            {question.options.map((option) => (
+                            {question.options.map((option) => {
+                              const questionId = question.id || question.code;
+                              return (
                               <div
                                 key={option.id}
-                                onClick={() => handleAnswerChange(question.id || '', option.id)}
+                                onClick={() => handleAnswerChange(questionId, option.id)}
                                 className={cn(
                                   `flex items-start space-x-3 rounded-lg p-4 transition-none relative cursor-pointer`,
                                   appTheme === 'dark' 
@@ -2193,18 +2233,19 @@ const ExamWithFirebase = () => {
                               >
                                 <RadioGroupItem
                                   value={option.id}
-                                  id={`${question.id}-${option.id}`}
+                                  id={`${questionId}-${option.id}`}
                                   className="mt-1 relative z-10"
                                 />
                                 <Label
-                                  htmlFor={`${question.id}-${option.id}`}
+                                  htmlFor={`${questionId}-${option.id}`}
                                   className="flex-1 cursor-pointer relative z-10"
                                 >
                                   <span className={cn(`font-bold mr-2 text-base flex-shrink-0`, appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id.toUpperCase()}.</span>
                                   <span className={cn(`text-base leading-relaxed`, appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}>{option.text || ''}</span>
                                 </Label>
                               </div>
-                            ))}
+                              );
+                            })}
                           </RadioGroup>
                         </div>
                       ))
@@ -2227,8 +2268,8 @@ const ExamWithFirebase = () => {
                 onClick={nextQuestion}
                 disabled={
                   isEnglishWithGroups 
-                    ? currentGroupIndex === questionGroups.length - 1 || !currentGroupQuestions.some(q => answers[q.id || ''])
-                    : currentQuestion === quizData.questions.length - 1 || !answers[quizData.questions[currentQuestion].id || '']
+                    ? currentGroupIndex === questionGroups.length - 1 || !currentGroupQuestions.some(q => answers[q.id || q.code])
+                    : currentQuestion === quizData.questions.length - 1 || !answers[quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code]
                 }
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
@@ -2255,13 +2296,13 @@ const ExamWithFirebase = () => {
                   
                   // Verificar si todas las preguntas del grupo están respondidas
                   const allAnswered = group.every(q => {
-                    const questionId = q.id || '';
+                    const questionId = q.id || q.code;
                     return answers[questionId];
                   });
                   
                   // Verificar si alguna pregunta del grupo está respondida
                   const someAnswered = group.some(q => {
-                    const questionId = q.id || '';
+                    const questionId = q.id || q.code;
                     return answers[questionId];
                   });
                   
@@ -2315,7 +2356,7 @@ const ExamWithFirebase = () => {
             ) : (
               <div className="grid grid-cols-6 gap-1.5 mb-3">
                 {quizData.questions.map((q, index) => {
-                  const questionId = q.id || ''
+                  const questionId = q.id || q.code
                   const isAnswered = answers[questionId];
                   const isCurrent = currentQuestion === index;
                   // TODOS los botones están bloqueados - solo son marcadores visuales

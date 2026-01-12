@@ -1533,7 +1533,7 @@ function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light'
 
         {/* Tarjetas de estadísticas - ocupa 2 columnas, layout 2x2 */}
         <div className="lg:col-span-2 grid grid-cols-2 gap-3">
-          {/* Puntaje Global y Ranking */}
+          {/* Puntaje Global */}
           <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
             <CardContent className="pt-3 pb-2.5">
               <div className="flex items-start justify-between mb-1.5">
@@ -1548,20 +1548,9 @@ function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light'
                       ? (studentAnalysis.phaseMetrics?.phase2.globalScore || 0)
                       : (studentAnalysis.phaseMetrics?.phase3.globalScore || 0)}
               </div>
-              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 Puntaje Global
               </p>
-              <div className={cn(
-                'inline-flex items-center gap-1.5 px-2 py-0.5 rounded',
-                theme === 'dark' ? 'bg-yellow-500/20 border border-yellow-500/30' : 'bg-yellow-50 border border-yellow-200'
-              )}>
-                <Trophy className="h-3 w-3 text-yellow-500" />
-                <span className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700')}>
-                  {(studentAnalysis as any).ranking 
-                    ? `${(studentAnalysis as any).ranking.position}º de ${(studentAnalysis as any).ranking.total}`
-                    : 'Sin ranking'}
-                </span>
-              </div>
             </CardContent>
           </Card>
 

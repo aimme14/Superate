@@ -191,17 +191,17 @@ export function TopicsHeatmap({ subjectsWithTopics, theme = 'light' }: TopicsHea
                   <div className="flex items-center gap-4">
                     <div className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                       <span className="font-medium text-green-500">
-                        {subject.topics.filter(t => t.percentage >= 70).length}
+                        {subject.topics.filter(t => t.percentage >= 65).length}
                       </span> fortalezas
                     </div>
                     <div className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                       <span className="font-medium text-yellow-500">
-                        {subject.topics.filter(t => t.percentage >= 60 && t.percentage < 70).length}
+                        {subject.topics.filter(t => t.percentage >= 50 && t.percentage < 65).length}
                       </span> en progreso
                     </div>
                     <div className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                       <span className="font-medium text-red-500">
-                        {subject.topics.filter(t => t.percentage < 60).length}
+                        {subject.topics.filter(t => t.percentage < 50).length}
                       </span> a mejorar
                     </div>
                   </div>
@@ -239,7 +239,7 @@ export function TopicsHeatmap({ subjectsWithTopics, theme = 'light' }: TopicsHea
                 Fortalezas
               </div>
               <div className="text-lg font-bold text-green-500">
-                {subjectsWithTopics.reduce((sum, s) => sum + s.topics.filter(t => t.percentage >= 70).length, 0)}
+                {subjectsWithTopics.reduce((sum, s) => sum + s.topics.filter(t => t.percentage >= 65).length, 0)}
               </div>
             </div>
             <div>
@@ -247,7 +247,7 @@ export function TopicsHeatmap({ subjectsWithTopics, theme = 'light' }: TopicsHea
                 En Progreso
               </div>
               <div className="text-lg font-bold text-yellow-500">
-                {subjectsWithTopics.reduce((sum, s) => sum + s.topics.filter(t => t.percentage >= 60 && t.percentage < 70).length, 0)}
+                {subjectsWithTopics.reduce((sum, s) => sum + s.topics.filter(t => t.percentage >= 50 && t.percentage < 65).length, 0)}
               </div>
             </div>
             <div>

@@ -48,7 +48,6 @@ import {
   ContactRound,
   NotepadText,
   BarChart2,
-  Apple,
   Shield,
   Link as LinkIcon,
   Eye,
@@ -125,9 +124,9 @@ interface SubjectWithTopics {
   name: string;
   percentage: number;
   topics: TopicAnalysis[];
-  strengths: string[]; // Temas que son fortalezas (>= 70%)
-  weaknesses: string[]; // Temas que son debilidades (< 60%)
-  neutrals: string[]; // Temas intermedios (60% - 69%)
+  strengths: string[]; // Temas que son fortalezas (>= 65%)
+  weaknesses: string[]; // Temas que son debilidades (< 50%)
+  neutrals: string[]; // Temas neutros (50% - 64%)
 }
 
 interface AnalysisData {
@@ -262,7 +261,7 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                   )}
                   {subject.neutrals.length > 0 && (
                     <Badge className={cn("text-xs", theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200")}>
-                      {subject.neutrals.length} intermedio{subject.neutrals.length > 1 ? 's' : ''}
+                      {subject.neutrals.length} neutro{subject.neutrals.length > 1 ? 's' : ''}
                     </Badge>
                   )}
                   {subject.weaknesses.length > 0 && (
@@ -312,13 +311,13 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                   </div>
                 )}
                 
-                {/* Neutros/Intermedios - Siempre mostrar si hay */}
+                {/* Neutros - Siempre mostrar si hay */}
                 {subject.neutrals.length > 0 ? (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="h-4 w-4 text-yellow-500" />
                       <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600')}>
-                        Intermedios ({subject.neutrals.length})
+                        Neutro ({subject.neutrals.length})
                       </span>
                     </div>
                     <ul className={cn("space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
@@ -335,11 +334,11 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="h-4 w-4 text-gray-400" />
                       <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                        Intermedios
+                        Neutro
                       </span>
                     </div>
                     <p className={cn("text-xs italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
-                      No se identificaron temas intermedios en esta materia
+                      No se identificaron temas neutros en esta materia
                     </p>
                   </div>
                 )}
@@ -393,7 +392,7 @@ function SubjectAnalysis({ subjects, theme = 'light' }: { subjects: SubjectAnaly
           <CardHeader>
             <CardTitle className={cn("flex items-center justify-between", theme === 'dark' ? 'text-white' : '')}>
               <span>{subject.name}</span>
-              <Badge className={subject.percentage >= 70 ? (theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200") : subject.percentage >= 50 ? (theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200") : (theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200")}>
+              <Badge className={subject.percentage >= 65 ? (theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200") : subject.percentage >= 50 ? (theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200") : (theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200")}>
                 {subject.percentage}%
               </Badge>
             </CardTitle>
@@ -1896,6 +1895,8 @@ export default function ICFESAnalysisInterface() {
 
   // Calcular el puesto del estudiante
   useEffect(() => {
+    let isMounted = true; // Flag para evitar actualizaciones de estado si el componente se desmonta
+    
     const calculateRank = async () => {
       if (!user?.uid || !analysisData) {
         return;
@@ -1905,8 +1906,8 @@ export default function ICFESAnalysisInterface() {
       try {
         // Obtener datos del estudiante actual
         const userResult = await getUserById(user.uid);
-        if (!userResult.success || !userResult.data) {
-          setIsLoadingRank(false);
+        if (!isMounted || !userResult.success || !userResult.data) {
+          if (isMounted) setIsLoadingRank(false);
           return;
         }
 
@@ -1916,7 +1917,7 @@ export default function ICFESAnalysisInterface() {
         const gradeId = studentData.grade || studentData.gradeId;
 
         if (!institutionId || !campusId || !gradeId) {
-          setIsLoadingRank(false);
+          if (isMounted) setIsLoadingRank(false);
           return;
         }
 
@@ -1929,15 +1930,17 @@ export default function ICFESAnalysisInterface() {
           isActive: true
         });
 
-        if (!studentsResult.success || !studentsResult.data) {
-          setIsLoadingRank(false);
+        if (!isMounted || !studentsResult.success || !studentsResult.data) {
+          if (isMounted) setIsLoadingRank(false);
           return;
         }
 
         const classmates = studentsResult.data;
         
-        // Guardar el total de estudiantes
-        setTotalStudents(classmates.length);
+        // Logs solo en desarrollo
+        if (import.meta.env.DEV) {
+          console.log('📊 Ranking - Total estudiantes en el grado:', classmates.length);
+        }
         
         // Determinar la fase actual basada en los datos disponibles
         // Priorizar Fase III, luego Fase II, luego Fase I
@@ -1950,17 +1953,39 @@ export default function ICFESAnalysisInterface() {
           currentPhase = 'first';
         }
         
+        if (import.meta.env.DEV) {
+          console.log('📊 Ranking - Fase actual:', currentPhase);
+        }
+        
         // Calcular puntaje global de cada estudiante para la fase actual
         const studentScores: { studentId: string; score: number }[] = [];
         
         for (const classmate of classmates) {
+          if (!isMounted) break; // Salir si el componente se desmontó
+          
           const studentId = (classmate as any).id || (classmate as any).uid;
           if (studentId) {
-            const score = await calculateStudentGlobalScoreForPhase(studentId, currentPhase);
-            if (score > 0) { // Solo incluir estudiantes con evaluaciones en esta fase
-              studentScores.push({ studentId, score });
+            try {
+              const score = await calculateStudentGlobalScoreForPhase(studentId, currentPhase);
+              if (import.meta.env.DEV) {
+                console.log(`📊 Ranking - Estudiante ${studentId}: score = ${score}`);
+              }
+              if (score > 0) { // Solo incluir estudiantes con evaluaciones en esta fase
+                studentScores.push({ studentId, score });
+              }
+            } catch (error) {
+              // Solo loggear errores en desarrollo, pero continuar con el siguiente estudiante
+              if (import.meta.env.DEV) {
+                console.error(`📊 Ranking - Error calculando score para estudiante ${studentId}:`, error);
+              }
             }
           }
+        }
+
+        if (!isMounted) return; // Verificar nuevamente antes de actualizar estado
+
+        if (import.meta.env.DEV) {
+          console.log('📊 Ranking - Estudiantes con evaluaciones:', studentScores.length);
         }
 
         // Ordenar por puntaje (mayor a menor)
@@ -1970,20 +1995,38 @@ export default function ICFESAnalysisInterface() {
         const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
         if (currentStudentIndex !== -1) {
           setStudentRank(currentStudentIndex + 1); // +1 porque el puesto empieza en 1
-          setTotalStudents(studentScores.length); // Actualizar con el total real de estudiantes con evaluaciones
+          // ✅ CORRECCIÓN: Usar el total de estudiantes del grado, no solo los que tienen evaluaciones
+          setTotalStudents(classmates.length);
+          if (import.meta.env.DEV) {
+            console.log('📊 Ranking - Puesto del estudiante:', currentStudentIndex + 1, 'de', classmates.length, 'estudiantes');
+          }
         } else {
           setStudentRank(null);
+          // Aún así, mostrar el total de estudiantes del grado
+          setTotalStudents(classmates.length);
+          if (import.meta.env.DEV) {
+            console.log('📊 Ranking - Estudiante no encontrado en el ranking, pero hay', classmates.length, 'estudiantes en el grado');
+          }
         }
       } catch (error) {
-        console.error('Error calculando puesto del estudiante:', error);
+        if (import.meta.env.DEV) {
+          console.error('Error calculando puesto del estudiante:', error);
+        }
       } finally {
-        setIsLoadingRank(false);
+        if (isMounted) {
+          setIsLoadingRank(false);
+        }
       }
     };
 
     if (analysisData && user?.uid) {
       calculateRank();
     }
+
+    // Cleanup: marcar como desmontado cuando el componente se desmonte o cambien las dependencias
+    return () => {
+      isMounted = false;
+    };
   }, [analysisData, user?.uid, phase1Data, phase2Data, phase3Data]);
 
   useEffect(() => {
@@ -2342,21 +2385,21 @@ export default function ICFESAnalysisInterface() {
       const totalQuestions = topicAnalyses.reduce((sum, topic) => sum + topic.total, 0);
       const subjectPercentage = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
 
-      // Calcular fortalezas (temas con >= 70%), debilidades (temas con < 60%) y neutros (60% - 69%)
+      // Calcular fortalezas (temas con >= 65%), debilidades (temas con < 50%) y neutros (50% - 64%)
       // Los rangos son mutuamente excluyentes y cubren todos los casos posibles:
-      // - Debilidades: 0% - 59%
-      // - Intermedios: 60% - 69%
-      // - Fortalezas: 70% - 100%
+      // - Debilidades: 0% - 49%
+      // - Neutros: 50% - 64%
+      // - Fortalezas: 65% - 100%
       const strengths = topicAnalyses
-        .filter(topic => topic.percentage >= 70)
+        .filter(topic => topic.percentage >= 65)
         .map(topic => topic.name);
       
       const weaknesses = topicAnalyses
-        .filter(topic => topic.percentage < 60)
+        .filter(topic => topic.percentage < 50)
         .map(topic => topic.name);
       
       const neutrals = topicAnalyses
-        .filter(topic => topic.percentage >= 60 && topic.percentage < 70)
+        .filter(topic => topic.percentage >= 50 && topic.percentage < 65)
         .map(topic => topic.name);
       
       // Validación: todos los temas deben estar clasificados en alguna categoría
@@ -2599,10 +2642,10 @@ export default function ICFESAnalysisInterface() {
       );
 
       // Clasificar temas
-      // Rangos mutuamente excluyentes: Debilidades (< 60%), Intermedios (60-69%), Fortalezas (>= 70%)
-      const strengths = topics.filter(t => t.percentage >= 70).map(t => t.name);
-      const weaknesses = topics.filter(t => t.percentage < 60).map(t => t.name);
-      const neutrals = topics.filter(t => t.percentage >= 60 && t.percentage < 70).map(t => t.name);
+      // Rangos mutuamente excluyentes: Debilidades (< 50%), Neutros (50-64%), Fortalezas (>= 65%)
+      const strengths = topics.filter(t => t.percentage >= 65).map(t => t.name);
+      const weaknesses = topics.filter(t => t.percentage < 50).map(t => t.name);
+      const neutrals = topics.filter(t => t.percentage >= 50 && t.percentage < 65).map(t => t.name);
       
       // Validación: todos los temas deben estar clasificados
       const classifiedTopics = strengths.length + weaknesses.length + neutrals.length;
@@ -4750,9 +4793,17 @@ const generatePhase1And2PDFHTML = (
               for (const classmate of classmates) {
                 const classmateId = (classmate as any).id || (classmate as any).uid;
                 if (classmateId) {
-                  const score = await calculateStudentGlobalScoreForPhase(classmateId, phase);
-                  if (score > 0) { // Solo incluir estudiantes con evaluaciones en esta fase
-                    studentScores.push({ studentId: classmateId, score });
+                  try {
+                    const score = await calculateStudentGlobalScoreForPhase(classmateId, phase);
+                    if (score > 0) { // Solo incluir estudiantes con evaluaciones en esta fase
+                      studentScores.push({ studentId: classmateId, score });
+                    }
+                  } catch (error) {
+                    // Solo loggear errores en desarrollo
+                    if (import.meta.env.DEV) {
+                      console.error(`Error calculando score para estudiante ${classmateId} en PDF:`, error);
+                    }
+                    // Continuar con el siguiente estudiante
                   }
                 }
               }
@@ -4764,7 +4815,11 @@ const generatePhase1And2PDFHTML = (
               const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
               if (currentStudentIndex !== -1) {
                 pdfStudentRank = currentStudentIndex + 1; // +1 porque el puesto empieza en 1
-                pdfTotalStudents = studentScores.length; // Total real de estudiantes con evaluaciones
+                // ✅ CORRECCIÓN: Usar el total de estudiantes del grado, no solo los que tienen evaluaciones
+                pdfTotalStudents = classmates.length;
+              } else {
+                // Aún así, mostrar el total de estudiantes del grado
+                pdfTotalStudents = classmates.length;
               }
             }
           }
@@ -4922,7 +4977,7 @@ const generatePhase1And2PDFHTML = (
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
               <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
-              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
+              <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
@@ -4958,7 +5013,7 @@ const generatePhase1And2PDFHTML = (
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
               <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
-              <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
+              <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
@@ -5002,7 +5057,7 @@ const generatePhase1And2PDFHTML = (
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
-            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
+            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>
       </header>

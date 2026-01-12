@@ -76,41 +76,37 @@ class DatabaseService {
    */
   async getUserById(id: string): Promise<Result<any>> {
     try {
-      console.log('🔍 Buscando usuario con UID:', id)
-      
       // PRIMERO: Buscar en la nueva estructura jerárquica
       const newStructureResult = await this.getUserByIdFromNewStructure(id)
       if (newStructureResult.success) {
-        console.log('✅ Usuario encontrado en nueva estructura jerárquica')
         return newStructureResult
       }
 
       // SEGUNDO: Si no se encuentra en nueva estructura, buscar en estructura antigua
       // SOLO para admin (los admins no tienen institutionId y no están en nueva estructura)
-      console.log('⚠️ Usuario no encontrado en nueva estructura, buscando en estructura antigua (solo para admin)...')
-      const docRef = doc(this.getCollection('users'), id)
-      const docSnap = await getDoc(docRef)
-      
-      if (!docSnap.exists()) {
-        console.log('❌ Usuario no encontrado en ninguna estructura')
-        return failure(new NotFound({ message: 'Usuario no encontrado' }))
+      try {
+        const docRef = doc(this.getCollection('users'), id)
+        const docSnap = await getDoc(docRef)
+        
+        if (!docSnap.exists()) {
+          return failure(new NotFound({ message: 'Usuario no encontrado' }))
+        }
+        
+        const userData = { id: docSnap.id, ...docSnap.data() } as any
+        
+        // Verificar que sea admin - si no es admin, no debería estar en estructura antigua
+        if (userData.role !== 'admin') {
+          return failure(new NotFound({ 
+            message: 'Usuario no encontrado. Este usuario debería estar en la nueva estructura jerárquica.' 
+          }))
+        }
+        
+        return success(userData)
+      } catch (oldStructureError: any) {
+        // Si falla la búsqueda en estructura antigua, retornar el error de la nueva estructura
+        return newStructureResult
       }
-      
-      const userData = { id: docSnap.id, ...docSnap.data() } as any
-      
-      // Verificar que sea admin - si no es admin, no debería estar en estructura antigua
-      if (userData.role !== 'admin') {
-        console.log('⚠️ Usuario encontrado en estructura antigua pero NO es admin:', userData.role)
-        console.log('⚠️ Este usuario debería haber sido migrado a la nueva estructura')
-        return failure(new NotFound({ 
-          message: 'Usuario no encontrado. Este usuario debería estar en la nueva estructura jerárquica.' 
-        }))
-      }
-      
-      console.log('✅ Usuario admin encontrado en estructura antigua')
-      return success(userData)
-    } catch (e) { 
-      console.log('❌ Error al obtener usuario:', e)
+    } catch (e: any) { 
       return failure(new ErrorAPI(normalizeError(e, 'obtener usuario'))) 
     }
   }
@@ -1780,7 +1776,6 @@ class DatabaseService {
    */
   async getFilteredStudents(filters: any): Promise<Result<any[]>> {
     try {
-      console.log('🚀 Iniciando getFilteredStudents con filtros:', filters)
       let allStudents: any[] = []
       const studentIds = new Set<string>()
 
@@ -1795,11 +1790,17 @@ class DatabaseService {
                 // Aplicar filtros en memoria
                 let matches = true
 
-                if (filters.campusId && student.campus !== filters.campusId && student.campusId !== filters.campusId) {
-                  matches = false
+                if (filters.campusId) {
+                  const studentCampus = student.campus || student.campusId
+                  if (studentCampus !== filters.campusId) {
+                    matches = false
+                  }
                 }
-                if (filters.gradeId && student.grade !== filters.gradeId && student.gradeId !== filters.gradeId) {
-                  matches = false
+                if (filters.gradeId) {
+                  const studentGrade = student.grade || student.gradeId
+                  if (studentGrade !== filters.gradeId) {
+                    matches = false
+                  }
                 }
                 if (filters.jornada && student.jornada !== filters.jornada) {
                   matches = false
@@ -1833,11 +1834,17 @@ class DatabaseService {
                 // Aplicar filtros
                 let matches = true
 
-                if (filters.campusId && student.campus !== filters.campusId && student.campusId !== filters.campusId) {
-                  matches = false
+                if (filters.campusId) {
+                  const studentCampus = student.campus || student.campusId
+                  if (studentCampus !== filters.campusId) {
+                    matches = false
+                  }
                 }
-                if (filters.gradeId && student.grade !== filters.gradeId && student.gradeId !== filters.gradeId) {
-                  matches = false
+                if (filters.gradeId) {
+                  const studentGrade = student.grade || student.gradeId
+                  if (studentGrade !== filters.gradeId) {
+                    matches = false
+                  }
                 }
                 if (filters.jornada && student.jornada !== filters.jornada) {
                   matches = false
@@ -1863,9 +1870,8 @@ class DatabaseService {
             })
           }
         }
-        console.log(`✅ Estudiantes encontrados en nueva estructura: ${allStudents.length}`)
       } catch (error) {
-        console.warn('⚠️ Error al obtener estudiantes de nueva estructura:', error)
+        // Error al obtener estudiantes de nueva estructura
       }
 
       // La estructura antigua ha sido eliminada - solo usar nueva estructura
@@ -1879,12 +1885,7 @@ class DatabaseService {
         )
       }
 
-      console.log(`✅ Estudiantes totales (nueva estructura): ${allStudents.length}`)
-
       let students = allStudents
-      
-      console.log('📊 Estudiantes encontrados antes del enriquecimiento:', students.length)
-      console.log('📋 Primer estudiante (sin enriquecer):', students[0])
 
       // OPTIMIZADO: Enriquecer datos usando caché para evitar múltiples llamadas
       // Agrupar estudiantes por institución para hacer una sola llamada por institución
@@ -1957,12 +1958,8 @@ class DatabaseService {
         })
       )
 
-      console.log('🎉 Estudiantes enriquecidos finales:', enrichedStudents.length)
-      console.log('📋 Primer estudiante enriquecido:', enrichedStudents[0])
-      
       return success(enrichedStudents)
     } catch (e) { 
-      console.error('❌ Error en getFilteredStudents:', e)
       return failure(new ErrorAPI(normalizeError(e, 'obtener estudiantes filtrados'))) 
     }
   }
@@ -2676,14 +2673,18 @@ class DatabaseService {
       // Obtener todas las instituciones
       const institutionsResult = await this.getAllInstitutions()
       if (!institutionsResult.success) {
+        console.error('❌ Error al obtener instituciones:', institutionsResult.error)
         return failure(institutionsResult.error)
       }
+
+      console.log(`📊 Buscando en ${institutionsResult.data.length} instituciones`)
 
       // Buscar en cada institución y cada rol
       const roles = ['rectores', 'coordinadores', 'profesores', 'estudiantes']
       
       for (const institution of institutionsResult.data) {
         const institutionId = institution.id
+        console.log(`🔍 Buscando en institución: ${institutionId}`)
 
         for (const roleCollection of roles) {
           try {
@@ -2704,17 +2705,21 @@ class DatabaseService {
               console.log('👤 Rol del usuario:', userData.role)
               return success(userData)
             }
-          } catch (error) {
-            // Continuar buscando en otras colecciones
+          } catch (error: any) {
+            // Continuar buscando en otras colecciones, pero registrar el error
+            console.warn(`⚠️ Error al buscar en ${roleCollection} de institución ${institutionId}:`, error?.message || error)
             continue
           }
         }
       }
 
-      console.log('❌ Usuario no encontrado en nueva estructura')
+      console.log('❌ Usuario no encontrado en nueva estructura después de buscar en todas las instituciones')
       return failure(new NotFound({ message: 'Usuario no encontrado en nueva estructura' }))
-    } catch (e) {
+    } catch (e: any) {
       console.error('❌ Error al obtener usuario de nueva estructura:', e)
+      console.error('❌ Tipo de error:', e?.constructor?.name)
+      console.error('❌ Código de error:', e?.code)
+      console.error('❌ Mensaje de error:', e?.message)
       return failure(new ErrorAPI(normalizeError(e, 'obtener usuario de nueva estructura')))
     }
   }

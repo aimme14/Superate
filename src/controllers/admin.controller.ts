@@ -6,6 +6,7 @@ import { normalizeError } from "@/errors/handler"
 import { User as UserFB } from "firebase/auth"
 import { getFirestore, collection, getDocs } from "firebase/firestore"
 import { firebaseApp } from "@/services/firebase/db.service"
+import { getAllPhases } from "@/utils/firestoreHelpers"
 
 interface CreateUserData {
   username: string
@@ -184,7 +185,18 @@ export const recalculateStudentCounts = async (): Promise<Result<void>> => {
 
 /**
  * Cuenta el total de pruebas presentadas en el sistema
- * Cuenta directamente desde la colección results para obtener el total real de todos los exámenes
+ * 
+ * Estructura de datos en Firestore:
+ * - results (colección principal)
+ *   - IDestudiantes (documento por cada estudiante)
+ *     - fase I (subcolección con exámenes)
+ *     - Fase II (subcolección con exámenes)
+ *     - fase III (subcolección con exámenes)
+ * 
+ * Cuenta todas las pruebas de todas las fases de todos los estudiantes.
+ * Ejemplo: Si un estudiante tiene 7 exámenes en fase I y 3 en Fase II,
+ * ese estudiante tiene 10 exámenes en total.
+ * 
  * @returns {Promise<Result<number>>} - Total de pruebas completadas
  */
 export const getTotalCompletedExams = async (): Promise<Result<number>> => {
@@ -196,40 +208,55 @@ export const getTotalCompletedExams = async (): Promise<Result<number>> => {
       const { examRegistryService } = await import('@/services/firebase/examRegistry.service')
       const registryResult = await examRegistryService.getTotalExams()
       if (registryResult.success && registryResult.data > 0) {
-        console.log(`✅ Total de exámenes desde registro: ${registryResult.data}`)
+        console.log(`✅ [getTotalCompletedExams] Total de exámenes desde registro: ${registryResult.data}`)
         return success(registryResult.data)
+      } else if (registryResult.success && registryResult.data === 0) {
+        console.log(`⚠️ [getTotalCompletedExams] Registro existe pero está en 0, contando manualmente desde results...`)
       }
     } catch (registryError) {
       // Si falla el registro, continuar con el conteo manual
-      console.log('⚠️ No se pudo obtener desde registro, contando manualmente...')
+      console.log('⚠️ [getTotalCompletedExams] No se pudo obtener desde registro, contando manualmente...')
     }
     
     // Si el registro no tiene datos o falla, hacer conteo manual (más lento pero más preciso)
+    // Obtener todos los estudiantes (documentos en la colección 'results')
+    console.log('🔍 [getTotalCompletedExams] Iniciando conteo manual desde colección results...')
     const resultsRef = collection(db, 'results')
     const usersSnapshot = await getDocs(resultsRef)
     
     if (usersSnapshot.empty) {
+      console.log('📊 [getTotalCompletedExams] No hay estudiantes en la colección results')
       return success(0)
     }
     
-    let totalExams = 0
-    const mainPhases = ['fase I', 'Fase II', 'fase III']
+    console.log(`📊 [getTotalCompletedExams] Encontrados ${usersSnapshot.size} estudiantes en results`)
+    
+    // Obtener todas las fases disponibles usando la función helper para mantener consistencia
+    const mainPhases = getAllPhases() // ['fase I', 'Fase II', 'fase III']
+    console.log(`📋 [getTotalCompletedExams] Fases a contar: ${mainPhases.join(', ')}`)
     
     // Crear promesas para consultar todas las fases de todos los usuarios en paralelo
     const promises: Promise<number>[] = []
     
+    // Para cada estudiante (documento en results)
     for (const userDoc of usersSnapshot.docs) {
       const userId = userDoc.id
       
-      // Para cada fase, crear una promesa que cuenta los documentos
+      // Para cada fase (fase I, Fase II, fase III), crear una promesa que cuenta los documentos
       for (const phaseName of mainPhases) {
         const promise = (async () => {
           try {
+            // Acceder a la subcolección de la fase: results/{userId}/{phaseName}
             const phaseRef = collection(db, 'results', userId, phaseName)
             const phaseSnapshot = await getDocs(phaseRef)
-            return phaseSnapshot.empty ? 0 : phaseSnapshot.docs.length
-          } catch {
-            // Si no existe la subcolección, retornar 0
+            // Cada documento en la subcolección es un examen completado
+            const count = phaseSnapshot.empty ? 0 : phaseSnapshot.docs.length
+            if (count > 0) {
+              console.log(`  📝 [getTotalCompletedExams] Estudiante ${userId} - ${phaseName}: ${count} exámenes`)
+            }
+            return count
+          } catch (error) {
+            // Si no existe la subcolección (estudiante no tiene exámenes en esa fase), retornar 0
             return 0
           }
         })()
@@ -238,15 +265,17 @@ export const getTotalCompletedExams = async (): Promise<Result<number>> => {
       }
     }
     
-    // Ejecutar todas las consultas en paralelo (mucho más rápido)
+    // Ejecutar todas las consultas en paralelo (mucho más rápido que secuencial)
+    console.log(`⏳ [getTotalCompletedExams] Ejecutando ${promises.length} consultas en paralelo...`)
     const results = await Promise.all(promises)
-    totalExams = results.reduce((sum, count) => sum + count, 0)
+    // Sumar todos los conteos para obtener el total de exámenes completados
+    const totalExams = results.reduce((sum, count) => sum + count, 0)
     
-    console.log(`✅ Total de exámenes encontrados: ${totalExams} (${usersSnapshot.size} usuarios, ${promises.length} consultas en paralelo)`)
+    console.log(`✅ [getTotalCompletedExams] Total de exámenes encontrados: ${totalExams} (${usersSnapshot.size} estudiantes, ${mainPhases.length} fases por estudiante)`)
     
     return success(totalExams)
   } catch (e) {
-    console.error('❌ Error al contar pruebas completadas:', e)
+    console.error('❌ [getTotalCompletedExams] Error al contar pruebas completadas:', e)
     return failure(new ErrorAPI(normalizeError(e, 'contar pruebas completadas')))
   }
 }

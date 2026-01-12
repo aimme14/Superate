@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ContactRound, NotepadText, BarChart2, Apple } from "lucide-react"
+import { ContactRound, NotepadText, BarChart2, BookOpen } from "lucide-react"
 import { useAuthContext } from "@/context/AuthContext"
 import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { Input } from "@/components/ui/input"
@@ -69,7 +69,7 @@ export default function InfoTab() {
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" active theme={theme}/>
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-            <NavItem href="/dashboard#evaluacion" icon={<Apple className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
+            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>
       </header>

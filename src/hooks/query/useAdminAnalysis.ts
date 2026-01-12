@@ -76,7 +76,6 @@ export interface StudentAnalysis {
   }
   // Métricas adicionales
   globalScore?: number
-  ranking?: { position: number; total: number }
   phase1Percentage?: number
   phase2Percentage?: number
   phase3Percentage?: number

@@ -47,9 +47,9 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
     const totalCorrect = subjects.reduce((sum, s) => sum + s.correct, 0);
     const averagePercentage = subjects.reduce((sum, s) => sum + s.percentage, 0) / subjects.length;
     
-    const strongSubjects = subjects.filter(s => s.percentage >= 70);
-    const weakSubjects = subjects.filter(s => s.percentage < 60);
-    const moderateSubjects = subjects.filter(s => s.percentage >= 60 && s.percentage < 70);
+    const strongSubjects = subjects.filter(s => s.percentage >= 65);
+    const weakSubjects = subjects.filter(s => s.percentage < 50);
+    const moderateSubjects = subjects.filter(s => s.percentage >= 50 && s.percentage < 65);
 
     let summary = `El estudiante ha completado un total de ${totalQuestions} preguntas, respondiendo correctamente ${totalCorrect} de ellas, lo que representa un promedio general de ${averagePercentage.toFixed(1)}%. `;
 
@@ -66,11 +66,11 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
     }
     
     if (moderateSubjects.length > 0) {
-      summary += `presenta un nivel intermedio en ${moderateSubjects.length} materia${moderateSubjects.length > 1 ? 's' : ''}, `;
+      summary += `presenta un nivel neutro en ${moderateSubjects.length} materia${moderateSubjects.length > 1 ? 's' : ''}, `;
     }
 
-    if (weakSubjects.length > 0) {
-      summary += `y necesita reforzar ${weakSubjects.length} materia${weakSubjects.length > 1 ? 's' : ''} donde su rendimiento está por debajo del 60%. `;
+      if (weakSubjects.length > 0) {
+        summary += `y necesita reforzar ${weakSubjects.length} materia${weakSubjects.length > 1 ? 's' : ''} donde su rendimiento está por debajo del 50%. `;
     } else {
       summary += `y mantiene un rendimiento consistente en todas las materias evaluadas. `;
     }
@@ -121,9 +121,9 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
 
     // Agregar análisis por temas si está disponible
     if (subjectWithTopics && subjectWithTopics.topics.length > 0) {
-      const strongTopics = subjectWithTopics.topics.filter(t => t.percentage >= 70);
-      const weakTopics = subjectWithTopics.topics.filter(t => t.percentage < 60);
-      const moderateTopics = subjectWithTopics.topics.filter(t => t.percentage >= 60 && t.percentage < 70);
+      const strongTopics = subjectWithTopics.topics.filter(t => t.percentage >= 65);
+      const weakTopics = subjectWithTopics.topics.filter(t => t.percentage < 50);
+      const moderateTopics = subjectWithTopics.topics.filter(t => t.percentage >= 50 && t.percentage < 65);
 
       summary += `Al analizar por temas evaluados, `;
 
@@ -136,7 +136,7 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
       }
 
       if (moderateTopics.length > 0 && strongTopics.length === 0 && weakTopics.length === 0) {
-        summary += `presenta un nivel intermedio en todos los temas evaluados, sugiriendo una comprensión general que puede mejorarse con práctica adicional. `;
+        summary += `presenta un nivel neutro en todos los temas evaluados, sugiriendo una comprensión general que puede mejorarse con práctica adicional. `;
       }
     } else {
       // Agregar fortalezas si existen (cuando no hay info de temas)
