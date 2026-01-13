@@ -2114,10 +2114,17 @@ const ExamWithFirebase = () => {
                                   value={selectedAnswer || undefined}
                                   open={isOpen}
                                   onOpenChange={(open) => {
-                                    // Simplificado: Solo actualizar el estado directamente sin lógica compleja
-                                    setOpenSelects(prev => ({ ...prev, [questionId]: open }));
-                                    if (!open) {
-                                      intentionalCloseRef.current[questionId] = false;
+                                    if (open) {
+                                      // Abrir está siempre permitido
+                                      setOpenSelects(prev => ({ ...prev, [questionId]: true }));
+                                    } else {
+                                      // Para cerrar, verificar si es intencional
+                                      // Si no es intencional (por ejemplo, un re-render), mantener abierto
+                                      if (intentionalCloseRef.current[questionId]) {
+                                        setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                        intentionalCloseRef.current[questionId] = false;
+                                      }
+                                      // Si no es intencional, simplemente no hacer nada (mantener el estado actual)
                                     }
                                   }}
                                   onValueChange={(value) => {
@@ -2151,6 +2158,30 @@ const ExamWithFirebase = () => {
                                     position="popper"
                                     sideOffset={5}
                                     avoidCollisions={true}
+                                    onPointerDownOutside={(e) => {
+                                      const target = e.target as HTMLElement;
+                                      
+                                      // Verificar si el click es dentro del SelectContent o su portal
+                                      // Radix UI renderiza el contenido en un portal, así que verificamos el atributo data-radix-select-content
+                                      const selectContent = target.closest('[data-radix-select-content]');
+                                      const selectViewport = target.closest('[data-radix-select-viewport]');
+                                      const selectItem = target.closest('[data-radix-select-item]');
+                                      
+                                      if (selectContent || selectViewport || selectItem) {
+                                        // Prevenir el cierre si está dentro del dropdown o sus elementos
+                                        e.preventDefault();
+                                        return;
+                                      }
+                                      
+                                      // Si el click es fuera, marcar como cierre intencional y permitir el cierre
+                                      intentionalCloseRef.current[questionId] = true;
+                                      setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                    }}
+                                    onEscapeKeyDown={() => {
+                                      // Marcar como cierre intencional y cerrar el dropdown cuando se presiona Escape
+                                      intentionalCloseRef.current[questionId] = true;
+                                      setOpenSelects(prev => ({ ...prev, [questionId]: false }));
+                                    }}
                                   >
                                     {question.options && question.options.length > 0 ? (
                                       question.options.map((option) => (
@@ -2162,12 +2193,17 @@ const ExamWithFirebase = () => {
                                             "data-[highlighted]:!scale-100 data-[highlighted]:!translate-y-0 data-[highlighted]:!shadow-none data-[highlighted]:!transform-none",
                                             "data-[state=checked]:!scale-100 data-[state=checked]:!translate-y-0 data-[state=checked]:!transform-none",
                                             "[&>div]:!opacity-0 [&>div]:!animate-none [&>div]:!transition-none",
+                                            "cursor-pointer", // Asegurar que el cursor indique que es clickeable
                                             appTheme === 'dark' 
                                               ? 'hover:!bg-zinc-700 data-[highlighted]:!bg-zinc-700 focus:!bg-zinc-700' 
                                               : 'hover:!bg-gray-100 data-[highlighted]:!bg-gray-100 focus:!bg-gray-100'
                                           )}
+                                          onPointerDown={(e) => {
+                                            // Prevenir que el evento se propague y cause problemas
+                                            e.stopPropagation();
+                                          }}
                                         >
-                                          <div className="flex items-center gap-2 w-full">
+                                          <div className="flex items-center gap-2 w-full pointer-events-none">
                                             <span className="font-semibold min-w-[20px]">{option.id}:</span>
                                             <span className="flex-1">{option.text || 'Sin texto'}</span>
                                           </div>

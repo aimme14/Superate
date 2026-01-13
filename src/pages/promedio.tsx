@@ -28,6 +28,7 @@ import { SubjectsProgressChart } from "@/components/charts/SubjectsProgressChart
 import { SubjectsDetailedSummary } from "@/components/charts/SubjectsDetailedSummary"
 import { studentSummaryService } from "@/services/studentSummary/studentSummary.service"
 import { useNotification } from "@/hooks/ui/useNotification"
+import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import {
   Brain,
   Download,
@@ -847,6 +848,7 @@ function PersonalizedStudyPlan({
   // Estado para almacenar las autorizaciones de planes de estudio por materia
   const [subjectAuthorizations, setSubjectAuthorizations] = useState<Record<string, boolean>>({});
   const [loadingAuthorizations, setLoadingAuthorizations] = useState<boolean>(true);
+  const { notifySuccess, notifyError } = useNotification();
 
   // URL base de Cloud Functions
   const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
@@ -1005,12 +1007,29 @@ function PersonalizedStudyPlan({
           [subject]: result.data,
         }));
         console.log(`✅ Plan completo cargado para ${subject}`);
+        notifySuccess({
+          title: 'Plan generado exitosamente',
+          message: `El plan de estudio para ${subject} se ha generado correctamente.`
+        });
       } else {
-        alert(`Error: ${result.error?.message || 'No se pudo generar el plan de estudio'}`);
+        const errorMessage = result.error?.message || 'No se pudo generar el plan de estudio';
+        console.error('Error generando plan:', errorMessage);
+        notifyError({
+          title: 'Error al generar plan',
+          message: errorMessage.includes('truncada') || errorMessage.includes('mal formada')
+            ? 'La respuesta del sistema fue demasiado larga. Por favor, intenta generar el plan nuevamente. El banco de vocabulario está disponible mientras tanto.'
+            : errorMessage
+        });
       }
     } catch (error: any) {
       console.error('Error generando plan de estudio:', error);
-      alert(`Error: ${error.message || 'Error al generar el plan de estudio'}`);
+      const errorMessage = error.message || 'Error al generar el plan de estudio';
+      notifyError({
+        title: 'Error al generar plan',
+        message: errorMessage.includes('truncada') || errorMessage.includes('mal formada')
+          ? 'La respuesta del sistema fue demasiado larga. Por favor, intenta generar el plan nuevamente. El banco de vocabulario está disponible mientras tanto.'
+          : errorMessage
+      });
     } finally {
       setGeneratingFor(null);
     }
@@ -1019,7 +1038,7 @@ function PersonalizedStudyPlan({
   // Obtener materias con debilidades
   const subjectsWithWeaknesses = subjectsWithTopics.filter(s => s.weaknesses.length > 0);
 
-  // Orden de materias para mostrar (solo para orden visual, no para cascada)
+  // Orden de materias para mostrar (usado para cascada)
   const subjectOrder: Record<string, number> = {
     'Matemáticas': 1,
     'Lenguaje': 2,
@@ -1030,12 +1049,49 @@ function PersonalizedStudyPlan({
     'Inglés': 7
   };
 
-  // Ordenar materias según el orden predefinido (solo para orden visual)
+  // Ordenar materias según el orden predefinido (usado para cascada)
   const sortedSubjects = [...subjectsWithWeaknesses].sort((a, b) => {
     const orderA = subjectOrder[a.name] || 999;
     const orderB = subjectOrder[b.name] || 999;
     return orderA - orderB;
   });
+
+  // Función helper para determinar si una materia puede mostrar el botón "Generar Plan"
+  // Implementa lógica de cascada: solo la primera materia autorizada sin plan puede generar
+  const canShowGenerateButton = (subjectName: string): boolean => {
+    // Verificar condiciones básicas
+    const plan = studyPlans[subjectName];
+    const isAuthorized = subjectAuthorizations[subjectName] ?? false;
+    
+    // Si ya tiene plan o no está autorizada, no mostrar botón
+    if (plan || !isAuthorized || loadingPlans || loadingAuthorizations) {
+      return false;
+    }
+
+    // Lógica de cascada: verificar si hay alguna materia anterior (en orden) 
+    // que esté autorizada pero no tenga plan
+    const currentSubjectOrder = subjectOrder[subjectName] || 999;
+    
+    for (const subject of sortedSubjects) {
+      const subjectOrderValue = subjectOrder[subject.name] || 999;
+      
+      // Solo verificar materias anteriores en el orden
+      if (subjectOrderValue >= currentSubjectOrder) {
+        break; // Ya pasamos todas las materias anteriores
+      }
+      
+      // Si hay una materia anterior autorizada sin plan, esta no puede mostrar el botón
+      const isPrevAuthorized = subjectAuthorizations[subject.name] ?? false;
+      const hasPrevPlan = !!studyPlans[subject.name];
+      
+      if (isPrevAuthorized && !hasPrevPlan) {
+        return false; // Hay una materia anterior esperando
+      }
+    }
+    
+    // Si llegamos aquí, esta es la primera materia autorizada sin plan
+    return true;
+  };
 
   if (subjectsWithWeaknesses.length === 0) {
     return (
@@ -1087,8 +1143,8 @@ function PersonalizedStudyPlan({
         // 1. NO hay plan en la base de datos
         // 2. La materia está autorizada para el grado y fase del estudiante
         // 3. Se han cargado las autorizaciones
-        // NO hay lógica de cascada - cada materia se habilita independientemente según la autorización del admin
-        const shouldShowButton = !plan && !loadingPlans && !loadingAuthorizations && isAuthorized;
+        // 4. Es la primera materia autorizada sin plan (lógica de cascada)
+        const shouldShowButton = canShowGenerateButton(subject.name);
 
         return (
           <AccordionItem 
@@ -1157,7 +1213,7 @@ function PersonalizedStudyPlan({
                       ) : (
                         <>
                           <Clock className="h-3 w-3 inline mr-2" />
-                          En espera
+                          En espera 
                         </>
                       )}
                     </div>
@@ -1414,6 +1470,9 @@ function PersonalizedStudyPlan({
                   </AccordionItem>
                 </Accordion>
 
+                {/* Banco de Vocabulario Académico */}
+                <VocabularyBank materia={subject.name} theme={theme} />
+
                 {/* Ejercicios de práctica */}
                 <Accordion type="single" collapsible value={expandedSection[`${subject.name}-exercises`] || undefined}>
                   <AccordionItem value="exercises">
@@ -1585,7 +1644,9 @@ function PersonalizedStudyPlan({
                       <div className={cn("flex items-center justify-center gap-2 mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                         <Clock className="h-5 w-5" />
                         <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                          El plan de estudio estará disponible después de generar el plan de la materia anterior.
+                          {isAuthorized 
+                            ? 'El plan de estudio estará disponible después de generar el plan de la materia anterior en el orden de cascada.'
+                            : 'El plan de estudio no está autorizado para esta materia.'}
                         </p>
                       </div>
                       <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-zinc-700/30 border border-zinc-600/50' : 'bg-gray-50 border border-gray-200')}>

@@ -16,6 +16,8 @@
     "logs": "firebase functions:log",
     "generate-justifications": "npm run build && node lib/scripts/generateJustifications.js",
     "view-justifications": "npm run build && node lib/scripts/viewJustifications.js",
+    "generate-vocabulary": "npm run build && node lib/scripts/generateVocabulary.js",
+    "delete-examples": "npm run build && node lib/scripts/deleteExamples.js",
     "test": "echo \"No tests configured yet\" && exit 0",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
