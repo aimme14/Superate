@@ -852,11 +852,18 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
                 if (position < jsonString.length) {
                   console.log(`   🔧 Analizando error en posición ${position}...`);
                   
-                  // Mostrar contexto del error
-                  const contextStart = Math.max(0, position - 50);
-                  const contextEnd = Math.min(jsonString.length, position + 50);
+                  // Mostrar contexto del error (más amplio para mejor diagnóstico)
+                  const contextStart = Math.max(0, position - 200);
+                  const contextEnd = Math.min(jsonString.length, position + 200);
                   const context = jsonString.substring(contextStart, contextEnd);
-                  console.log(`   Contexto: "${context}"`);
+                  console.log(`   Contexto ampliado (posiciones ${contextStart}-${contextEnd}): "${context}"`);
+                  
+                  // Buscar el problema específico: "Expected ',' or '}'"
+                  // Esto generalmente significa que hay un valor sin cerrar o una estructura incompleta
+                  const beforeError = jsonString.substring(Math.max(0, position - 100), position);
+                  const afterError = jsonString.substring(position, Math.min(jsonString.length, position + 100));
+                  console.log(`   Antes del error: "${beforeError.substring(Math.max(0, beforeError.length - 50))}"`);
+                  console.log(`   Después del error: "${afterError.substring(0, 50)}"`);
                   
                   // Estrategia 1: Verificar si hay una comilla sin cerrar
                   let quoteCount = 0;
@@ -973,11 +980,156 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
                 console.error('   Primeros 2000 caracteres:', result.text.substring(0, 2000));
                 console.error('   Últimos 500 caracteres:', result.text.substring(Math.max(0, result.text.length - 500)));
                 
+                // Intentar extraer y reparar el JSON parcial antes de fallar completamente
+                try {
+                  const firstBrace = result.text.indexOf('{');
+                  if (firstBrace !== -1) {
+                    // Intentar encontrar el punto de truncamiento y cerrar el JSON manualmente
+                    let jsonString = result.text.substring(firstBrace);
+                    
+                    // Buscar el último objeto/array completo antes del error
+                    const errorPosition = repairError.message.includes('position') 
+                      ? parseInt(repairError.message.match(/position (\d+)/)?.[1] || '0')
+                      : jsonString.length;
+                    
+                    console.log(`   🔍 Error en posición ${errorPosition} de ${jsonString.length} caracteres`);
+                    console.log(`   🔍 Tipo de error: ${repairError.message}`);
+                    
+                    // Estrategia mejorada: buscar hacia atrás desde el error para encontrar un punto seguro de corte
+                    let safeCutPosition = errorPosition;
+                    
+                    // Si el error es "Colon expected", probablemente hay un problema de sintaxis
+                    // Buscar hacia atrás para encontrar el último objeto/array válido
+                    if (repairError.message.includes('Colon expected')) {
+                      console.log('   🔧 Error "Colon expected" detectado. Buscando punto seguro de corte...');
+                      
+                      // Buscar hacia atrás desde el error para encontrar un cierre válido
+                      let braceDepth = 0;
+                      let bracketDepth = 0;
+                      let inString = false;
+                      let escapeNext = false;
+                      
+                      for (let i = errorPosition - 1; i >= 0; i--) {
+                        const char = jsonString[i];
+                        
+                        if (escapeNext) {
+                          escapeNext = false;
+                          continue;
+                        }
+                        
+                        if (char === '\\') {
+                          escapeNext = true;
+                          continue;
+                        }
+                        
+                        if (char === '"' && !escapeNext) {
+                          inString = !inString;
+                          continue;
+                        }
+                        
+                        if (!inString) {
+                          if (char === '}') braceDepth++;
+                          else if (char === '{') {
+                            braceDepth--;
+                            if (braceDepth === 0 && bracketDepth === 0) {
+                              // Encontramos un objeto completo
+                              safeCutPosition = i + 1;
+                              break;
+                            }
+                          } else if (char === ']') bracketDepth++;
+                          else if (char === '[') {
+                            bracketDepth--;
+                            if (braceDepth === 0 && bracketDepth === 0) {
+                              // Encontramos un array completo
+                              safeCutPosition = i + 1;
+                              break;
+                            }
+                          } else if ((char === ',' || char === ':') && braceDepth === 0 && bracketDepth === 0) {
+                            // Punto seguro de corte
+                            safeCutPosition = i + 1;
+                            break;
+                          }
+                        }
+                      }
+                      
+                      // Si no encontramos un punto seguro, usar una posición más conservadora
+                      if (safeCutPosition === errorPosition) {
+                        safeCutPosition = Math.max(0, errorPosition - 5000); // Retroceder 5KB
+                        console.log(`   ⚠️ No se encontró punto seguro, usando posición conservadora: ${safeCutPosition}`);
+                      } else {
+                        console.log(`   ✅ Punto seguro encontrado en posición: ${safeCutPosition}`);
+                      }
+                    }
+                    
+                    // Extraer JSON hasta el punto seguro
+                    let truncatedJson = jsonString.substring(0, safeCutPosition);
+                    
+                    // Buscar el último objeto completo válido
+                    const lastBrace = truncatedJson.lastIndexOf('}');
+                    if (lastBrace > 0) {
+                      // Intentar extraer solo hasta el último objeto completo
+                      const beforeLastBrace = truncatedJson.substring(0, lastBrace + 1);
+                      
+                      // Verificar si podemos parsear hasta aquí
+                      try {
+                        const testParsed = JSON.parse(beforeLastBrace);
+                        if (testParsed.diagnostic_summary || testParsed.study_plan_summary) {
+                          truncatedJson = beforeLastBrace;
+                          console.log(`   ✅ Usando JSON hasta el último objeto completo (posición ${lastBrace})`);
+                        }
+                      } catch (e) {
+                        // Continuar con la estrategia original
+                      }
+                    }
+                    
+                    // Contar llaves y corchetes abiertos
+                    const openBraces = (truncatedJson.match(/\{/g) || []).length;
+                    const closeBraces = (truncatedJson.match(/\}/g) || []).length;
+                    const openBrackets = (truncatedJson.match(/\[/g) || []).length;
+                    const closeBrackets = (truncatedJson.match(/\]/g) || []).length;
+                    
+                    // Cerrar arrays primero
+                    if (openBrackets > closeBrackets) {
+                      truncatedJson += ']'.repeat(openBrackets - closeBrackets);
+                    }
+                    
+                    // Cerrar objetos
+                    if (openBraces > closeBraces) {
+                      truncatedJson += '}'.repeat(openBraces - closeBraces);
+                    }
+                    
+                    // Limpiar trailing commas antes de cerrar
+                    truncatedJson = truncatedJson.replace(/,(\s*[}\]])/g, '$1');
+                    
+                    // Intentar parsear el JSON parcial reparado
+                    try {
+                      const partialParsed = JSON.parse(truncatedJson);
+                      console.log('⚠️ Se logró parsear un JSON parcial (puede estar incompleto)');
+                      
+                      // Si tiene al menos la estructura básica, usarlo
+                      if (partialParsed.diagnostic_summary && partialParsed.study_plan_summary) {
+                        parsed = partialParsed;
+                        console.log('✅ Usando JSON parcial reparado (puede faltar contenido)');
+                        // Continuar con el flujo normal, pero con datos parciales
+                      } else {
+                        throw new Error('JSON parcial no tiene estructura mínima válida');
+                      }
+                    } catch (parseError: any) {
+                      console.error(`   ❌ No se pudo parsear JSON parcial: ${parseError.message}`);
+                      throw new Error('JSON parcial no se pudo parsear');
+                    }
+                  } else {
+                    throw repairError;
+                  }
+                } catch (partialError: any) {
+                  console.error('❌ No se pudo recuperar JSON parcial:', partialError.message);
+                
                 // Guardar la respuesta completa en un log para análisis posterior
                 console.error(`\n📋 RESPUESTA COMPLETA DE GEMINI (${result.text.length} caracteres):`);
                 console.error(result.text);
                 
-                throw new Error(`Error parseando respuesta JSON después de múltiples intentos (incluyendo jsonrepair): ${secondError.message}. La respuesta de Gemini puede estar mal formada o truncada. Tamaño: ${result.text.length} caracteres.`);
+                  throw new Error(`Error parseando respuesta JSON después de múltiples intentos (incluyendo jsonrepair): ${repairError.message}. La respuesta de Gemini puede estar mal formada o truncada. Tamaño: ${result.text.length} caracteres. Por favor, intenta generar el plan nuevamente.`);
+                }
               }
             }
           } else {

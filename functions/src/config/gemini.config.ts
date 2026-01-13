@@ -48,7 +48,7 @@ const generationConfig = {
   temperature: 0.8,
   topP: 0.95,
   topK: 64,
-  maxOutputTokens: 16384, // Aumentado para permitir respuestas más largas y completas
+  maxOutputTokens: 32768, // Aumentado a 32k para permitir respuestas muy largas (planes de estudio completos)
 };
 
 /**

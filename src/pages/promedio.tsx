@@ -28,6 +28,7 @@ import { SubjectsProgressChart } from "@/components/charts/SubjectsProgressChart
 import { SubjectsDetailedSummary } from "@/components/charts/SubjectsDetailedSummary"
 import { studentSummaryService } from "@/services/studentSummary/studentSummary.service"
 import { useNotification } from "@/hooks/ui/useNotification"
+import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import {
   Brain,
   Download,
@@ -847,6 +848,7 @@ function PersonalizedStudyPlan({
   // Estado para almacenar las autorizaciones de planes de estudio por materia
   const [subjectAuthorizations, setSubjectAuthorizations] = useState<Record<string, boolean>>({});
   const [loadingAuthorizations, setLoadingAuthorizations] = useState<boolean>(true);
+  const { notifySuccess, notifyError } = useNotification();
 
   // URL base de Cloud Functions
   const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
@@ -1005,12 +1007,29 @@ function PersonalizedStudyPlan({
           [subject]: result.data,
         }));
         console.log(`✅ Plan completo cargado para ${subject}`);
+        notifySuccess({
+          title: 'Plan generado exitosamente',
+          message: `El plan de estudio para ${subject} se ha generado correctamente.`
+        });
       } else {
-        alert(`Error: ${result.error?.message || 'No se pudo generar el plan de estudio'}`);
+        const errorMessage = result.error?.message || 'No se pudo generar el plan de estudio';
+        console.error('Error generando plan:', errorMessage);
+        notifyError({
+          title: 'Error al generar plan',
+          message: errorMessage.includes('truncada') || errorMessage.includes('mal formada')
+            ? 'La respuesta del sistema fue demasiado larga. Por favor, intenta generar el plan nuevamente. El banco de vocabulario está disponible mientras tanto.'
+            : errorMessage
+        });
       }
     } catch (error: any) {
       console.error('Error generando plan de estudio:', error);
-      alert(`Error: ${error.message || 'Error al generar el plan de estudio'}`);
+      const errorMessage = error.message || 'Error al generar el plan de estudio';
+      notifyError({
+        title: 'Error al generar plan',
+        message: errorMessage.includes('truncada') || errorMessage.includes('mal formada')
+          ? 'La respuesta del sistema fue demasiado larga. Por favor, intenta generar el plan nuevamente. El banco de vocabulario está disponible mientras tanto.'
+          : errorMessage
+      });
     } finally {
       setGeneratingFor(null);
     }
@@ -1413,6 +1432,9 @@ function PersonalizedStudyPlan({
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
+
+                {/* Banco de Vocabulario Académico */}
+                <VocabularyBank materia={subject.name} theme={theme} />
 
                 {/* Ejercicios de práctica */}
                 <Accordion type="single" collapsible value={expandedSection[`${subject.name}-exercises`] || undefined}>

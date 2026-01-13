@@ -11,6 +11,7 @@ import { questionService } from './services/question.service';
 import { geminiService } from './services/gemini.service';
 import { studyPlanService, TopicWebSearchInfo } from './services/studyPlan.service';
 import { studentSummaryService } from './services/studentSummary.service';
+import { vocabularyService } from './services/vocabulary.service';
 import { APIResponse } from './types/question.types';
 
 // =============================
@@ -402,6 +403,68 @@ export const scheduledJustificationGeneration = functions
       throw error;
     }
   });
+
+
+/**
+ * Función programada para generar vocabulario académico
+ * Se ejecuta semanalmente los domingos a las 3:00 AM
+ */
+export const scheduledVocabularyGeneration = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '1GB',
+  })
+  .pubsub.schedule('0 3 * * 0')
+  .timeZone('America/Bogota')
+  .onRun(async (_context) => {
+    console.log('📚 Ejecutando generación programada de vocabulario académico...');
+    try {
+      const materias = ['matematicas', 'lectura_critica', 'fisica', 'biologia', 'quimica', 'ingles', 'sociales_ciudadanas'];
+      const MIN_WORDS_THRESHOLD = 100;
+      const BATCH_SIZE = 20;
+      let totalGenerated = 0;
+      let totalSkipped = 0;
+      const results: Array<{ materia: string; generated: number; skipped: number }> = [];
+      for (const materia of materias) {
+        try {
+          const existingCount = await vocabularyService.countActiveWords(materia);
+          if (existingCount >= MIN_WORDS_THRESHOLD) {
+            totalSkipped += existingCount;
+            results.push({ materia, generated: 0, skipped: existingCount });
+            continue;
+          }
+          const wordsNeeded = MIN_WORDS_THRESHOLD - existingCount;
+          const wordsToGenerate = Math.min(BATCH_SIZE, wordsNeeded);
+          const commonWords: Record<string, string[]> = {
+            matematicas: ['álgebra', 'ecuación', 'función', 'derivada', 'integral'],
+            lectura_critica: ['inferencia', 'deducción', 'argumento', 'tesis', 'hipótesis'],
+            fisica: ['fuerza', 'masa', 'aceleración', 'velocidad', 'movimiento'],
+            biologia: ['célula', 'organelo', 'núcleo', 'mitocondria', 'ribosoma'],
+            quimica: ['átomo', 'molécula', 'elemento', 'compuesto', 'sustancia'],
+            ingles: ['vocabulary', 'grammar', 'syntax', 'semantics', 'pronunciation'],
+            sociales_ciudadanas: ['democracia', 'ciudadanía', 'derechos', 'deberes', 'constitución']
+          };
+          const wordsForMateria = commonWords[materia] || [];
+          const wordsToProcess = wordsForMateria.slice(0, wordsToGenerate);
+          if (wordsToProcess.length > 0) {
+            const batchResult = await vocabularyService.generateBatch(materia, wordsToProcess);
+            totalGenerated += batchResult.success;
+            results.push({ materia, generated: batchResult.success, skipped: existingCount });
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } catch (error: any) {
+          console.error(`Error procesando ${materia}:`, error.message);
+          results.push({ materia, generated: 0, skipped: 0 });
+        }
+      }
+      return { success: true, totalGenerated, totalSkipped, results, timestamp: new Date() };
+    } catch (error: any) {
+      console.error('Error en generación programada de vocabulario:', error);
+      throw error;
+    }
+  });
+
 
 // =============================
 // FUNCIONES DE UTILIDAD
@@ -1012,3 +1075,363 @@ export const checkAndGenerateSummary = functions
     }
   });
 
+// =============================
+// ENDPOINTS DE VOCABULARIO ACADÉMICO
+// =============================
+
+/**
+ * Obtiene palabras aleatorias de una materia
+ * 
+ * GET /definitions/words?materia=...&limit=10&exclude=id1,id2,id3
+ */
+export const getVocabularyWords = functions
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'GET') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa GET' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { materia, limit, exclude } = req.query;
+      
+      if (!materia) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'materia es requerido como query param' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const limitNum = limit ? parseInt(limit as string, 10) : 10;
+      const excludeIds = exclude ? (exclude as string).split(',').filter(id => id.trim()) : [];
+
+      const words = await vocabularyService.getWords(
+        materia as string,
+        limitNum,
+        excludeIds
+      );
+      
+      const response: APIResponse = {
+        success: true,
+        data: words,
+        metadata: {
+          
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en getVocabularyWords:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Obtiene la definición de una palabra específica
+ * 
+ * GET /definitions/word?materia=...&palabra=...
+ */
+export const getVocabularyWord = functions
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'GET') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa GET' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { materia, palabra } = req.query;
+      
+      if (!materia) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'materia es requerido como query param' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      if (!palabra) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'palabra es requerido como query param' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const definition = await vocabularyService.getWordDefinition(
+        materia as string,
+        palabra as string
+      );
+      
+      if (!definition) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'No se pudo obtener o generar la definición' },
+        };
+        res.status(404).json(response);
+        return;
+      }
+      
+      const response: APIResponse = {
+        success: true,
+        data: definition,
+        metadata: {
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en getVocabularyWord:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Genera un lote de definiciones (para job backend)
+ * 
+ * POST /definitions/generate-batch
+ * Body: { materia: string, palabras: string[] }
+ */
+export const generateVocabularyBatch = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '1GB',
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { materia, palabras } = req.body;
+      
+      if (!materia) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'materia es requerido' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      if (!palabras || !Array.isArray(palabras) || palabras.length === 0) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'palabras debe ser un array no vacío' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const result = await vocabularyService.generateBatch(materia, palabras);
+      
+      const response: APIResponse = {
+        success: true,
+        data: result,
+        metadata: {
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en generateVocabularyBatch:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Genera ejemplos para palabras existentes que no tienen ejemplo
+ * 
+ * POST /definitions/generate-examples
+ * Body: { materia: string, limit?: number, batchSize?: number, delayBetweenBatches?: number }
+ */
+export const generateVocabularyExamples = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '1GB',
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { materia, limit, batchSize, delayBetweenBatches } = req.body;
+      
+      if (!materia) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'materia es requerido' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const result = await vocabularyService.generateExamplesForExistingWords(materia, {
+        limit: limit || undefined,
+        batchSize: batchSize || 10,
+        delayBetweenBatches: delayBetweenBatches || 2000,
+      });
+      
+      const response: APIResponse = {
+        success: true,
+        data: result,
+        metadata: {
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en generateVocabularyExamples:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Elimina todos los ejemplos de palabras de una materia
+ * 
+ * POST /definitions/delete-examples
+ * Body: { materia: string }
+ */
+export const deleteVocabularyExamples = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 300,
+    memory: '512MB',
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+    
+    try {
+      const { materia } = req.body;
+      
+      if (!materia) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'materia es requerido' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const result = await vocabularyService.deleteExamplesForMateria(materia);
+      
+      const response: APIResponse = {
+        success: true,
+        data: result,
+        metadata: {
+          timestamp: new Date(),
+        },
+      };
+      
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en deleteVocabularyExamples:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
