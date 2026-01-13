@@ -2265,15 +2265,22 @@ const ExamWithFirebase = () => {
                 No sé
               </Button>
               <Button
-                onClick={nextQuestion}
+                onClick={() => {
+                  const isLastGroup = isEnglishWithGroups ? currentGroupIndex === questionGroups.length - 1 : currentQuestion === quizData.questions.length - 1;
+                  if (isLastGroup) {
+                    showSubmitWarning();
+                  } else {
+                    nextQuestion();
+                  }
+                }}
                 disabled={
                   isEnglishWithGroups 
-                    ? currentGroupIndex === questionGroups.length - 1 || !currentGroupQuestions.some(q => answers[q.id || q.code])
-                    : currentQuestion === quizData.questions.length - 1 || !answers[quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code]
+                    ? !currentGroupQuestions.some(q => answers[q.id || q.code])
+                    : !answers[quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code]
                 }
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
-                Siguiente <ChevronRight className="h-4 w-4" />
+                {(isEnglishWithGroups ? currentGroupIndex === questionGroups.length - 1 : currentQuestion === quizData.questions.length - 1) ? 'Finalizar examen' : 'Siguiente'} <ChevronRight className="h-4 w-4" />
               </Button>
             </CardFooter>
           </Card>
