@@ -297,7 +297,6 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             <StudentsTab 
               theme={theme} 
               students={students || []}
-              staticData={staticData}
             />
           </div>
         )}
@@ -739,7 +738,10 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: 
                   >
                     {filters.studentId === 'todos' || !filters.studentId
                       ? 'Todos'
-                      : allStudents?.find((student: any) => (student.id || student.uid) === filters.studentId)?.name || 'Seleccionar...'}
+                      : (() => {
+                          const foundStudent: any = allStudents?.find((student: any) => (student.id || student.uid) === filters.studentId)
+                          return foundStudent?.name || foundStudent?.displayName || 'Seleccionar...'
+                        })()}
                     <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -768,25 +770,28 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: 
                           />
                           Todos
                         </CommandItem>
-                        {allStudents?.map((student: any) => (
-                          <CommandItem
-                            key={student.id || student.uid}
-                            value={student.name}
-                            onSelect={() => {
-                              setFilters({ ...filters, studentId: student.id || student.uid })
-                              setStudentPopoverOpen(false)
-                            }}
-                            className={cn("cursor-pointer", theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-100')}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                filters.studentId === (student.id || student.uid) ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {student.name}
-                          </CommandItem>
-                        ))}
+                        {allStudents?.map((student: any) => {
+                          const studentName = student.name || student.displayName || 'Sin nombre'
+                          return (
+                            <CommandItem
+                              key={student.id || student.uid}
+                              value={studentName}
+                              onSelect={() => {
+                                setFilters({ ...filters, studentId: student.id || student.uid })
+                                setStudentPopoverOpen(false)
+                              }}
+                              className={cn("cursor-pointer", theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-100')}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  filters.studentId === (student.id || student.uid) ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {studentName}
+                            </CommandItem>
+                          )
+                        })}
                       </CommandGroup>
                     </CommandList>
                   </Command>
@@ -1577,7 +1582,7 @@ function TeacherWithStudents({ teacher, theme, isExpanded }: any) {
 }
 
 // Componente de Estudiantes
-function StudentsTab({ theme, students, staticData }: any) {
+function StudentsTab({ theme, students }: any) {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
@@ -1834,132 +1839,6 @@ function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data:
   )
 }
 
-function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { subjectsWithTopics: any[], theme?: 'light' | 'dark' }) {
-  return (
-    <Accordion type="multiple" className="w-full">
-      {subjectsWithTopics.map((subject: any) => {
-        const hasData = subject.strengths?.length > 0 || subject.weaknesses?.length > 0 || subject.neutrals?.length > 0
-        
-        return (
-          <AccordionItem key={subject.name} value={subject.name} className={cn("border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
-            <AccordionTrigger className={cn("hover:no-underline", theme === 'dark' ? 'text-white' : '')}>
-              <div className="flex items-center justify-between w-full pr-4">
-                <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</span>
-                <div className="flex items-center gap-3">
-                  {subject.strengths?.length > 0 && (
-                    <Badge className={cn("text-xs", theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200")}>
-                      {subject.strengths.length} fortaleza{subject.strengths.length > 1 ? 's' : ''}
-                    </Badge>
-                  )}
-                  {subject.neutrals?.length > 0 && (
-                    <Badge className={cn("text-xs", theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200")}>
-                      {subject.neutrals.length} neutro{subject.neutrals.length > 1 ? 's' : ''}
-                    </Badge>
-                  )}
-                  {subject.weaknesses?.length > 0 && (
-                    <Badge className={cn("text-xs", theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200")}>
-                      {subject.weaknesses.length} debilidad{subject.weaknesses.length > 1 ? 'es' : ''}
-                    </Badge>
-                  )}
-                  {!hasData && (
-                    <Badge variant="outline" className={cn("text-xs", theme === 'dark' ? 'border-zinc-600 text-gray-400' : 'border-gray-300')}>
-                      Sin datos
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className={cn("space-y-4 pt-2", theme === 'dark' ? 'bg-zinc-900/50 rounded-lg p-3' : 'bg-gray-50 rounded-lg p-3 border-gray-200')}>
-                {subject.strengths?.length > 0 ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-                        Fortalezas ({subject.strengths.length})
-                      </span>
-                    </div>
-                    <ul className={cn("space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                      {subject.strengths.map((strength: string, index: number) => (
-                        <li key={index} className="flex items-center gap-2 text-xs">
-                          <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
-                          <span>{strength}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-4 w-4 text-gray-400" />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Fortalezas</span>
-                    </div>
-                    <p className={cn("text-xs italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>No se identificaron fortalezas</p>
-                  </div>
-                )}
-                
-                {subject.neutrals?.length > 0 ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="h-4 w-4 text-yellow-500" />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600')}>
-                        Neutro ({subject.neutrals.length})
-                      </span>
-                    </div>
-                    <ul className={cn("space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                      {subject.neutrals.map((neutral: string, index: number) => (
-                        <li key={index} className="flex items-center gap-2 text-xs">
-                          <Clock className="h-3 w-3 text-yellow-500 flex-shrink-0" />
-                          <span>{neutral}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="h-4 w-4 text-gray-400" />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Neutro</span>
-                    </div>
-                    <p className={cn("text-xs italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>No se identificaron temas neutros</p>
-                  </div>
-                )}
-                
-                {subject.weaknesses?.length > 0 ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Target className="h-4 w-4 text-red-500" />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-                        Debilidades ({subject.weaknesses.length})
-                      </span>
-                    </div>
-                    <ul className={cn("space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                      {subject.weaknesses.map((weakness: string, index: number) => (
-                        <li key={index} className="flex items-center gap-2 text-xs">
-                          <Target className="h-3 w-3 text-red-500 flex-shrink-0" />
-                          <span>{weakness}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Target className="h-4 w-4 text-gray-400" />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Debilidades</span>
-                    </div>
-                    <p className={cn("text-xs italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>No se identificaron debilidades</p>
-                  </div>
-                )}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        )
-      })}
-    </Accordion>
-  )
-}
-
 // Componente de Dialog para mostrar resumen y diagnóstico del estudiante
 function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
   const studentId = student?.id || student?.uid
@@ -2185,7 +2064,7 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
       )}>
         <DialogHeader>
           <DialogTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            {student.name} - Resumen y Diagnóstico
+            {(student as any).name || (student as any).displayName || 'Estudiante'} - Resumen y Diagnóstico
           </DialogTitle>
           <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
             {student.campusName && `${student.campusName} • `}{student.gradeName || ''}
