@@ -753,6 +753,9 @@ export interface StudentRankingItem {
   studentName: string
   institutionId: string
   institutionName: string
+  campusName?: string
+  gradeName?: string
+  jornada?: string
   score: number // Puntaje global o promedio
   totalExams: number
 }
@@ -760,9 +763,9 @@ export interface StudentRankingItem {
 /**
  * Hook para obtener ranking de estudiantes por institución
  */
-export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', year?: number) => {
+export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', year?: number, phase?: 'first' | 'second' | 'third' | 'all') => {
   return useQuery({
-    queryKey: ['admin', 'students-ranking', jornada, year],
+    queryKey: ['admin', 'students-ranking', jornada, year, phase],
     queryFn: async () => {
       // Obtener todas las instituciones
       const institutionsResult = await getAllInstitutions()
@@ -828,48 +831,177 @@ export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', yea
             continue
           }
 
+          // Materias requeridas para completar una fase (7 materias del ICFES)
+          const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
+          
+          // Mapear fase seleccionada a nombre de fase en Firestore
+          const phaseMap: { [key: string]: string } = {
+            'first': 'fase I',
+            'second': 'Fase II',
+            'third': 'fase III',
+            'Fase I': 'fase I',
+            'Fase II': 'Fase II',
+            'Fase III': 'fase III'
+          }
+          
+          // Función para normalizar nombres de materias
+          const normalizeSubjectName = (subject: string): string => {
+            const normalized = subject.trim().toLowerCase()
+            const subjectMap: Record<string, string> = {
+              'biologia': 'Biologia',
+              'biología': 'Biologia',
+              'biology': 'Biologia',
+              'quimica': 'Quimica',
+              'química': 'Quimica',
+              'chemistry': 'Quimica',
+              'fisica': 'Física',
+              'física': 'Física',
+              'physics': 'Física',
+              'matematicas': 'Matemáticas',
+              'matemáticas': 'Matemáticas',
+              'math': 'Matemáticas',
+              'lenguaje': 'Lenguaje',
+              'language': 'Lenguaje',
+              'ciencias sociales': 'Ciencias Sociales',
+              'sociales': 'Ciencias Sociales',
+              'ingles': 'Inglés',
+              'inglés': 'Inglés',
+              'english': 'Inglés'
+            }
+            return subjectMap[normalized] || subject.trim()
+          }
+
           // Obtener resultados de exámenes para todos los estudiantes
           const allResults = await getInstitutionResults(institution.id, studentIds)
 
-          // Agrupar resultados por estudiante
-          const resultsByStudent = new Map<string, ExamResult[]>()
-          allResults.forEach(result => {
-            if (!resultsByStudent.has(result.userId)) {
-              resultsByStudent.set(result.userId, [])
-            }
-            resultsByStudent.get(result.userId)!.push(result)
-          })
+          // Determinar las fases a procesar
+          let phasesToProcess: string[] = []
+          if (phase === 'all') {
+            phasesToProcess = ['fase I', 'Fase II', 'fase III']
+          } else if (phase) {
+            const phaseName = phaseMap[phase] || 'fase III'
+            phasesToProcess = [phaseName]
+          } else {
+            phasesToProcess = ['fase III'] // Por defecto Fase III
+          }
 
-          // Calcular puntaje para cada estudiante de esta institución (solo Fase III)
+          // Obtener resultados de todas las fases necesarias directamente de Firestore
+          const phaseResults: Array<{ userId: string; subject: string; score: { overallPercentage: number } }> = []
+          const resultsByStudent = new Map<string, { scores: number[], subjects: Set<string> }>()
+          
+          for (const studentId of studentIds) {
+            for (const phaseName of phasesToProcess) {
+              try {
+                const { collection, getDocs } = await import('firebase/firestore')
+                const { getFirestore } = await import('firebase/firestore')
+                const { firebaseApp } = await import('@/services/firebase/db.service')
+                const db = getFirestore(firebaseApp)
+                
+                const phaseRef = collection(db, 'results', studentId, phaseName)
+                const phaseSnap = await getDocs(phaseRef)
+                
+                phaseSnap.docs.forEach(doc => {
+                  const examData = doc.data()
+                  if (examData.completed && examData.score && examData.subject) {
+                    const normalizedSubject = normalizeSubjectName(examData.subject)
+                    
+                    phaseResults.push({
+                      userId: studentId,
+                      subject: normalizedSubject,
+                      score: {
+                        overallPercentage: examData.score.overallPercentage || 0,
+                      },
+                    })
+                    
+                    // Agrupar por estudiante y registrar materias
+                    if (!resultsByStudent.has(studentId)) {
+                      resultsByStudent.set(studentId, { scores: [], subjects: new Set() })
+                    }
+                    const studentData = resultsByStudent.get(studentId)!
+                    studentData.scores.push(examData.score.overallPercentage || 0)
+                    studentData.subjects.add(normalizedSubject)
+                  }
+                })
+              } catch (error) {
+                console.error(`Error obteniendo resultados para estudiante ${studentId} en ${phaseName}:`, error)
+              }
+            }
+          }
+
+          // Calcular puntaje para cada estudiante de esta institución
+          // SOLO estudiantes que hayan completado TODAS las materias requeridas
           const institutionStudents: StudentRankingItem[] = []
+          
+          // Constantes para cálculo de puntaje global
+          const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
+          const POINTS_PER_NATURALES_SUBJECT = 100 / 3
+          const POINTS_PER_REGULAR_SUBJECT = 100
           
           students.forEach((student: any) => {
             const studentId = student.id || student.uid
             if (!studentId) return
 
-            const allStudentResults = resultsByStudent.get(studentId) || []
+            const studentData = resultsByStudent.get(studentId)
             
-            // Filtrar solo resultados de Fase III
-            const phase3Results = allStudentResults.filter(r => 
-              r.phase === 'third' || r.phase === 'Fase III'
+            // Verificar que el estudiante haya completado TODAS las materias requeridas
+            if (!studentData || studentData.subjects.size === 0) {
+              // Estudiante sin resultados en esta fase - NO incluir en ranking
+              return
+            }
+            
+            // Verificar que tenga todas las materias requeridas
+            // Las materias en studentData.subjects ya están normalizadas
+            const normalizedRequiredSubjects = REQUIRED_SUBJECTS.map(s => normalizeSubjectName(s))
+            const studentSubjectsNormalized = Array.from(studentData.subjects).map(s => normalizeSubjectName(s))
+            
+            const hasAllSubjects = normalizedRequiredSubjects.every(requiredSubject => 
+              studentSubjectsNormalized.includes(requiredSubject)
             )
             
-            if (phase3Results.length === 0) {
-              return // No incluir estudiantes sin resultados de Fase III
+            if (!hasAllSubjects) {
+              // Estudiante no completó todas las materias - NO incluir en ranking
+              return
             }
-
-            // Calcular promedio de puntajes solo de Fase III
-            const phase3Score = phase3Results.length > 0
-              ? phase3Results.reduce((sum, r) => sum + (r.score.overallPercentage || 0), 0) / phase3Results.length
-              : 0
+            
+            // Obtener todos los resultados del estudiante para calcular el mejor puntaje por materia
+            const studentResults = phaseResults.filter(r => r.userId === studentId)
+            
+            // Agrupar por materia y tomar el mejor puntaje de cada una
+            const subjectScores: { [subject: string]: number } = {}
+            
+            studentResults.forEach(result => {
+              const subject = normalizeSubjectName(result.subject || '')
+              const percentage = result.score?.overallPercentage || 0
+              
+              // Guardar el mejor puntaje de cada materia
+              if (!subjectScores[subject] || percentage > subjectScores[subject]) {
+                subjectScores[subject] = percentage
+              }
+            })
+            
+            // Calcular puntaje global de la fase
+            let globalScore = 0
+            Object.entries(subjectScores).forEach(([subject, percentage]) => {
+              let pointsForSubject: number
+              if (NATURALES_SUBJECTS.includes(subject)) {
+                pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
+              } else {
+                pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
+              }
+              
+              globalScore += pointsForSubject
+            })
 
             institutionStudents.push({
               studentId,
               studentName: student.name || student.displayName || 'Sin nombre',
               institutionId: institution.id,
               institutionName: institution.name || 'Sin nombre',
-              score: phase3Score,
-              totalExams: phase3Results.length,
+              campusName: student.campusName || student.campus?.name || undefined,
+              gradeName: student.gradeName || student.grade?.name || undefined,
+              jornada: student.jornada || undefined,
+              score: Math.round(globalScore * 100) / 100,
+              totalExams: studentResults.length,
             })
           })
 
