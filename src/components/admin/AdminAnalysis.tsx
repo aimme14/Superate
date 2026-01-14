@@ -15,10 +15,12 @@ import {
   Target,
   Loader2,
   AlertCircle,
-  Trophy,
   Shield,
   Clock,
-  Zap
+  Zap,
+  Award,
+  PieChart as PieChartIcon,
+  CheckCircle2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAdminAnalysis, useStudentAnalysis, useStudentsRanking } from '@/hooks/query/useAdminAnalysis'
@@ -41,12 +43,21 @@ import {
 } from 'recharts'
 import { ChartContainer, type ChartConfig } from '@/components/ui/chart'
 import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Progress } from '@/components/ui/progress'
+import { useQuery } from '@tanstack/react-query'
+import { collection, getDocs, getFirestore } from 'firebase/firestore'
+import { firebaseApp } from '@/services/firebase/db.service'
+import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
+import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
+
+const db = getFirestore(firebaseApp)
 
 interface AdminAnalysisProps extends ThemeContextProps {}
 
 export default function AdminAnalysis({ theme }: AdminAnalysisProps) {
   const currentYear = new Date().getFullYear()
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
   const [activeTab, setActiveTab] = useState('global')
   const [filterInstitution, setFilterInstitution] = useState<string>('all')
   const [filterGrade, setFilterGrade] = useState<string>('all')
@@ -917,9 +928,10 @@ function StudentsAnalysisTab({
   setSelectedStudent
 }: { 
   theme: 'light' | 'dark'
-  selectedStudent: string | null
-  setSelectedStudent: (id: string | null) => void
+  selectedStudent: any | null
+  setSelectedStudent: (student: any | null) => void
 }) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { data: institutions } = useInstitutions()
 
   // Función helper para obtener el año del estudiante
@@ -1131,6 +1143,7 @@ function StudentsAnalysisTab({
                                                               selectedStudent={selectedStudent}
                                                               setSelectedStudent={setSelectedStudent}
                                                               year={year}
+                                                              setIsDialogOpen={setIsDialogOpen}
                                                             />
                                                           </div>
                                                         </AccordionContent>
@@ -1160,10 +1173,15 @@ function StudentsAnalysisTab({
         </CardContent>
       </Card>
 
-      {/* Detalle del estudiante seleccionado */}
+      {/* Dialog para mostrar resumen y diagnóstico */}
       {selectedStudent && (
-        <StudentDetail 
-          studentId={selectedStudent}
+        <StudentDetailDialog
+          student={selectedStudent}
+          isOpen={isDialogOpen}
+          onClose={() => {
+            setIsDialogOpen(false)
+            setSelectedStudent(null)
+          }}
           theme={theme}
         />
       )}
@@ -1179,15 +1197,17 @@ function StudentList({
   theme,
   selectedStudent,
   setSelectedStudent,
-  year
+  year,
+  setIsDialogOpen
 }: { 
   institutionId?: string
   campusId?: string
   gradeId?: string
   theme: 'light' | 'dark'
-  selectedStudent: string | null
-  setSelectedStudent: (id: string | null) => void
+  selectedStudent: any | null
+  setSelectedStudent: (student: any | null) => void
   year?: number
+  setIsDialogOpen: (open: boolean) => void
 }) {
   // Función helper para obtener el año del estudiante
   const getStudentYear = (student: any): number | null => {
@@ -1258,486 +1278,718 @@ function StudentList({
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-          {students.map((student: any) => (
-            <Button
-              key={student.id || student.uid}
-              variant={selectedStudent === (student.id || student.uid) ? 'default' : 'outline'}
-              onClick={() => setSelectedStudent(
-                selectedStudent === (student.id || student.uid) ? null : (student.id || student.uid)
-              )}
-              className={cn(
-                "justify-start h-auto p-4",
-                theme === 'dark' && selectedStudent !== (student.id || student.uid)
-                  ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800'
-                  : ''
-              )}
-            >
-              <div className="text-left">
-                <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  {student.name || student.displayName || 'Sin nombre'}
-                </p>
-                {student.grade && (
-                  <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    Grado: {student.grade}
-                  </p>
+          {students.map((student: any) => {
+            const isSelected = selectedStudent && (selectedStudent.id || selectedStudent.uid) === (student.id || student.uid)
+            return (
+              <Button
+                key={student.id || student.uid}
+                variant={isSelected ? 'default' : 'outline'}
+                onClick={() => {
+                  setSelectedStudent(isSelected ? null : student)
+                  setIsDialogOpen(!isSelected)
+                }}
+                className={cn(
+                  "justify-start h-auto p-4",
+                  theme === 'dark' && !isSelected
+                    ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800'
+                    : ''
                 )}
-              </div>
-            </Button>
-          ))}
+              >
+                <div className="text-left">
+                  <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                    {student.name || student.displayName || 'Sin nombre'}
+                  </p>
+                  {student.grade && (
+                    <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      Grado: {student.grade}
+                    </p>
+                  )}
+                </div>
+              </Button>
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
 
-// Componente: Detalle de estudiante
-function StudentDetail({ studentId, theme }: { studentId: string, theme: 'light' | 'dark' }) {
-  const { data: studentAnalysis, isLoading } = useStudentAnalysis(studentId, !!studentId)
-  const [selectedPhase, setSelectedPhase] = useState<'all' | 'phase1' | 'phase2' | 'phase3'>('all')
-
-  if (isLoading) {
+// Componentes auxiliares para mostrar rendimiento y fortalezas/debilidades
+function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data: any[], theme?: 'light' | 'dark', subjectsWithTopics?: any[] }) {
+  if (subjectsWithTopics && subjectsWithTopics.length > 0) {
     return (
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-          </div>
-        </CardContent>
-      </Card>
+      <Accordion type="multiple" className="w-full">
+        {subjectsWithTopics.map((subject: any) => {
+          const hasStrengths = subject.strengths?.length > 0
+          const hasNeutrals = subject.neutrals?.length > 0
+          const hasWeaknesses = subject.weaknesses?.length > 0
+          
+          // Determinar color según el porcentaje
+          const getPercentageColor = (percentage: number) => {
+            if (percentage >= 65) return theme === 'dark' ? 'text-green-400' : 'text-green-600'
+            if (percentage >= 50) return theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
+            return theme === 'dark' ? 'text-red-400' : 'text-red-600'
+          }
+          
+          return (
+            <AccordionItem key={subject.name} value={subject.name} className={cn("border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
+              <AccordionTrigger className={cn("hover:no-underline", theme === 'dark' ? 'text-white' : '')}>
+                <div className="flex items-center justify-between w-full pr-4">
+                  <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{subject.name}</span>
+                  <div className="flex items-center gap-3">
+                    <span className={cn("text-sm font-semibold", getPercentageColor(subject.percentage))}>
+                      {subject.percentage}%
+                    </span>
+                    {(hasStrengths || hasNeutrals || hasWeaknesses) && (
+                      <div className="flex items-center gap-1.5">
+                        {hasStrengths && (
+                          <Badge className={cn("text-[10px] px-1.5 py-0", theme === 'dark' ? "bg-green-900/50 text-green-300 border-green-700" : "bg-green-100 text-green-700 border-green-300")}>
+                            {subject.strengths.length}
+                          </Badge>
+                        )}
+                        {hasNeutrals && (
+                          <Badge className={cn("text-[10px] px-1.5 py-0", theme === 'dark' ? "bg-yellow-900/50 text-yellow-300 border-yellow-700" : "bg-yellow-100 text-yellow-700 border-yellow-300")}>
+                            {subject.neutrals.length}
+                          </Badge>
+                        )}
+                        {hasWeaknesses && (
+                          <Badge className={cn("text-[10px] px-1.5 py-0", theme === 'dark' ? "bg-red-900/50 text-red-300 border-red-700" : "bg-red-100 text-red-700 border-red-300")}>
+                            {subject.weaknesses.length}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className={cn("space-y-4 pt-2", theme === 'dark' ? 'bg-zinc-900/50 rounded-lg p-3' : 'bg-gray-50 rounded-lg p-3 border border-gray-200')}>
+                  {/* Temas */}
+                  {subject.topics && subject.topics.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className={cn("text-xs font-semibold mb-2", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                        Temas
+                      </h4>
+                      {subject.topics.map((topic: any) => (
+                        <div key={topic.name} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{topic.name}</span>
+                            <span className={cn("text-xs font-semibold", getPercentageColor(topic.percentage))}>
+                              {topic.percentage}%
+                            </span>
+                          </div>
+                          <Progress 
+                            value={topic.percentage} 
+                            className={cn(
+                              "h-2",
+                              topic.percentage >= 65 ? 'bg-green-500' :
+                              topic.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                            )}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Fortalezas, Neutros y Debilidades en horizontal */}
+                  {(hasStrengths || hasNeutrals || hasWeaknesses) && (
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {/* Fortalezas */}
+                      {hasStrengths && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <span className={cn("text-xs font-semibold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
+                            Fortalezas ({subject.strengths.length})
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Neutros */}
+                      {hasNeutrals && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-yellow-500" />
+                          <span className={cn("text-xs font-semibold", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700')}>
+                            Neutro ({subject.neutrals.length})
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Debilidades */}
+                      {hasWeaknesses && (
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-red-500" />
+                          <span className={cn("text-xs font-semibold", theme === 'dark' ? 'text-red-400' : 'text-red-700')}>
+                            Debilidades ({subject.weaknesses.length})
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )
+        })}
+      </Accordion>
     )
   }
-
-  if (!studentAnalysis) {
-    return (
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-        <CardContent className="pt-6">
-          <p className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-            No se encontraron datos de análisis para este estudiante
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // Preparar datos para el gráfico de evolución por materia (SubjectsProgressChart)
-  const subjectPhaseStats = studentAnalysis.subjectPhaseStats || {}
-  
-  const phase1Data = Object.keys(subjectPhaseStats).length > 0 ? {
-    phase: 'phase1' as const,
-    subjects: Object.entries(subjectPhaseStats)
-      .filter(([_, stats]) => stats.phase1.count > 0)
-      .map(([subject, stats]) => ({
-        name: subject,
-        percentage: stats.phase1.average
-      }))
-  } : null
-
-  const phase2Data = Object.keys(subjectPhaseStats).length > 0 ? {
-    phase: 'phase2' as const,
-    subjects: Object.entries(subjectPhaseStats)
-      .filter(([_, stats]) => stats.phase2.count > 0)
-      .map(([subject, stats]) => ({
-        name: subject,
-        percentage: stats.phase2.average
-      }))
-  } : null
-
-  const phase3Data = Object.keys(subjectPhaseStats).length > 0 ? {
-    phase: 'phase3' as const,
-    subjects: Object.entries(subjectPhaseStats)
-      .filter(([_, stats]) => stats.phase3.count > 0)
-      .map(([subject, stats]) => ({
-        name: subject,
-        percentage: stats.phase3.average
-      }))
-  } : null
-
-  // Contar materias completadas en Fase III
-  const phase3Subjects = new Set<string>()
-  Object.entries(subjectPhaseStats).forEach(([subject, stats]) => {
-    if (stats.phase3.count > 0) {
-      phase3Subjects.add(subject)
-    }
-  })
-
-  // Calcular total de preguntas según la fase seleccionada
-  const getTotalQuestionsForPhase = () => {
-    if (selectedPhase === 'all') {
-      return studentAnalysis.totalExams * 40 // Aproximación
-    }
-    // Contar exámenes de la fase seleccionada
-    const phaseCount = selectedPhase === 'phase1'
-      ? studentAnalysis.phaseStats.phase1.count
-      : selectedPhase === 'phase2'
-        ? studentAnalysis.phaseStats.phase2.count
-        : studentAnalysis.phaseStats.phase3.count
-    return phaseCount * 40 // Aproximación: cada examen tiene ~40 preguntas
-  }
-  const totalQuestions = getTotalQuestionsForPhase()
 
   return (
-    <div className="space-y-6">
-      {/* Resumen del estudiante */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="pb-3">
-            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              <BookOpen className="h-4 w-4" />
-              Exámenes Presentados
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {studentAnalysis.totalExams}
+    <div className="space-y-4">
+      {data.map((subject: any) => {
+        const percentage = subject.percentage || subject.score
+        const getColor = (pct: number) => {
+          if (pct >= 65) return theme === 'dark' ? 'text-green-400' : 'text-green-600'
+          if (pct >= 50) return theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
+          return theme === 'dark' ? 'text-red-400' : 'text-red-600'
+        }
+        
+        return (
+          <div key={subject.name} className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{subject.name}</span>
+              <span className={cn("text-sm font-semibold", getColor(percentage))}>
+                {percentage}%
+              </span>
             </div>
-            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              Total de evaluaciones
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="pb-3">
-            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              <TrendingUp className="h-4 w-4" />
-              Promedio General
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {studentAnalysis.averageScore.toFixed(1)}%
-            </div>
-            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              Rendimiento promedio
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="pb-3">
-            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              <Target className="h-4 w-4" />
-              Materias Evaluadas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {Object.keys(studentAnalysis.subjectStats).length}
-            </div>
-            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              Áreas de conocimiento
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader className="pb-3">
-            <CardTitle className={cn('text-sm font-medium flex items-center gap-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              <BarChart3 className="h-4 w-4" />
-              Fases Completadas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {[
-                studentAnalysis.phaseStats.phase1.count > 0,
-                studentAnalysis.phaseStats.phase2.count > 0,
-                studentAnalysis.phaseStats.phase3.count > 0
-              ].filter(Boolean).length}
-            </div>
-            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              De 3 fases evaluativas
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtro de Fases */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-          Filtrar por fase:
-        </span>
-        <div className="flex gap-2">
-          <Button
-            variant={selectedPhase === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSelectedPhase('all')}
-            className={cn(
-              selectedPhase === 'all' 
-                ? '' 
-                : theme === 'dark' 
-                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            )}
-          >
-            Todas las Fases
-          </Button>
-          <Button
-            variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSelectedPhase('phase1')}
-            className={cn(
-              selectedPhase === 'phase1' 
-                ? '' 
-                : theme === 'dark' 
-                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            )}
-          >
-            Fase I
-          </Button>
-          <Button
-            variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSelectedPhase('phase2')}
-            className={cn(
-              selectedPhase === 'phase2' 
-                ? '' 
-                : theme === 'dark' 
-                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            )}
-          >
-            Fase II
-          </Button>
-          <Button
-            variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSelectedPhase('phase3')}
-            className={cn(
-              selectedPhase === 'phase3' 
-                ? '' 
-                : theme === 'dark' 
-                  ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            )}
-          >
-            Fase III
-          </Button>
-        </div>
-      </div>
-
-      {/* Gráfico de evolución por materia y tarjetas de estadísticas */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Gráfico - ocupa 3 columnas */}
-        <div className="lg:col-span-3">
-          {(phase1Data || phase2Data || phase3Data) && (
-            <SubjectsProgressChart
-              phase1Data={phase1Data}
-              phase2Data={phase2Data}
-              phase3Data={phase3Data}
-          theme={theme}
+            <Progress 
+              value={percentage} 
+              className={cn(
+                "h-2",
+                percentage >= 65 ? 'bg-green-500' :
+                percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+              )}
             />
-          )}
-        </div>
-
-        {/* Tarjetas de estadísticas - ocupa 2 columnas, layout 2x2 */}
-        <div className="lg:col-span-2 grid grid-cols-2 gap-3">
-          {/* Puntaje Global */}
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardContent className="pt-3 pb-2.5">
-              <div className="flex items-start justify-between mb-1.5">
-                <Trophy className={cn('h-4 w-4', theme === 'dark' ? 'text-yellow-500' : 'text-yellow-600')} />
-              </div>
-              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                {selectedPhase === 'all'
-                  ? studentAnalysis.globalScore || Math.round(studentAnalysis.averageScore)
-                  : selectedPhase === 'phase1'
-                    ? (studentAnalysis.phaseMetrics?.phase1.globalScore || 0)
-                    : selectedPhase === 'phase2'
-                      ? (studentAnalysis.phaseMetrics?.phase2.globalScore || 0)
-                      : (studentAnalysis.phaseMetrics?.phase3.globalScore || 0)}
-              </div>
-              <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Puntaje Global
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Porcentaje de Fase */}
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardContent className="pt-3 pb-2.5">
-              <div className="flex items-start justify-between mb-1.5">
-                <TrendingUp className={cn('h-4 w-4', theme === 'dark' ? 'text-green-400' : 'text-green-600')} />
-              </div>
-              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-green-400' : 'text-green-600')}>
-                {selectedPhase === 'all' 
-                  ? Math.round(((phase3Subjects?.size || 0) / 7) * 100)
-                  : selectedPhase === 'phase1'
-                    ? (studentAnalysis.phaseMetrics?.phase1.phasePercentage || 0)
-                    : selectedPhase === 'phase2'
-                      ? (studentAnalysis.phaseMetrics?.phase2.phasePercentage || 0)
-                      : (studentAnalysis.phaseMetrics?.phase3.phasePercentage || 0)}%
-              </div>
-              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Porcentaje de {selectedPhase === 'all' 
-                  ? 'Fase III'
-                  : selectedPhase === 'phase1'
-                    ? 'Fase I'
-                    : selectedPhase === 'phase2'
-                      ? 'Fase II'
-                      : 'Fase III'}
-              </p>
-              <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
-                <div 
-                  className="bg-blue-500 h-1.5 rounded-full" 
-                  style={{ 
-                    width: `${selectedPhase === 'all' 
-                      ? Math.round(((phase3Subjects?.size || 0) / 7) * 100)
-                      : selectedPhase === 'phase1'
-                        ? (studentAnalysis.phaseMetrics?.phase1.phasePercentage || 0)
-                        : selectedPhase === 'phase2'
-                          ? (studentAnalysis.phaseMetrics?.phase2.phasePercentage || 0)
-                          : (studentAnalysis.phaseMetrics?.phase3.phasePercentage || 0)}%` 
-                  }}
-                />
-              </div>
-              <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                {selectedPhase === 'all'
-                  ? `${phase3Subjects?.size || 0} de 7 materias`
-                  : selectedPhase === 'phase1'
-                    ? `${studentAnalysis.phaseMetrics?.phase1.completedSubjects || 0} de 7 materias`
-                    : selectedPhase === 'phase2'
-                      ? `${studentAnalysis.phaseMetrics?.phase2.completedSubjects || 0} de 7 materias`
-                      : `${studentAnalysis.phaseMetrics?.phase3.completedSubjects || 0} de 7 materias`}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Tiempo Promedio por Pregunta */}
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardContent className="pt-3 pb-2.5">
-              <div className="flex items-start justify-between mb-1.5">
-                <Clock className={cn('h-4 w-4', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              </div>
-              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                {(() => {
-                  const time = selectedPhase === 'all'
-                    ? studentAnalysis.averageTimePerQuestion || 0
-                    : selectedPhase === 'phase1'
-                      ? studentAnalysis.phaseMetrics?.phase1.averageTimePerQuestion || 0
-                      : selectedPhase === 'phase2'
-                        ? studentAnalysis.phaseMetrics?.phase2.averageTimePerQuestion || 0
-                        : studentAnalysis.phaseMetrics?.phase3.averageTimePerQuestion || 0
-                  return time > 0 ? `${time.toFixed(1)}m` : '0m'
-                })()}
-              </div>
-              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Tiempo Promedio - {selectedPhase === 'all' 
-                  ? 'Fase III'
-                  : selectedPhase === 'phase1'
-                    ? 'Fase I'
-                    : selectedPhase === 'phase2'
-                      ? 'Fase II'
-                      : 'Fase III'}
-              </p>
-              <div className={cn(
-                'inline-flex items-center px-2 py-0.5 rounded',
-                theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-gray-50 border border-gray-200'
-              )}>
-                <span className={cn('text-[10px]', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                  {(() => {
-                    const questions = selectedPhase === 'all'
-                      ? totalQuestions
-                      : selectedPhase === 'phase1'
-                        ? (studentAnalysis.phaseMetrics?.phase1.totalQuestions || 0)
-                        : selectedPhase === 'phase2'
-                          ? (studentAnalysis.phaseMetrics?.phase2.totalQuestions || 0)
-                          : (studentAnalysis.phaseMetrics?.phase3.totalQuestions || 0)
-                    return `Promedio de ${questions} preguntas`
-                  })()}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Intento de Fraude */}
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardContent className="pt-3 pb-2.5">
-              <div className="flex items-start justify-between mb-1.5">
-                <Shield className={cn('h-4 w-4', theme === 'dark' ? 'text-red-400' : 'text-red-600')} />
-              </div>
-              <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-                {selectedPhase === 'all'
-                  ? studentAnalysis.fraudAttempts || 0
-                  : selectedPhase === 'phase1'
-                    ? studentAnalysis.phaseMetrics?.phase1.fraudAttempts || 0
-                    : selectedPhase === 'phase2'
-                      ? studentAnalysis.phaseMetrics?.phase2.fraudAttempts || 0
-                      : studentAnalysis.phaseMetrics?.phase3.fraudAttempts || 0}
-              </div>
-              <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Intento de fraude
-              </p>
-              {(() => {
-                const fraudCount = selectedPhase === 'all'
-                  ? studentAnalysis.fraudAttempts || 0
-                  : selectedPhase === 'phase1'
-                    ? studentAnalysis.phaseMetrics?.phase1.fraudAttempts || 0
-                    : selectedPhase === 'phase2'
-                      ? studentAnalysis.phaseMetrics?.phase2.fraudAttempts || 0
-                      : studentAnalysis.phaseMetrics?.phase3.fraudAttempts || 0
-                return fraudCount > 0 && (
-                  <div className={cn(
-                    'inline-flex items-center px-2 py-0.5 rounded',
-                    theme === 'dark' ? 'bg-red-500/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
-                  )}>
-                    <span className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-red-300' : 'text-red-700')}>
-                      {fraudCount} {fraudCount === 1 ? 'evaluación' : 'evaluaciones'} con incidentes
-                    </span>
-                  </div>
-                )
-              })()}
-            </CardContent>
-          </Card>
-
-          {/* Porcentaje de Suerte - Primera fila, segunda columna */}
-          <Card className={cn('lg:col-span-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardContent className="pt-3 pb-2.5">
-              <div className="flex items-start justify-between mb-1.5">
-                <Zap className={cn('h-4 w-4', theme === 'dark' ? 'text-orange-400' : 'text-orange-600')} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className={cn('text-2xl font-bold mb-0.5', theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
-                    {(() => {
-                      const luck = selectedPhase === 'all'
-                        ? studentAnalysis.luckPercentage || 0
-                        : selectedPhase === 'phase1'
-                          ? studentAnalysis.phaseMetrics?.phase1.luckPercentage || 0
-                          : selectedPhase === 'phase2'
-                            ? studentAnalysis.phaseMetrics?.phase2.luckPercentage || 0
-                            : studentAnalysis.phaseMetrics?.phase3.luckPercentage || 0
-                      return luck
-                    })()}%
-                  </div>
-                  <p className={cn('text-xs mb-1.5', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Porcentaje de Suerte
-                  </p>
-                </div>
-                <div className={cn(
-                  'inline-flex items-center px-2 py-0.5 rounded',
-                  theme === 'dark' ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-orange-50 border border-orange-200'
-                )}>
-                  <span className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-orange-300' : 'text-orange-700')}>
-                    {(() => {
-                      const luck = selectedPhase === 'all'
-                        ? studentAnalysis.luckPercentage || 0
-                        : selectedPhase === 'phase1'
-                          ? studentAnalysis.phaseMetrics?.phase1.luckPercentage || 0
-                          : selectedPhase === 'phase2'
-                            ? studentAnalysis.phaseMetrics?.phase2.luckPercentage || 0
-                            : studentAnalysis.phaseMetrics?.phase3.luckPercentage || 0
-                      return luck > 50 ? 'Muchas respuestas rápidas' : 'Tiempo adecuado'
-                    })()}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+          </div>
+        )
+      })}
     </div>
+  )
+}
+
+// Componente de Dialog para mostrar resumen y diagnóstico del estudiante
+function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
+  const studentId = student?.id || student?.uid
+  const { data: studentAnalysis, isLoading } = useStudentAnalysis(studentId, isOpen && !!studentId)
+  const [selectedPhase, setSelectedPhase] = useState<'phase1' | 'phase2' | 'phase3' | 'all'>('phase1')
+  
+  // Función para normalizar nombres de materias
+  const normalizeSubjectName = (subject: string): string => {
+    const normalized = subject.trim().toLowerCase()
+    const subjectMap: Record<string, string> = {
+      'biologia': 'Biologia', 'biología': 'Biologia', 'biology': 'Biologia',
+      'quimica': 'Quimica', 'química': 'Quimica', 'chemistry': 'Quimica',
+      'fisica': 'Física', 'física': 'Física', 'physics': 'Física',
+      'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas', 'math': 'Matemáticas',
+      'lenguaje': 'Lenguaje', 'language': 'Lenguaje',
+      'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
+      'ingles': 'Inglés', 'inglés': 'Inglés', 'english': 'Inglés'
+    }
+    return subjectMap[normalized] || subject
+  }
+
+  // Obtener datos de materias con temas para la fase seleccionada (para Resumen)
+  const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
+    queryKey: ['student-subjects-data', studentId, selectedPhase],
+    queryFn: async () => {
+      if (!studentId) return { subjects: [], subjectsWithTopics: [] }
+      
+      const phases = [
+        { key: 'first', name: 'fase I' },
+        { key: 'second', name: 'Fase II' },
+        { key: 'third', name: 'fase III' }
+      ]
+      
+      const selectedPhases = selectedPhase === 'all' 
+        ? phases 
+        : selectedPhase === 'phase1' 
+          ? [phases[0]]
+          : selectedPhase === 'phase2'
+          ? [phases[1]]
+          : [phases[2]]
+      
+      const subjectTopicGroups: { [subject: string]: { [topic: string]: any[] } } = {}
+      const subjectScores: { [subject: string]: number } = {}
+      const subjectTotals: { [subject: string]: { correct: number; total: number } } = {}
+      
+      for (const phase of selectedPhases) {
+        try {
+          const phaseRef = collection(db, 'results', studentId, phase.name)
+          const phaseSnap = await getDocs(phaseRef)
+          
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data()
+            if (examData.completed && examData.score && examData.subject) {
+              const subject = normalizeSubjectName(examData.subject)
+              const percentage = examData.score.overallPercentage || 0
+              
+              if (!subjectScores[subject] || percentage > subjectScores[subject]) {
+                subjectScores[subject] = percentage
+              }
+              
+              if (!subjectTotals[subject]) {
+                subjectTotals[subject] = { correct: 0, total: 0 }
+              }
+              subjectTotals[subject].correct += examData.score.correctAnswers || 0
+              subjectTotals[subject].total += examData.score.totalQuestions || 0
+              
+              if (examData.questionDetails && Array.isArray(examData.questionDetails)) {
+                examData.questionDetails.forEach((question: any) => {
+                  const topic = question.topic || 'General'
+                  if (!subjectTopicGroups[subject]) {
+                    subjectTopicGroups[subject] = {}
+                  }
+                  if (!subjectTopicGroups[subject][topic]) {
+                    subjectTopicGroups[subject][topic] = []
+                  }
+                  subjectTopicGroups[subject][topic].push(question)
+                })
+              }
+            }
+          })
+        } catch (error) {
+          console.error(`Error obteniendo datos para fase ${phase.name}:`, error)
+        }
+      }
+      
+      const subjectsWithTopics: any[] = []
+      Object.entries(subjectTopicGroups).forEach(([subject, topics]) => {
+        const topicData = Object.entries(topics).map(([topicName, questions]) => {
+          const correct = questions.filter((q: any) => q.isCorrect).length
+          const total = questions.length
+          const percentage = total > 0 ? Math.round((correct / total) * 100) : 0
+          return { name: topicName, percentage, correct, total }
+        })
+        
+        const strengths = topicData.filter(t => t.percentage >= 65).map(t => t.name)
+        const weaknesses = topicData.filter(t => t.percentage < 50).map(t => t.name)
+        const neutrals = topicData.filter(t => t.percentage >= 50 && t.percentage < 65).map(t => t.name)
+        
+        subjectsWithTopics.push({
+          name: subject,
+          percentage: Math.round(subjectScores[subject] || 0),
+          topics: topicData,
+          strengths,
+          weaknesses,
+          neutrals
+        })
+      })
+      
+      const subjects = Object.entries(subjectScores).map(([name, percentage]) => {
+        const totals = subjectTotals[name] || { correct: 0, total: 0 }
+        return {
+          name,
+          percentage: Math.round(percentage),
+          score: Math.round(percentage),
+          maxScore: 100,
+          correct: totals.correct,
+          total: totals.total,
+          strengths: subjectsWithTopics.find(s => s.name === name)?.strengths || [],
+          weaknesses: subjectsWithTopics.find(s => s.name === name)?.weaknesses || [],
+          improvement: ''
+        }
+      })
+      
+      return { subjects, subjectsWithTopics }
+    },
+    enabled: isOpen && !!studentId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Obtener datos de las 3 fases para el gráfico de evolución (para Diagnóstico)
+  const { data: phasesData, isLoading: phasesLoading } = useQuery({
+    queryKey: ['student-phases-data', studentId],
+    queryFn: async () => {
+      if (!studentId) return { phase1: null, phase2: null, phase3: null }
+      
+      const phases = [
+        { key: 'phase1', name: 'fase I' },
+        { key: 'phase2', name: 'Fase II' },
+        { key: 'phase3', name: 'fase III' }
+      ]
+      
+      const phaseResults: { [key: string]: any[] } = { phase1: [], phase2: [], phase3: [] }
+      
+      for (const phase of phases) {
+        try {
+          const phaseRef = collection(db, 'results', studentId, phase.name)
+          const phaseSnap = await getDocs(phaseRef)
+          
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data()
+            if (examData.completed && examData.score && examData.subject) {
+              phaseResults[phase.key].push({
+                subject: normalizeSubjectName(examData.subject),
+                percentage: examData.score.overallPercentage || 0
+              })
+            }
+          })
+        } catch (error) {
+          console.error(`Error obteniendo datos para fase ${phase.name}:`, error)
+        }
+      }
+      
+      // Procesar datos por fase
+      const processPhaseData = (results: any[]) => {
+        const subjectScores: { [subject: string]: number } = {}
+        results.forEach(result => {
+          const subject = result.subject
+          if (!subjectScores[subject] || result.percentage > subjectScores[subject]) {
+            subjectScores[subject] = result.percentage
+          }
+        })
+        
+        return Object.entries(subjectScores).map(([name, percentage]) => ({
+          name,
+          percentage: Math.round(percentage)
+        }))
+      }
+      
+      return {
+        phase1: phaseResults.phase1.length > 0 ? { phase: 'phase1' as const, subjects: processPhaseData(phaseResults.phase1) } : null,
+        phase2: phaseResults.phase2.length > 0 ? { phase: 'phase2' as const, subjects: processPhaseData(phaseResults.phase2) } : null,
+        phase3: phaseResults.phase3.length > 0 ? { phase: 'phase3' as const, subjects: processPhaseData(phaseResults.phase3) } : null
+      }
+    },
+    enabled: isOpen && !!studentId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  if (!student) return null
+
+  const getPhaseMetrics = () => {
+    if (!studentAnalysis) return null
+    
+    if (selectedPhase === 'all') {
+      return {
+        globalScore: studentAnalysis.globalScore || 0,
+        phasePercentage: studentAnalysis.phase3Percentage || 0,
+        averageTimePerQuestion: studentAnalysis.averageTimePerQuestion || 0,
+        fraudAttempts: studentAnalysis.fraudAttempts || 0,
+        luckPercentage: studentAnalysis.luckPercentage || 0,
+        completedSubjects: 7
+      }
+    }
+    
+    const phase = selectedPhase === 'phase1' ? 'phase1' : selectedPhase === 'phase2' ? 'phase2' : 'phase3'
+    return studentAnalysis.phaseMetrics?.[phase] || {
+      globalScore: 0,
+      phasePercentage: 0,
+      averageTimePerQuestion: 0,
+      fraudAttempts: 0,
+      luckPercentage: 0,
+      completedSubjects: 0
+    }
+  }
+
+  const phaseMetrics = getPhaseMetrics()
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className={cn(
+        "max-w-6xl max-h-[90vh] overflow-y-auto",
+        theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300'
+      )}>
+        <DialogHeader>
+          <DialogTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            {(student as any).name || (student as any).displayName || 'Estudiante'} - Resumen y Diagnóstico
+          </DialogTitle>
+          <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            {student.campusName && `${student.campusName} • `}{student.gradeName || ''}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+          </div>
+        ) : studentAnalysis && phaseMetrics ? (
+          <div className="space-y-6">
+            {/* Selector de Fase */}
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                onClick={() => setSelectedPhase('phase1')}
+                variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'phase1'
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800 text-white' : ''
+                )}
+              >
+                Fase I
+                {studentAnalysis.phaseMetrics?.phase1 && (
+                  <Badge className="ml-2">{studentAnalysis.phaseMetrics.phase1.completedSubjects} materias</Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setSelectedPhase('phase2')}
+                variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'phase2'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800 text-white' : ''
+                )}
+              >
+                Fase II
+                {studentAnalysis.phaseMetrics?.phase2 && (
+                  <Badge className="ml-2">{studentAnalysis.phaseMetrics.phase2.completedSubjects} materias</Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setSelectedPhase('phase3')}
+                variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'phase3'
+                    ? 'bg-orange-600 hover:bg-orange-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800 text-white' : ''
+                )}
+              >
+                Fase III
+                {studentAnalysis.phaseMetrics?.phase3 && (
+                  <Badge className="ml-2">{studentAnalysis.phaseMetrics.phase3.completedSubjects} materias</Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setSelectedPhase('all')}
+                variant={selectedPhase === 'all' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'all'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800 text-white' : ''
+                )}
+              >
+                Todas las Fases
+              </Button>
+            </div>
+
+            {/* Tarjetas de KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Puntaje Global */}
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {phaseMetrics.globalScore}
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Puntaje Global</p>
+                    </div>
+                    <Award className="h-8 w-8 text-yellow-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Porcentaje de Fase */}
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
+                        {phaseMetrics.phasePercentage}%
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        Porcentaje de Fase {selectedPhase === 'phase1' ? 'I' : selectedPhase === 'phase2' ? 'II' : selectedPhase === 'phase3' ? 'III' : ''}
+                      </p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-green-500" />
+                  </div>
+                  <div className="mt-2">
+                    <Progress value={phaseMetrics.phasePercentage} className="h-2" />
+                    <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      {phaseMetrics.completedSubjects} de 7 materias completadas
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Tiempo Promedio */}
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-gray-200')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {phaseMetrics.averageTimePerQuestion.toFixed(1)}m
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        Tiempo Promedio por Pregunta
+                      </p>
+                    </div>
+                    <Clock className="h-8 w-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Intento de Fraude */}
+              <Card className={cn(
+                theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 
+                phaseMetrics.fraudAttempts === 0 
+                  ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200'
+                  : phaseMetrics.fraudAttempts <= 2
+                  ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200'
+                  : 'bg-gradient-to-br from-red-50 to-rose-50 border-gray-200'
+              )}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn(
+                        "text-2xl font-bold",
+                        phaseMetrics.fraudAttempts === 0 
+                          ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                          : phaseMetrics.fraudAttempts <= 2
+                          ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
+                          : theme === 'dark' ? 'text-red-400' : 'text-red-700'
+                      )}>
+                        {phaseMetrics.fraudAttempts}
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Intento de fraude</p>
+                    </div>
+                    <Shield className={cn(
+                      "h-8 w-8",
+                      phaseMetrics.fraudAttempts === 0 
+                        ? 'text-green-500'
+                        : phaseMetrics.fraudAttempts <= 2
+                        ? 'text-yellow-500'
+                        : 'text-red-500'
+                    )} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Porcentaje de Suerte */}
+              <Card className={cn(
+                theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 
+                phaseMetrics.luckPercentage < 20 
+                  ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200'
+                  : phaseMetrics.luckPercentage <= 40
+                  ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200'
+                  : 'bg-gradient-to-br from-orange-50 to-red-50 border-gray-200'
+              )}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn(
+                        "text-2xl font-bold",
+                        phaseMetrics.luckPercentage < 20
+                          ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                          : phaseMetrics.luckPercentage <= 40
+                          ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
+                          : theme === 'dark' ? 'text-orange-400' : 'text-orange-700'
+                      )}>
+                        {phaseMetrics.luckPercentage}%
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Porcentaje de Suerte</p>
+                    </div>
+                    <Zap className={cn(
+                      "h-8 w-8",
+                      phaseMetrics.luckPercentage < 20
+                        ? 'text-green-500'
+                        : phaseMetrics.luckPercentage <= 40
+                        ? 'text-yellow-500'
+                        : 'text-orange-500'
+                    )} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tabs para Resumen y Diagnóstico */}
+            <Tabs defaultValue="resumen" className="space-y-4">
+              <TabsList className={cn("grid w-full grid-cols-2", theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-100')}>
+                <TabsTrigger value="resumen" className={cn(theme === 'dark' ? 'data-[state=active]:bg-zinc-700' : 'data-[state=active]:bg-white')}>
+                  Resumen
+                </TabsTrigger>
+                <TabsTrigger value="diagnostico" className={cn(theme === 'dark' ? 'data-[state=active]:bg-zinc-700' : 'data-[state=active]:bg-white')}>
+                  Diagnóstico
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="resumen" className="space-y-4">
+                <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200')}>
+                  <CardHeader>
+                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <PieChartIcon className="h-5 w-5" />
+                      Rendimiento académico por materia
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {subjectsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+                      </div>
+                    ) : subjectsData && subjectsData.subjectsWithTopics && subjectsData.subjectsWithTopics.length > 0 ? (
+                      <PerformanceChart 
+                        data={subjectsData.subjects} 
+                        subjectsWithTopics={subjectsData.subjectsWithTopics}
+                        theme={theme} 
+                      />
+                    ) : subjectsData && subjectsData.subjects && subjectsData.subjects.length > 0 ? (
+                      <PerformanceChart 
+                        data={subjectsData.subjects} 
+                        theme={theme} 
+                      />
+                    ) : (
+                      <p className={cn("text-sm text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        No hay datos de materias disponibles para esta fase
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="diagnostico" className="space-y-6">
+                {subjectsLoading || phasesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+                  </div>
+                ) : subjectsData && subjectsData.subjects && subjectsData.subjects.length > 0 ? (
+                  <>
+                    {/* Primera Fila: Radar Chart y Evolución por Materia */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Radar Chart de Fortalezas/Debilidades */}
+                      <StrengthsRadarChart
+                        subjects={subjectsData.subjects}
+                        theme={theme}
+                      />
+
+                      {/* Gráfico de Evolución por Materia */}
+                      <SubjectsProgressChart
+                        phase1Data={phasesData?.phase1 || null}
+                        phase2Data={phasesData?.phase2 || null}
+                        phase3Data={phasesData?.phase3 || null}
+                        theme={theme}
+                      />
+                    </div>
+
+                    {/* Resumen General de Desempeño */}
+                    <SubjectsDetailedSummary
+                      subjects={subjectsData.subjects}
+                      subjectsWithTopics={subjectsData.subjectsWithTopics}
+                      theme={theme}
+                    />
+                  </>
+                ) : (
+                  <div className="text-center py-12">
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      No hay datos de diagnóstico disponibles para esta fase
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              No hay datos disponibles para este estudiante
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 
