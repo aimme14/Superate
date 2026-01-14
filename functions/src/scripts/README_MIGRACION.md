@@ -37,11 +37,16 @@ cd /ruta/al/proyecto
 # 2. Instalar dependencias si no están instaladas
 npm install
 
-# 3. Compilar TypeScript (si es necesario)
+# 3. Compilar TypeScript
+cd functions
 npm run build
+cd ..
 
-# 4. Ejecutar el script
+# 4. Ejecutar el script de migración
 npx ts-node functions/src/scripts/migrateUsersToNewStructure.ts
+
+# 5. Verificar la migración
+npx ts-node functions/src/scripts/verifyMigration.ts
 ```
 
 ### Con Variables de Entorno
@@ -59,13 +64,24 @@ npx ts-node functions/src/scripts/migrateUsersToNewStructure.ts
 
 ### Migración de Usuarios
 
-El script:
+El script mejorado:
 1. Obtiene todos los usuarios de la estructura antigua (`superate/auth/users`)
 2. Filtra usuarios válidos (con `institutionId` y rol válido)
-3. Verifica si ya existen en la nueva estructura (evita duplicados)
-4. Migra usuarios a la nueva estructura jerárquica según su institución y rol
-5. Mantiene todos los datos originales del usuario
-6. Agrega campos `migratedAt` y `migratedFrom` para trazabilidad
+3. **Verifica que la institución exista** antes de migrar
+4. Verifica si ya existen en la nueva estructura (evita duplicados)
+5. **Normaliza campos** (gradeName/grade, campusId/campus, etc.)
+6. **Elimina valores `undefined`** antes de guardar (Firestore no los acepta)
+7. Migra usuarios a la nueva estructura jerárquica según su institución y rol
+8. Mantiene todos los datos originales del usuario
+9. Agrega campos `migratedAt` y `migratedFrom` para trazabilidad
+
+### Mejoras Implementadas
+
+- ✅ **Manejo de valores `undefined`**: Elimina automáticamente propiedades `undefined` antes de guardar
+- ✅ **Normalización de campos**: Asegura que `gradeName`/`grade` y `campusId`/`campus` estén sincronizados
+- ✅ **Validación de instituciones**: Verifica que la institución exista antes de migrar
+- ✅ **Manejo robusto de errores**: Captura y reporta errores detallados
+- ✅ **Procesamiento en lotes**: Procesa usuarios en lotes para no sobrecargar Firestore
 
 ### Verificación de Integridad
 
@@ -121,13 +137,28 @@ Total usuarios procesados: 150
 
 ## 🧪 Pruebas Post-Migración
 
-Después de ejecutar la migración, verificar:
+### Verificación Automática
+
+Después de ejecutar la migración, ejecuta el script de verificación:
+
+```bash
+npx ts-node functions/src/scripts/verifyMigration.ts
+```
+
+Este script:
+- Compara usuarios entre estructura antigua y nueva
+- Verifica integridad de datos
+- Identifica usuarios faltantes o con diferencias
+- Genera un reporte detallado
+
+### Verificación Manual
 
 1. **Crear un nuevo usuario** y verificar que se crea en nueva estructura
 2. **Consultar usuarios migrados** por ID y verificar que se encuentran
 3. **Actualizar usuarios migrados** y verificar que se actualizan correctamente
 4. **Listar usuarios** y verificar que aparecen correctamente
 5. **Probar funcionalidades** que dependan de usuarios (login, dashboards, etc.)
+6. **Probar generación de PDFs** con usuarios migrados
 
 ## 🗑️ Limpieza Post-Migración
 
