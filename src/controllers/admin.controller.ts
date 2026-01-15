@@ -860,10 +860,25 @@ export const getRegistrationConfig = async (): Promise<Result<RegistrationConfig
       return success(defaultConfig)
     }
     
-    const data = configSnap.data() as RegistrationConfig
+    const data = configSnap.data() as any
+    let updatedAt: Date | undefined = undefined
+    
+    if (data.updatedAt) {
+      if (typeof data.updatedAt.toDate === 'function') {
+        // Firestore Timestamp
+        updatedAt = data.updatedAt.toDate()
+      } else if (data.updatedAt instanceof Date) {
+        // Ya es un Date
+        updatedAt = data.updatedAt
+      } else if (data.updatedAt.seconds) {
+        // Firestore Timestamp en formato {seconds, nanoseconds}
+        updatedAt = new Date(data.updatedAt.seconds * 1000)
+      }
+    }
+    
     return success({
       enabled: data.enabled ?? true, // Por defecto habilitado si no existe
-      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+      updatedAt,
       updatedBy: data.updatedBy,
     })
   } catch (e) {

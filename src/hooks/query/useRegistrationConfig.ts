@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getRegistrationConfig, updateRegistrationConfig, RegistrationConfig } from '@/controllers/admin.controller'
+import { getRegistrationConfig, updateRegistrationConfig } from '@/controllers/admin.controller'
 import { useAuthContext } from '@/context/AuthContext'
 import { useNotification } from '@/hooks/ui/useNotification'
 
