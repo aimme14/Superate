@@ -82,6 +82,23 @@ interface MigrationStats {
 }
 
 /**
+ * Verifica si una institución existe en la base de datos
+ */
+async function institutionExists(institutionId: string): Promise<boolean> {
+  try {
+    const institutionRef = db
+      .collection('superate')
+      .doc('auth')
+      .collection('institutions')
+      .doc(institutionId);
+    const institutionSnap = await institutionRef.get();
+    return institutionSnap.exists;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
  * Verifica si un usuario ya existe en la nueva estructura
  */
 async function userExistsInNewStructure(
@@ -106,6 +123,89 @@ async function userExistsInNewStructure(
 }
 
 /**
+ * Elimina propiedades undefined de un objeto recursivamente
+ * Firestore no acepta valores undefined
+ */
+function removeUndefinedValues(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefinedValues(item));
+  }
+  
+  if (typeof obj === 'object') {
+    // Si es un FieldValue de Firestore, retornarlo tal cual
+    if (obj.constructor && obj.constructor.name === 'FieldValue') {
+      return obj;
+    }
+    
+    const cleaned: any = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        if (value !== undefined) {
+          cleaned[key] = removeUndefinedValues(value);
+        }
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+}
+
+/**
+ * Normaliza los datos del usuario para la nueva estructura
+ */
+function normalizeUserData(
+  userId: string,
+  userData: admin.firestore.DocumentData,
+  institutionId: string
+): any {
+  // Normalizar campos comunes
+  const normalized: any = {
+    ...userData,
+    id: userId,
+    uid: userId,
+    institutionId: institutionId,
+    inst: institutionId, // Mantener inst para retrocompatibilidad
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+    migratedFrom: 'users' // Marcar que fue migrado desde la estructura antigua
+  };
+
+  // Normalizar campos de grado (gradeName, grade, gradeId)
+  if (userData.gradeName) {
+    normalized.gradeName = userData.gradeName;
+    normalized.grade = userData.gradeName; // Asegurar que grade también esté presente
+  } else if (userData.grade) {
+    normalized.grade = userData.grade;
+    normalized.gradeName = userData.grade; // Asegurar que gradeName también esté presente
+  }
+
+  // Normalizar campos de campus (campusId, campus)
+  if (userData.campusId) {
+    normalized.campusId = userData.campusId;
+    normalized.campus = userData.campusId; // Asegurar que campus también esté presente
+  } else if (userData.campus) {
+    normalized.campus = userData.campus;
+    normalized.campusId = userData.campus; // Asegurar que campusId también esté presente
+  }
+
+  // Normalizar gradeId si existe
+  if (userData.gradeId) {
+    normalized.gradeId = userData.gradeId;
+  } else if (userData.grade || userData.gradeName) {
+    normalized.gradeId = userData.grade || userData.gradeName;
+  }
+
+  // Eliminar valores undefined antes de retornar
+  return removeUndefinedValues(normalized);
+}
+
+/**
  * Migra un usuario a la nueva estructura jerárquica
  */
 async function migrateUser(
@@ -118,8 +218,8 @@ async function migrateUser(
     const institutionId = userData.institutionId || userData.inst;
 
     // Validar que el usuario tenga un rol válido
-    if (!VALID_ROLES.includes(role as ValidRole)) {
-      console.log(`⚠️ Usuario ${userId}: Rol '${role}' no válido para migración (se omite)`);
+    if (!role || !VALID_ROLES.includes(role as ValidRole)) {
+      console.log(`⚠️ Usuario ${userId}: Rol '${role || 'sin rol'}' no válido para migración (se omite)`);
       stats.skipped++;
       return false;
     }
@@ -127,6 +227,14 @@ async function migrateUser(
     // Validar que el usuario tenga institutionId
     if (!institutionId) {
       console.log(`⚠️ Usuario ${userId}: Sin institutionId (se omite - probablemente admin)`);
+      stats.skipped++;
+      return false;
+    }
+
+    // Verificar que la institución exista
+    const institutionExistsCheck = await institutionExists(institutionId);
+    if (!institutionExistsCheck) {
+      console.log(`⚠️ Usuario ${userId}: Institución '${institutionId}' no existe (se omite)`);
       stats.skipped++;
       return false;
     }
@@ -139,18 +247,9 @@ async function migrateUser(
       return false;
     }
 
-    // Preparar datos del usuario para la nueva estructura
+    // Normalizar y preparar datos del usuario para la nueva estructura
     const collectionName = ROLE_TO_COLLECTION[role as ValidRole];
-    const newUserData = {
-      ...userData,
-      id: userId,
-      uid: userId,
-      institutionId: institutionId,
-      inst: institutionId, // Mantener inst para retrocompatibilidad
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      migratedAt: admin.firestore.FieldValue.serverTimestamp(),
-      migratedFrom: 'users' // Marcar que fue migrado desde la estructura antigua
-    };
+    const newUserData = normalizeUserData(userId, userData, institutionId);
 
     // Crear el usuario en la nueva estructura
     const newUserRef = db

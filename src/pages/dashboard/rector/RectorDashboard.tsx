@@ -9,10 +9,8 @@ import {
   Crown,
   Users, 
   GraduationCap, 
-  TrendingUp,
   School,
   CalendarDays,
-  Award,
   CheckCircle2,
   Loader2,
   BarChart3,
@@ -28,11 +26,21 @@ import { useUserInstitution } from '@/hooks/query/useUserInstitution'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useStudentsByTeacher, useFilteredStudents } from '@/hooks/query/useStudentQuery'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Check, ChevronsUpDown, Award, TrendingUp, Clock, Shield, Zap, PieChart as PieChartIcon } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useStudentAnalysis } from '@/hooks/query/useAdminAnalysis'
 import { useQuery } from '@tanstack/react-query'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
 import { getFilteredStudents } from '@/controllers/student.controller'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, Legend } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, Legend } from 'recharts'
+import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
+import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
+import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
 
 const db = getFirestore(firebaseApp)
 
@@ -145,11 +153,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         <div className="relative z-10">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              <motion.div
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                transition={{ type: "spring", stiffness: 300 }}
-                className="relative"
-              >
+              <div className="relative">
                 <img 
                   src={institutionLogo || '/assets/agustina.png'} 
                   alt={`Logo de ${institutionName}`}
@@ -158,12 +162,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                     e.currentTarget.src = '/assets/agustina.png'
                   }}
                 />
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full border-2 border-blue-600"
-                />
-              </motion.div>
+              </div>
               <div>
                 <motion.h1 
                   initial={{ opacity: 0, x: -20 }}
@@ -171,7 +170,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   transition={{ delay: 0.2 }}
                   className="text-3xl font-bold mb-2"
                 >
-                  Bienvenido, {stats.rectorName}
+                  Bienvenido Rector de {institutionName || stats.institutionName || 'la Institución'}
                 </motion.h1>
                 <motion.p 
                   initial={{ opacity: 0, x: -20 }}
@@ -192,22 +191,16 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               </div>
             </div>
             <div className="hidden md:flex items-center gap-3">
-              <motion.div
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center border-2 border-white/40 shadow-lg"
-              >
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center border-2 border-white/40 shadow-lg">
                 <Building2 className="h-8 w-8 mx-auto mb-2 text-white" />
                 <div className="text-2xl font-bold text-white">{stats.totalCampuses}</div>
                 <div className="text-xs opacity-90 text-white font-medium">Sedes</div>
-              </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center border-2 border-white/40 shadow-lg"
-              >
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center border-2 border-white/40 shadow-lg">
                 <Crown className="h-8 w-8 mx-auto mb-2 text-white" />
                 <div className="text-2xl font-bold text-white">{stats.totalPrincipals}</div>
                 <div className="text-xs opacity-90 text-white font-medium">Coordinadores</div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </div>
@@ -227,13 +220,12 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
+        className="grid grid-cols-2 md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
       >
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
           { icon: Building2, label: 'Sedes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos' },
           { icon: Users, label: 'Estudiantes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes' },
-          { icon: BarChart3, label: 'Resultados', color: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800', tab: 'resultados' },
         ].map((btn, index) => (
           <motion.div
             key={btn.label}
@@ -305,7 +297,6 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             <StudentsTab 
               theme={theme} 
               students={students || []}
-              staticData={staticData}
             />
           </div>
         )}
@@ -456,6 +447,7 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: 
   const institutionId = currentRector?.institutionId
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
+  const [studentPopoverOpen, setStudentPopoverOpen] = useState(false)
   
   const subjects = [
     'todas',
@@ -733,22 +725,78 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: 
               <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 Estudiante
               </label>
-              <Select
-                value={filters.studentId}
-                onValueChange={(value) => setFilters({ ...filters, studentId: value })}
-              >
-                <SelectTrigger className={cn("h-8 w-32 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
-                  <SelectValue placeholder="Estudiante" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {allStudents?.slice(0, 50).map((student: any) => (
-                    <SelectItem key={student.id || student.uid} value={student.id || student.uid}>
-                      {student.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={studentPopoverOpen} onOpenChange={setStudentPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={studentPopoverOpen}
+                    className={cn(
+                      "h-8 w-32 justify-between text-xs",
+                      theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700' : 'bg-white border-gray-300 hover:bg-gray-50'
+                    )}
+                  >
+                    {filters.studentId === 'todos' || !filters.studentId
+                      ? 'Todos'
+                      : (() => {
+                          const foundStudent: any = allStudents?.find((student: any) => (student.id || student.uid) === filters.studentId)
+                          return foundStudent?.name || foundStudent?.displayName || 'Seleccionar...'
+                        })()}
+                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className={cn("w-80 p-0", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')} align="end">
+                  <Command className={theme === 'dark' ? 'bg-zinc-900' : 'bg-white'}>
+                    <CommandInput 
+                      placeholder="Buscar estudiante..." 
+                      className={cn("h-9", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No se encontraron estudiantes.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="todos"
+                          onSelect={() => {
+                            setFilters({ ...filters, studentId: 'todos' })
+                            setStudentPopoverOpen(false)
+                          }}
+                          className={cn("cursor-pointer", theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-100')}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              filters.studentId === 'todos' || !filters.studentId ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          Todos
+                        </CommandItem>
+                        {allStudents?.map((student: any) => {
+                          const studentName = student.name || student.displayName || 'Sin nombre'
+                          return (
+                            <CommandItem
+                              key={student.id || student.uid}
+                              value={studentName}
+                              onSelect={() => {
+                                setFilters({ ...filters, studentId: student.id || student.uid })
+                                setStudentPopoverOpen(false)
+                              }}
+                              className={cn("cursor-pointer", theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-100')}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  filters.studentId === (student.id || student.uid) ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {studentName}
+                            </CommandItem>
+                          )
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
@@ -985,8 +1033,40 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
         }
       })
 
+      // Constantes para cálculo de puntaje global
+      const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
+      const POINTS_PER_NATURALES_SUBJECT = 100 / 3
+      const POINTS_PER_REGULAR_SUBJECT = 100
+
+      // Función para normalizar nombres de materias
+      const normalizeSubjectName = (subject: string): string => {
+        const normalized = subject.trim().toLowerCase()
+        const subjectMap: Record<string, string> = {
+          'biologia': 'Biologia',
+          'biología': 'Biologia',
+          'biology': 'Biologia',
+          'quimica': 'Quimica',
+          'química': 'Quimica',
+          'chemistry': 'Quimica',
+          'fisica': 'Física',
+          'física': 'Física',
+          'physics': 'Física',
+          'matematicas': 'Matemáticas',
+          'matemáticas': 'Matemáticas',
+          'math': 'Matemáticas',
+          'lenguaje': 'Lenguaje',
+          'language': 'Lenguaje',
+          'ciencias sociales': 'Ciencias Sociales',
+          'sociales': 'Ciencias Sociales',
+          'ingles': 'Inglés',
+          'inglés': 'Inglés',
+          'english': 'Inglés'
+        }
+        return subjectMap[normalized] || subject
+      }
+
       // Calcular ranking SOLO para estudiantes que completaron TODA la fase
-      const ranking: Array<{ student: any; averageScore: number; totalExams: number; completedSubjects: number }> = []
+      const ranking: Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }> = []
       
       console.log('📊 Ranking - Total estudiantes encontrados:', students.length)
       console.log('📊 Ranking - Estudiantes con resultados en fase:', resultsByStudent.size)
@@ -1012,25 +1092,50 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
           return
         }
         
-        // Calcular promedio solo de los exámenes completados
-        const averageScore = studentData.scores.length > 0
-          ? studentData.scores.reduce((sum, score) => sum + score, 0) / studentData.scores.length
-          : 0
+        // Obtener todos los resultados del estudiante para calcular el mejor puntaje por materia
+        const studentResults = phaseResults.filter(r => r.userId === studentId)
+        
+        // Agrupar por materia y tomar el mejor puntaje de cada una
+        const subjectScores: { [subject: string]: number } = {}
+        
+        studentResults.forEach(result => {
+          const subject = normalizeSubjectName(result.subject || '')
+          const percentage = result.score?.overallPercentage || 0
+          
+          // Guardar el mejor puntaje de cada materia
+          if (!subjectScores[subject] || percentage > subjectScores[subject]) {
+            subjectScores[subject] = percentage
+          }
+        })
+        
+        // Calcular puntaje global de la fase
+        let globalScore = 0
+        Object.entries(subjectScores).forEach(([subject, percentage]) => {
+          let pointsForSubject: number
+          if (NATURALES_SUBJECTS.includes(subject)) {
+            pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
+          } else {
+            pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
+          }
+          globalScore += pointsForSubject
+        })
+        
+        globalScore = Math.round(globalScore * 100) / 100
         
         ranking.push({
           student,
-          averageScore: Math.round(averageScore * 100) / 100,
+          globalScore,
           totalExams: studentData.scores.length,
           completedSubjects: studentData.subjects.size
         })
       })
 
-      // Ordenar por puntaje descendente (estudiantes con resultados primero)
+      // Ordenar por puntaje global descendente (estudiantes con resultados primero)
       ranking.sort((a, b) => {
-        // Primero los que tienen exámenes, luego por puntaje
+        // Primero los que tienen exámenes, luego por puntaje global
         if (a.totalExams === 0 && b.totalExams > 0) return 1
         if (a.totalExams > 0 && b.totalExams === 0) return -1
-        return b.averageScore - a.averageScore
+        return b.globalScore - a.globalScore
       })
 
       console.log('📊 Ranking - Ranking final:', ranking.length, 'estudiantes')
@@ -1061,47 +1166,64 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
             <CardDescription>Top estudiantes ordenados por rendimiento</CardDescription>
           </div>
           {/* Filtros en la parte superior derecha */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Select
-              value={rankingFilters.jornada || 'todas'}
-              onValueChange={(value) => setRankingFilters({ ...rankingFilters, jornada: value === 'todas' ? 'todas' : (value as 'mañana' | 'tarde' | 'única') })}
-            >
-              <SelectTrigger className={cn("h-8 w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
-                <SelectValue placeholder="Jornada" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                <SelectItem value="mañana">Mañana</SelectItem>
-                <SelectItem value="tarde">Tarde</SelectItem>
-                <SelectItem value="única">Única</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={rankingFilters.phase}
-              onValueChange={(value) => setRankingFilters({ ...rankingFilters, phase: value as any })}
-            >
-              <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="first">Fase I</SelectItem>
-                <SelectItem value="second">Fase II</SelectItem>
-                <SelectItem value="third">Fase III</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={rankingFilters.year.toString()}
-              onValueChange={(value) => setRankingFilters({ ...rankingFilters, year: parseInt(value) })}
-            >
-              <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {years.map(year => (
-                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col items-center gap-0.5">
+                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  Jornada
+                </label>
+                <Select
+                  value={rankingFilters.jornada || 'todas'}
+                  onValueChange={(value) => setRankingFilters({ ...rankingFilters, jornada: value === 'todas' ? 'todas' : (value as 'mañana' | 'tarde' | 'única') })}
+                >
+                  <SelectTrigger className={cn("h-8 w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                    <SelectValue placeholder="Jornada" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    <SelectItem value="mañana">Mañana</SelectItem>
+                    <SelectItem value="tarde">Tarde</SelectItem>
+                    <SelectItem value="única">Única</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  Fase
+                </label>
+                <Select
+                  value={rankingFilters.phase}
+                  onValueChange={(value) => setRankingFilters({ ...rankingFilters, phase: value as any })}
+                >
+                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="first">Fase I</SelectItem>
+                    <SelectItem value="second">Fase II</SelectItem>
+                    <SelectItem value="third">Fase III</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                  Año
+                </label>
+                <Select
+                  value={rankingFilters.year.toString()}
+                  onValueChange={(value) => setRankingFilters({ ...rankingFilters, year: parseInt(value) })}
+                >
+                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.map(year => (
+                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -1119,7 +1241,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
         ) : institutionStudents && institutionStudents.length > 0 ? (
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {institutionStudents.map((item: any, index: number) => {
-              console.log('📊 Ranking - Renderizando estudiante:', item.student.name, 'Puntaje:', item.averageScore, 'Exámenes:', item.totalExams)
+              console.log('📊 Ranking - Renderizando estudiante:', item.student.name, 'Puntaje Global:', item.globalScore, 'Exámenes:', item.totalExams)
               return (
               <motion.div
                 key={item.student.id || item.student.uid}
@@ -1157,10 +1279,10 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                 </div>
                 <div className="text-right">
                   <p className={cn('font-bold text-lg', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {item.averageScore.toFixed(1)}%
+                    {item.globalScore.toFixed(1)}
                   </p>
                   <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    {item.totalExams} {item.totalExams === 1 ? 'examen' : 'exámenes'} • {item.completedSubjects || 7} materias
+                    {item.student.campusName || 'N/A'} • {item.student.jornada ? item.student.jornada.charAt(0).toUpperCase() + item.student.jornada.slice(1) : 'N/A'}
                   </p>
                 </div>
               </motion.div>
@@ -1460,61 +1582,34 @@ function TeacherWithStudents({ teacher, theme, isExpanded }: any) {
 }
 
 // Componente de Estudiantes
-function StudentsTab({ theme, students, staticData }: any) {
+function StudentsTab({ theme, students }: any) {
+  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+
+  // Agrupar estudiantes por sede y grado
+  const groupedStudents = students.reduce((acc: any, student: any) => {
+    const campusName = student.campusName || 'Sin sede'
+    const gradeName = student.gradeName || 'Sin grado'
+    const key = `${campusName}|||${gradeName}`
+    
+    if (!acc[key]) {
+      acc[key] = {
+        campusName,
+        gradeName,
+        students: []
+      }
+    }
+    acc[key].students.push(student)
+    return acc
+  }, {})
+
+  const handleStudentClick = (student: any) => {
+    setSelectedStudent(student)
+    setIsDialogOpen(true)
+  }
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-          <CardHeader>
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <Users className={cn("h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              Distribución por Nivel
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={staticData.studentsByLevel}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={(entry: { name: string; percent: number }) => `${entry.name}: ${(entry.percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="estudiantes"
-                >
-                  {staticData.studentsByLevel.map((entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-          <CardHeader>
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <BarChart3 className={cn("h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              Estudiantes por Nivel
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={staticData.studentsByLevel}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="estudiantes" fill={theme === 'dark' ? '#1e40af' : '#2563eb'} radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
         <CardHeader>
           <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -1523,44 +1618,750 @@ function StudentsTab({ theme, students, staticData }: any) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-            {students.slice(0, 50).map((student: any, index: number) => (
-              <motion.div
-                key={student.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.02 }}
-                whileHover={{ scale: 1.05 }}
-                className={cn("p-3 rounded-lg border", 
-                  theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'border-gray-300 bg-gray-200'
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold",
-                    theme === 'dark'
-                      ? "bg-gradient-to-br from-blue-800 to-slate-800"
-                      : "bg-gradient-to-br from-blue-700 to-slate-700"
-                  )}>
-                    {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn('font-medium text-sm truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                      {student.name}
-                    </p>
-                    {student.gradeName && (
-                      <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                        {student.gradeName}
-                      </p>
-                    )}
-                  </div>
+          <div className="space-y-6 max-h-[600px] overflow-y-auto">
+            {Object.values(groupedStudents).map((group: any, groupIndex: number) => (
+              <div key={groupIndex} className="space-y-2">
+                <div className={cn("flex items-center gap-2 pb-2 border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
+                  <Building2 className={cn("h-4 w-4", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+                  <span className={cn("font-semibold text-sm", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                    {group.campusName}
+                  </span>
+                  <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                    • {group.gradeName}
+                  </span>
                 </div>
-              </motion.div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                  {group.students.map((student: any, index: number) => (
+                    <motion.div
+                      key={student.id || student.uid}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.01 }}
+                      whileHover={{ scale: 1.02 }}
+                      onClick={() => handleStudentClick(student)}
+                      className={cn(
+                        "p-2 rounded-lg border cursor-pointer transition-all",
+                        theme === 'dark' 
+                          ? 'border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-600' 
+                          : 'border-gray-300 bg-gray-200 hover:bg-gray-300 hover:border-gray-400'
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0",
+                          theme === 'dark'
+                            ? "bg-gradient-to-br from-blue-800 to-slate-800"
+                            : "bg-gradient-to-br from-blue-700 to-slate-700"
+                        )}>
+                          {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn('font-medium text-xs truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                            {student.name}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog para mostrar resumen y diagnóstico */}
+      {selectedStudent && (
+        <StudentDetailDialog
+          student={selectedStudent}
+          isOpen={isDialogOpen}
+          onClose={() => {
+            setIsDialogOpen(false)
+            setSelectedStudent(null)
+          }}
+          theme={theme}
+        />
+      )}
     </div>
+  )
+}
+
+// Componentes auxiliares para mostrar rendimiento y fortalezas/debilidades
+function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data: any[], theme?: 'light' | 'dark', subjectsWithTopics?: any[] }) {
+  if (subjectsWithTopics && subjectsWithTopics.length > 0) {
+    return (
+      <Accordion type="multiple" className="w-full">
+        {subjectsWithTopics.map((subject: any) => {
+          const hasStrengths = subject.strengths?.length > 0
+          const hasNeutrals = subject.neutrals?.length > 0
+          const hasWeaknesses = subject.weaknesses?.length > 0
+          
+          // Determinar color según el porcentaje
+          const getPercentageColor = (percentage: number) => {
+            if (percentage >= 65) return theme === 'dark' ? 'text-green-400' : 'text-green-600'
+            if (percentage >= 50) return theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
+            return theme === 'dark' ? 'text-red-400' : 'text-red-600'
+          }
+          
+          return (
+            <AccordionItem key={subject.name} value={subject.name} className={cn("border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
+              <AccordionTrigger className={cn("hover:no-underline", theme === 'dark' ? 'text-white' : '')}>
+                <div className="flex items-center justify-between w-full pr-4">
+                  <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{subject.name}</span>
+                  <div className="flex items-center gap-3">
+                    <span className={cn("text-sm font-semibold", getPercentageColor(subject.percentage))}>
+                      {subject.percentage}%
+                    </span>
+                    {(hasStrengths || hasNeutrals || hasWeaknesses) && (
+                      <div className="flex items-center gap-1.5">
+                        {hasStrengths && (
+                          <Badge className={cn("text-[10px] px-1.5 py-0", theme === 'dark' ? "bg-green-900/50 text-green-300 border-green-700" : "bg-green-100 text-green-700 border-green-300")}>
+                            {subject.strengths.length}
+                          </Badge>
+                        )}
+                        {hasNeutrals && (
+                          <Badge className={cn("text-[10px] px-1.5 py-0", theme === 'dark' ? "bg-yellow-900/50 text-yellow-300 border-yellow-700" : "bg-yellow-100 text-yellow-700 border-yellow-300")}>
+                            {subject.neutrals.length}
+                          </Badge>
+                        )}
+                        {hasWeaknesses && (
+                          <Badge className={cn("text-[10px] px-1.5 py-0", theme === 'dark' ? "bg-red-900/50 text-red-300 border-red-700" : "bg-red-100 text-red-700 border-red-300")}>
+                            {subject.weaknesses.length}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className={cn("space-y-4 pt-2", theme === 'dark' ? 'bg-zinc-900/50 rounded-lg p-3' : 'bg-gray-50 rounded-lg p-3 border border-gray-200')}>
+                  {/* Temas */}
+                  {subject.topics && subject.topics.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className={cn("text-xs font-semibold mb-2", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                        Temas
+                      </h4>
+                      {subject.topics.map((topic: any) => (
+                        <div key={topic.name} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{topic.name}</span>
+                            <span className={cn("text-xs font-semibold", getPercentageColor(topic.percentage))}>
+                              {topic.percentage}%
+                            </span>
+                          </div>
+                          <Progress 
+                            value={topic.percentage} 
+                            className={cn(
+                              "h-2",
+                              topic.percentage >= 65 ? 'bg-green-500' :
+                              topic.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                            )}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Fortalezas, Neutros y Debilidades en horizontal */}
+                  {(hasStrengths || hasNeutrals || hasWeaknesses) && (
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {/* Fortalezas */}
+                      {hasStrengths && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <span className={cn("text-xs font-semibold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
+                            Fortalezas ({subject.strengths.length})
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Neutros */}
+                      {hasNeutrals && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-yellow-500" />
+                          <span className={cn("text-xs font-semibold", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700')}>
+                            Neutro ({subject.neutrals.length})
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Debilidades */}
+                      {hasWeaknesses && (
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-red-500" />
+                          <span className={cn("text-xs font-semibold", theme === 'dark' ? 'text-red-400' : 'text-red-700')}>
+                            Debilidades ({subject.weaknesses.length})
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )
+        })}
+      </Accordion>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {data.map((subject: any) => {
+        const percentage = subject.percentage || subject.score
+        const getColor = (pct: number) => {
+          if (pct >= 65) return theme === 'dark' ? 'text-green-400' : 'text-green-600'
+          if (pct >= 50) return theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
+          return theme === 'dark' ? 'text-red-400' : 'text-red-600'
+        }
+        
+        return (
+          <div key={subject.name} className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{subject.name}</span>
+              <span className={cn("text-sm font-semibold", getColor(percentage))}>
+                {percentage}%
+              </span>
+            </div>
+            <Progress 
+              value={percentage} 
+              className={cn(
+                "h-2",
+                percentage >= 65 ? 'bg-green-500' :
+                percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+              )}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Componente de Dialog para mostrar resumen y diagnóstico del estudiante
+function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
+  const studentId = student?.id || student?.uid
+  const { data: studentAnalysis, isLoading } = useStudentAnalysis(studentId, isOpen && !!studentId)
+  const [selectedPhase, setSelectedPhase] = useState<'phase1' | 'phase2' | 'phase3' | 'all'>('phase1')
+  
+  // Función para normalizar nombres de materias
+  const normalizeSubjectName = (subject: string): string => {
+    const normalized = subject.trim().toLowerCase()
+    const subjectMap: Record<string, string> = {
+      'biologia': 'Biologia', 'biología': 'Biologia', 'biology': 'Biologia',
+      'quimica': 'Quimica', 'química': 'Quimica', 'chemistry': 'Quimica',
+      'fisica': 'Física', 'física': 'Física', 'physics': 'Física',
+      'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas', 'math': 'Matemáticas',
+      'lenguaje': 'Lenguaje', 'language': 'Lenguaje',
+      'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
+      'ingles': 'Inglés', 'inglés': 'Inglés', 'english': 'Inglés'
+    }
+    return subjectMap[normalized] || subject
+  }
+
+  // Obtener datos de materias con temas para la fase seleccionada (para Resumen)
+  const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
+    queryKey: ['student-subjects-data', studentId, selectedPhase],
+    queryFn: async () => {
+      if (!studentId) return { subjects: [], subjectsWithTopics: [] }
+      
+      const phases = [
+        { key: 'first', name: 'fase I' },
+        { key: 'second', name: 'Fase II' },
+        { key: 'third', name: 'fase III' }
+      ]
+      
+      const selectedPhases = selectedPhase === 'all' 
+        ? phases 
+        : selectedPhase === 'phase1' 
+          ? [phases[0]]
+          : selectedPhase === 'phase2'
+          ? [phases[1]]
+          : [phases[2]]
+      
+      const subjectTopicGroups: { [subject: string]: { [topic: string]: any[] } } = {}
+      const subjectScores: { [subject: string]: number } = {}
+      const subjectTotals: { [subject: string]: { correct: number; total: number } } = {}
+      
+      for (const phase of selectedPhases) {
+        try {
+          const phaseRef = collection(db, 'results', studentId, phase.name)
+          const phaseSnap = await getDocs(phaseRef)
+          
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data()
+            if (examData.completed && examData.score && examData.subject) {
+              const subject = normalizeSubjectName(examData.subject)
+              const percentage = examData.score.overallPercentage || 0
+              
+              if (!subjectScores[subject] || percentage > subjectScores[subject]) {
+                subjectScores[subject] = percentage
+              }
+              
+              if (!subjectTotals[subject]) {
+                subjectTotals[subject] = { correct: 0, total: 0 }
+              }
+              subjectTotals[subject].correct += examData.score.correctAnswers || 0
+              subjectTotals[subject].total += examData.score.totalQuestions || 0
+              
+              if (examData.questionDetails && Array.isArray(examData.questionDetails)) {
+                examData.questionDetails.forEach((question: any) => {
+                  const topic = question.topic || 'General'
+                  if (!subjectTopicGroups[subject]) {
+                    subjectTopicGroups[subject] = {}
+                  }
+                  if (!subjectTopicGroups[subject][topic]) {
+                    subjectTopicGroups[subject][topic] = []
+                  }
+                  subjectTopicGroups[subject][topic].push(question)
+                })
+              }
+            }
+          })
+        } catch (error) {
+          console.error(`Error obteniendo datos para fase ${phase.name}:`, error)
+        }
+      }
+      
+      const subjectsWithTopics: any[] = []
+      Object.entries(subjectTopicGroups).forEach(([subject, topics]) => {
+        const topicData = Object.entries(topics).map(([topicName, questions]) => {
+          const correct = questions.filter((q: any) => q.isCorrect).length
+          const total = questions.length
+          const percentage = total > 0 ? Math.round((correct / total) * 100) : 0
+          return { name: topicName, percentage, correct, total }
+        })
+        
+        const strengths = topicData.filter(t => t.percentage >= 65).map(t => t.name)
+        const weaknesses = topicData.filter(t => t.percentage < 50).map(t => t.name)
+        const neutrals = topicData.filter(t => t.percentage >= 50 && t.percentage < 65).map(t => t.name)
+        
+        subjectsWithTopics.push({
+          name: subject,
+          percentage: Math.round(subjectScores[subject] || 0),
+          topics: topicData,
+          strengths,
+          weaknesses,
+          neutrals
+        })
+      })
+      
+      const subjects = Object.entries(subjectScores).map(([name, percentage]) => {
+        const totals = subjectTotals[name] || { correct: 0, total: 0 }
+        return {
+          name,
+          percentage: Math.round(percentage),
+          score: Math.round(percentage),
+          maxScore: 100,
+          correct: totals.correct,
+          total: totals.total,
+          strengths: subjectsWithTopics.find(s => s.name === name)?.strengths || [],
+          weaknesses: subjectsWithTopics.find(s => s.name === name)?.weaknesses || [],
+          improvement: ''
+        }
+      })
+      
+      return { subjects, subjectsWithTopics }
+    },
+    enabled: isOpen && !!studentId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Obtener datos de las 3 fases para el gráfico de evolución (para Diagnóstico)
+  const { data: phasesData, isLoading: phasesLoading } = useQuery({
+    queryKey: ['student-phases-data', studentId],
+    queryFn: async () => {
+      if (!studentId) return { phase1: null, phase2: null, phase3: null }
+      
+      const phases = [
+        { key: 'phase1', name: 'fase I' },
+        { key: 'phase2', name: 'Fase II' },
+        { key: 'phase3', name: 'fase III' }
+      ]
+      
+      const phaseResults: { [key: string]: any[] } = { phase1: [], phase2: [], phase3: [] }
+      
+      for (const phase of phases) {
+        try {
+          const phaseRef = collection(db, 'results', studentId, phase.name)
+          const phaseSnap = await getDocs(phaseRef)
+          
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data()
+            if (examData.completed && examData.score && examData.subject) {
+              phaseResults[phase.key].push({
+                subject: normalizeSubjectName(examData.subject),
+                percentage: examData.score.overallPercentage || 0
+              })
+            }
+          })
+        } catch (error) {
+          console.error(`Error obteniendo datos para fase ${phase.name}:`, error)
+        }
+      }
+      
+      // Procesar datos por fase
+      const processPhaseData = (results: any[]) => {
+        const subjectScores: { [subject: string]: number } = {}
+        results.forEach(result => {
+          const subject = result.subject
+          if (!subjectScores[subject] || result.percentage > subjectScores[subject]) {
+            subjectScores[subject] = result.percentage
+          }
+        })
+        
+        return Object.entries(subjectScores).map(([name, percentage]) => ({
+          name,
+          percentage: Math.round(percentage)
+        }))
+      }
+      
+      return {
+        phase1: phaseResults.phase1.length > 0 ? { phase: 'phase1' as const, subjects: processPhaseData(phaseResults.phase1) } : null,
+        phase2: phaseResults.phase2.length > 0 ? { phase: 'phase2' as const, subjects: processPhaseData(phaseResults.phase2) } : null,
+        phase3: phaseResults.phase3.length > 0 ? { phase: 'phase3' as const, subjects: processPhaseData(phaseResults.phase3) } : null
+      }
+    },
+    enabled: isOpen && !!studentId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  if (!student) return null
+
+  const getPhaseMetrics = () => {
+    if (!studentAnalysis) return null
+    
+    if (selectedPhase === 'all') {
+      return {
+        globalScore: studentAnalysis.globalScore || 0,
+        phasePercentage: studentAnalysis.phase3Percentage || 0,
+        averageTimePerQuestion: studentAnalysis.averageTimePerQuestion || 0,
+        fraudAttempts: studentAnalysis.fraudAttempts || 0,
+        luckPercentage: studentAnalysis.luckPercentage || 0,
+        completedSubjects: 7
+      }
+    }
+    
+    const phase = selectedPhase === 'phase1' ? 'phase1' : selectedPhase === 'phase2' ? 'phase2' : 'phase3'
+    return studentAnalysis.phaseMetrics?.[phase] || {
+      globalScore: 0,
+      phasePercentage: 0,
+      averageTimePerQuestion: 0,
+      fraudAttempts: 0,
+      luckPercentage: 0,
+      completedSubjects: 0
+    }
+  }
+
+  const phaseMetrics = getPhaseMetrics()
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className={cn(
+        "max-w-6xl max-h-[90vh] overflow-y-auto",
+        theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300'
+      )}>
+        <DialogHeader>
+          <DialogTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            {(student as any).name || (student as any).displayName || 'Estudiante'} - Resumen y Diagnóstico
+          </DialogTitle>
+          <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+            {student.campusName && `${student.campusName} • `}{student.gradeName || ''}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+          </div>
+        ) : studentAnalysis && phaseMetrics ? (
+          <div className="space-y-6">
+            {/* Selector de Fase */}
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                onClick={() => setSelectedPhase('phase1')}
+                variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'phase1'
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800' : ''
+                )}
+              >
+                Fase I
+                {studentAnalysis.phaseMetrics?.phase1 && (
+                  <Badge className="ml-2">{studentAnalysis.phaseMetrics.phase1.completedSubjects} materias</Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setSelectedPhase('phase2')}
+                variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'phase2'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800' : ''
+                )}
+              >
+                Fase II
+                {studentAnalysis.phaseMetrics?.phase2 && (
+                  <Badge className="ml-2">{studentAnalysis.phaseMetrics.phase2.completedSubjects} materias</Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setSelectedPhase('phase3')}
+                variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'phase3'
+                    ? 'bg-orange-600 hover:bg-orange-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800' : ''
+                )}
+              >
+                Fase III
+                {studentAnalysis.phaseMetrics?.phase3 && (
+                  <Badge className="ml-2">{studentAnalysis.phaseMetrics.phase3.completedSubjects} materias</Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setSelectedPhase('all')}
+                variant={selectedPhase === 'all' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  selectedPhase === 'all'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : theme === 'dark' ? 'border-zinc-600 bg-zinc-800' : ''
+                )}
+              >
+                Todas las Fases
+              </Button>
+            </div>
+
+            {/* Tarjetas de KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Puntaje Global */}
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {phaseMetrics.globalScore}
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Puntaje Global</p>
+                    </div>
+                    <Award className="h-8 w-8 text-yellow-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Porcentaje de Fase */}
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
+                        {phaseMetrics.phasePercentage}%
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        Porcentaje de Fase {selectedPhase === 'phase1' ? 'I' : selectedPhase === 'phase2' ? 'II' : selectedPhase === 'phase3' ? 'III' : ''}
+                      </p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-green-500" />
+                  </div>
+                  <div className="mt-2">
+                    <Progress value={phaseMetrics.phasePercentage} className="h-2" />
+                    <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      {phaseMetrics.completedSubjects} de 7 materias completadas
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Tiempo Promedio */}
+              <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-gray-200')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        {phaseMetrics.averageTimePerQuestion.toFixed(1)}m
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        Tiempo Promedio por Pregunta
+                      </p>
+                    </div>
+                    <Clock className="h-8 w-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Intento de Fraude */}
+              <Card className={cn(
+                theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 
+                phaseMetrics.fraudAttempts === 0 
+                  ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200'
+                  : phaseMetrics.fraudAttempts <= 2
+                  ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200'
+                  : 'bg-gradient-to-br from-red-50 to-rose-50 border-gray-200'
+              )}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn(
+                        "text-2xl font-bold",
+                        phaseMetrics.fraudAttempts === 0 
+                          ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                          : phaseMetrics.fraudAttempts <= 2
+                          ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
+                          : theme === 'dark' ? 'text-red-400' : 'text-red-700'
+                      )}>
+                        {phaseMetrics.fraudAttempts}
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Intento de fraude</p>
+                    </div>
+                    <Shield className={cn(
+                      "h-8 w-8",
+                      phaseMetrics.fraudAttempts === 0 
+                        ? 'text-green-500'
+                        : phaseMetrics.fraudAttempts <= 2
+                        ? 'text-yellow-500'
+                        : 'text-red-500'
+                    )} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Porcentaje de Suerte */}
+              <Card className={cn(
+                theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 
+                phaseMetrics.luckPercentage < 20 
+                  ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200'
+                  : phaseMetrics.luckPercentage <= 40
+                  ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200'
+                  : 'bg-gradient-to-br from-orange-50 to-red-50 border-gray-200'
+              )}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={cn(
+                        "text-2xl font-bold",
+                        phaseMetrics.luckPercentage < 20
+                          ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                          : phaseMetrics.luckPercentage <= 40
+                          ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
+                          : theme === 'dark' ? 'text-orange-400' : 'text-orange-700'
+                      )}>
+                        {phaseMetrics.luckPercentage}%
+                      </p>
+                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Porcentaje de Suerte</p>
+                    </div>
+                    <Zap className={cn(
+                      "h-8 w-8",
+                      phaseMetrics.luckPercentage < 20
+                        ? 'text-green-500'
+                        : phaseMetrics.luckPercentage <= 40
+                        ? 'text-yellow-500'
+                        : 'text-orange-500'
+                    )} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tabs para Resumen y Diagnóstico */}
+            <Tabs defaultValue="resumen" className="space-y-4">
+              <TabsList className={cn("grid w-full grid-cols-2", theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-100')}>
+                <TabsTrigger value="resumen" className={cn(theme === 'dark' ? 'data-[state=active]:bg-zinc-700' : 'data-[state=active]:bg-white')}>
+                  Resumen
+                </TabsTrigger>
+                <TabsTrigger value="diagnostico" className={cn(theme === 'dark' ? 'data-[state=active]:bg-zinc-700' : 'data-[state=active]:bg-white')}>
+                  Diagnóstico
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="resumen" className="space-y-4">
+                <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200')}>
+                  <CardHeader>
+                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <PieChartIcon className="h-5 w-5" />
+                      Rendimiento académico por materia
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {subjectsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+                      </div>
+                    ) : subjectsData && subjectsData.subjectsWithTopics && subjectsData.subjectsWithTopics.length > 0 ? (
+                      <PerformanceChart 
+                        data={subjectsData.subjects} 
+                        subjectsWithTopics={subjectsData.subjectsWithTopics}
+                        theme={theme} 
+                      />
+                    ) : subjectsData && subjectsData.subjects && subjectsData.subjects.length > 0 ? (
+                      <PerformanceChart 
+                        data={subjectsData.subjects} 
+                        theme={theme} 
+                      />
+                    ) : (
+                      <p className={cn("text-sm text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                        No hay datos de materias disponibles para esta fase
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="diagnostico" className="space-y-6">
+                {subjectsLoading || phasesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+                  </div>
+                ) : subjectsData && subjectsData.subjects && subjectsData.subjects.length > 0 ? (
+                  <>
+                    {/* Primera Fila: Radar Chart y Evolución por Materia */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Radar Chart de Fortalezas/Debilidades */}
+                      <StrengthsRadarChart
+                        subjects={subjectsData.subjects}
+                        theme={theme}
+                      />
+
+                      {/* Gráfico de Evolución por Materia */}
+                      <SubjectsProgressChart
+                        phase1Data={phasesData?.phase1 || null}
+                        phase2Data={phasesData?.phase2 || null}
+                        phase3Data={phasesData?.phase3 || null}
+                        theme={theme}
+                      />
+                    </div>
+
+                    {/* Resumen General de Desempeño */}
+                    <SubjectsDetailedSummary
+                      subjects={subjectsData.subjects}
+                      subjectsWithTopics={subjectsData.subjectsWithTopics}
+                      theme={theme}
+                    />
+                  </>
+                ) : (
+                  <div className="text-center py-12">
+                    <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      No hay datos de diagnóstico disponibles para esta fase
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+              No hay datos disponibles para este estudiante
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 

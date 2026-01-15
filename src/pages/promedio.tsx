@@ -32,7 +32,6 @@ import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import {
   Brain,
   Download,
-  Mail,
   TrendingUp,
   Clock,
   Target,
@@ -3536,7 +3535,13 @@ const generatePhase1And2PDFHTML = (
             }).toUpperCase()}</p>
             <p><strong>Apellidos y nombres:</strong> ${studentName.toUpperCase()}</p>
             <p><strong>Institución educativa:</strong> ${institutionName || 'No especificada'}</p>
-            ${summary.contextoAcademico?.grado ? `<p><strong>Grado:</strong> ${summary.contextoAcademico.grado}</p>` : ''}
+            ${(() => {
+              const grado = summary.contextoAcademico?.grado;
+              // Detectar si es un ID técnico (patrón: texto-números-números)
+              const isTechnicalId = grado && /^[a-zA-Z0-9]+-\d+-\d+$/.test(grado);
+              // Solo mostrar si no es un ID técnico
+              return grado && !isTechnicalId ? `<p><strong>Grado:</strong> ${grado}</p>` : '';
+            })()}
           </div>
 
           <!-- Tarjetas de Métricas -->
@@ -4327,7 +4332,13 @@ const generatePhase1And2PDFHTML = (
             }).toUpperCase()}</p>
             <p><strong>Apellidos y nombres:</strong> ${studentName.toUpperCase()}</p>
             <p><strong>Institución educativa:</strong> ${institutionName || 'No especificada'}</p>
-            ${summary.contextoAcademico?.grado ? `<p><strong>Grado:</strong> ${summary.contextoAcademico.grado}</p>` : ''}
+            ${(() => {
+              const grado = summary.contextoAcademico?.grado;
+              // Detectar si es un ID técnico (patrón: texto-números-números)
+              const isTechnicalId = grado && /^[a-zA-Z0-9]+-\d+-\d+$/.test(grado);
+              // Solo mostrar si no es un ID técnico
+              return grado && !isTechnicalId ? `<p><strong>Grado:</strong> ${grado}</p>` : '';
+            })()}
           </div>
 
           <!-- Resultado Final del Simulacro ICFES -->
@@ -4991,11 +5002,6 @@ const generatePhase1And2PDFHTML = (
     }
   };
 
-  const handleSendEmail = () => {
-    // Implementar envío por correo
-    alert("Función de envío por correo en desarrollo");
-  };
-
   // Función helper para obtener los datos según la fase seleccionada
   const getCurrentPhaseData = (): AnalysisData | null => {
     if (selectedPhase === 'phase1' && phase1Data) return phase1Data;
@@ -5149,14 +5155,10 @@ const generatePhase1And2PDFHTML = (
               ) : (
                 <>
                   <Download className="h-4 w-4" />
-                  Descargar PDF
+                  Resumen de Fase PDF
                 </>
               )}
-            </Button>
-            <Button onClick={handleSendEmail} variant="outline" className={cn("flex items-center gap-2", theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300')}>
-              <Mail className="h-4 w-4" />
-              Enviar por correo
-            </Button>
+              </Button>
           </div>
         </div>
 

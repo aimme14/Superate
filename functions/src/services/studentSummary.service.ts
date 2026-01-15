@@ -604,13 +604,75 @@ class StudentSummaryService {
             if (estudianteSnap.exists) {
               const userData = estudianteSnap.data();
               console.log(`✅ Estudiante encontrado en nueva estructura jerárquica: institutions/${institutionId}/estudiantes/${studentId}`);
-              return {
-                grado: userData?.gradeName || userData?.grade || undefined,
-                nivel: userData?.gradeName || undefined,
-                institutionId: institutionId,
-                sedeId: userData?.campusId || userData?.campus || undefined,
-                gradeId: userData?.gradeId || userData?.grade || undefined,
-              };
+              const context: AcademicContext = {};
+              
+              // Obtener nombre del grado desde la institución si solo tenemos gradeId
+              let gradeName = userData?.gradeName;
+              const gradeId = userData?.gradeId || userData?.grade;
+              
+              // Si no hay gradeName pero sí hay gradeId, intentar obtenerlo de la institución
+              if (!gradeName && gradeId && institutionId) {
+                try {
+                  const institutionRef = studentDb
+                    .collection('superate')
+                    .doc('auth')
+                    .collection('institutions')
+                    .doc(institutionId);
+                  const institutionSnap = await institutionRef.get();
+                  
+                  if (institutionSnap.exists) {
+                    const institutionData = institutionSnap.data();
+                    const campusId = userData?.campusId || userData?.campus;
+                    
+                    // Buscar el grado en los campus de la institución
+                    if (institutionData?.campuses && Array.isArray(institutionData.campuses)) {
+                      for (const campus of institutionData.campuses) {
+                        // Si hay campusId, buscar solo en ese campus
+                        if (campusId && campus.id !== campusId) {
+                          continue;
+                        }
+                        
+                        if (campus.grades && Array.isArray(campus.grades)) {
+                          const grade = campus.grades.find((g: any) => g.id === gradeId);
+                          if (grade && grade.name) {
+                            gradeName = grade.name;
+                            console.log(`✅ Nombre de grado obtenido desde institución: ${gradeName}`);
+                            break;
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch (error: any) {
+                  console.warn(`⚠️ Error obteniendo nombre de grado desde institución: ${error.message}`);
+                }
+              }
+              
+              // Usar gradeName si está disponible, sino usar grade (puede ser ID o nombre)
+              if (gradeName) {
+                context.grado = gradeName;
+                context.nivel = gradeName;
+              } else if (userData?.grade) {
+                // Si grade parece ser un ID técnico (contiene guiones y números largos), no usarlo
+                const gradeValue = userData.grade;
+                const isTechnicalId = /^[a-zA-Z0-9]+-\d+-\d+$/.test(gradeValue);
+                if (!isTechnicalId) {
+                  context.grado = gradeValue;
+                  context.nivel = gradeValue;
+                }
+              }
+              
+              if (institutionId) {
+                context.institutionId = institutionId;
+              }
+              if (userData?.campusId || userData?.campus) {
+                context.sedeId = userData?.campusId || userData?.campus;
+              }
+              if (gradeId) {
+                context.gradeId = gradeId;
+              }
+              
+              return context;
             }
           }
         }
@@ -627,13 +689,76 @@ class StudentSummaryService {
       if (userSnap.exists) {
         const userData = userSnap.data();
         console.log(`✅ Estudiante encontrado en estructura antigua (deprecated): users/${studentId}`);
-        return {
-          grado: userData?.gradeName || userData?.grade || undefined,
-          nivel: userData?.gradeName || undefined,
-          institutionId: userData?.inst || userData?.institutionId || undefined,
-          sedeId: userData?.campusId || userData?.campus || undefined,
-          gradeId: userData?.gradeId || userData?.grade || undefined,
-        };
+        const context: AcademicContext = {};
+        
+        // Obtener nombre del grado desde la institución si solo tenemos gradeId
+        let gradeName = userData?.gradeName;
+        const gradeId = userData?.gradeId || userData?.grade;
+        const institutionId = userData?.inst || userData?.institutionId;
+        
+        // Si no hay gradeName pero sí hay gradeId, intentar obtenerlo de la institución
+        if (!gradeName && gradeId && institutionId) {
+          try {
+            const institutionRef = studentDb
+              .collection('superate')
+              .doc('auth')
+              .collection('institutions')
+              .doc(institutionId);
+            const institutionSnap = await institutionRef.get();
+            
+            if (institutionSnap.exists) {
+              const institutionData = institutionSnap.data();
+              const campusId = userData?.campusId || userData?.campus;
+              
+              // Buscar el grado en los campus de la institución
+              if (institutionData?.campuses && Array.isArray(institutionData.campuses)) {
+                for (const campus of institutionData.campuses) {
+                  // Si hay campusId, buscar solo en ese campus
+                  if (campusId && campus.id !== campusId) {
+                    continue;
+                  }
+                  
+                  if (campus.grades && Array.isArray(campus.grades)) {
+                    const grade = campus.grades.find((g: any) => g.id === gradeId);
+                    if (grade && grade.name) {
+                      gradeName = grade.name;
+                      console.log(`✅ Nombre de grado obtenido desde institución: ${gradeName}`);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (error: any) {
+            console.warn(`⚠️ Error obteniendo nombre de grado desde institución: ${error.message}`);
+          }
+        }
+        
+        // Usar gradeName si está disponible, sino usar grade (puede ser ID o nombre)
+        if (gradeName) {
+          context.grado = gradeName;
+          context.nivel = gradeName;
+        } else if (userData?.grade) {
+          // Si grade parece ser un ID técnico (contiene guiones y números largos), no usarlo
+          const gradeValue = userData.grade;
+          const isTechnicalId = /^[a-zA-Z0-9]+-\d+-\d+$/.test(gradeValue);
+          if (!isTechnicalId) {
+            context.grado = gradeValue;
+            context.nivel = gradeValue;
+          }
+        }
+        
+        if (institutionId) {
+          context.institutionId = institutionId;
+        }
+        if (userData?.campusId || userData?.campus) {
+          context.sedeId = userData?.campusId || userData?.campus;
+        }
+        if (gradeId) {
+          context.gradeId = gradeId;
+        }
+        
+        return context;
       }
 
       return {};
@@ -1829,6 +1954,35 @@ Genera el JSON con tu análisis completo de ${phaseName} ahora:`;
    * Estructura: ResumenStudent/{studentId}/{phase}/resumenActual
    * Donde phase es: 'first', 'second', o 'third'
    */
+  /**
+   * Elimina propiedades undefined de un objeto recursivamente
+   * Firestore no acepta valores undefined
+   */
+  private removeUndefinedValues(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return null;
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.removeUndefinedValues(item));
+    }
+    
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          const value = obj[key];
+          if (value !== undefined) {
+            cleaned[key] = this.removeUndefinedValues(value);
+          }
+        }
+      }
+      return cleaned;
+    }
+    
+    return obj;
+  }
+
   private async saveSummary(summary: PersistedSummary): Promise<void> {
     try {
       const studentDb = getStudentDatabase();
@@ -1845,8 +1999,11 @@ Genera el JSON con tu análisis completo de ${phaseName} ahora:`;
         .collection(summary.phase)
         .doc('resumenActual');
       
+      // Limpiar valores undefined antes de guardar (Firestore no los acepta)
+      const cleanedSummary = this.removeUndefinedValues(summary);
+      
       await summaryRef.set({
-        ...summary,
+        ...cleanedSummary,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });

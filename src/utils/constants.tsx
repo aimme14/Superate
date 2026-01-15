@@ -3,7 +3,7 @@ import { NavItemProps } from '@/interfaces/props.interface'
 import { useAuthContext } from '@/context/AuthContext'
 import { PermMedia } from '@mui/icons-material'
 
-export const links = () => {
+export const links = (registrationEnabled: boolean = true) => {
   const { isAuth } = useAuthContext()
   /*--------------------------------------------------guest--------------------------------------------------*/
   const navGuestItems: NavItemProps[] = [
@@ -17,11 +17,12 @@ export const links = () => {
       label: 'Iniciar sesión',
       icon: LogIn
     },
-    {/** register **/
+    // Solo mostrar el botón de registrarse si está habilitado
+    ...(registrationEnabled ? [{
       href: '/auth/register',
       label: 'Registrarse',
       icon: UserPlus
-    },
+    } as NavItemProps] : []),
     {/** about **/
       href: '/about',
       label: 'Acerca de nosotros',

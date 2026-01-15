@@ -5,16 +5,19 @@ import { CardContent } from '#/ui/card'
 import { Button } from '#/ui/button'
 import { motion } from 'framer-motion'
 
-import { LogIn, UserPlus } from 'lucide-react'
+import { LogIn, UserPlus, Lock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useInstitutionOptions, useCampusOptions, useGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import { useWatch } from 'react-hook-form'
+import { useRegistrationConfig } from '@/hooks/query/useRegistrationConfig'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface FormSectionProps extends ThemeContextProps { }
 
 const FormSection = ({ theme }: FormSectionProps) => {
   const navigate = useNavigate()
+  const { isEnabled: registrationEnabled, isLoading: isLoadingConfig } = useRegistrationConfig()
   
   // Obtener opciones dinámicas de instituciones - solo activas para registro
   const { options: institutionOptions, isLoading: institutionsLoading } = useInstitutionOptions(true)
@@ -135,36 +138,65 @@ const FormSection = ({ theme }: FormSectionProps) => {
         </p>
       </div>
 
+      {/* Alerta si el registro está deshabilitado */}
+      {!isLoadingConfig && !registrationEnabled && (
+        <Alert variant="destructive" className="mb-4">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            El registro de nuevos usuarios está actualmente deshabilitado. Por favor, contacta al administrador del sistema.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* -------------------- Submit -------------------- */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={registrationEnabled && !isLoadingConfig ? { scale: 1.02 } : {}}
+        whileTap={registrationEnabled && !isLoadingConfig ? { scale: 0.98 } : {}}
       >
         <Button
           type="submit"
+          disabled={!registrationEnabled || isLoadingConfig}
           className={cn(
             'text-white w-full relative overflow-hidden',
             'transition-all duration-300',
             'shadow-lg hover:shadow-xl',
             'group h-10',
-            theme === 'dark'
-              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
-              : 'bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800'
+            (!registrationEnabled || isLoadingConfig)
+              ? 'opacity-50 cursor-not-allowed'
+              : theme === 'dark'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+                : 'bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800'
           )}
         >
           <span className="relative z-10 flex items-center justify-center">
-            Registrar cuenta
-            <UserPlus className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
+            {isLoadingConfig ? (
+              <>
+                Validando...
+                <Lock className="ml-2 h-4 w-4" />
+              </>
+            ) : !registrationEnabled ? (
+              <>
+                Registro deshabilitado
+                <Lock className="ml-2 h-4 w-4" />
+              </>
+            ) : (
+              <>
+                Registrar cuenta
+                <UserPlus className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
+              </>
+            )}
           </span>
-          {/* Efecto de brillo al hover */}
-          <div className={cn(
-            'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300',
-            'bg-gradient-to-r from-transparent via-white/20 to-transparent',
-            'translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700'
-          )} />
+          {/* Efecto de brillo al hover - solo si está habilitado */}
+          {registrationEnabled && !isLoadingConfig && (
+            <div className={cn(
+              'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300',
+              'bg-gradient-to-r from-transparent via-white/20 to-transparent',
+              'translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700'
+            )} />
+          )}
         </Button>
       </motion.div>
 

@@ -223,6 +223,16 @@ service cloud.firestore {
       allow read, write: if canAccess() && isAdmin();
     }
     
+    // Configuración del sistema - Registro de usuarios
+    match /superate/auth/system/registration {
+      // Todos los usuarios (autenticados o no) pueden leer la configuración de registro
+      // Esto permite que la UI sepa si mostrar o no el botón de registro
+      allow read: if true;
+      
+      // Solo admins activos pueden actualizar la configuración de registro
+      allow write: if isAdmin();
+    }
+    
     // Regla por defecto: denegar acceso a todo lo demás
     match /{document=**} {
       allow read, write: if false;
