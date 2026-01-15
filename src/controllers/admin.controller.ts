@@ -4,7 +4,7 @@ import { dbService } from "@/services/firebase/db.service"
 import ErrorAPI from "@/errors/index"
 import { normalizeError } from "@/errors/handler"
 import { User as UserFB } from "firebase/auth"
-import { getFirestore, collection, getDocs } from "firebase/firestore"
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore"
 import { firebaseApp } from "@/services/firebase/db.service"
 import { getAllPhases } from "@/utils/firestoreHelpers"
 
@@ -828,5 +828,73 @@ export const getUsersByInstitution = async (year?: number): Promise<Result<Insti
     return success(result)
   } catch (e) {
     return failure(new ErrorAPI(normalizeError(e, 'obtener usuarios por institución')))
+  }
+}
+
+/**
+ * Interfaz para la configuración de registro
+ */
+export interface RegistrationConfig {
+  enabled: boolean
+  updatedAt?: Date
+  updatedBy?: string
+}
+
+/**
+ * Obtiene la configuración de registro del sistema
+ * @returns {Promise<Result<RegistrationConfig>>} - Configuración de registro
+ */
+export const getRegistrationConfig = async (): Promise<Result<RegistrationConfig>> => {
+  try {
+    const db = getFirestore(firebaseApp)
+    const configRef = doc(db, 'superate', 'auth', 'system', 'registration')
+    const configSnap = await getDoc(configRef)
+    
+    if (!configSnap.exists()) {
+      // Si no existe, crear con valor por defecto (habilitado)
+      const defaultConfig: RegistrationConfig = {
+        enabled: true,
+        updatedAt: new Date(),
+      }
+      await setDoc(configRef, defaultConfig)
+      return success(defaultConfig)
+    }
+    
+    const data = configSnap.data() as RegistrationConfig
+    return success({
+      enabled: data.enabled ?? true, // Por defecto habilitado si no existe
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+      updatedBy: data.updatedBy,
+    })
+  } catch (e) {
+    return failure(new ErrorAPI(normalizeError(e, 'obtener configuración de registro')))
+  }
+}
+
+/**
+ * Actualiza la configuración de registro del sistema
+ * @param {boolean} enabled - Estado de habilitación del registro
+ * @param {string} updatedBy - ID del usuario que realiza la actualización
+ * @returns {Promise<Result<RegistrationConfig>>} - Configuración actualizada
+ */
+export const updateRegistrationConfig = async (
+  enabled: boolean,
+  updatedBy: string
+): Promise<Result<RegistrationConfig>> => {
+  try {
+    const db = getFirestore(firebaseApp)
+    const configRef = doc(db, 'superate', 'auth', 'system', 'registration')
+    
+    const config: RegistrationConfig = {
+      enabled,
+      updatedAt: new Date(),
+      updatedBy,
+    }
+    
+    await setDoc(configRef, config, { merge: true })
+    
+    return success(config)
+  } catch (e) {
+    return failure(new ErrorAPI(normalizeError(e, 'actualizar configuración de registro')))
   }
 }

@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useAuthContext } from "@/context/AuthContext"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
+import { useRegistrationConfig } from "@/hooks/query/useRegistrationConfig"
+import { useNotification } from "@/hooks/ui/useNotification"
 import {
   loginSchema, LoginFormProps,
   registerSchema, RegisterFormProps,
@@ -50,6 +52,8 @@ export const useForgotPasswordForm = () => {
 export const useUserForm = (id?: string, onSuccess?: () => void) => {
   const { createUser, updateUser } = useUserMutation()
   const queryUser = useQueryUser()
+  const { isEnabled: registrationEnabled, isLoading: isLoadingConfig } = useRegistrationConfig()
+  const { notifyError } = useNotification()
 
   const { data: user } = queryUser.fetchUserById<User>(id as string, !!id)
 
@@ -87,6 +91,28 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
 
   const handleSubmit = useFormSubmit({
     onSubmit: async (data: RegisterFormProps) => {
+      // Si es creación de nuevo usuario (no actualización), validar que el registro esté habilitado
+      if (!id) {
+        // Esperar a que cargue la configuración si aún está cargando
+        if (isLoadingConfig) {
+          notifyError({
+            title: 'Validando configuración',
+            message: 'Por favor, espera un momento mientras verificamos la configuración del sistema...',
+          })
+          return
+        }
+
+        // Validar que el registro esté habilitado
+        if (!registrationEnabled) {
+          notifyError({
+            title: 'Registro deshabilitado',
+            message: 'El registro de nuevos usuarios está actualmente deshabilitado. Por favor, contacta al administrador del sistema.',
+          })
+          return
+        }
+      }
+
+      // Si pasa la validación, proceder con el registro/actualización
       id
         ? (updateUser({ id, data }))
         : (createUser(data))

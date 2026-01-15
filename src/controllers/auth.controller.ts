@@ -163,6 +163,23 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
   try {
     const { role, userdoc, email, grade, inst, campus, username, representativePhone, academicYear, jornada } = user
     
+    // Verificar que el registro esté habilitado
+    const { getRegistrationConfig } = await import('./admin.controller')
+    const registrationConfigResult = await getRegistrationConfig()
+    if (!registrationConfigResult.success) {
+      return failure(new ErrorAPI({ 
+        message: 'Error al verificar la configuración de registro. Por favor, intenta más tarde.', 
+        statusCode: 500 
+      }))
+    }
+    
+    if (!registrationConfigResult.data.enabled) {
+      return failure(new ErrorAPI({ 
+        message: 'El registro de nuevos usuarios está actualmente deshabilitado. Por favor, contacta al administrador del sistema.', 
+        statusCode: 403 
+      }))
+    }
+    
     // Verificar que solo se registren estudiantes
     if (role !== 'student') {
       return failure(new Unauthorized({ message: 'Solo los estudiantes pueden registrarse públicamente. Los docentes, coordinadores y rectores deben ser creados por un administrador.' }))

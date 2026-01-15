@@ -7,6 +7,7 @@ import { links } from '@/utils/constants'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useThemeContext } from '@/context/ThemeContext'
+import { useRegistrationConfig } from '@/hooks/query/useRegistrationConfig'
 import React from 'react'
 import {
   Sidebar as SidebarShadcn,
@@ -26,7 +27,8 @@ import {
 export const Sidebar = () => {
   const { toggleSidebar } = useSidebar()
   const isMobile = useIsMobile()
-  const items = links()
+  const { isEnabled: registrationEnabled } = useRegistrationConfig()
+  const items = links(registrationEnabled)
   return (
     <SidebarShadcn>
       <SidebarContent>
