@@ -184,6 +184,7 @@ const ExamWithFirebase = () => {
   const { user } = useAuthContext();
   const userId = user?.uid;
   const [existingExamData, setExistingExamData] = useState<any | null>(null);
+  const [groupedQuestionMessage, setGroupedQuestionMessage] = useState<{ start: number; end: number } | null>(null);
 
   // Estados para el seguimiento de tiempo por pregunta
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: number]: QuestionTimeData }>({});
