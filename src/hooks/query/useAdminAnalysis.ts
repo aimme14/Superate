@@ -871,9 +871,6 @@ export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', yea
             return subjectMap[normalized] || subject.trim()
           }
 
-          // Obtener resultados de exámenes para todos los estudiantes
-          const allResults = await getInstitutionResults(institution.id, studentIds)
-
           // Determinar las fases a procesar
           let phasesToProcess: string[] = []
           if (phase === 'all') {
