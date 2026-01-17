@@ -16,7 +16,7 @@ import Footer from '#/layout/Footer'
 import Navbar from '#/layout/Navbar'
 
 const RootLayout = () => {
-  const { user, isAuth } = useAuthContext()
+  const { user, isAuth, loading } = useAuthContext()
   const location = useLocation()
   const [openSidebar, setOpenSidebar] = useState(true)
   const isExpanded = !isAuth || (user?.displayName === 'aimme')
@@ -35,6 +35,20 @@ const RootLayout = () => {
       setOpenSidebar(isExpanded)
     }
   }, [isQuizRoute, isExpanded])
+  
+  // Mostrar loader mientras se verifica la autenticación
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background z-[9999]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Verificando sesión...
+          </p>
+        </div>
+      </div>
+    )
+  }
   
   return (
     <>

@@ -39,10 +39,10 @@ function ProtectedRoute() {
   useInactivityTimeout(10, handleInactivity, isAuth && !loading)
 
   useEffect(() => {
-    if (loading) {// if still loading, wait for auth to finish loading
-      const timeoutId = setTimeout(() => setShowSkeleton(false), 3000)
-      return () => clearTimeout(timeoutId)
-    } else { setShowSkeleton(false) }
+    // Esperar a que la verificación de autenticación termine completamente
+    if (!loading) {
+      setShowSkeleton(false)
+    }
   }, [loading])
 
   // Validar que el usuario esté activo
