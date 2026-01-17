@@ -52,8 +52,7 @@ import {
   Link as LinkIcon,
   Eye,
   Lock,
-  Info,
-  Loader2
+  Info
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -2897,13 +2896,6 @@ export default function ICFESAnalysisInterface() {
     ...(phase2Complete ? ['second' as const] : []),
     ...(phase3Complete ? ['third' as const] : []),
   ];
-
-  const handleExportPDFClick = () => {
-    // Resetear selecciones al abrir el modal
-    setSelectedPhasesForPDF([]);
-    setIsPDFPhaseDialogOpen(true);
-  };
-
 
   const handlePhaseToggle = (phase: 'first' | 'second' | 'third') => {
     setSelectedPhasesForPDF(prev => {
