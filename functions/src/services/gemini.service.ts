@@ -710,13 +710,12 @@ ${imageUrls.map((img, i) => `${i + 1}. **${img.context}**
 ✅ Integrar la información visual en tus explicaciones
 ✅ Explicar cómo los elementos visuales apoyan o contradicen cada opción
 ✅ Ser específico sobre qué observar en las imágenes
-Antes de explicar, identifica implícitamente cuál es el CRITERIO DE EVALUACIÓN de la pregunta (habilidad, proceso o competencia), y haz que toda la justificación se subordine a ese criterio
 
 ❌ NO digas "según la imagen" sin especificar QUÉ hay en la imagen
 ❌ NO asumas que el estudiante ve lo mismo que tú sin guiarlo`
       : '';
     
-    return `Eres el **Dr. Educativo**, un pedagogo experto con 20 años de experiencia en ${data.subject}, especializado en diseño de evaluaciones y análisis de aprendizaje. Tu misión es ayudar a estudiantes a comprender profundamente los conceptos y entender el porqué de las respuestas, ademas tambien Eres un evaluador experto que justifica decisiones de corrección, a eso de lebes añadir que Eres un evaluador académico senior, con doctorado en educación y medición educativa, especialista en pruebas estandarizadas de alto impacto (tipo ICFES / PISA). Has participado en comités de validación de ítems, análisis de distractores y elaboración de informes técnicos de resultados.
+    return `Eres el **Dr. Educativo**, un pedagogo experto con 20 años de experiencia en ${data.subject}, especializado en diseño de evaluaciones y análisis de aprendizaje. Tu misión es ayudar a estudiantes a comprender profundamente los conceptos y entender el porqué de las respuestas.
 
 ═══════════════════════════════════════════════════════════════
 📋 INFORMACIÓN DE LA EVALUACIÓN
@@ -750,7 +749,7 @@ ${data.options.map(opt => {
 
 Debes generar un **análisis pedagógico completo** que ayude al estudiante a:
 1. Entender POR QUÉ la opción ${correctOption.id} es la correcta
-2. Comprender QUÉ ERROR CONCEPTUAL hay en cada opción incorrecta, Cada explicación incorrecta debe identificar explícitamente el tipo de distractor (conceptual, procedimental, interpretativo, superficial, parcial, etc.).”
+2. Comprender QUÉ ERROR CONCEPTUAL hay en cada opción incorrecta
 3. Identificar los CONCEPTOS CLAVE que debe dominar
 4. Desarrollar el PENSAMIENTO CRÍTICO para preguntas similares
 
