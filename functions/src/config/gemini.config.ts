@@ -75,20 +75,40 @@ class GeminiClient {
                           process.env.GCLOUD_PROJECT ||
                           (typeof process.env.FUNCTION_TARGET === 'undefined' && !process.env.FUNCTIONS_EMULATOR);
     
-    // Solo validar archivos en desarrollo local con emulador o cuando explícitamente no estamos en deploy
+    // Detectar si estamos ejecutando como script (no como Cloud Function)
+    const isScriptExecution = require.main !== undefined && 
+                              !process.env.FUNCTION_TARGET && 
+                              !process.env.FIREBASE_CONFIG;
+    
+    // Solo validar archivos en desarrollo local con emulador, cuando NODE_ENV es development, o cuando se ejecuta como script
     const shouldValidateFiles = !isDeployPhase && 
                                  (process.env.FUNCTIONS_EMULATOR === 'true' || 
-                                  process.env.NODE_ENV === 'development');
+                                  process.env.NODE_ENV === 'development' ||
+                                  isScriptExecution);
     
-    if (shouldValidateFiles && credentialsPath) {
+    // Si estamos ejecutando como script, intentar usar el archivo local si existe
+    let localServiceAccountPath: string | undefined;
+    if (isScriptExecution) {
+      const localPath = path.resolve(__dirname, '../../serviceAccountKey-ia.json');
+      if (fs.existsSync(localPath)) {
+        localServiceAccountPath = localPath;
+      }
+    }
+    
+    const finalCredentialsPath = credentialsPath || localServiceAccountPath;
+    
+    if (shouldValidateFiles && finalCredentialsPath) {
       try {
         // Validar que sea una ruta de archivo válida (no un hash)
-        if (credentialsPath.length > 200 || !credentialsPath.endsWith('.json')) {
-          console.warn(`⚠️ VERTEX_AI_CREDENTIALS no parece ser una ruta válida: ${credentialsPath}`);
+        if (finalCredentialsPath.length > 200 || !finalCredentialsPath.endsWith('.json')) {
+          console.warn(`⚠️ Ruta de credenciales no parece ser válida: ${finalCredentialsPath}`);
           this.vertexKeyPath = '';
           this.serviceAccountKey = null;
         } else {
-          this.vertexKeyPath = path.resolve(__dirname, '../../', credentialsPath);
+          // Resolver la ruta absoluta
+          this.vertexKeyPath = finalCredentialsPath.startsWith('/') || finalCredentialsPath.match(/^[A-Z]:/i) 
+            ? finalCredentialsPath 
+            : path.resolve(__dirname, '../../', finalCredentialsPath);
           
           if (fs.existsSync(this.vertexKeyPath)) {
             this.serviceAccountKey = JSON.parse(fs.readFileSync(this.vertexKeyPath, 'utf8'));
@@ -131,12 +151,63 @@ class GeminiClient {
     }
     
     try {
-      const isLocalDevelopment = process.env.FUNCTIONS_EMULATOR === 'true' || 
-                                  process.env.NODE_ENV !== 'production' ||
-                                  !process.env.FUNCTION_TARGET;
+      // Detectar si estamos en desarrollo local o ejecutando como script
+      const isScriptExecution = require.main !== undefined && 
+                                !process.env.FUNCTION_TARGET && 
+                                !process.env.FIREBASE_CONFIG;
       
+      // En producción (Cloud Functions), FIREBASE_CONFIG siempre está definido
+      // Solo usar credenciales locales si estamos explícitamente en desarrollo
+      const isProduction = process.env.FIREBASE_CONFIG !== undefined || 
+                          (process.env.FUNCTION_TARGET !== undefined && 
+                           process.env.FUNCTIONS_EMULATOR !== 'true');
+      
+      const isLocalDevelopment = !isProduction && 
+                                 (process.env.FUNCTIONS_EMULATOR === 'true' || 
+                                  process.env.NODE_ENV === 'development' ||
+                                  isScriptExecution);
+      
+      // Si estamos ejecutando como script y no tenemos credenciales cargadas, intentar cargarlas ahora
+      if (isScriptExecution && !this.serviceAccountKey && !this.vertexKeyPath) {
+        // Intentar múltiples rutas posibles
+        const possiblePaths = [
+          path.resolve(__dirname, '../../serviceAccountKey-ia.json'), // Desde lib/config
+          path.resolve(process.cwd(), 'serviceAccountKey-ia.json'), // Desde functions/
+          path.resolve(process.cwd(), 'functions/serviceAccountKey-ia.json'), // Desde raíz
+        ];
+        
+        console.log('🔍 Buscando credenciales de Vertex AI...');
+        console.log(`   __dirname: ${__dirname}`);
+        console.log(`   process.cwd(): ${process.cwd()}`);
+        
+        for (const localPath of possiblePaths) {
+          console.log(`   Probando ruta: ${localPath}`);
+          if (fs.existsSync(localPath)) {
+            try {
+              this.vertexKeyPath = localPath;
+              this.serviceAccountKey = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+              console.log('✅ Credenciales de Vertex AI cargadas desde:', localPath);
+              console.log(`   Email de servicio: ${this.serviceAccountKey.client_email}`);
+              console.log(`   Project ID: ${this.serviceAccountKey.project_id}`);
+              break;
+            } catch (error: any) {
+              console.error(`❌ Error cargando credenciales desde ${localPath}: ${error.message}`);
+            }
+          } else {
+            console.log(`   ⚠️ No encontrado: ${localPath}`);
+          }
+        }
+        
+        if (!this.serviceAccountKey) {
+          console.error('❌ No se pudieron cargar las credenciales de Vertex AI');
+          console.error('   Verifica que el archivo serviceAccountKey-ia.json exista en functions/');
+        }
+      }
+      
+      // Si tenemos credenciales (ya sea cargadas antes o ahora), usarlas
       if (isLocalDevelopment && this.serviceAccountKey) {
         // Desarrollo local: usar credenciales explícitas
+        console.log('🔐 Usando credenciales explícitas para Vertex AI');
         this.vertexAI = new VertexAI({
           project: GEMINI_CONFIG.PROJECT_ID, // Desde .env
           location: GEMINI_CONFIG.REGION, // Desde .env
@@ -145,8 +216,17 @@ class GeminiClient {
             scopes: ['https://www.googleapis.com/auth/cloud-platform'],
           },
         });
+      } else if (isLocalDevelopment && this.vertexKeyPath) {
+        // Si tenemos la ruta pero no el objeto parseado, usar la variable de entorno
+        console.log('🔐 Usando credenciales desde archivo para Vertex AI');
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = this.vertexKeyPath;
+        this.vertexAI = new VertexAI({
+          project: GEMINI_CONFIG.PROJECT_ID,
+          location: GEMINI_CONFIG.REGION,
+        });
       } else {
         // Producción: usar credenciales automáticas de Firebase Functions
+        console.log('🔐 Usando credenciales automáticas de Firebase para Vertex AI');
         this.vertexAI = new VertexAI({
           project: GEMINI_CONFIG.PROJECT_ID,
           location: GEMINI_CONFIG.REGION,
@@ -291,9 +371,6 @@ class GeminiClient {
             console.log(`      ${idx + 1}. ${img.context} (${img.mimeType}, ${(Buffer.from(img.data, 'base64').length / 1024).toFixed(2)}KB)`);
           });
         }
-        
-        // Asegurar credenciales antes de cada llamada
-        process.env.GOOGLE_APPLICATION_CREDENTIALS = this.vertexKeyPath;
         
         // Construir las partes del contenido: imágenes primero, luego texto
         // Según la documentación de Gemini, es mejor poner las imágenes antes del texto

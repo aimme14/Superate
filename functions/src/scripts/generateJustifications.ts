@@ -8,14 +8,10 @@
  *   npm run generate-justifications
  */
 
-import * as admin from 'firebase-admin';
+// Importar configuración de Firebase primero para asegurar inicialización correcta
+import '../config/firebase.config';
 import { justificationService } from '../services/justification.service';
 import { QuestionFilters } from '../types/question.types';
-
-// Inicializar Firebase Admin si no está inicializado
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
 
 /**
  * Configuración del script
