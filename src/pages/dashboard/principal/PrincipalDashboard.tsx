@@ -27,6 +27,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useCoordinatorStats } from '@/hooks/query/useCoordinatorStats'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
+import { useGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -264,19 +265,26 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
 // Componente de Promedio de la Sede con filtro por fase
 function CampusAverageCard({ theme, currentCoordinator }: any) {
   const [selectedPhase, setSelectedPhase] = useState<'first' | 'second' | 'third'>('third')
+  const [selectedGrade, setSelectedGrade] = useState<string>('todos')
+  const [selectedJornada, setSelectedJornada] = useState<'mañana' | 'tarde' | 'única' | 'todas'>('todas')
   const campusId = currentCoordinator?.campusId
   const institutionId = currentCoordinator?.institutionId
 
-  // Obtener estudiantes de la sede
+  // Obtener grados disponibles de la sede
+  const { options: gradeOptions } = useGradeOptions(institutionId || '', campusId || '')
+
+  // Obtener estudiantes de la sede (filtrados por grado y jornada si se seleccionan)
   const { students: campusStudents } = useFilteredStudents({
     institutionId: institutionId,
     campusId: campusId,
+    gradeId: selectedGrade !== 'todos' ? selectedGrade : undefined,
+    jornada: selectedJornada !== 'todas' ? (selectedJornada as 'mañana' | 'tarde' | 'única') : undefined,
     isActive: true
   })
 
   // Calcular promedio de puntajes globales (0-500) por fase
   const { data: phaseAverage, isLoading: averageLoading } = useQuery({
-    queryKey: ['coordinator-campus-average', campusId, institutionId, selectedPhase],
+    queryKey: ['coordinator-campus-average', campusId, institutionId, selectedPhase, selectedGrade, selectedJornada],
     queryFn: async () => {
       if (!campusId || !institutionId || !campusStudents || campusStudents.length === 0) {
         return 0
@@ -424,19 +432,66 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
             </PopoverContent>
           </Popover>
         </div>
-        <Select
-          value={selectedPhase}
-          onValueChange={(value) => setSelectedPhase(value as 'first' | 'second' | 'third')}
-        >
-          <SelectTrigger className={cn("h-7 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="first">Fase I</SelectItem>
-            <SelectItem value="second">Fase II</SelectItem>
-            <SelectItem value="third">Fase III</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Grado
+            </label>
+            <Select
+              value={selectedGrade}
+              onValueChange={setSelectedGrade}
+            >
+              <SelectTrigger className={cn("h-7 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <SelectValue placeholder="Grado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {gradeOptions.map((grade: any) => (
+                  <SelectItem key={grade.value} value={grade.value}>
+                    {grade.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Jornada
+            </label>
+            <Select
+              value={selectedJornada}
+              onValueChange={(value) => setSelectedJornada(value as 'mañana' | 'tarde' | 'única' | 'todas')}
+            >
+              <SelectTrigger className={cn("h-7 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <SelectValue placeholder="Jornada" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="mañana">Mañana</SelectItem>
+                <SelectItem value="tarde">Tarde</SelectItem>
+                <SelectItem value="única">Única</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Fase
+            </label>
+            <Select
+              value={selectedPhase}
+              onValueChange={(value) => setSelectedPhase(value as 'first' | 'second' | 'third')}
+            >
+              <SelectTrigger className={cn("h-7 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="first">Fase I</SelectItem>
+                <SelectItem value="second">Fase II</SelectItem>
+                <SelectItem value="third">Fase III</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
     </div>
   )
