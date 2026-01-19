@@ -6,23 +6,18 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
-  Building2,
   Users, 
   GraduationCap, 
   TrendingUp,
   School,
-  CalendarDays,
   Award,
   CheckCircle2,
-  Activity,
   BarChart3,
   Sparkles,
   Trophy,
-  Bell,
   Loader2,
   Target,
   UserCog,
-  Crown,
   Clock,
   Shield,
   Zap,
@@ -32,7 +27,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useCoordinatorStats } from '@/hooks/query/useCoordinatorStats'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, Legend } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -66,49 +61,6 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
     year: new Date().getFullYear()
   })
 
-  // Datos estáticos adaptados para coordinador - usando datos reales
-  const staticData = useMemo(() => ({
-    recentActivities: [
-      { id: 1, type: 'teacher', title: `Docentes activos en ${stats.campusName}`, time: 'Reciente', icon: GraduationCap },
-      { id: 2, type: 'student', title: `${stats.totalStudents} estudiantes en la sede`, time: 'Actualizado', icon: Users },
-      { id: 3, type: 'achievement', title: 'Mejor rendimiento del mes en la sede', time: '5 días atrás', icon: Award },
-      { id: 4, type: 'event', title: 'Reunión de coordinación completada', time: '1 semana atrás', icon: CalendarDays },
-    ],
-    achievements: [
-      { id: 1, title: 'Mejor Sede del Mes', status: 'achieved', icon: Award },
-      { id: 2, title: 'Tasa de Asistencia > 95%', status: 'achieved', icon: CheckCircle2 },
-      { id: 3, title: `${stats.totalTeachers} Docentes Activos`, status: 'achieved', icon: GraduationCap },
-      { id: 4, title: 'Promedio General > 85%', status: 'in-progress', icon: TrendingUp },
-    ],
-    alerts: [
-      { id: 1, type: 'info', message: 'Reunión de coordinadores programada para el 20 de enero', priority: 'medium' },
-      { id: 2, type: 'success', message: `${stats.totalTeachers} docentes activos en la sede`, priority: 'low' },
-      { id: 3, type: 'warning', message: 'Revisión de asistencia mensual pendiente', priority: 'medium' },
-    ],
-    performanceData: [
-      { month: 'Ene', promedio: 82, asistencia: 91 },
-      { month: 'Feb', promedio: 84, asistencia: 93 },
-      { month: 'Mar', promedio: 83, asistencia: 92 },
-      { month: 'Abr', promedio: 85, asistencia: 94 },
-      { month: 'May', promedio: 86, asistencia: 95 },
-      { month: 'Jun', promedio: 85, asistencia: 94 },
-    ],
-    radarData: [
-      { subject: 'Rendimiento', A: 85, fullMark: 100 },
-      { subject: 'Asistencia', A: 94, fullMark: 100 },
-      { subject: 'Disciplina', A: 88, fullMark: 100 },
-      { subject: 'Participación', A: 82, fullMark: 100 },
-      { subject: 'Innovación', A: 90, fullMark: 100 },
-      { subject: 'Satisfacción', A: 87, fullMark: 100 },
-    ],
-    studentsByLevel: [
-      { name: 'Primaria', estudiantes: stats?.totalStudents ? Math.floor(stats.totalStudents * 0.4) : 0, color: '#1e40af' },
-      { name: 'Secundaria', estudiantes: stats?.totalStudents ? Math.floor(stats.totalStudents * 0.35) : 0, color: '#2563eb' },
-      { name: 'Media', estudiantes: stats?.totalStudents ? Math.floor(stats.totalStudents * 0.25) : 0, color: '#374151' },
-    ]
-  }), [stats])
-
-  const COLORS = ['#1e40af', '#2563eb', '#374151', '#4b5563', '#1e3a8a', '#3b82f6']
 
   // Mostrar loading si los datos están cargando
   if (isLoading) {
@@ -309,45 +261,8 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
   )
 }
 
-// Hook para contador animado
-function useCountAnimation(end: number, duration: number = 2) {
-  const [count, setCount] = useState(0)
-  
-  useEffect(() => {
-    let startTime: number | null = null
-    const startValue = 0
-    
-    const animate = (currentTime: number) => {
-      if (startTime === null) startTime = currentTime
-      const progress = Math.min((currentTime - startTime) / (duration * 1000), 1)
-      
-      // Easing function para suavizar la animación
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4)
-      const currentCount = Math.floor(startValue + (end - startValue) * easeOutQuart)
-      
-      setCount(currentCount)
-      
-      if (progress < 1) {
-        requestAnimationFrame(animate)
-      } else {
-        setCount(end)
-      }
-    }
-    
-    requestAnimationFrame(animate)
-  }, [end, duration])
-  
-  return count
-}
-
-// Componente de contador animado
-function AnimatedCounter({ value, duration = 2 }: { value: number; duration?: number }) {
-  const count = useCountAnimation(value, duration)
-  return <span>{count.toLocaleString()}</span>
-}
-
 // Componente de Promedio de la Sede con filtro por fase
-function CampusAverageCard({ theme, currentCoordinator, stats }: any) {
+function CampusAverageCard({ theme, currentCoordinator }: any) {
   const [selectedPhase, setSelectedPhase] = useState<'first' | 'second' | 'third'>('third')
   const campusId = currentCoordinator?.campusId
   const institutionId = currentCoordinator?.institutionId
@@ -577,7 +492,7 @@ function WelcomeTab({ theme, stats, currentCoordinator, rankingFilters, setRanki
             color: 'blue',
             gradient: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800',
             isCustom: true,
-            customComponent: <CampusAverageCard theme={theme} currentCoordinator={currentCoordinator} stats={stats} />
+            customComponent: <CampusAverageCard theme={theme} currentCoordinator={currentCoordinator} />
           },
         ].map((stat, index) => (
           <motion.div
@@ -1652,114 +1567,6 @@ function TeacherWithStudents({ teacher, theme, isExpanded }: any) {
         )}
       </AccordionContent>
     </AccordionItem>
-  )
-}
-
-// Componente de Resultados
-function ResultsTab({ theme, stats, staticData, COLORS }: any) {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-          <CardHeader>
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <TrendingUp className={cn("h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              Rendimiento Semestral
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={staticData.performanceData}>
-                <defs>
-                  <linearGradient id="colorPromedio" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={theme === 'dark' ? '#1e40af' : '#2563eb'} stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor={theme === 'dark' ? '#1e40af' : '#2563eb'} stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorAsistencia" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={theme === 'dark' ? '#374151' : '#4b5563'} stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor={theme === 'dark' ? '#374151' : '#4b5563'} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="promedio" stroke={theme === 'dark' ? '#1e40af' : '#2563eb'} fillOpacity={1} fill="url(#colorPromedio)" />
-                <Area type="monotone" dataKey="asistencia" stroke={theme === 'dark' ? '#374151' : '#4b5563'} fillOpacity={1} fill="url(#colorAsistencia)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-          <CardHeader>
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <Target className={cn("h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              Evaluación Integral
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <RadarChart data={staticData.radarData}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="subject" />
-                <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                <Radar name="Rendimiento" dataKey="A" stroke={theme === 'dark' ? '#1e40af' : '#2563eb'} fill={theme === 'dark' ? '#1e40af' : '#2563eb'} fillOpacity={0.6} />
-                <Tooltip />
-              </RadarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-        <CardHeader>
-          <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            Métricas de Rendimiento de la Sede
-          </CardTitle>
-          <CardDescription>Indicadores clave de desempeño</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { label: 'Promedio General', value: stats.performanceMetrics.overallAverage, color: 'blue' },
-              { label: 'Asistencia', value: stats.performanceMetrics.attendanceRate, color: 'blue' },
-              { label: 'Docentes', value: stats.totalTeachers, color: 'slate' },
-              { label: 'Estudiantes', value: stats.totalStudents, color: 'blue' },
-            ].map((metric, index) => (
-              <motion.div
-                key={metric.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="space-y-2"
-              >
-                <div className="flex justify-between text-sm">
-                  <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    {metric.label}
-                  </span>
-                  <span className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {metric.value}{metric.label !== 'Docentes' && metric.label !== 'Estudiantes' ? '%' : ''}
-                  </span>
-                </div>
-                <div className="relative w-full bg-gray-200 dark:bg-zinc-700 rounded-full h-3 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(metric.value, 100)}%` }}
-                    transition={{ duration: 1, delay: index * 0.2 }}
-                    className={cn("absolute h-full rounded-full", 
-                      metric.color === 'blue' 
-                        ? (theme === 'dark' ? 'bg-gradient-to-r from-blue-800 to-blue-900' : 'bg-gradient-to-r from-blue-700 to-blue-800')
-                        : (theme === 'dark' ? 'bg-gradient-to-r from-slate-700 to-slate-800' : 'bg-gradient-to-r from-slate-600 to-slate-700')
-                    )}
-                  />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
   )
 }
 
