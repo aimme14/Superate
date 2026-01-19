@@ -31,14 +31,30 @@ if (!admin.apps.length) {
                           process.env.GCLOUD_PROJECT ||
                           (typeof process.env.FUNCTION_TARGET === 'undefined' && !process.env.FUNCTIONS_EMULATOR);
     
-    // Solo validar archivos en desarrollo local con emulador
-    const shouldValidateFiles = !isDeployPhase && process.env.FUNCTIONS_EMULATOR === 'true';
+    // Detectar si estamos ejecutando como script (no como Cloud Function)
+    const isScriptExecution = require.main !== undefined && 
+                              !process.env.FUNCTION_TARGET && 
+                              !process.env.FIREBASE_CONFIG;
     
-    if (serviceAccountPath && shouldValidateFiles) {
+    // Solo validar archivos en desarrollo local con emulador o cuando se ejecuta como script
+    const shouldValidateFiles = (!isDeployPhase && process.env.FUNCTIONS_EMULATOR === 'true') || isScriptExecution;
+    
+    // Si estamos ejecutando como script, intentar usar el archivo local si existe
+    let localServiceAccountPath: string | undefined;
+    if (isScriptExecution) {
+      const localPath = path.resolve(__dirname, '../../serviceAccountKey.json');
+      if (require('fs').existsSync(localPath)) {
+        localServiceAccountPath = localPath;
+      }
+    }
+    
+    const finalServiceAccountPath = serviceAccountPath || localServiceAccountPath;
+    
+    if (finalServiceAccountPath && shouldValidateFiles) {
       try {
         // Validar que sea una ruta de archivo válida (no un hash)
-        if (serviceAccountPath.length > 200 || !serviceAccountPath.endsWith('.json')) {
-          console.warn(`⚠️ GOOGLE_APPLICATION_CREDENTIALS no parece ser una ruta válida: ${serviceAccountPath}`);
+        if (finalServiceAccountPath.length > 200 || !finalServiceAccountPath.endsWith('.json')) {
+          console.warn(`⚠️ Ruta de credenciales no parece ser válida: ${finalServiceAccountPath}`);
           // Fallback a credenciales por defecto
           admin.initializeApp({
             credential: admin.credential.applicationDefault(),
@@ -47,12 +63,15 @@ if (!admin.apps.length) {
           console.log('✅ Firebase Admin inicializado (modo local, usando credenciales por defecto)');
         } else {
           // Desarrollo local: usar service account
-          const absolutePath = path.resolve(__dirname, '../../', serviceAccountPath);
+          const absolutePath = finalServiceAccountPath.startsWith('/') || finalServiceAccountPath.match(/^[A-Z]:/i) 
+            ? finalServiceAccountPath 
+            : path.resolve(__dirname, '../../', finalServiceAccountPath);
           
           if (require('fs').existsSync(absolutePath)) {
             const serviceAccount = require(absolutePath);
             admin.initializeApp({
               credential: admin.credential.cert(serviceAccount),
+              projectId: serviceAccount.project_id,
               storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'superate-6c730.firebasestorage.app',
             });
             console.log('✅ Firebase Admin inicializado correctamente (modo local)');

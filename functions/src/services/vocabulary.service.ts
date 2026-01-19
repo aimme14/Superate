@@ -20,6 +20,7 @@ export const MATERIA_MAP: Record<string, string> = {
   'Química': 'quimica',
   'Inglés': 'ingles',
   'Sociales y Ciudadanas': 'sociales_ciudadanas',
+  'Ciencias Sociales': 'sociales_ciudadanas', // Mapeo adicional para compatibilidad
   'matematicas': 'matematicas',
   'lectura_critica': 'lectura_critica',
   'ciencias_naturales': 'ciencias_naturales',
@@ -28,6 +29,7 @@ export const MATERIA_MAP: Record<string, string> = {
   'quimica': 'quimica',
   'ingles': 'ingles',
   'sociales_ciudadanas': 'sociales_ciudadanas',
+  'ciencias_sociales': 'sociales_ciudadanas', // Mapeo adicional para normalización automática
 };
 
 /**
