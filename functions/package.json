@@ -18,8 +18,6 @@
     "view-justifications": "npm run build && node lib/scripts/viewJustifications.js",
     "generate-vocabulary": "npm run build && node lib/scripts/generateVocabulary.js",
     "delete-examples": "npm run build && node lib/scripts/deleteExamples.js",
-    "find-generic-explanations": "npm run build && node lib/scripts/findGenericExplanations.js",
-    "delete-generic-explanations": "npm run build && node lib/scripts/deleteGenericExplanations.js",
     "test": "echo \"No tests configured yet\" && exit 0",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
