@@ -131,12 +131,20 @@ class GeminiClient {
     }
     
     try {
-      const isLocalDevelopment = process.env.FUNCTIONS_EMULATOR === 'true' || 
-                                  process.env.NODE_ENV !== 'production' ||
-                                  !process.env.FUNCTION_TARGET;
+      // Detectar si estamos en producción (Firebase Functions)
+      // En producción: GCLOUD_PROJECT está definido Y FUNCTIONS_EMULATOR NO es 'true'
+      const isProduction = process.env.GCLOUD_PROJECT && 
+                          process.env.FUNCTIONS_EMULATOR !== 'true' &&
+                          process.env.FUNCTION_TARGET !== undefined;
       
-      if (isLocalDevelopment && this.serviceAccountKey) {
+      // Desarrollo local: usar credenciales explícitas solo si están disponibles
+      const isLocalDevelopment = !isProduction && 
+                                 process.env.FUNCTIONS_EMULATOR === 'true' &&
+                                 this.serviceAccountKey;
+      
+      if (isLocalDevelopment) {
         // Desarrollo local: usar credenciales explícitas
+        console.log('🔧 Inicializando Vertex AI en modo desarrollo local con credenciales explícitas');
         this.vertexAI = new VertexAI({
           project: GEMINI_CONFIG.PROJECT_ID, // Desde .env
           location: GEMINI_CONFIG.REGION, // Desde .env
@@ -147,9 +155,26 @@ class GeminiClient {
         });
       } else {
         // Producción: usar credenciales automáticas de Firebase Functions
+        // Firebase Functions usa automáticamente la cuenta de servicio del proyecto
+        // No especificar googleAuthOptions - dejar que use Application Default Credentials (ADC)
+        console.log('🔧 Inicializando Vertex AI en modo producción con credenciales automáticas de Firebase');
+        console.log(`   Proyecto: ${GEMINI_CONFIG.PROJECT_ID}`);
+        console.log(`   Región: ${GEMINI_CONFIG.REGION}`);
+        console.log(`   Cuenta de servicio: ${process.env.GCLOUD_PROJECT}@appspot.gserviceaccount.com`);
+        console.log(`   Usando Application Default Credentials (ADC)`);
+        
+        // Asegurar que GOOGLE_APPLICATION_CREDENTIALS no esté establecido en producción
+        // Firebase Functions debe usar las credenciales del servicio automáticamente
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+          delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+          console.log(`   ⚠️ GOOGLE_APPLICATION_CREDENTIALS estaba establecido, removido para usar ADC`);
+        }
+        
         this.vertexAI = new VertexAI({
           project: GEMINI_CONFIG.PROJECT_ID,
           location: GEMINI_CONFIG.REGION,
+          // No especificar googleAuthOptions - usar Application Default Credentials automáticamente
+          // Firebase Functions proporciona las credenciales automáticamente vía metadata service
         });
       }
 
@@ -269,6 +294,11 @@ class GeminiClient {
     
     let lastError: Error | null = null;
     
+    // Detectar si estamos en producción (una sola vez, fuera del loop)
+    const isProduction = process.env.GCLOUD_PROJECT && 
+                        process.env.FUNCTIONS_EMULATOR !== 'true' &&
+                        process.env.FUNCTION_TARGET !== undefined;
+    
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         // Aplicar rate limiting
@@ -292,8 +322,12 @@ class GeminiClient {
           });
         }
         
-        // Asegurar credenciales antes de cada llamada
-        process.env.GOOGLE_APPLICATION_CREDENTIALS = this.vertexKeyPath;
+        // Solo establecer GOOGLE_APPLICATION_CREDENTIALS en desarrollo local
+        // En producción, Firebase Functions usa automáticamente las credenciales del proyecto
+        if (!isProduction && this.vertexKeyPath) {
+          // Solo en desarrollo local: establecer credenciales explícitas
+          process.env.GOOGLE_APPLICATION_CREDENTIALS = this.vertexKeyPath;
+        }
         
         // Construir las partes del contenido: imágenes primero, luego texto
         // Según la documentación de Gemini, es mejor poner las imágenes antes del texto
@@ -415,8 +449,10 @@ class GeminiClient {
         // Ejecutar con timeout
         const result = await Promise.race([resultPromise, timeoutPromise]);
         
-        // Restaurar credenciales después de la llamada
-        this.restoreCredentials();
+        // Restaurar credenciales después de la llamada (solo en desarrollo local)
+        if (!isProduction) {
+          this.restoreCredentials();
+        }
         
         // Extraer texto de la respuesta de Vertex AI
         const response = result.response;
@@ -531,6 +567,31 @@ class GeminiClient {
         
         lastError = error;
         console.error(`❌ Error en intento ${attempt}/${maxRetries}:`, error.message);
+        
+        // Detectar error 403 de permisos de Vertex AI
+        const isPermissionError = error.message?.includes('403') || 
+                                 error.message?.includes('PERMISSION_DENIED') ||
+                                 error.message?.includes('permission') ||
+                                 error.code === 7 || // PERMISSION_DENIED en gRPC
+                                 error.status === 403;
+        
+        if (isPermissionError) {
+          const projectId = GEMINI_CONFIG.PROJECT_ID;
+          const serviceAccount = `${projectId}@appspot.gserviceaccount.com`;
+          const errorMessage = `Error de permisos (403): La cuenta de servicio de Firebase Functions no tiene permisos para usar Vertex AI. Por favor, otorga el rol 'Vertex AI User' (roles/aiplatform.user) a la cuenta de servicio '${serviceAccount}' en el proyecto '${projectId}'. Consulta SOLUCION_ERROR_403_VERTEX_AI.md para más detalles.`;
+          
+          console.error(`\n❌ ERROR DE PERMISOS DE VERTEX AI:`);
+          console.error(`   Cuenta de servicio: ${serviceAccount}`);
+          console.error(`   Proyecto: ${projectId}`);
+          console.error(`   Rol requerido: roles/aiplatform.user`);
+          console.error(`\n   Para solucionarlo, ejecuta:`);
+          console.error(`   gcloud projects add-iam-policy-binding ${projectId} \\`);
+          console.error(`     --member="serviceAccount:${serviceAccount}" \\`);
+          console.error(`     --role="roles/aiplatform.user"`);
+          
+          // Lanzar error con mensaje claro
+          throw new Error(errorMessage);
+        }
         
         // Si no es el último intento, esperar antes de reintentar
         if (attempt < maxRetries) {
