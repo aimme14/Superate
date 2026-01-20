@@ -7,10 +7,33 @@ import { cn } from '@/lib/utils'
 
 const LoginPage = () => {
   const { theme } = useThemeContext()
-  const { isAuth } = useAuthContext()
+  const { isAuth, loading } = useAuthContext()
   const navigate = useNavigate()
 
-  useEffect(() => { if (isAuth) navigate('/dashboard') }, [isAuth])
+  // Esperar a que termine la verificación de autenticación antes de redirigir o mostrar login
+  useEffect(() => { 
+    if (!loading && isAuth) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [isAuth, loading, navigate])
+
+  // Mostrar skeleton mientras se verifica la autenticación
+  if (loading) {
+    return (
+      <div className={cn(
+        "flex justify-center items-center",
+        "w-full h-screen",
+        "relative"
+      )}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Verificando sesión...
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={cn(

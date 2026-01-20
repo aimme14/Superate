@@ -40,6 +40,7 @@ const MATERIA_MAP: Record<string, string> = {
   'Química': 'quimica',
   'Inglés': 'ingles',
   'Sociales y Ciudadanas': 'sociales_ciudadanas',
+  'Ciencias Sociales': 'sociales_ciudadanas', // Mapeo adicional para el nombre usado en el sistema
 };
 
 // URL base de Cloud Functions

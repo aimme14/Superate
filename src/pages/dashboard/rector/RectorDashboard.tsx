@@ -21,14 +21,14 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRectorStats } from '@/hooks/query/useRectorStats'
-import { useCampusOptions } from '@/hooks/query/useInstitutionQuery'
+import { useCampusOptions, useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useStudentsByTeacher, useFilteredStudents } from '@/hooks/query/useStudentQuery'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown, Award, TrendingUp, Clock, Shield, Zap, PieChart as PieChartIcon } from 'lucide-react'
+import { Check, ChevronsUpDown, Award, TrendingUp, Clock, Shield, Zap, PieChart as PieChartIcon, Info } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -225,7 +225,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
           { icon: Building2, label: 'Sedes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos' },
-          { icon: Users, label: 'Estudiantes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes' },
+          { icon: Users, label: 'Análisis por estudiante', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes' },
         ].map((btn, index) => (
           <motion.div
             key={btn.label}
@@ -318,6 +318,241 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
 }
 
 
+// Componente de Promedio Institucional con filtro por fase
+function InstitutionAverageCard({ theme, currentRector }: any) {
+  const [selectedPhase, setSelectedPhase] = useState<'first' | 'second' | 'third'>('third')
+  const [selectedGrade, setSelectedGrade] = useState<string>('todos')
+  const [selectedJornada, setSelectedJornada] = useState<'mañana' | 'tarde' | 'única' | 'todas'>('todas')
+  const institutionId = currentRector?.institutionId
+
+  // Obtener todos los grados de la institución
+  const { options: gradeOptions } = useAllGradeOptions()
+
+  // Filtrar grados solo de esta institución
+  const institutionGrades = gradeOptions.filter((grade: any) => grade.institutionId === institutionId)
+
+  // Obtener todos los estudiantes de la institución (filtrados por grado y jornada si se seleccionan)
+  const { students: institutionStudents } = useFilteredStudents({
+    institutionId: institutionId,
+    gradeId: selectedGrade !== 'todos' ? selectedGrade : undefined,
+    jornada: selectedJornada !== 'todas' ? (selectedJornada as 'mañana' | 'tarde' | 'única') : undefined,
+    isActive: true
+  })
+
+  // Calcular promedio de puntajes globales (0-500) por fase
+  const { data: phaseAverage, isLoading: averageLoading } = useQuery({
+    queryKey: ['rector-institution-average', institutionId, selectedPhase],
+    queryFn: async () => {
+      if (!institutionId || !institutionStudents || institutionStudents.length === 0) {
+        return 0
+      }
+
+      const studentIds = institutionStudents.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
+      if (studentIds.length === 0) return 0
+
+      const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
+      const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
+      const POINTS_PER_NATURALES_SUBJECT = 100 / 3
+      const POINTS_PER_REGULAR_SUBJECT = 100
+
+      const phaseMap: { [key: string]: string } = {
+        'first': 'fase I',
+        'second': 'Fase II',
+        'third': 'fase III'
+      }
+      
+      const phaseName = phaseMap[selectedPhase]
+      
+      const normalizeSubjectName = (subject: string): string => {
+        const normalized = subject.trim().toLowerCase()
+        const subjectMap: Record<string, string> = {
+          'biologia': 'Biologia', 'biología': 'Biologia',
+          'quimica': 'Quimica', 'química': 'Quimica',
+          'fisica': 'Física', 'física': 'Física',
+          'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas',
+          'lenguaje': 'Lenguaje',
+          'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
+          'ingles': 'Inglés', 'inglés': 'Inglés'
+        }
+        return subjectMap[normalized] || subject
+      }
+
+      // Array para almacenar los globalScores de cada estudiante
+      const studentGlobalScores: number[] = []
+
+      for (const studentId of studentIds) {
+        try {
+          const phaseRef = collection(db, 'results', studentId, phaseName)
+          const phaseSnap = await getDocs(phaseRef)
+          
+          // Recopilar todos los resultados del estudiante en esta fase
+          const studentResults: any[] = []
+          phaseSnap.docs.forEach(doc => {
+            const examData = doc.data()
+            if (examData.completed && examData.score && examData.subject) {
+              studentResults.push({
+                subject: examData.subject.trim(),
+                percentage: examData.score.overallPercentage || 0
+              })
+            }
+          })
+
+          if (studentResults.length === 0) continue
+
+          // Obtener el mejor porcentaje por materia
+          const subjectScores: { [subject: string]: number } = {}
+          studentResults.forEach(result => {
+            const subject = normalizeSubjectName(result.subject || '')
+            const percentage = result.percentage
+            
+            if (!subjectScores[subject] || percentage > subjectScores[subject]) {
+              subjectScores[subject] = percentage
+            }
+          })
+
+          // Verificar que tenga todas las materias requeridas
+          const hasAllSubjects = REQUIRED_SUBJECTS.every(subject => 
+            subjectScores.hasOwnProperty(subject)
+          )
+
+          if (!hasAllSubjects) continue
+
+          // Calcular globalScore del estudiante (0-500)
+          let globalScore = 0
+          Object.entries(subjectScores).forEach(([subject, percentage]) => {
+            let pointsForSubject: number
+            if (NATURALES_SUBJECTS.includes(subject)) {
+              pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
+            } else {
+              pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
+            }
+            globalScore += pointsForSubject
+          })
+
+          globalScore = Math.round(globalScore * 100) / 100
+          studentGlobalScores.push(globalScore)
+        } catch (error) {
+          console.error(`Error obteniendo resultados para estudiante ${studentId}:`, error)
+        }
+      }
+
+      if (studentGlobalScores.length === 0) return 0
+      
+      // Calcular promedio de los globalScores de los estudiantes
+      const average = studentGlobalScores.reduce((sum, score) => sum + score, 0) / studentGlobalScores.length
+      return Math.round(average * 100) / 100
+    },
+    enabled: !!institutionId && !!institutionStudents && institutionStudents.length > 0,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
+          >
+            {averageLoading ? (
+              <Loader2 className={cn("h-5 w-5 animate-spin inline", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+            ) : (
+              <span>
+                <span className={cn('text-lg font-normal mr-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>~</span>
+                {phaseAverage || 0}
+              </span>
+            )}
+          </motion.div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center justify-center w-4 h-4 rounded-full hover:bg-opacity-80 transition-colors",
+                  theme === 'dark' ? "bg-blue-500/20 hover:bg-blue-500/30" : "bg-blue-500/10 hover:bg-blue-500/20"
+                )}
+              >
+                <Info className={cn("h-3 w-3", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className={cn("w-64 p-3 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+              <div className="space-y-1">
+                <p className={cn("font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  Valor Aproximado
+                </p>
+                <p className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                  Este promedio es una aproximación calculada a partir de los puntajes globales (0-500) de todos los estudiantes de la institución que han completado todas las materias en la fase seleccionada.
+                </p>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Grado
+            </label>
+            <Select
+              value={selectedGrade}
+              onValueChange={setSelectedGrade}
+            >
+              <SelectTrigger className={cn("h-7 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <SelectValue placeholder="Grado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {institutionGrades.map((grade: any) => (
+                  <SelectItem key={grade.value} value={grade.value}>
+                    {grade.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Jornada
+            </label>
+            <Select
+              value={selectedJornada}
+              onValueChange={(value) => setSelectedJornada(value as 'mañana' | 'tarde' | 'única' | 'todas')}
+            >
+              <SelectTrigger className={cn("h-7 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <SelectValue placeholder="Jornada" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="mañana">Mañana</SelectItem>
+                <SelectItem value="tarde">Tarde</SelectItem>
+                <SelectItem value="única">Única</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Fase
+            </label>
+            <Select
+              value={selectedPhase}
+              onValueChange={(value) => setSelectedPhase(value as 'first' | 'second' | 'third')}
+            >
+              <SelectTrigger className={cn("h-7 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="first">Fase I</SelectItem>
+                <SelectItem value="second">Fase II</SelectItem>
+                <SelectItem value="third">Fase III</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // Componente de Bienvenida
 function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFilters }: any) {
@@ -340,7 +575,7 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
       >
         {[
           { 
@@ -361,19 +596,13 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
           },
           { 
             title: 'Promedio Institucional', 
-            value: `${stats?.performanceMetrics?.overallAverage || 0}%`, 
+            value: null,
             change: '',
             icon: TrendingUp, 
             color: 'blue',
-            gradient: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800'
-          },
-          { 
-            title: 'Coordinadores', 
-            value: stats?.performanceMetrics?.coordinatorsCount || 0, 
-            change: '',
-            icon: Crown, 
-            color: 'slate',
-            gradient: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700'
+            gradient: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800',
+            isCustom: true,
+            customComponent: <InstitutionAverageCard theme={theme} currentRector={currentRector} />
           },
         ].map((stat, index) => (
           <motion.div
@@ -399,22 +628,28 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
                 </motion.div>
               </CardHeader>
               <CardContent className="relative z-10 px-3 pb-3 pt-1">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.8 + index * 0.1 }}
-                  className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
-                >
-                  {stat.value}
-                </motion.div>
-                {stat.change && (
-                  <p className={cn('text-xs mt-1', 
-                    stat.color === 'blue' 
-                      ? (theme === 'dark' ? 'text-blue-400' : 'text-blue-600')
-                      : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')
-                  )}>
-                    {stat.change}
-                  </p>
+                {stat.isCustom && stat.customComponent ? (
+                  stat.customComponent
+                ) : (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.8 + index * 0.1 }}
+                      className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                    >
+                      {stat.value}
+                    </motion.div>
+                    {stat.change && (
+                      <p className={cn('text-xs mt-1', 
+                        stat.color === 'blue' 
+                          ? (theme === 'dark' ? 'text-blue-400' : 'text-blue-600')
+                          : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')
+                      )}>
+                        {stat.change}
+                      </p>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
