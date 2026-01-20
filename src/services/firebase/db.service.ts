@@ -2060,50 +2060,223 @@ class DatabaseService {
       console.log('👨‍🏫 getStudentsByTeacher - Buscando estudiantes para teacherId:', teacherId)
       
       // Obtener información del docente para saber su institución, sede y grado
-      const teacherResult = await this.getTeacherById(teacherId)
+      // Usar getUserById para obtener desde la nueva estructura jerárquica (incluye jornada)
+      const teacherResult = await this.getUserById(teacherId)
       if (!teacherResult.success) {
         console.error('❌ getStudentsByTeacher - Error al obtener docente:', teacherResult.error)
         return failure(teacherResult.error)
       }
 
       const teacher = teacherResult.data
-      console.log('👨‍🏫 getStudentsByTeacher - Datos del docente:', {
+      
+      // Verificar que sea un docente
+      if (teacher.role !== 'teacher') {
+        console.error('❌ getStudentsByTeacher - El usuario no es un docente:', teacher.role)
+        return failure(new ErrorAPI({ message: 'El usuario no es un docente', statusCode: 400 }))
+      }
+      
+      // Obtener jornada del docente - verificar múltiples ubicaciones posibles
+      // IMPORTANTE: Verificar directamente en el objeto teacher sin asumir estructura
+      let teacherJornada = (teacher as any).jornada
+      
+      // Si no está en la raíz, verificar en otros lugares posibles
+      if (!teacherJornada) {
+        teacherJornada = (teacher as any).jornada || undefined
+      }
+      
+      // Normalizar jornada si existe (trim y verificar que no esté vacío)
+      if (teacherJornada && typeof teacherJornada === 'string') {
+        teacherJornada = teacherJornada.trim()
+        if (teacherJornada === '') {
+          teacherJornada = undefined
+        }
+      }
+      
+      console.log('👨‍🏫 getStudentsByTeacher - Datos del docente COMPLETOS:', {
         name: teacher.name,
         institutionId: teacher.institutionId,
         campusId: teacher.campusId,
         gradeId: teacher.gradeId,
+        jornada: teacherJornada || 'NO DEFINIDA',
+        jornadaType: typeof teacherJornada,
+        jornadaValue: teacherJornada,
         // También verificar campos alternativos
         inst: teacher.inst,
         campus: teacher.campus,
-        grade: teacher.grade
+        grade: teacher.grade,
+        // Debug: mostrar todos los campos del docente para verificar si jornada está presente
+        allFields: Object.keys(teacher),
+        // Verificar si jornada está en el objeto
+        hasJornadaField: 'jornada' in teacher,
+        jornadaInObject: (teacher as any).jornada,
+        // Mostrar el objeto completo del docente para debug
+        teacherObject: JSON.parse(JSON.stringify(teacher)) // Serializar para ver todos los campos
       })
+      
+      // Advertencia si el docente no tiene jornada
+      if (!teacherJornada || teacherJornada.trim() === '') {
+        console.error(`❌ ERROR CRÍTICO: El docente "${teacher.name}" NO tiene jornada definida. Se mostrarán TODOS los estudiantes del grado sin filtrar por jornada.`)
+        console.error(`❌ Verificar en Firestore que el documento del docente tenga el campo "jornada" con valor "mañana", "tarde" o "única".`)
+        console.error(`❌ Ruta esperada: superate/auth/institutions/{institutionId}/profesores/{teacherId}`)
+      } else {
+        console.log(`✅ Docente tiene jornada definida: "${teacherJornada}"`)
+      }
+      
+      // Validar que la jornada sea válida
+      if (teacherJornada && !['mañana', 'tarde', 'única'].includes(teacherJornada)) {
+        console.warn(`⚠️ Jornada del docente no es válida: "${teacherJornada}". Se tratará como sin jornada.`)
+      }
       
       // Usar los campos correctos (pueden ser inst/campus/grade o institutionId/campusId/gradeId)
       const institutionId = teacher.institutionId || teacher.inst
       const campusId = teacher.campusId || teacher.campus
       const gradeId = teacher.gradeId || teacher.grade
       
-      console.log('🔍 getStudentsByTeacher - Filtros a aplicar:', {
-        institutionId,
-        campusId,
-        gradeId,
-        isActive: true
-      })
-      
-      // Buscar estudiantes que coincidan con la institución, sede y grado del docente
-      const studentsResult = await this.getFilteredStudents({
+      // Preparar filtros para estudiantes
+      const filters: any = {
         institutionId: institutionId,
         campusId: campusId,
         gradeId: gradeId,
         isActive: true
-      })
+      }
+      
+      // NO agregar filtro de jornada aquí - lo haremos después en memoria para tener control total
+      // Esto asegura que el filtro funcione correctamente sin depender de getFilteredStudents
+      
+      console.log('🔍 getStudentsByTeacher - Filtros a aplicar:', filters)
+      
+      // Buscar estudiantes que coincidan con la institución, sede y grado del docente
+      // NO incluir filtro de jornada aquí, lo haremos después para tener control total
+      const studentsResult = await this.getFilteredStudents(filters)
+      
+      // Filtrar estudiantes por jornada según la jornada del docente
+      let filteredStudents = studentsResult.success ? studentsResult.data : []
+      
+      if (studentsResult.success) {
+        const beforeCount = studentsResult.data.length
+        
+        // Verificar si el docente tiene jornada definida y válida
+        const hasValidJornada = teacherJornada && 
+                                typeof teacherJornada === 'string' && 
+                                teacherJornada.trim() !== '' && 
+                                teacherJornada !== 'única'
+        
+        if (hasValidJornada) {
+          // Si el docente tiene jornada específica (mañana/tarde), solo mostrar estudiantes con esa jornada exacta
+          console.log(`🔍 FILTRANDO por jornada: docente tiene jornada "${teacherJornada}"`)
+          
+          // Normalizar jornadas para comparación (trim y lowercase para evitar problemas de formato)
+          const normalizedTeacherJornada = teacherJornada.trim().toLowerCase()
+          
+          // Contar estudiantes por jornada antes del filtro
+          const jornadaCountsBefore: Record<string, number> = {}
+          studentsResult.data.forEach((s: any) => {
+            const j = s.jornada || 'sin jornada'
+            jornadaCountsBefore[j] = (jornadaCountsBefore[j] || 0) + 1
+          })
+          console.log(`📊 Estudiantes por jornada ANTES del filtro:`, jornadaCountsBefore)
+          
+          // Filtrar estrictamente por jornada exacta
+          filteredStudents = studentsResult.data.filter((student: any) => {
+            const studentJornada = student.jornada
+            if (!studentJornada || typeof studentJornada !== 'string') {
+              // Excluir estudiantes sin jornada
+              return false
+            }
+            
+            const normalizedStudentJornada = studentJornada.trim().toLowerCase()
+            
+            // Comparación estricta: deben ser exactamente iguales
+            const matches = normalizedStudentJornada === normalizedTeacherJornada
+            
+            return matches
+          })
+          
+          // Contar estudiantes por jornada después del filtro
+          const jornadaCountsAfter: Record<string, number> = {}
+          filteredStudents.forEach((s: any) => {
+            const j = s.jornada || 'sin jornada'
+            jornadaCountsAfter[j] = (jornadaCountsAfter[j] || 0) + 1
+          })
+          console.log(`📊 Estudiantes por jornada DESPUÉS del filtro:`, jornadaCountsAfter)
+          
+          console.log(`✅ FILTRADO COMPLETADO: docente="${teacherJornada}", estudiantes antes=${beforeCount}, después=${filteredStudents.length}`)
+          
+          // Validación final: verificar que ningún estudiante tenga jornada incorrecta
+          const incorrectJornada = filteredStudents.filter((s: any) => {
+            if (!s.jornada) return false
+            const sJornada = s.jornada.trim().toLowerCase()
+            const tJornada = normalizedTeacherJornada
+            return sJornada !== tJornada
+          })
+          
+          if (incorrectJornada.length > 0) {
+            console.error(`❌ ERROR CRÍTICO: Se encontraron ${incorrectJornada.length} estudiantes con jornada incorrecta después del filtro`)
+            incorrectJornada.forEach((s: any) => {
+              console.error(`  - ${s.name || s.email}: jornada="${s.jornada}" (debería ser "${teacherJornada}")`)
+            })
+            // Filtrar nuevamente para asegurar que solo queden estudiantes con jornada correcta
+            filteredStudents = filteredStudents.filter((s: any) => {
+              if (!s.jornada) return false
+              const sJornada = s.jornada.trim().toLowerCase()
+              const tJornada = normalizedTeacherJornada
+              return sJornada === tJornada
+            })
+            console.log(`✅ Re-filtrado completado: ${filteredStudents.length} estudiantes con jornada correcta`)
+          }
+        } else {
+          // Si el docente tiene jornada 'única' o no tiene jornada, mostrar todos los estudiantes del grado
+          console.log(`⚠️ Docente sin jornada específica (jornada: "${teacherJornada || 'no definida'}"). Mostrando TODOS los estudiantes del grado sin filtrar por jornada.`)
+          console.log(`📊 Total estudiantes del grado: ${beforeCount}`)
+          
+          // Contar estudiantes por jornada para información
+          const jornadaCounts: Record<string, number> = {}
+          studentsResult.data.forEach((s: any) => {
+            const j = s.jornada || 'sin jornada'
+            jornadaCounts[j] = (jornadaCounts[j] || 0) + 1
+          })
+          console.log(`📊 Estudiantes por jornada:`, jornadaCounts)
+          
+          filteredStudents = studentsResult.data
+        }
+      }
 
-      console.log('✅ getStudentsByTeacher - Resultado:', {
+      // Validación final: verificar que ningún estudiante tenga jornada incorrecta
+      if (teacherJornada && teacherJornada !== 'única' && filteredStudents.length > 0) {
+        const incorrectJornadaStudents = filteredStudents.filter((s: any) => {
+          const sJornada = s.jornada?.trim().toLowerCase()
+          const tJornada = teacherJornada.trim().toLowerCase()
+          return sJornada && sJornada !== tJornada
+        })
+        
+        if (incorrectJornadaStudents.length > 0) {
+          console.error(`❌ ERROR CRÍTICO: Se encontraron ${incorrectJornadaStudents.length} estudiantes con jornada incorrecta después del filtro`)
+          incorrectJornadaStudents.forEach((s: any) => {
+            console.error(`  - ${s.name || s.email}: jornada="${s.jornada}" (debería ser "${teacherJornada}")`)
+          })
+          // Filtrar nuevamente para asegurar que solo queden estudiantes con jornada correcta
+          filteredStudents = filteredStudents.filter((s: any) => {
+            const sJornada = s.jornada?.trim().toLowerCase()
+            const tJornada = teacherJornada.trim().toLowerCase()
+            return sJornada === tJornada
+          })
+        }
+      }
+      
+      console.log('✅ getStudentsByTeacher - Resultado FINAL:', {
         success: studentsResult.success,
-        count: studentsResult.success ? studentsResult.data.length : 0
+        countBeforeFilter: studentsResult.success ? studentsResult.data.length : 0,
+        countAfterFilter: filteredStudents.length,
+        teacherJornada: teacherJornada || 'no especificada',
+        teacherName: teacher.name,
+        jornadasEstudiantes: filteredStudents.map((s: any) => s.jornada).filter((j: any) => j)
       })
 
-      return studentsResult
+      if (!studentsResult.success) {
+        return studentsResult
+      }
+
+      return success(filteredStudents)
     } catch (e) { 
       console.error('❌ getStudentsByTeacher - Excepción:', e)
       return failure(new ErrorAPI(normalizeError(e, 'obtener estudiantes por docente'))) 
@@ -2700,9 +2873,18 @@ class DatabaseService {
             const docSnap = await getDoc(userDocRef)
 
             if (docSnap.exists()) {
-              const userData = { id: docSnap.id, ...docSnap.data() } as any
+              const docData = docSnap.data()
+              const userData = { id: docSnap.id, ...docData } as any
               console.log(`✅ Usuario encontrado en: ${userDocRef.path}`)
               console.log('👤 Rol del usuario:', userData.role)
+              console.log('📋 Todos los campos del usuario:', Object.keys(userData))
+              console.log('📋 Datos completos del usuario:', userData)
+              // Verificar específicamente la jornada
+              if (userData.jornada !== undefined) {
+                console.log(`✅ Jornada encontrada en usuario: "${userData.jornada}"`)
+              } else {
+                console.warn(`⚠️ Jornada NO encontrada en usuario. Campos disponibles:`, Object.keys(userData))
+              }
               return success(userData)
             }
           } catch (error: any) {

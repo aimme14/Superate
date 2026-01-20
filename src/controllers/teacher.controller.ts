@@ -16,6 +16,7 @@ export interface CreateTeacherData {
   password?: string // Contraseña para la cuenta de usuario
   adminEmail?: string
   adminPassword?: string
+  jornada?: 'mañana' | 'tarde' | 'única' // Jornada del profesor
 }
 
 export interface UpdateTeacherData extends Partial<Omit<CreateTeacherData, 'institutionId'>> {
@@ -28,6 +29,7 @@ export interface UpdateTeacherData extends Partial<Omit<CreateTeacherData, 'inst
   institutionId?: string // Para mover el docente a otra institución
   campusId?: string // Para mover el docente a otra sede
   gradeId?: string // Para mover el docente a otro grado
+  jornada?: 'mañana' | 'tarde' | 'única' // Jornada del profesor
 }
 
 // Funciones CRUD para Docentes
@@ -98,7 +100,7 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
     console.log('✅ Cuenta creada en Firebase Auth con UID:', userAccount.data.uid)
 
     // Crear documento en Firestore usando la nueva estructura jerárquica
-    const teacherData = {
+    const teacherData: any = {
       role: 'teacher',
       name: data.name,
       email: data.email,
@@ -113,6 +115,11 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
       isActive: true,
       createdAt: new Date().toISOString(),
       createdBy: 'admin'
+    }
+
+    // Agregar jornada si se proporciona
+    if (data.jornada) {
+      teacherData.jornada = data.jornada
     }
 
     console.log('👨‍🏫 Datos del docente a guardar en Firestore:', teacherData)
@@ -410,6 +417,7 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
     if (data.email) userUpdateData.email = data.email
     if (data.phone !== undefined) userUpdateData.phone = data.phone
     if (data.isActive !== undefined) userUpdateData.isActive = data.isActive
+    if (data.jornada !== undefined) userUpdateData.jornada = data.jornada
     // Si se está moviendo el docente, actualizar también los IDs de institución, sede y grado
     if (isMoving) {
       userUpdateData.institutionId = newInstitutionId

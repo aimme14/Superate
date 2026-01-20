@@ -1,6 +1,6 @@
 import { useAuthContext } from '@/context/AuthContext'
 import { useTeachers } from './useTeacherQuery'
-import { useFilteredStudents } from './useStudentQuery'
+import { useStudentsByTeacher } from './useStudentQuery'
 import { useMemo } from 'react'
 
 export const useTeacherDashboardStats = () => {
@@ -28,17 +28,12 @@ export const useTeacherDashboardStats = () => {
     return teacher || null
   }, [teachers, user])
   
-  // Obtener estudiantes de la sede y grado del docente (solo si tenemos campusId y gradeId)
-  const institutionId = currentTeacher?.institutionId
-  const campusId = currentTeacher?.campusId
-  const gradeId = currentTeacher?.gradeId
-  
-  const { students: teacherStudents, isLoading: studentsLoading, error: studentsError } = useFilteredStudents({
-    campusId: campusId || undefined,
-    institutionId: institutionId || undefined,
-    gradeId: gradeId || undefined,
-    isActive: true
-  })
+  // Obtener estudiantes del docente usando getStudentsByTeacher que filtra por jornada
+  const teacherId = currentTeacher?.id || currentTeacher?.uid || user?.uid
+  const { data: teacherStudents, isLoading: studentsLoading, error: studentsError } = useStudentsByTeacher(
+    teacherId || '', 
+    !!teacherId
+  )
 
   const isLoading = teachersLoading || (!!currentTeacher && studentsLoading)
   const hasError = teachersError || studentsError

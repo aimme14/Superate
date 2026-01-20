@@ -1032,7 +1032,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
     password: '',
     institution: '',
     campus: '',
-    grade: ''
+    grade: '',
+    jornada: '' as 'mañana' | 'tarde' | 'única' | ''
   })
   const [editPrincipalData, setEditPrincipalData] = useState({
     currentPassword: '', // Contraseña actual del coordinador (solo para cambiar contraseña)
@@ -1200,7 +1201,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
       currentPassword: '', // Limpiar contraseña actual al abrir el diálogo
       institution: teacher.institutionId || '',
       campus: teacher.campusId || '',
-      grade: teacher.gradeId || ''
+      grade: teacher.gradeId || '',
+      jornada: (teacher.jornada || '') as 'mañana' | 'tarde' | 'única' | ''
     })
     setIsEditDialogOpen(true)
   }
@@ -1255,6 +1257,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
         currentPassword: isUpdatingPassword ? editTeacherData.currentPassword : undefined, // Solo enviar si se está cambiando la contraseña
         adminEmail: isUpdatingCredentials && currentUser?.email ? currentUser.email : undefined,
         adminPassword: isUpdatingCredentials ? adminPassword : undefined,
+        jornada: editTeacherData.jornada || undefined,
         // Incluir los nuevos valores de institución, sede y grado si están cambiando
         ...(isChangingLocation && {
           institutionId: editTeacherData.institution,
@@ -1304,7 +1307,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
         currentPassword: '',
         institution: '',
         campus: '',
-        grade: ''
+        grade: '',
+        jornada: ''
       })
       setAdminPassword('')
     } catch (error) {
@@ -1881,7 +1885,8 @@ export default function UserManagement({ theme }: UserManagementProps) {
           phone: undefined,
           password: newUser.password, // Pasar la contraseña al controlador
           adminEmail: currentUser?.email,
-          adminPassword: getAdminPassword()
+          adminPassword: getAdminPassword(),
+          jornada: newUser.jornada || undefined // Agregar jornada si está definida
         }
         
         console.log('🔍 Datos del docente desde el formulario:', teacherData)
@@ -2167,11 +2172,26 @@ export default function UserManagement({ theme }: UserManagementProps) {
                   )}
 
                   {newUser.role === 'teacher' && newUser.grade && (
-                    <div className={cn("p-2 border rounded-md text-xs", theme === 'dark' ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50/50 border-blue-200')}>
-                      <div className={cn(theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
-                        <strong className="text-xs">ℹ️ Docente:</strong> Se asignará al grado seleccionado. Los estudiantes se asignarán automáticamente.
+                    <>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="teacher-jornada" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Jornada</Label>
+                        <Select value={newUser.jornada} onValueChange={(value) => setNewUser(prev => ({ ...prev, jornada: value as 'mañana' | 'tarde' | 'única' }))}>
+                          <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                            <SelectValue placeholder="Seleccionar jornada" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mañana">Mañana</SelectItem>
+                            <SelectItem value="tarde">Tarde</SelectItem>
+                            <SelectItem value="única">Única</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                    </div>
+                      <div className={cn("p-2 border rounded-md text-xs", theme === 'dark' ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50/50 border-blue-200')}>
+                        <div className={cn(theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                          <strong className="text-xs">ℹ️ Docente:</strong> Se asignará al grado seleccionado. Los estudiantes se asignarán automáticamente según su jornada.
+                        </div>
+                      </div>
+                    </>
                   )}
 
                   {newUser.role === 'principal' && newUser.campus && (
@@ -2846,6 +2866,24 @@ export default function UserManagement({ theme }: UserManagementProps) {
                                   {grade.label}
                                 </SelectItem>
                               ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {editTeacherData.grade && (
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="edit-teacher-jornada" className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : '')}>Jornada</Label>
+                          <Select 
+                            value={editTeacherData.jornada} 
+                            onValueChange={(value) => setEditTeacherData(prev => ({ ...prev, jornada: value as 'mañana' | 'tarde' | 'única' }))}
+                          >
+                            <SelectTrigger className={cn("h-9", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
+                              <SelectValue placeholder="Seleccionar jornada" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="mañana">Mañana</SelectItem>
+                              <SelectItem value="tarde">Tarde</SelectItem>
+                              <SelectItem value="única">Única</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

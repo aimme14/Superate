@@ -74,6 +74,7 @@ export interface Teacher extends User {
   institutionName?: string // Nombre de la institución
   campusName?: string // Nombre de la sede
   gradeName?: string // Nombre del grado
+  jornada?: 'mañana' | 'tarde' | 'única' // Jornada del profesor
 }
 
 export interface Student extends User {

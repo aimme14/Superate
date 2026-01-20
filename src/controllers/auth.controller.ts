@@ -80,7 +80,7 @@ export const login = async ({ email, password }: { email: string, password: stri
 }
 
 /**
- * Asigna automáticamente un estudiante a todos los docentes del mismo grado
+ * Asigna automáticamente un estudiante a todos los docentes del mismo grado y jornada
  * @param {string} studentId - ID del estudiante
  * @param {string} institutionId - ID de la institución
  * @param {string} campusId - ID de la sede
@@ -88,6 +88,16 @@ export const login = async ({ email, password }: { email: string, password: stri
  */
 const assignStudentToTeachers = async (studentId: string, institutionId: string, campusId: string, gradeId: string): Promise<void> => {
   try {
+    // Obtener información del estudiante para conocer su jornada
+    const studentResult = await dbService.getUserById(studentId)
+    if (!studentResult.success) {
+      console.warn('No se pudo obtener información del estudiante:', studentResult.error)
+      return
+    }
+
+    const student = studentResult.data
+    const studentJornada = (student as any).jornada // Jornada del estudiante
+
     // Obtener todos los docentes del grado específico
     const teachersResult = await dbService.getTeachersByGrade(institutionId, campusId, gradeId)
     if (!teachersResult.success) {
@@ -95,12 +105,27 @@ const assignStudentToTeachers = async (studentId: string, institutionId: string,
       return
     }
 
-    // Asignar el estudiante a cada docente del grado
-    for (const teacher of teachersResult.data) {
+    // Filtrar docentes por jornada: solo asignar a docentes con la misma jornada o jornada 'única'
+    const matchingTeachers = teachersResult.data.filter((teacher: any) => {
+      const teacherJornada = teacher.jornada
+      // Si el profesor tiene jornada 'única', puede trabajar con cualquier estudiante
+      if (teacherJornada === 'única') {
+        return true
+      }
+      // Si el estudiante tiene jornada 'única', puede ser asignado a cualquier profesor
+      if (studentJornada === 'única') {
+        return true
+      }
+      // Si ambos tienen jornada definida, deben coincidir
+      return teacherJornada === studentJornada
+    })
+
+    // Asignar el estudiante solo a los docentes que coinciden con la jornada
+    for (const teacher of matchingTeachers) {
       await dbService.assignStudentToTeacher(teacher.id, studentId)
     }
 
-    console.log(`✅ Estudiante ${studentId} asignado a ${teachersResult.data.length} docentes del grado ${gradeId}`)
+    console.log(`✅ Estudiante ${studentId} (jornada: ${studentJornada || 'no especificada'}) asignado a ${matchingTeachers.length} docentes del grado ${gradeId}`)
   } catch (error) {
     console.error('Error al asignar estudiante a docentes:', error)
   }
