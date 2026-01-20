@@ -29,9 +29,10 @@ export const useTeacherDashboardStats = () => {
   }, [teachers, user])
   
   // Obtener estudiantes del docente usando getStudentsByTeacher que filtra por jornada
-  const teacherId = currentTeacher?.id || currentTeacher?.uid || user?.uid
+  // Usar id del docente o uid del usuario como fallback
+  const teacherId = currentTeacher?.id || user?.uid || ''
   const { data: teacherStudents, isLoading: studentsLoading, error: studentsError } = useStudentsByTeacher(
-    teacherId || '', 
+    teacherId, 
     !!teacherId
   )
 
