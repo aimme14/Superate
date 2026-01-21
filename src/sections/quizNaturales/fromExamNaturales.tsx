@@ -1,7 +1,7 @@
 import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Leaf, Timer, Users, Play, HelpCircle, Maximize, X, Database } from "lucide-react"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -1191,8 +1191,11 @@ const ExamWithFirebase = () => {
     const answeredQuestions = Object.keys(answers).length
     const theme = getQuizTheme('naturales')
 
-    // Usar useRef para mantener el className del botón estable y evitar parpadeo
-    const skipButtonClassNameRef = useRef<string>('flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50');
+    // Usar useMemo para calcular el className una sola vez y evitar parpadeo
+    // Sobrescribir todas las transiciones del Button para evitar parpadeo
+    const skipButtonClassName = useMemo(() => {
+      return "flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50 !transition-none hover:transition-colors hover:duration-150";
+    }, []);
 
     return (
       <div 
