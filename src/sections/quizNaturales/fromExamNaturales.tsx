@@ -1,7 +1,7 @@
 import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Leaf, Timer, Users, Play, HelpCircle, Maximize, X, Database } from "lucide-react"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -1072,7 +1072,7 @@ const ExamWithFirebase = () => {
 
   // Función para ir a la siguiente pregunta
   const nextQuestion = () => {
-    if (currentQuestion < examData.questions.length - 1) {
+    if (examData && currentQuestion < examData.questions.length - 1) {
       const nextIndex = currentQuestion + 1;
       // Actualizar maxReachedQuestion cuando se avanza con el botón siguiente
       if (nextIndex > maxReachedQuestion) {
@@ -1191,6 +1191,9 @@ const ExamWithFirebase = () => {
     const answeredQuestions = Object.keys(answers).length
     const theme = getQuizTheme('naturales')
 
+    // Usar useRef para mantener el className del botón estable y evitar parpadeo
+    const skipButtonClassNameRef = useRef<string>('flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50');
+
     return (
       <div 
         className="flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-8 pb-4 quiz-gradient-bg relative"
@@ -1303,7 +1306,14 @@ const ExamWithFirebase = () => {
                 onClick={handleSkipQuestion}
                 disabled={currentQuestion === examData.questions.length - 1}
                 variant="outline"
-                className="flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                className={skipButtonClassName}
+                style={{ transition: 'none' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transition = 'background-color 150ms ease-in-out';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transition = 'none';
+                }}
               >
                 <HelpCircle className="h-4 w-4" />
                 No sé

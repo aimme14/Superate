@@ -2,7 +2,7 @@ import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookMarked
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -1377,6 +1377,19 @@ const ExamWithFirebase = () => {
     const questionId = currentQ.id || currentQ.code;
     const theme = getQuizTheme('sociales')
 
+    // Usar useMemo para calcular el className una sola vez y evitar parpadeo
+    // Sobrescribir todas las transiciones del Button para evitar parpadeo
+    const skipButtonClassName = useMemo(() => {
+      return cn(
+        "flex items-center gap-2",
+        "!transition-none", // Desactivar todas las transiciones del Button
+        "hover:transition-colors hover:duration-150", // Solo activar transición de colores en hover
+        appTheme === 'dark' 
+          ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+      );
+    }, [appTheme]);
+
     return (
       <div 
         className={cn("flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-8 pb-4 quiz-gradient-bg relative", appTheme === 'dark' ? 'bg-zinc-900' : '')}
@@ -1646,7 +1659,14 @@ const ExamWithFirebase = () => {
                 onClick={handleSkipQuestion}
                 disabled={currentQuestion === quizData.questions.length - 1}
                 variant="outline"
-                className={cn("flex items-center gap-2", appTheme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50')}
+                className={skipButtonClassName}
+                style={{ transition: 'none' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transition = 'background-color 150ms ease-in-out';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transition = 'none';
+                }}
               >
                 <HelpCircle className="h-4 w-4" />
                 No sé
