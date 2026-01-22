@@ -1325,7 +1325,7 @@ ${englishChannelsSection}
         }
         
         // Obtener videos para cada topic (desde caché o YouTube)
-        // IMPORTANTE: Cada topic debe tener exactamente 7 videos
+        // IMPORTANTE: Cada topic debe tener exactamente 15 videos
         const videoPromises = parsed.topics.map(async (topic) => {
           try {
             if (!topic.keywords || !Array.isArray(topic.keywords) || topic.keywords.length === 0) {
@@ -1336,7 +1336,7 @@ ${englishChannelsSection}
             console.log(`   🔍 Procesando videos para topic: "${topic.name}"`);
             console.log(`      Keywords: ${topic.keywords.join(', ')}`);
             
-            // Obtener videos para este topic específico (retorna exactamente 7 videos)
+            // Obtener videos para este topic específico (retorna exactamente 15 videos)
             const videos = await this.getVideosForTopic(
               input.studentId,
               input.phase,
@@ -1346,7 +1346,7 @@ ${englishChannelsSection}
             );
             
             if (videos.length > 0) {
-              console.log(`   ✅ Obtenidos ${videos.length} video(s) para topic "${topic.name}" (objetivo: 7)`);
+              console.log(`   ✅ Obtenidos ${videos.length} video(s) para topic "${topic.name}" (objetivo: 15)`);
             } else {
               console.warn(`   ⚠️ No se encontraron videos para topic "${topic.name}"`);
               console.warn(`      Esto puede deberse a:`);
@@ -1370,13 +1370,13 @@ ${englishChannelsSection}
         const allVideos = await Promise.all(videoPromises);
         
         // Aplanar array de arrays - NO eliminar duplicados entre topics diferentes
-        // Cada topic debe tener sus propios 7 videos, aunque algunos puedan repetirse entre topics
+        // Cada topic debe tener sus propios 15 videos, aunque algunos puedan repetirse entre topics
         parsed.video_resources = allVideos.flat();
         
         const totalVideos = parsed.video_resources.length;
-        const expectedVideos = parsed.topics.length * 7;
+        const expectedVideos = parsed.topics.length * 15;
         console.log(`✅ Total de ${totalVideos} video(s) obtenido(s) para el plan de estudio`);
-        console.log(`   📊 Esperados: ${expectedVideos} videos (${parsed.topics.length} topics × 7 videos)`);
+        console.log(`   📊 Esperados: ${expectedVideos} videos (${parsed.topics.length} topics × 15 videos)`);
         if (totalVideos < expectedVideos) {
           console.warn(`   ⚠️ Faltan ${expectedVideos - totalVideos} video(s) (algunos topics no tienen suficientes videos)`);
         }
@@ -1402,7 +1402,7 @@ ${englishChannelsSection}
         console.log(`   📚 Procesando ${parsed.topics.length} topic(s) para obtener enlaces...`);
         
         // Obtener enlaces para cada topic (desde caché o búsqueda)
-        // IMPORTANTE: Cada topic debe tener exactamente 10 enlaces (similar a videos con 7)
+        // IMPORTANTE: Cada topic debe tener exactamente 20 enlaces (similar a videos con 15)
         const linkPromises = parsed.topics.map(async (topic) => {
           try {
             if (!topic.webSearchInfo) {
@@ -1874,7 +1874,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     duration?: string;
     language?: string;
   }>> {
-    const MIN_VIDEOS_IN_DB = 20; // Mínimo de videos almacenados en DB
+    const MIN_VIDEOS_IN_DB = 50; // Mínimo de videos almacenados en DB
     const VIDEOS_TO_RETURN = 7; // Número de videos a retornar por topic débil
     
     try {
@@ -1978,7 +1978,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
           console.error(`      Esto significa que el plan no tendrá videos para este topic.`);
         }
         
-        // Retornar los que hay en caché (hasta 7)
+        // Retornar los que hay en caché (hasta 15)
         return cachedVideos.slice(0, VIDEOS_TO_RETURN).map(v => ({
           title: v.title,
           url: v.url,
@@ -2849,7 +2849,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     description: string;
     topic?: string;
   }>> {
-    const TARGET_LINKS_IN_DB = 50; // Número objetivo de enlaces almacenados en DB por tema
+    const TARGET_LINKS_IN_DB = 60; // Número objetivo de enlaces almacenados en DB por tema
     const LINKS_TO_RETURN = 10; // Número de enlaces a retornar por topic
     
     try {
@@ -2862,7 +2862,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       
       console.log(`   📦 Enlaces en caché para "${topic}": ${cachedLinks.length}`);
       
-      // 2. Si hay ≥50 enlaces en caché, retornar solo 10 (para tener variedad en la DB)
+      // 2. Si hay ≥60 enlaces en caché, retornar solo 20 (para tener variedad en la DB)
       if (cachedLinks.length >= TARGET_LINKS_IN_DB) {
         console.log(`   ✅ Usando ${LINKS_TO_RETURN} enlace(s) desde caché (hay ${cachedLinks.length} disponibles, no se consulta búsqueda externa)`);
         // Retornar 10 enlaces ordenados con el campo topic
