@@ -902,7 +902,6 @@ function PersonalizedStudyPlan({
               }
             } else {
               // Si es Fase III, no hay autorizaciones de planes de estudio
-              console.log('Fase III no requiere autorización de planes de estudio');
               subjectsWithTopics.forEach(subject => {
                 authorizations[subject.name] = false;
               });
@@ -936,7 +935,7 @@ function PersonalizedStudyPlan({
     } else {
       setLoadingAuthorizations(false);
     }
-  }, [studentId, subjectsWithTopics]);
+  }, [studentId, phase, subjectsWithTopics]);
 
   // Cargar planes existentes al montar (solo planes completos)
   useEffect(() => {
@@ -953,15 +952,9 @@ function PersonalizedStudyPlan({
             );
             const result = await response.json();
             if (result.success && result.data) {
-              // Solo cargar el plan si está completo
               if (isPlanComplete(result.data)) {
                 plans[subject.name] = result.data;
-                console.log(`✅ Plan completo encontrado para ${subject.name} en ${phase}`);
-              } else {
-                console.log(`⚠️ Plan incompleto para ${subject.name} en ${phase} (no se mostrará)`);
               }
-            } else {
-              console.log(`ℹ️ No hay plan para ${subject.name} en ${phase}`);
             }
           } catch (error) {
             console.error(`Error cargando plan para ${subject.name}:`, error);
@@ -1004,7 +997,6 @@ function PersonalizedStudyPlan({
           ...prev,
           [subject]: result.data,
         }));
-        console.log(`✅ Plan completo cargado para ${subject}`);
         notifySuccess({
           title: 'Plan generado exitosamente',
           message: `El plan de estudio para ${subject} se ha generado correctamente.`
@@ -1019,9 +1011,9 @@ function PersonalizedStudyPlan({
             : errorMessage
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generando plan de estudio:', error);
-      const errorMessage = error.message || 'Error al generar el plan de estudio';
+      const errorMessage = error instanceof Error ? error.message : 'Error al generar el plan de estudio';
       notifyError({
         title: 'Error al generar plan',
         message: errorMessage.includes('truncada') || errorMessage.includes('mal formada')
@@ -1033,10 +1025,14 @@ function PersonalizedStudyPlan({
     }
   };
 
-  // Obtener materias con debilidades
+  /** Materias con al menos una debilidad: solo estas pueden generar plan y se usan en la cascada. */
   const subjectsWithWeaknesses = subjectsWithTopics.filter(s => s.weaknesses.length > 0);
 
-  // Orden de materias para mostrar (usado para cascada)
+  /** Mensaje para materias sin debilidades: orientar al estudiante a priorizar otras materias. */
+  const NO_WEAKNESSES_MESSAGE =
+    'No se detectaron debilidades en esta materia. Concéntrate en fortalecer las demás materias en las que presentas debilidad.';
+
+  // Orden de materias para mostrar (usado para cascada y listado)
   const subjectOrder: Record<string, number> = {
     'Matemáticas': 1,
     'Lenguaje': 2,
@@ -1047,30 +1043,38 @@ function PersonalizedStudyPlan({
     'Inglés': 7
   };
 
-  // Ordenar materias según el orden predefinido (usado para cascada)
-  const sortedSubjects = [...subjectsWithWeaknesses].sort((a, b) => {
+  /** Todas las materias ordenadas: se muestran en el plan (con y sin debilidades). */
+  const sortedSubjects = [...subjectsWithTopics].sort((a, b) => {
     const orderA = subjectOrder[a.name] || 999;
     const orderB = subjectOrder[b.name] || 999;
     return orderA - orderB;
   });
 
-  // Función helper para determinar si una materia puede mostrar el botón "Generar Plan"
-  // Implementa lógica de cascada: solo la primera materia autorizada sin plan puede generar
+  /** Materias con debilidades ordenadas: usadas para la lógica de cascada del botón Generar. */
+  const sortedSubjectsWithWeaknesses = [...subjectsWithWeaknesses].sort((a, b) => {
+    const orderA = subjectOrder[a.name] || 999;
+    const orderB = subjectOrder[b.name] || 999;
+    return orderA - orderB;
+  });
+
+  /**
+   * Determina si una materia puede mostrar el botón "Generar Plan".
+   * Solo materias con debilidades; cascada: solo la primera autorizada sin plan.
+   */
   const canShowGenerateButton = (subjectName: string): boolean => {
-    // Verificar condiciones básicas
+    const hasWeaknesses = subjectsWithWeaknesses.some(s => s.name === subjectName);
+    if (!hasWeaknesses) return false;
+
     const plan = studyPlans[subjectName];
     const isAuthorized = subjectAuthorizations[subjectName] ?? false;
-    
-    // Si ya tiene plan o no está autorizada, no mostrar botón
+
     if (plan || !isAuthorized || loadingPlans || loadingAuthorizations) {
       return false;
     }
 
-    // Lógica de cascada: verificar si hay alguna materia anterior (en orden) 
-    // que esté autorizada pero no tenga plan
     const currentSubjectOrder = subjectOrder[subjectName] || 999;
-    
-    for (const subject of sortedSubjects) {
+
+    for (const subject of sortedSubjectsWithWeaknesses) {
       const subjectOrderValue = subjectOrder[subject.name] || 999;
       
       // Solo verificar materias anteriores en el orden
@@ -1091,17 +1095,14 @@ function PersonalizedStudyPlan({
     return true;
   };
 
-  if (subjectsWithWeaknesses.length === 0) {
+  if (subjectsWithTopics.length === 0) {
     return (
       <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
         <CardContent className="pt-6">
           <div className="text-center py-8">
-            <Trophy className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600')} />
-            <p className={cn("mb-2 font-medium", theme === 'dark' ? 'text-white' : 'text-gray-800')}>
-              ¡Excelente trabajo!
-            </p>
+            <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
             <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              No se identificaron debilidades. Continúa así.
+              No hay materias disponibles para el plan de estudio.
             </p>
           </div>
         </CardContent>
@@ -1134,15 +1135,11 @@ function PersonalizedStudyPlan({
     >
       <div className="space-y-3">
       {sortedSubjects.map((subject) => {
+        const hasWeaknesses = subject.weaknesses.length > 0;
         const plan = studyPlans[subject.name];
         const isGenerating = generatingFor === subject.name;
         const isAuthorized = subjectAuthorizations[subject.name] ?? false;
-        // Mostrar el botón solo si:
-        // 1. NO hay plan en la base de datos
-        // 2. La materia está autorizada para el grado y fase del estudiante
-        // 3. Se han cargado las autorizaciones
-        // 4. Es la primera materia autorizada sin plan (lógica de cascada)
-        const shouldShowButton = canShowGenerateButton(subject.name);
+        const shouldShowButton = hasWeaknesses && canShowGenerateButton(subject.name);
 
         return (
           <AccordionItem 
@@ -1167,56 +1164,60 @@ function PersonalizedStudyPlan({
                       {subject.name}
                     </h3>
                     <p className={cn("text-sm mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                      {subject.weaknesses.length} debilidad(es) identificada(s)
+                      {hasWeaknesses
+                        ? `${subject.weaknesses.length} debilidad(es) identificada(s)`
+                        : 'Sin debilidades detectadas'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  {shouldShowButton && (
-                    <Button
-                      onClick={() => generateStudyPlan(subject.name)}
-                      disabled={isGenerating}
-                      size="sm"
-                      className={cn(
-                        theme === 'dark' 
-                          ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-                          : 'bg-purple-600 hover:bg-purple-700 text-white'
-                      )}
-                    >
-                      {isGenerating ? (
-                        <>
-                          <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2")}></div>
-                          Generando...
-                        </>
-                      ) : (
-                        <>
-                          <Brain className="h-3 w-3 mr-2" />
-                          Generar Plan
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  {!plan && !shouldShowButton && (
-                    <div className={cn("text-sm px-3 py-1.5 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50 text-gray-400' : 'bg-gray-100 text-gray-600')}>
-                      {loadingAuthorizations ? (
-                        <>
-                          <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 inline-block mr-2", theme === 'dark' ? 'border-gray-400' : 'border-gray-600')}></div>
-                          Verificando...
-                        </>
-                      ) : !isAuthorized ? (
-                        <>
-                          <Lock className="h-3 w-3 inline mr-2" />
-                          No autorizado
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="h-3 w-3 inline mr-2" />
-                          En espera 
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {hasWeaknesses && (
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    {shouldShowButton && (
+                      <Button
+                        onClick={() => generateStudyPlan(subject.name)}
+                        disabled={isGenerating}
+                        size="sm"
+                        className={cn(
+                          theme === 'dark' 
+                            ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                            : 'bg-purple-600 hover:bg-purple-700 text-white'
+                        )}
+                      >
+                        {isGenerating ? (
+                          <>
+                            <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2")}></div>
+                            Generando...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="h-3 w-3 mr-2" />
+                            Generar Plan
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {!plan && !shouldShowButton && (
+                      <div className={cn("text-sm px-3 py-1.5 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50 text-gray-400' : 'bg-gray-100 text-gray-600')}>
+                        {loadingAuthorizations ? (
+                          <>
+                            <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 inline-block mr-2", theme === 'dark' ? 'border-gray-400' : 'border-gray-600')}></div>
+                            Verificando...
+                          </>
+                        ) : !isAuthorized ? (
+                          <>
+                            <Lock className="h-3 w-3 inline mr-2" />
+                            No autorizado
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-3 w-3 inline mr-2" />
+                            En espera 
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </AccordionTrigger>
             <AccordionContent>
@@ -1225,7 +1226,16 @@ function PersonalizedStudyPlan({
                 theme === 'dark' ? 'bg-zinc-900/30' : 'bg-gray-50/50'
               )}>
 
-                {isGenerating && (
+                {!hasWeaknesses && (
+                  <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
+                    <CheckCircle2 className={cn("h-10 w-10 flex-shrink-0", theme === 'dark' ? 'text-green-400' : 'text-green-600')} />
+                    <p className={cn("text-sm max-w-md", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                      {NO_WEAKNESSES_MESSAGE}
+                    </p>
+                  </div>
+                )}
+
+                {hasWeaknesses && isGenerating && (
                   <div className="flex items-center justify-center gap-3 py-8">
                     <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
                     <div>
@@ -1239,7 +1249,7 @@ function PersonalizedStudyPlan({
                   </div>
                 )}
 
-                {plan && !isGenerating && (
+                {hasWeaknesses && plan && !isGenerating && (
                   <div className="space-y-6">
                 {/* Resumen del diagnóstico */}
                 <div className={cn("p-4 rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border border-purple-700/50' : 'bg-purple-50 border border-purple-200')}>
@@ -1613,59 +1623,59 @@ function PersonalizedStudyPlan({
                   </div>
                 )}
 
-                {!plan && !isGenerating && (
+                {hasWeaknesses && !plan && !isGenerating && (
                   <div>
-                <div className="text-center py-6">
-                  {shouldShowButton ? (
-                    <>
-                      <p className={cn("text-sm mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                        Haz clic en "Generar Plan" para crear un plan de estudio personalizado basado en tus debilidades.
-                      </p>
-                      <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-yellow-900/30 border border-yellow-700/50' : 'bg-yellow-50 border border-yellow-200')}>
-                        <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700')}>
-                          Debilidades identificadas:
-                        </p>
-                        <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                          {subject.weaknesses.map((weakness, idx) => {
-                            const topicData = subject.topics.find(t => t.name === weakness);
-                            return (
-                              <li key={idx}>
-                                • {weakness} ({topicData?.percentage || 0}%)
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className={cn("flex items-center justify-center gap-2 mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                        <Clock className="h-5 w-5" />
-                        <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                          {isAuthorized 
-                            ? 'El plan de estudio estará disponible después de generar el plan de la materia anterior en el orden de cascada.'
-                            : 'El plan de estudio no está autorizado para esta materia.'}
-                        </p>
-                      </div>
-                      <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-zinc-700/30 border border-zinc-600/50' : 'bg-gray-50 border border-gray-200')}>
-                        <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                          Debilidades identificadas:
-                        </p>
-                        <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                          {subject.weaknesses.map((weakness, idx) => {
-                            const topicData = subject.topics.find(t => t.name === weakness);
-                            return (
-                              <li key={idx}>
-                                • {weakness} ({topicData?.percentage || 0}%)
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    </>
-                  )}
+                    <div className="text-center py-6">
+                      {shouldShowButton ? (
+                        <>
+                          <p className={cn("text-sm mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                            Haz clic en "Generar Plan" para crear un plan de estudio personalizado basado en tus debilidades.
+                          </p>
+                          <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-yellow-900/30 border border-yellow-700/50' : 'bg-yellow-50 border border-yellow-200')}>
+                            <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700')}>
+                              Debilidades identificadas:
+                            </p>
+                            <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                              {subject.weaknesses.map((weakness, idx) => {
+                                const topicData = subject.topics.find(t => t.name === weakness);
+                                return (
+                                  <li key={idx}>
+                                    • {weakness} ({topicData?.percentage || 0}%)
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className={cn("flex items-center justify-center gap-2 mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                            <Clock className="h-5 w-5" />
+                            <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                              {isAuthorized
+                                ? 'El plan de estudio estará disponible después de generar el plan de la materia anterior en el orden de cascada.'
+                                : 'El plan de estudio no está autorizado para esta materia.'}
+                            </p>
+                          </div>
+                          <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-zinc-700/30 border border-zinc-600/50' : 'bg-gray-50 border border-gray-200')}>
+                            <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                              Debilidades identificadas:
+                            </p>
+                            <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                              {subject.weaknesses.map((weakness, idx) => {
+                                const topicData = subject.topics.find(t => t.name === weakness);
+                                return (
+                                  <li key={idx}>
+                                    • {weakness} ({topicData?.percentage || 0}%)
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
                 )}
               </div>
             </AccordionContent>
