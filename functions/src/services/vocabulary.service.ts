@@ -14,6 +14,7 @@ import { geminiClient } from '../config/gemini.config';
 export const MATERIA_MAP: Record<string, string> = {
   'Matemáticas': 'matematicas',
   'Lectura Crítica': 'lectura_critica',
+  'Lenguaje': 'lectura_critica', // Lenguaje es equivalente a Lectura Crítica en ICFES
   'Ciencias Naturales': 'ciencias_naturales',
   'Física': 'fisica',
   'Biología': 'biologia',
@@ -23,6 +24,7 @@ export const MATERIA_MAP: Record<string, string> = {
   'Ciencias Sociales': 'sociales_ciudadanas', // Mapeo adicional para el nombre usado en el sistema
   'matematicas': 'matematicas',
   'lectura_critica': 'lectura_critica',
+  'lenguaje': 'lectura_critica', // También mapear la versión en minúsculas
   'ciencias_naturales': 'ciencias_naturales',
   'fisica': 'fisica',
   'biologia': 'biologia',

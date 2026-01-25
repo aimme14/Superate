@@ -34,6 +34,7 @@ interface VocabularyBankProps {
 const MATERIA_MAP: Record<string, string> = {
   'Matemáticas': 'matematicas',
   'Lectura Crítica': 'lectura_critica',
+  'Lenguaje': 'lectura_critica', // Lenguaje es equivalente a Lectura Crítica en ICFES
   'Ciencias Naturales': 'ciencias_naturales',
   'Física': 'fisica',
   'Biología': 'biologia',
