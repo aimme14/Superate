@@ -71,8 +71,8 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
               "rounded-lg mx-2 my-1",
               isActive
                 ? theme === 'dark'
-                  ? 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
-                  : 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/30'
+                  ? '!bg-purple-600 !text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
+                  : '!bg-purple-700 !text-white !border-2 !border-purple-800 hover:bg-gradient-to-r hover:from-purple-700 hover:via-purple-800 hover:to-indigo-700 hover:shadow-lg hover:shadow-purple-500/30'
                 : theme === 'dark'
                   ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
                   : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
@@ -81,7 +81,10 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
             <Link
               to={item.href as string}
               onClick={() => item.action?.()}
-              className='flex w-full items-center gap-3 px-4 py-3 relative z-10'
+              className={cn(
+                'flex w-full items-center gap-3 px-4 py-3 relative z-10',
+                isActive && theme === 'light' && '!text-white'
+              )}
             >
               <motion.div
                 animate={isActive ? { rotate: [0, -10, 10, -10, 0] } : {}}
@@ -89,12 +92,12 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
               >
                 <item.icon className={cn(
                   'w-5 h-5 transition-transform duration-300 group-hover:scale-110',
-                  isActive ? 'text-white' : ''
+                  isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
                 )} />
               </motion.div>
               <span className={cn(
                 'text-sm font-medium pointer-events-none',
-                isActive ? 'text-white' : ''
+                isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
               )}>{item.label}</span>
               {item.subItems && (<IconChevron isOpen={isOpen} />)}
             </Link>
@@ -138,8 +141,8 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
                 "rounded-lg mx-2 my-1",
                 isActive
                   ? theme === 'dark'
-                    ? 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
-                    : 'bg-purple-600 text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/30'
+                    ? '!bg-purple-600 !text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
+                    : '!bg-purple-700 !text-white !border-2 !border-purple-800 hover:bg-gradient-to-r hover:from-purple-700 hover:via-purple-800 hover:to-indigo-700 hover:shadow-lg hover:shadow-purple-500/30'
                   : theme === 'dark'
                     ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
                     : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
@@ -148,7 +151,10 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
               <Link
                 to={item.href as string}
                 onClick={() => item.action?.()}
-                className='flex w-full items-center gap-3 px-4 py-2 relative z-10'
+                className={cn(
+                  'flex w-full items-center gap-3 px-4 py-2 relative z-10',
+                  isActive && theme === 'light' && '!text-white'
+                )}
               >
                 <motion.div
                   animate={isActive ? { rotate: [0, -10, 10, -10, 0] } : {}}
@@ -156,12 +162,12 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
                 >
                   <item.icon className={cn(
                     'w-4 h-4 transition-transform duration-300 group-hover:scale-110',
-                    isActive ? 'text-white' : ''
+                    isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
                   )} />
                 </motion.div>
                 <span className={cn(
                   'text-sm font-medium pointer-events-none',
-                  isActive ? 'text-white' : ''
+                  isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
                 )}>{item.label}</span>
                 {item.subItems && (<IconChevron isOpen={isOpen} />)}
               </Link>
