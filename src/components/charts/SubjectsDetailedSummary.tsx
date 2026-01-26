@@ -37,6 +37,22 @@ interface SubjectsDetailedSummaryProps {
   theme?: 'light' | 'dark';
 }
 
+// Función helper para mapear nombres de pruebas a nombres descriptivos (solo para visualización del estudiante)
+function getTestDisplayName(testName: string): string {
+  const testNameMap: Record<string, string> = {
+    'Prueba 1': 'Comprensión de avisos públicos',
+    'Prueba 2': 'Vocabulario, Asociación semántica',
+    'Prueba 3': 'Competencia comunicativa',
+    'Prueba 4': 'Comprensión lectora',
+    'Prueba 5': 'Comprensión global del texto',
+    'Prueba 6': 'Comprensión lectora avanzada',
+    'Prueba 7': 'Preposiciones y conectores',
+  };
+  
+  // Retornar el nombre mapeado si existe, de lo contrario retornar el nombre original
+  return testNameMap[testName] || testName;
+}
+
 export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 'light' }: SubjectsDetailedSummaryProps) {
   
   // Función para generar resumen general del estudiante
@@ -128,11 +144,11 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
       summary += `Al analizar por temas evaluados, `;
 
       if (strongTopics.length > 0) {
-        summary += `demuestra dominio en ${strongTopics.length} tema${strongTopics.length > 1 ? 's' : ''} (${strongTopics.slice(0, 2).map(t => t.name).join(', ')}${strongTopics.length > 2 ? ', entre otros' : ''}). `;
+        summary += `demuestra dominio en ${strongTopics.length} tema${strongTopics.length > 1 ? 's' : ''} (${strongTopics.slice(0, 2).map(t => getTestDisplayName(t.name)).join(', ')}${strongTopics.length > 2 ? ', entre otros' : ''}). `;
       }
 
       if (weakTopics.length > 0) {
-        summary += `Sin embargo, requiere refuerzo significativo en ${weakTopics.length} tema${weakTopics.length > 1 ? 's' : ''}: ${weakTopics.slice(0, 2).map(t => t.name).join(' y ')}${weakTopics.length > 2 ? ', entre otros' : ''}. `;
+        summary += `Sin embargo, requiere refuerzo significativo en ${weakTopics.length} tema${weakTopics.length > 1 ? 's' : ''}: ${weakTopics.slice(0, 2).map(t => getTestDisplayName(t.name)).join(' y ')}${weakTopics.length > 2 ? ', entre otros' : ''}. `;
       }
 
       if (moderateTopics.length > 0 && strongTopics.length === 0 && weakTopics.length === 0) {
@@ -141,12 +157,12 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
     } else {
       // Agregar fortalezas si existen (cuando no hay info de temas)
       if (strengths.length > 0) {
-        summary += `Entre sus fortalezas destacan: ${strengths.slice(0, 2).join(' y ')}. `;
+        summary += `Entre sus fortalezas destacan: ${strengths.slice(0, 2).map(s => getTestDisplayName(s)).join(' y ')}. `;
       }
 
       // Agregar debilidades y recomendaciones
       if (weaknesses.length > 0) {
-        summary += `Sin embargo, presenta oportunidades de mejora en: ${weaknesses.slice(0, 2).join(' y ')}. `;
+        summary += `Sin embargo, presenta oportunidades de mejora en: ${weaknesses.slice(0, 2).map(w => getTestDisplayName(w)).join(' y ')}. `;
       }
     }
 
