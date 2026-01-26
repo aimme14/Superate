@@ -360,6 +360,24 @@ class StudyPlanService {
   }
 
   /**
+   * Transforma los nombres técnicos de temas de inglés a nombres descriptivos
+   * para que aparezcan de forma más amigable en el prompt
+   */
+  private transformEnglishTopicName(topicName: string): string {
+    const topicMap: Record<string, string> = {
+      'Parte 1': 'Comprensión de avisos públicos, Interpretación de mensajes funcionales, Vocabulario cotidiano, Nombre recomendado: Comprensión de avisos públicos, Interpretación de mensajes funcionales, Vocabulario cotidiano, Nombre técnico alternativo: Comprensión de textos cortos contextuales',
+      'Parte 2': 'Vocabulario, Asociación semántica, Comprensión léxica, Nombre recomendado: Vocabulario, Asociación semántica, Comprensión léxica, Nombre técnico alternativo: Reconocimiento léxico-semántico',
+      'Parte 3': 'Competencia comunicativa, Pragmática del idioma, Uso natural de expresiones, Nombre recomendado: Uso funcional del idioma en diálogos, Nombre técnico alternativo: Competencia pragmática y conversacional',
+      'Parte 4': 'Comprensión lectora, Gramática en contexto, Cohesión textual, Nombre recomendado: Comprensión lectora y gramática contextual. Nombre técnico alternativo: Procesamiento gramatical en textos continuos y segmentados',
+      'Parte 5': 'Comprensión global del texto, Identificación de ideas principales, Información específica, Inferencias simples, Vocabulario en contexto',
+      'Parte 6': 'omprensión lectora avanzada, Propósito del autor, Opiniones y actitudes, Conclusiones a partir del texto, Relación de ideas, Nombre recomendado: Comprensión lectora crítica, Nombre técnico alternativo: Interpretación de textos, Análisis del propósito del autor, Lectura inferencial y crítica',
+      'Parte 7': 'Preposiciones, conectores, cuantificadores, tiempos verbales, pronombres relativos, Gramática aplicada al contexto, Vocabulario funcional, 🎯 Nombre recomendado, Uso del lenguaje en contexto',
+    };
+    
+    return topicMap[topicName] || topicName;
+  }
+
+  /**
    * Construye el prompt maestro para generar el plan de estudio
    */
   private buildStudyPlanPrompt(
@@ -374,7 +392,13 @@ class StudyPlanService {
     examResults.forEach(exam => {
       const questionDetails = exam.questionDetails || [];
       questionDetails.forEach((q: any) => {
-        if (q.topic) allTopics.add(q.topic);
+        if (q.topic) {
+          // Para inglés, transformar los nombres de temas
+          const topicName = subject === 'Inglés' 
+            ? this.transformEnglishTopicName(q.topic)
+            : q.topic;
+          allTopics.add(topicName);
+        }
       });
     });
 
@@ -386,10 +410,34 @@ class StudyPlanService {
         `- ${q.questionText.substring(0, 100)}${q.questionText.length > 100 ? '...' : ''}`
       ).join('\n');
       
-      return `**${w.topic}**: ${w.percentage}% de aciertos (${w.correct}/${w.total} correctas)
+      // Para inglés, transformar el nombre del tema en la descripción de debilidades
+      const displayTopic = subject === 'Inglés' 
+        ? this.transformEnglishTopicName(w.topic)
+        : w.topic;
+      
+      return `**${displayTopic}**: ${w.percentage}% de aciertos (${w.correct}/${w.total} correctas)
 Preguntas de ejemplo:
 ${sampleQuestions}`;
     }).join('\n\n');
+
+    // Construir instrucción de keywords según la materia
+    const keywordsInstruction = subject === 'Inglés'
+      ? '- ✅ **Para Inglés: Incluye keywords los videos serán en español explicando temas de inglés'
+      : '- ✅ Incluye keywords en español (los videos se buscarán en español)';
+    
+    // Construir sección de canales recomendados para inglés
+    const englishChannelsSection = subject === 'Inglés' ? `
+**CANALES RECOMENDADOS PARA INGLÉS:**
+Los siguientes canales de YouTube son altamente recomendados para el aprendizaje de inglés y pueden ser referenciados en las keywords:
+- Francisco Ochoa Inglés Fácil
+- Inglés Para Perezosos
+- Soy Miguel Idiomas
+- EasySpeak Inglés
+- Kale Anders
+- aprendoinglescantando6191
+- GrammarSongs by Melissa 
+
+Puedes incluir estos nombres de canales en las keywords cuando sean relevantes para el tema, por ejemplo: ["reading comprehension", "Francisco Ochoa Inglés Fácil", "grammar exercises"]` : '';
 
     return `Eres un **experto con doctorado en educación secundaria y preparación para el examen ICFES Saber 11**, con amplia experiencia pedagógica, curricular y evaluativa. Tu objetivo es diseñar un **plan de estudio personalizado** basado en el desempeño real del estudiante, detectado a partir de un cuestionario previamente respondido y almacenado en base de datos.
 
@@ -457,10 +505,10 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       "level": "Básico|Intermedio|Avanzado",
       "keywords": ["keyword1", "keyword2", "keyword3"],
       "webSearchInfo": {
-        "searchIntent": "Intención pedagógica de búsqueda (ej: artículo explicativo o paguina web donde se explique como se resuelven ecuaciones cuadráticas y si se puede que incluya ejercicios resueltos)",
-        "searchKeywords": ["palabra1", "palabra2", "palabra3"],
-        "expectedContentTypes": ["artículo explicativo o paguina web", "guía paso a paso", "contenido académico introductorio"],
-        "educationalLevel": "Nivel educativo (ej: secundaria, preparación ICFES)"
+        "searchIntent": "Intención pedagógica de búsqueda para estudiantes de GRADO 11 (secundaria). ⚠️ CRÍTICO: Debe ser material fácil de entender, NO universitario. Ejemplo: 'artículo explicativo sobre ecuaciones cuadráticas para estudiantes de grado 11, fácil de entender, con ejemplos simples'",
+        "searchKeywords": ["palabra1", "palabra2", "palabra3", "grado 11", "secundaria"],
+        "expectedContentTypes": ["artículo explicativo para secundaria", "guía paso a paso nivel básico", "contenido académico introductorio para grado 11", "material de práctica nivel secundaria"],
+        "educationalLevel": "Nivel educativo: DEBE SER 'secundaria', 'grado 11', 'bachillerato' o 'preparación ICFES'. NO usar 'universitario' ni 'avanzado'"
       }
     }
   ]
@@ -541,25 +589,27 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
   - Ejemplos de keywords buenas: ["ecuaciones cuadráticas", "fórmula general", "factorización", "ICFES matemáticas"]
   - Evita keywords muy genéricas como ["matemáticas", "estudio", "aprender"]
 - **webSearchInfo**: Información semántica para buscar recursos web educativos (OBLIGATORIO)
-  - **searchIntent**: Intención pedagógica clara de qué tipo de contenido se busca (ej: "artículo explicativo sobre ecuaciones cuadráticas para estudiantes de secundaria")
-  - **searchKeywords**: Array de 3-5 palabras clave específicas para buscar recursos web (pueden ser diferentes a las keywords de videos)
+  - **searchIntent**: Intención pedagógica clara de qué tipo de contenido se busca. ⚠️ **CRÍTICO**: Debe ser material para estudiantes de GRADO 11 (secundaria), NO universitario. Ejemplo: "artículo explicativo sobre ecuaciones cuadráticas para estudiantes de grado 11 o secundaria, fácil de entender"
+  - **searchKeywords**: Array de 3-5 palabras clave específicas para buscar recursos web. ⚠️ **IMPORTANTE**: Incluye términos como "grado 11", "secundaria", "bachillerato", "ICFES", "nivel básico" para evitar contenido universitario avanzado
   - **expectedContentTypes**: Array de tipos de contenido esperados usando vocabulario educativo estándar:
-    - "artículo explicativo"
-    - "guía paso a paso"
-    - "contenido académico introductorio"
-    - "material de práctica"
-    - "resumen conceptual"
-    - "ejercicios resueltos"
-    - "contenido de profundización"
-  - **educationalLevel**: Nivel educativo (ej: "secundaria", "preparación ICFES", "nivel básico")
+    - "artículo explicativo para secundaria"
+    - "guía paso a paso nivel básico"
+    - "contenido académico introductorio para secundaria"
+    - "material de práctica nivel secundaria"
+    - "resumen conceptual fácil de entender"
+    - "ejercicios resueltos para estudiantes de secundaria"
+    - "contenido de preparación ICFES"
+  - **educationalLevel**: Nivel educativo. ⚠️ **DEBE SER**: "secundaria", "grado 11", "bachillerato", "preparación ICFES" o "nivel básico". NO uses "universitario", "avanzado" ni términos de educación superior
 
 **IMPORTANTE:**
 - ✅ Cada topic debe corresponder a una debilidad específica identificada
 - ✅ Las keywords deben ser lo suficientemente específicas para encontrar videos relevantes
-- ✅ Incluye keywords en español (los videos se buscarán en español)
+${keywordsInstruction}
+${englishChannelsSection}
 - ✅ Las keywords pueden incluir términos relacionados con ICFES o preparación para exámenes
 - ✅ **webSearchInfo es OBLIGATORIO** - Define QUÉ buscar, no DÓNDE buscar
 - ✅ NO incluyas URLs ni referencias a sitios específicos en webSearchInfo
+- ⚠️ **CRÍTICO PARA RECURSOS WEB**: El material debe ser para estudiantes de GRADO 11 (secundaria), NO universitario. Prioriza contenido fácil de entender, con ejemplos simples, adecuado para estudiantes que tienen debilidades en el tema. Evita términos como "universitario", "avanzado", "nivel superior". Usa términos como "secundaria", "grado 11", "bachillerato", "nivel básico", "fácil de entender"
 
 
 
@@ -1275,7 +1325,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
         }
         
         // Obtener videos para cada topic (desde caché o YouTube)
-        // IMPORTANTE: Cada topic debe tener exactamente 7 videos
+        // IMPORTANTE: Cada topic debe tener exactamente 15 videos
         const videoPromises = parsed.topics.map(async (topic) => {
           try {
             if (!topic.keywords || !Array.isArray(topic.keywords) || topic.keywords.length === 0) {
@@ -1286,7 +1336,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
             console.log(`   🔍 Procesando videos para topic: "${topic.name}"`);
             console.log(`      Keywords: ${topic.keywords.join(', ')}`);
             
-            // Obtener videos para este topic específico (retorna exactamente 7 videos)
+            // Obtener videos para este topic específico (retorna exactamente 15 videos)
             const videos = await this.getVideosForTopic(
               input.studentId,
               input.phase,
@@ -1296,7 +1346,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
             );
             
             if (videos.length > 0) {
-              console.log(`   ✅ Obtenidos ${videos.length} video(s) para topic "${topic.name}" (objetivo: 7)`);
+              console.log(`   ✅ Obtenidos ${videos.length} video(s) para topic "${topic.name}" (objetivo: 15)`);
             } else {
               console.warn(`   ⚠️ No se encontraron videos para topic "${topic.name}"`);
               console.warn(`      Esto puede deberse a:`);
@@ -1320,13 +1370,13 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
         const allVideos = await Promise.all(videoPromises);
         
         // Aplanar array de arrays - NO eliminar duplicados entre topics diferentes
-        // Cada topic debe tener sus propios 7 videos, aunque algunos puedan repetirse entre topics
+        // Cada topic debe tener sus propios 15 videos, aunque algunos puedan repetirse entre topics
         parsed.video_resources = allVideos.flat();
         
         const totalVideos = parsed.video_resources.length;
-        const expectedVideos = parsed.topics.length * 7;
+        const expectedVideos = parsed.topics.length * 15;
         console.log(`✅ Total de ${totalVideos} video(s) obtenido(s) para el plan de estudio`);
-        console.log(`   📊 Esperados: ${expectedVideos} videos (${parsed.topics.length} topics × 7 videos)`);
+        console.log(`   📊 Esperados: ${expectedVideos} videos (${parsed.topics.length} topics × 15 videos)`);
         if (totalVideos < expectedVideos) {
           console.warn(`   ⚠️ Faltan ${expectedVideos - totalVideos} video(s) (algunos topics no tienen suficientes videos)`);
         }
@@ -1352,7 +1402,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
         console.log(`   📚 Procesando ${parsed.topics.length} topic(s) para obtener enlaces...`);
         
         // Obtener enlaces para cada topic (desde caché o búsqueda)
-        // IMPORTANTE: Cada topic debe tener exactamente 10 enlaces (similar a videos con 7)
+        // IMPORTANTE: Cada topic debe tener exactamente 20 enlaces (similar a videos con 15)
         const linkPromises = parsed.topics.map(async (topic) => {
           try {
             if (!topic.webSearchInfo) {
@@ -1824,7 +1874,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     duration?: string;
     language?: string;
   }>> {
-    const MIN_VIDEOS_IN_DB = 20; // Mínimo de videos almacenados en DB
+    const MIN_VIDEOS_IN_DB = 50; // Mínimo de videos almacenados en DB
     const VIDEOS_TO_RETURN = 7; // Número de videos a retornar por topic débil
     
     try {
@@ -1891,7 +1941,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       console.log(`\n   📹 PASO 6: Buscando ${videosToSearch} video(s) en YouTube Data API v3...`);
       console.log(`      Usando YOUTUBE_API_KEY: ${process.env.YOUTUBE_API_KEY ? '✅ Configurada' : '❌ NO CONFIGURADA'}`);
       
-      const newVideos = await this.searchYouTubeVideos(searchKeywords, videosToSearch);
+      const newVideos = await this.searchYouTubeVideos(searchKeywords, videosToSearch, subject);
       
       if (newVideos.length === 0) {
         console.warn(`   ⚠️ No se encontraron videos nuevos en YouTube para "${topic}"`);
@@ -1901,7 +1951,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         // Si no hay videos en caché Y no se encontraron nuevos, intentar con keywords originales
         if (cachedVideos.length === 0 && searchKeywords !== keywords) {
           console.warn(`   🔄 Intentando búsqueda con keywords originales (sin optimización de Gemini)...`);
-          const fallbackVideos = await this.searchYouTubeVideos(keywords, 10);
+          const fallbackVideos = await this.searchYouTubeVideos(keywords, 10, subject);
           if (fallbackVideos.length > 0) {
             console.log(`   ✅ Encontrados ${fallbackVideos.length} video(s) con keywords originales`);
             // Guardar estos videos y retornarlos
@@ -1928,7 +1978,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
           console.error(`      Esto significa que el plan no tendrá videos para este topic.`);
         }
         
-        // Retornar los que hay en caché (hasta 7)
+        // Retornar los que hay en caché (hasta 15)
         return cachedVideos.slice(0, VIDEOS_TO_RETURN).map(v => ({
           title: v.title,
           url: v.url,
@@ -2295,7 +2345,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
    */
   private async searchYouTubeVideos(
     keywords: string[],
-    maxResults: number = 3
+    maxResults: number = 3,
+    subject?: string
   ): Promise<Array<{
     title: string;
     url: string;
@@ -2317,18 +2368,29 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
     try {
       // Construir query de búsqueda combinando keywords
-      const query = keywords.join(' ');
+      let query = keywords.join(' ');
+      
+      // Para inglés, agregar términos en español para encontrar videos en español que expliquen inglés
+      if (subject === 'Inglés') {
+        query = query + ' español explicación';
+        console.log(`   🇬🇧 Búsqueda para Inglés: agregando términos en español para encontrar videos en español`);
+      } else {
+        query = query + ' educación ICFES';
+      }
       
       // Construir URL de búsqueda
       // Usamos type=video para solo videos, videoEmbeddable=true para videos públicos
       // y order=relevance para obtener los más relevantes
+      // Para inglés, usamos región de Colombia (CO) para priorizar contenido en español
+      const regionCode = subject === 'Inglés' ? '&regionCode=CO' : '';
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?` +
         `part=snippet` +
-        `&q=${encodeURIComponent(query + ' educación ICFES')}` +
+        `&q=${encodeURIComponent(query)}` +
         `&type=video` +
         `&videoEmbeddable=true` +
         `&maxResults=${maxResults}` +
         `&order=relevance` +
+        `${regionCode}` +
         `&key=${YOUTUBE_API_KEY}`;
 
       console.log(`🔍 Buscando videos en YouTube con keywords: ${keywords.join(', ')}`);
@@ -2380,7 +2442,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
       if (!data.items || data.items.length === 0) {
         console.warn(`⚠️ No se encontraron videos para keywords: ${keywords.join(', ')}`);
-        console.warn(`   Query completa: "${query + ' educación ICFES'}"`);
+        console.warn(`   Query completa: "${query}"`);
         console.warn(`   Esto puede deberse a:`);
         console.warn(`   1. Las keywords son muy específicas o no existen videos con esos términos`);
         console.warn(`   2. Problemas con la API de YouTube`);
@@ -2550,10 +2612,15 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       // PASO 2: Construir query de búsqueda
       // Estrategia: Buscar sin filtro de sitio primero, luego filtrar por dominio
       // Esto nos da más resultados para filtrar
+      // IMPORTANTE: Agregar términos que prioricen contenido de secundaria/grado 11
       const searchTerms = `${webSearchInfo.searchIntent} ${webSearchInfo.searchKeywords.join(' ')}`;
-      const query = searchTerms;
+      
+      // Agregar términos adicionales para priorizar contenido de secundaria y evitar universitario
+      const secondaryLevelTerms = 'grado 11 secundaria bachillerato ICFES nivel básico';
+      const query = `${searchTerms} ${secondaryLevelTerms}`;
       
       console.log(`   📝 Query construida: "${query}"`);
+      console.log(`   🎯 Priorizando contenido de secundaria/grado 11 (evitando universitario)`);
       
       // PASO 3: Construir URL de búsqueda
       const numResults = Math.min(maxResults * 3, 10); // Buscar más para tener opciones al validar
@@ -2782,7 +2849,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     description: string;
     topic?: string;
   }>> {
-    const TARGET_LINKS_IN_DB = 50; // Número objetivo de enlaces almacenados en DB por tema
+    const TARGET_LINKS_IN_DB = 60; // Número objetivo de enlaces almacenados en DB por tema
     const LINKS_TO_RETURN = 10; // Número de enlaces a retornar por topic
     
     try {
@@ -2795,7 +2862,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       
       console.log(`   📦 Enlaces en caché para "${topic}": ${cachedLinks.length}`);
       
-      // 2. Si hay ≥50 enlaces en caché, retornar solo 10 (para tener variedad en la DB)
+      // 2. Si hay ≥60 enlaces en caché, retornar solo 20 (para tener variedad en la DB)
       if (cachedLinks.length >= TARGET_LINKS_IN_DB) {
         console.log(`   ✅ Usando ${LINKS_TO_RETURN} enlace(s) desde caché (hay ${cachedLinks.length} disponibles, no se consulta búsqueda externa)`);
         // Retornar 10 enlaces ordenados con el campo topic
