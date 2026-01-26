@@ -7,7 +7,10 @@ import { motion } from "framer-motion"
 
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { Link } from 'react-router-dom'
-import gsIcon from '/assets/cerebro_negro.png'
+import logoLight from '/assets/logo_tematica_blanca.png'
+import logoDark from '/assets/logo_tematica_negra.png'
+import letraModoClaro from '/assets/letra_modo_claro.png'
+import letraModoNegro from '/assets/letra_modo_negro.png'
 import { cn } from '@/lib/utils'
 
 const Navbar = () => {
@@ -25,14 +28,32 @@ const Navbar = () => {
           {isMobile && <SidebarTrigger className='mr-2' />}
           {!isMobile && (
             <motion.div initial={{ rotate: -10, scale: 0.9 }} animate={{ rotate: 0, scale: 1 }} transition={{ duration: 0.5 }}>
-              <span className={cn("flex h-16 mr-2 items-center justify-center", isAuth ? 'w-20' : 'w-24')}>
-                <img src={gsIcon} alt="GS Icon" />
+              <span className={cn("flex h-12 mr-2 shrink-0 items-center justify-center", isAuth ? 'w-16' : 'w-20')}>
+                <img
+                  src={theme === 'dark' ? logoDark : logoLight}
+                  alt="SUPERATE.IA"
+                  className="h-full w-auto max-h-12 object-contain"
+                />
               </span>
             </motion.div>
           )}
           {isAuth
-            ? <Link to="/" className="text-sm font-medium"> SUPERATE.IA</Link>
-            : <h1 className="text-xl font-semi">SUPERATE.IA</h1>}
+            ? (
+                <Link to="/" className="flex items-center shrink-0">
+                  <img
+                    src={theme === 'dark' ? letraModoNegro : letraModoClaro}
+                    alt="SUPERATE.IA"
+                    className="h-8 w-auto max-h-10 object-contain"
+                  />
+                </Link>
+              )
+            : (
+                <img
+                  src={theme === 'dark' ? letraModoNegro : letraModoClaro}
+                  alt="SUPERATE.IA"
+                  className="h-8 w-auto max-h-10 object-contain"
+                />
+              )}
         </div>
 
         <div className="flex items-center gap-x-2 md:gap-x-4">

@@ -3510,7 +3510,7 @@ export default function ICFESAnalysisInterface() {
         <div class="pdf-container">
           <!-- Encabezado con Logo -->
           <div class="header">
-            <img src="/assets/cerebro_negro.png" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
+            <img src="${theme === 'dark' ? '/assets/logo_tematica_negra.png' : '/assets/logo_tematica_blanca.png'}" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
             <div class="header-text">
               <h1>SUPERATE.IA</h1>
               <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE</div>
@@ -4307,7 +4307,7 @@ export default function ICFESAnalysisInterface() {
         <div class="pdf-container">
           <!-- Encabezado con Logo -->
           <div class="header">
-            <img src="/assets/cerebro_negro.png" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
+            <img src="${theme === 'dark' ? '/assets/logo_tematica_negra.png' : '/assets/logo_tematica_blanca.png'}" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
             <div class="header-text">
               <h1>SUPERATE.IA</h1>
               <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE</div>
@@ -6519,7 +6519,7 @@ export const generatePhase1And2PDFHTML = (
       <div class="pdf-container">
         <!-- Encabezado con Logo -->
         <div class="header">
-          <img src="/assets/cerebro_negro.png" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
+          <img src="${theme === 'dark' ? '/assets/logo_tematica_negra.png' : '/assets/logo_tematica_blanca.png'}" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
           <div class="header-text">
             <h1>SUPERATE.IA</h1>
             <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE</div>
@@ -7315,7 +7315,7 @@ export const generatePhase3PDFHTML = (
       <div class="pdf-container">
         <!-- Encabezado con Logo -->
         <div class="header">
-          <img src="/assets/cerebro_negro.png" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
+          <img src="${theme === 'dark' ? '/assets/logo_tematica_negra.png' : '/assets/logo_tematica_blanca.png'}" alt="SUPERATE.IA" class="header-logo" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';" />
           <div class="header-text">
             <h1>SUPERATE.IA</h1>
             <div class="subtitle">REPORTE DE RESULTADOS ESTUDIANTE</div>
