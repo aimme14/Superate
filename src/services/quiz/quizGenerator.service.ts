@@ -1078,6 +1078,14 @@ class QuizGeneratorService {
   }
 
   /**
+   * Normaliza el texto informativo para usarlo como clave de agrupación
+   * (trim + colapsar espacios) para que preguntas con el mismo contenido se agrupen aunque varíe el formato.
+   */
+  private normalizeInformativeTextForGroup(text: string | undefined): string {
+    return (text || '').trim().replace(/\s+/g, ' ');
+  }
+
+  /**
    * Ordena las preguntas agrupadas por orden de creación (más antigua primero)
    * Mantiene el orden dentro de cada grupo basado en fecha de creación
    * Para todas las materias excepto inglés:
@@ -1150,24 +1158,23 @@ class QuizGeneratorService {
       return result;
     }
 
-    // Para todas las demás materias: agrupar preguntas con informativeText (comprensión de lectura corta)
+    // Para todas las demás materias (excepto inglés): agrupar por informativeText y mostrar consecutivas
     const groupedMap: { [key: string]: Question[] } = {};
     const ungrouped: Question[] = [];
-    const subjectCode = this.getSubjectCode(subject);
 
     questions.forEach(question => {
-      // Si tiene informativeText, es comprensión de lectura corta - debe agruparse
-      if (question.informativeText && question.informativeText.trim() !== '' && question.subjectCode === subjectCode) {
-        // Clave única para el grupo: informativeText + imágenes informativas
+      const rawText = question.informativeText && question.informativeText.trim() !== '';
+      // No exigir subjectCode: el array ya es de una sola materia; agrupar solo por contenido
+      if (rawText) {
+        const normalizedText = this.normalizeInformativeTextForGroup(question.informativeText);
         const informativeImages = JSON.stringify(question.informativeImages || []);
-        const groupKey = `${question.informativeText}_${informativeImages}`;
-        
+        const groupKey = `${normalizedText}_${informativeImages}`;
+
         if (!groupedMap[groupKey]) {
           groupedMap[groupKey] = [];
         }
         groupedMap[groupKey].push(question);
       } else {
-        // Pregunta de opción múltiple estándar - puede estar en cualquier orden
         ungrouped.push(question);
       }
     });
@@ -1195,13 +1202,13 @@ class QuizGeneratorService {
         return;
       }
 
-      if (question.informativeText && question.informativeText.trim() !== '' && question.subjectCode === subjectCode) {
+      if (question.informativeText && question.informativeText.trim() !== '') {
+        const normalizedText = this.normalizeInformativeTextForGroup(question.informativeText);
         const informativeImages = JSON.stringify(question.informativeImages || []);
-        const groupKey = `${question.informativeText}_${informativeImages}`;
+        const groupKey = `${normalizedText}_${informativeImages}`;
         const group = groupedMap[groupKey];
-        
+
         if (group) {
-          // Agregar todo el grupo consecutivamente
           result.push(...group);
           group.forEach(q => processedIds.add(q.id || q.code));
         }

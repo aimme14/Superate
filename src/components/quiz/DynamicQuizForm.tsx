@@ -14,6 +14,7 @@ import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import ImageGallery from "@/components/common/ImageGallery";
+import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
 import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -409,53 +410,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     loadQuiz();
   }, [userId, subject, phase, grade]);
 
-  // Función para detectar grupos de preguntas agrupadas
-  const detectGroupedQuestions = (questions: any[]): { [key: number]: { start: number; end: number } } => {
-    const groups: { [key: number]: { start: number; end: number } } = {};
-    const processedIndices = new Set<number>();
-    
-    questions.forEach((question, index) => {
-      // Saltar si ya fue procesada o si es inglés
-      if (processedIndices.has(index) || question.subjectCode === 'IN') {
-        return;
-      }
-      
-      // Verificar si tiene informativeText (pregunta agrupada)
-      if (question.informativeText && question.informativeText.trim() !== '') {
-        const informativeText = question.informativeText;
-        const informativeImages = JSON.stringify(question.informativeImages || []);
-        const groupKey = `${informativeText}_${informativeImages}`;
-        
-        // Buscar todas las preguntas con el mismo grupo
-        const groupIndices: number[] = [];
-        questions.forEach((q, idx) => {
-          if (!processedIndices.has(idx) && q.subjectCode !== 'IN') {
-            const qInformativeText = q.informativeText || '';
-            const qInformativeImages = JSON.stringify(q.informativeImages || []);
-            const qGroupKey = `${qInformativeText}_${qInformativeImages}`;
-            
-            if (qGroupKey === groupKey && qInformativeText && qInformativeText.trim() !== '') {
-              groupIndices.push(idx);
-              processedIndices.add(idx);
-            }
-          }
-        });
-        
-        // Si hay más de una pregunta en el grupo, registrar el grupo
-        if (groupIndices.length > 1) {
-          const sortedIndices = groupIndices.sort((a, b) => a - b);
-          const startIndex = sortedIndices[0];
-          groups[startIndex] = {
-            start: startIndex + 1, // +1 para mostrar número de pregunta (1-indexed)
-            end: sortedIndices[sortedIndices.length - 1] + 1
-          };
-        }
-      }
-    });
-    
-    return groups;
-  };
-
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: string) => {
     const now = Date.now();
@@ -531,36 +485,31 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       const firstQuestionId = quizData.questions[0].id || quizData.questions[0].code;
       initializeQuestionTime(firstQuestionId);
       
-      // Detectar si la primera pregunta es parte de un grupo
+      // Mostrar mensaje de grupo si la primera pregunta pertenece a un grupo
       const groups = detectGroupedQuestions(quizData.questions);
-      if (groups[0]) {
-        setGroupedQuestionMessage(groups[0]);
-      }
-    }
-  }, [examState, quizData]);
-  
-  // Detectar cuando estamos en un grupo de preguntas agrupadas
-  useEffect(() => {
-    if (examState === 'active' && quizData) {
-      const groups = detectGroupedQuestions(quizData.questions);
-      
-      // Buscar si la pregunta actual pertenece a algún grupo
+      const currentQuestionNumber = 1;
       let foundGroup: { start: number; end: number } | null = null;
-      
-      // Buscar en todos los grupos para ver si la pregunta actual está dentro de alguno
       Object.values(groups).forEach((group: { start: number; end: number }) => {
-        const currentQuestionNumber = currentQuestion + 1; // Convertir a 1-indexed
         if (currentQuestionNumber >= group.start && currentQuestionNumber <= group.end) {
           foundGroup = group;
         }
       });
-      
-      // Si encontramos un grupo, mostrar el mensaje. Si no, ocultarlo
-      if (foundGroup) {
-        setGroupedQuestionMessage(foundGroup);
-      } else {
-        setGroupedQuestionMessage(null);
-      }
+      setGroupedQuestionMessage(foundGroup);
+    }
+  }, [examState, quizData]);
+
+  // Detectar cuando estamos en un grupo de preguntas agrupadas
+  useEffect(() => {
+    if (examState === 'active' && quizData) {
+      const groups = detectGroupedQuestions(quizData.questions);
+      const currentQuestionNumber = currentQuestion + 1;
+      let foundGroup: { start: number; end: number } | null = null;
+      Object.values(groups).forEach((group: { start: number; end: number }) => {
+        if (currentQuestionNumber >= group.start && currentQuestionNumber <= group.end) {
+          foundGroup = group;
+        }
+      });
+      setGroupedQuestionMessage(foundGroup);
     }
   }, [currentQuestion, examState, quizData]);
 
