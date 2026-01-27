@@ -190,6 +190,22 @@ function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemP
   );
 }
 
+// Función helper para mapear nombres de pruebas a nombres descriptivos (solo para visualización del estudiante)
+function getTestDisplayName(testName: string): string {
+  const testNameMap: Record<string, string> = {
+    'Prueba 1': 'Comprensión de avisos públicos',
+    'Prueba 2': 'Vocabulario, Asociación semántica',
+    'Prueba 3': 'Competencia comunicativa',
+    'Prueba 4': 'Comprensión lectora',
+    'Prueba 5': 'Comprensión global del texto',
+    'Prueba 6': 'Comprensión lectora avanzada',
+    'Prueba 7': 'Preposiciones y conectores',
+  };
+  
+  // Retornar el nombre mapeado si existe, de lo contrario retornar el nombre original
+  return testNameMap[testName] || testName;
+}
+
 // Componente de gráfico de rendimiento con materias expandibles
 function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data: SubjectAnalysis[], theme?: 'light' | 'dark', subjectsWithTopics?: SubjectWithTopics[] }) {
   // Si tenemos datos agrupados por materia y tema, usar esos
@@ -209,7 +225,7 @@ function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data:
                 {subject.topics.map((topic) => (
                   <div key={topic.name} className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{topic.name}</span>
+                      <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{getTestDisplayName(topic.name)}</span>
                       <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{topic.percentage}%</span>
                     </div>
                     <Progress value={topic.percentage} className="h-1.5" />
@@ -291,7 +307,7 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                       {subject.strengths.map((strength, index) => (
                         <li key={index} className="flex items-center gap-2 text-xs">
                           <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
-                          <span>{strength}</span>
+                          <span>{getTestDisplayName(strength)}</span>
                         </li>
                       ))}
                     </ul>
@@ -323,7 +339,7 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                       {subject.neutrals.map((neutral, index) => (
                         <li key={index} className="flex items-center gap-2 text-xs">
                           <Clock className="h-3 w-3 text-yellow-500 flex-shrink-0" />
-                          <span>{neutral}</span>
+                          <span>{getTestDisplayName(neutral)}</span>
                         </li>
                       ))}
                     </ul>
@@ -355,7 +371,7 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
                       {subject.weaknesses.map((weakness, index) => (
                         <li key={index} className="flex items-center gap-2 text-xs">
                           <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />
-                          <span>{weakness}</span>
+                          <span>{getTestDisplayName(weakness)}</span>
                         </li>
                       ))}
                     </ul>
@@ -1640,7 +1656,7 @@ function PersonalizedStudyPlan({
                                 const topicData = subject.topics.find(t => t.name === weakness);
                                 return (
                                   <li key={idx}>
-                                    • {weakness} ({topicData?.percentage || 0}%)
+                                    • {getTestDisplayName(weakness)} ({topicData?.percentage || 0}%)
                                   </li>
                                 );
                               })}
@@ -1666,7 +1682,7 @@ function PersonalizedStudyPlan({
                                 const topicData = subject.topics.find(t => t.name === weakness);
                                 return (
                                   <li key={idx}>
-                                    • {weakness} ({topicData?.percentage || 0}%)
+                                    • {getTestDisplayName(weakness)} ({topicData?.percentage || 0}%)
                                   </li>
                                 );
                               })}

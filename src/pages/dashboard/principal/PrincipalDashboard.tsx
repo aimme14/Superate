@@ -390,14 +390,14 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
   })
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
+    <div className="space-y-1 flex-1 flex flex-col justify-between">
+      <div className="flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
+            className={cn('text-xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
           >
             {averageLoading ? (
               <Loader2 className={cn("h-5 w-5 animate-spin inline", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
@@ -432,8 +432,8 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col gap-1">
+        <div className="flex items-end gap-1.5">
+          <div className="flex flex-col gap-0.5">
             <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Grado
             </label>
@@ -441,7 +441,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
               value={selectedGrade}
               onValueChange={setSelectedGrade}
             >
-              <SelectTrigger className={cn("h-7 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
                 <SelectValue placeholder="Grado" />
               </SelectTrigger>
               <SelectContent>
@@ -454,7 +454,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-0.5">
             <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Jornada
             </label>
@@ -462,7 +462,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
               value={selectedJornada}
               onValueChange={(value) => setSelectedJornada(value as 'mañana' | 'tarde' | 'única' | 'todas')}
             >
-              <SelectTrigger className={cn("h-7 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
                 <SelectValue placeholder="Jornada" />
               </SelectTrigger>
               <SelectContent>
@@ -473,7 +473,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-0.5">
             <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Fase
             </label>
@@ -481,7 +481,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
               value={selectedPhase}
               onValueChange={(value) => setSelectedPhase(value as 'first' | 'second' | 'third')}
             >
-              <SelectTrigger className={cn("h-7 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+              <SelectTrigger className={cn("h-6 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -518,7 +518,7 @@ function WelcomeTab({ theme, stats, currentCoordinator, rankingFilters, setRanki
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+        className="grid grid-cols-1 md:grid-cols-2 gap-3"
       >
         {[
           { 
@@ -528,15 +528,6 @@ function WelcomeTab({ theme, stats, currentCoordinator, rankingFilters, setRanki
             icon: Users, 
             color: 'blue',
             gradient: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800',
-            isCustom: false
-          },
-          { 
-            title: 'Docentes', 
-            value: stats?.totalTeachers || 0, 
-            change: '',
-            icon: GraduationCap, 
-            color: 'slate',
-            gradient: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700',
             isCustom: false
           },
           { 
@@ -555,14 +546,14 @@ function WelcomeTab({ theme, stats, currentCoordinator, rankingFilters, setRanki
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.6 + index * 0.1 }}
-            whileHover={{ scale: 1.05, y: -5 }}
+            className="h-full"
           >
             <Card className={cn(
-              "relative overflow-hidden border-0 shadow-lg",
+              "relative overflow-hidden border-0 shadow-lg h-full flex flex-col",
               theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-200'
             )}>
               <div className={cn("absolute top-0 right-0 w-24 h-24 bg-gradient-to-br opacity-10 rounded-full -mr-12 -mt-12", stat.gradient)} />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3 relative z-10">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-1.5 px-3 relative z-10">
                 <CardTitle className={cn('text-xs font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                   {stat.title}
                 </CardTitle>
@@ -573,16 +564,18 @@ function WelcomeTab({ theme, stats, currentCoordinator, rankingFilters, setRanki
                   <stat.icon className={cn("h-4 w-4", `text-${stat.color}-500`)} />
                 </motion.div>
               </CardHeader>
-              <CardContent className="relative z-10 px-3 pb-3 pt-1">
+              <CardContent className="relative z-10 px-3 pb-1.5 pt-0 flex-1 flex flex-col">
                 {stat.isCustom && stat.customComponent ? (
-                  stat.customComponent
+                  <div className="flex-1 flex flex-col">
+                    {stat.customComponent}
+                  </div>
                 ) : (
                   <>
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.8 + index * 0.1 }}
-                      className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                      className={cn('text-xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
                     >
                       {stat.value}
                     </motion.div>
