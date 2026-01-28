@@ -2,7 +2,7 @@ import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, BookOpen, 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -262,6 +262,8 @@ const ExamWithFirebase = () => {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
+  // Referencia para mantener el valor actualizado de tabChangeCount
+  const tabChangeCountRef = useRef(0)
   const [examLocked, setExamLocked] = useState(false)
   const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -524,7 +526,7 @@ const ExamWithFirebase = () => {
   }
 
   // Función para guardar resultados en Firebase
-  const saveToFirebase = async (timeExpired = false, lockedByTabChange = false) => {
+  const saveToFirebase = async (timeExpired = false, lockedByTabChange = false, currentTabChangeCount?: number) => {
     if (!quizData || !userId) return;
 
     setIsSubmitting(true)
@@ -541,6 +543,21 @@ const ExamWithFirebase = () => {
       // Asegurar que siempre tengamos una fase válida
       const finalPhase = currentPhase || examConfig.phase || 'first';
       
+      // Usar el valor pasado como parámetro, o la referencia, o el estado como último recurso
+      const finalTabChangeCount = currentTabChangeCount !== undefined 
+        ? currentTabChangeCount 
+        : tabChangeCountRef.current || tabChangeCount;
+      
+      // Determinar si hay fraude: si hay cambios de pestaña o si el examen fue bloqueado por cambio de pestaña
+      const hasFraud = finalTabChangeCount > 0 || lockedByTabChange === true;
+      
+      console.log('🔍 DEBUG - Guardando examen con datos de fraude:', {
+        tabChangeCount: finalTabChangeCount,
+        lockedByTabChange,
+        hasFraud,
+        timeExpired
+      });
+      
       const examResult = {
         userId,
         examId: examConfig.examId,
@@ -551,7 +568,7 @@ const ExamWithFirebase = () => {
         score,
         timeExpired,
         lockedByTabChange,
-        tabChangeCount,
+        tabChangeCount: finalTabChangeCount,
         startTime: new Date(examStartTime).toISOString(),
         endTime: new Date(examEndTime).toISOString(),
         timeSpent: totalExamTime,
@@ -655,7 +672,9 @@ const ExamWithFirebase = () => {
     setShowFullscreenExit(false)
 
     try {
-      await saveToFirebase(timeExpired, lockedByTabChange)
+      // Pasar el valor actualizado de tabChangeCount desde la referencia
+      const currentTabChangeCount = tabChangeCountRef.current || tabChangeCount;
+      await saveToFirebase(timeExpired, lockedByTabChange, currentTabChangeCount)
       setExamState('completed')
 
       // Salir de pantalla completa después de completar
@@ -682,6 +701,13 @@ const ExamWithFirebase = () => {
 
       setTabChangeCount(prev => {
         const newCount = prev + 1;
+        // Actualizar la referencia inmediatamente para tener el valor más actualizado
+        tabChangeCountRef.current = newCount;
+        
+        console.log('🚨 FRAUDE DETECTADO - Cambio de pestaña:', {
+          count: newCount,
+          timestamp: new Date().toISOString()
+        });
         
         // Si es la segunda vez (newCount === 2), finalizar examen automáticamente
         if (newCount === 2) {
@@ -692,6 +718,7 @@ const ExamWithFirebase = () => {
           // Finalizar el examen inmediatamente
           setExamLocked(true);
           setTimeout(() => {
+            // Pasar el valor actualizado explícitamente
             handleSubmit(false, true);
           }, 50);
         } else if (newCount === 1) {
@@ -752,20 +779,28 @@ const ExamWithFirebase = () => {
       setIsFullscreen(isCurrentlyFullscreen);
 
       if (examState === 'active' && !isCurrentlyFullscreen) {
-        // Verificar si también se cambió de pestaña
-        if (document.hidden) {
-          // Se salió de pantalla completa Y cambió de pestaña
-          setFullscreenExitWithTabChange(true);
-          setTabChangeCount(prev => prev + 1);
-          
-          // Si es la segunda vez que sale de pantalla completa Y cambia de pestaña, finalizar
-          if (tabChangeCount >= 1) {
-            setExamLocked(true);
-            handleSubmit(false, true);
+          // Verificar si también se cambió de pestaña
+          if (document.hidden) {
+            // Se salió de pantalla completa Y cambió de pestaña
+            setFullscreenExitWithTabChange(true);
+            setTabChangeCount(prev => {
+              const newCount = prev + 1;
+              tabChangeCountRef.current = newCount;
+              console.log('🚨 FRAUDE DETECTADO - Salida de pantalla completa y cambio de pestaña:', {
+                count: newCount,
+                timestamp: new Date().toISOString()
+              });
+              return newCount;
+            });
+            
+            // Si es la segunda vez que sale de pantalla completa Y cambia de pestaña, finalizar
+            if (tabChangeCountRef.current >= 1) {
+              setExamLocked(true);
+              handleSubmit(false, true);
+            } else {
+              setShowFullscreenExit(true);
+            }
           } else {
-            setShowFullscreenExit(true);
-          }
-        } else {
           // Solo salió de pantalla completa (sin cambiar de pestaña aún)
           setFullscreenExitWithTabChange(false);
           setShowFullscreenExit(true);
@@ -803,9 +838,17 @@ const ExamWithFirebase = () => {
             // Verificar si también se cambió de pestaña
             if (document.hidden) {
               setFullscreenExitWithTabChange(true);
-              setTabChangeCount(prev => prev + 1);
+              setTabChangeCount(prev => {
+                const newCount = prev + 1;
+                tabChangeCountRef.current = newCount;
+                console.log('🚨 FRAUDE DETECTADO - Escape y cambio de pestaña:', {
+                  count: newCount,
+                  timestamp: new Date().toISOString()
+                });
+                return newCount;
+              });
               
-              if (tabChangeCount >= 1) {
+              if (tabChangeCountRef.current >= 1) {
                 setExamLocked(true);
                 handleSubmit(false, true);
               } else {
@@ -828,6 +871,7 @@ const ExamWithFirebase = () => {
   const startExam = async () => {
     // Restablecer contador de intentos de fraude al iniciar el examen
     setTabChangeCount(0);
+    tabChangeCountRef.current = 0;
     setShowTabChangeWarning(false);
     const entered = await enterFullscreen()
     setExamState('active')
@@ -881,6 +925,11 @@ const ExamWithFirebase = () => {
   const finishExamByTabChange = async () => {
     setShowTabChangeWarning(false)
     setExamLocked(true)
+    // Asegurar que el fraude se registre correctamente
+    console.log('🚨 FRAUDE DETECTADO - Finalizando examen por cambio de pestaña:', {
+      tabChangeCount: tabChangeCountRef.current || tabChangeCount,
+      timestamp: new Date().toISOString()
+    });
     await handleSubmit(true, true)
   }
 
