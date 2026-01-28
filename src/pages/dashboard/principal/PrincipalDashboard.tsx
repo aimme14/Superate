@@ -2129,6 +2129,22 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
 }
 
 // Componente auxiliar para mostrar rendimiento
+// Función helper para mapear nombres de pruebas a nombres descriptivos (solo para visualización)
+function getTestDisplayName(testName: string): string {
+  const testNameMap: Record<string, string> = {
+    'Prueba 1': 'Comprensión de avisos públicos',
+    'Prueba 2': 'Vocabulario, Asociación semántica',
+    'Prueba 3': 'Competencia comunicativa',
+    'Prueba 4': 'Comprensión lectora',
+    'Prueba 5': 'Comprensión global del texto',
+    'Prueba 6': 'Comprensión lectora avanzada',
+    'Prueba 7': 'Preposiciones y conectores',
+  };
+  
+  // Retornar el nombre mapeado si existe, de lo contrario retornar el nombre original
+  return testNameMap[testName] || testName;
+}
+
 function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data: any[], theme?: 'light' | 'dark', subjectsWithTopics?: any[] }) {
   if (subjectsWithTopics && subjectsWithTopics.length > 0) {
     return (
@@ -2137,6 +2153,7 @@ function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data:
           const hasStrengths = subject.strengths?.length > 0
           const hasNeutrals = subject.neutrals?.length > 0
           const hasWeaknesses = subject.weaknesses?.length > 0
+          const isEnglish = subject.name === 'Inglés' || subject.name?.toLowerCase() === 'inglés'
           
           const getPercentageColor = (percentage: number) => {
             if (percentage >= 65) return theme === 'dark' ? 'text-green-400' : 'text-green-600'
@@ -2185,7 +2202,9 @@ function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data:
                       {subject.topics.map((topic: any) => (
                         <div key={topic.name} className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{topic.name}</span>
+                            <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                              {isEnglish ? getTestDisplayName(topic.name) : topic.name}
+                            </span>
                             <span className={cn("text-xs font-semibold", getPercentageColor(topic.percentage))}>
                               {topic.percentage}%
                             </span>
