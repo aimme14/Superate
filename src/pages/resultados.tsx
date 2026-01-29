@@ -264,6 +264,8 @@ export default function EvaluationsTab() {
               ...examData,
               examId: doc.id,
               phase: finalPhase,
+              tabChangeCount: examData.tabChangeCount ?? 0,
+              lockedByTabChange: examData.lockedByTabChange === true,
             });
           });
         }
@@ -295,6 +297,8 @@ export default function EvaluationsTab() {
               ...examData,
               examId,
               phase: inferredPhase,
+              tabChangeCount: examData.tabChangeCount ?? 0,
+              lockedByTabChange: examData.lockedByTabChange === true,
             });
           });
         }
@@ -357,21 +361,27 @@ export default function EvaluationsTab() {
     return "bg-red-100 text-red-800";
   };
 
-  // Función para determinar si fue intento de fraude
+  // Función para determinar si hubo intento de fraude (todas las fases y materias)
+  // Se considera fraude si hubo cambios de pestaña O si el examen fue bloqueado por cambio de pestaña
   const isFraudAttempt = (evaluation: ExamResult) => {
-    return evaluation.lockedByTabChange && evaluation.tabChangeCount > 0;
+    const tabCount = evaluation.tabChangeCount ?? 0;
+    const locked = evaluation.lockedByTabChange === true;
+    return tabCount > 0 || locked;
   };
 
-  // Función para obtener el badge de estado de seguridad
+  // Badge de estado de seguridad para alertar a docentes y revisión de datos
   const getSecurityBadge = (evaluation: ExamResult) => {
-    if (evaluation.tabChangeCount > 0) {
-      return (
-        <Badge variant="outline" className="text-orange-600 border-orange-200">
-          Intento de fraude
-        </Badge>
-      );
-    }
-    return null;
+    if (!isFraudAttempt(evaluation)) return null;
+    const tabCount = evaluation.tabChangeCount ?? 0;
+    return (
+      <Badge variant="outline" className={cn(
+        "border-orange-300",
+        theme === 'dark' ? 'text-orange-400 bg-orange-900/30' : 'text-orange-700 bg-orange-50'
+      )} title="Revisión de datos recomendada: se detectó cambio de pestaña durante el examen">
+        <Shield className="h-3 w-3 mr-1 inline" />
+        Intento de fraude {tabCount > 0 ? `(${tabCount})` : ''} · Revisión recomendada
+      </Badge>
+    );
   };
 
   const showExamDetails = (exam: ExamResult) => {
@@ -539,17 +549,19 @@ export default function EvaluationsTab() {
               </Button>
             </div>
 
-            {/* Mensaje de intento de fraude */}
+            {/* Mensaje de intento de fraude - visible para docentes y revisión de datos (todas las fases y materias) */}
             {isFraudAttempt(selectedExam) && (
-              <Card className={cn("mb-6", theme === 'dark' ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50')}>
+              <Card className={cn("mb-6", theme === 'dark' ? 'border-orange-700 bg-orange-900/30' : 'border-orange-300 bg-orange-50')}>
                 <CardContent className="pt-6">
-                  <div className={cn("flex items-center gap-3", theme === 'dark' ? 'text-red-300' : 'text-red-800')}>
-                    <Shield className="h-6 w-6" />
+                  <div className={cn("flex items-center gap-3", theme === 'dark' ? 'text-orange-200' : 'text-orange-800')}>
+                    <Shield className="h-6 w-6 flex-shrink-0" />
                     <div>
-                      <h3 className="font-semibold">Intento de fraude detectado</h3>
-                      <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-red-200' : '')}>
-                        El examen fue cerrado automáticamente debido a cambios repetidos de pestaña o ventana. 
-                        Esto se considera una violación de las reglas del examen.
+                      <h3 className="font-semibold">Intento de fraude detectado · Revisión recomendada</h3>
+                      <p className={cn("text-sm mt-1", theme === 'dark' ? 'text-orange-200/90' : 'text-orange-700')}>
+                        Durante esta evaluación se detectó cambio de pestaña o ventana
+                        {(selectedExam.tabChangeCount ?? 0) > 0 && ` (${selectedExam.tabChangeCount} vez/veces)`}.
+                        {selectedExam.lockedByTabChange && ' El examen fue cerrado automáticamente por esta razón.'}
+                        Se recomienda revisar estos datos antes de tomar decisiones basadas en este resultado.
                       </p>
                     </div>
                   </div>

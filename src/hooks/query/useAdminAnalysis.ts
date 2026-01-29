@@ -457,8 +457,8 @@ export const useStudentAnalysis = (studentId: string, enabled: boolean = true) =
           const score = result.score.overallPercentage || 0
           const resultAny = result as any
 
-          // Contar intentos de fraude
-          if (resultAny.tabChangeCount > 0 || resultAny.lockedByTabChange === true) {
+          // Contar intentos de fraude (todas las fases y materias)
+          if ((resultAny.tabChangeCount ?? 0) > 0 || resultAny.lockedByTabChange === true) {
             fraudAttempts++
           }
 
@@ -599,8 +599,8 @@ export const useStudentAnalysis = (studentId: string, enabled: boolean = true) =
               phaseSubjectBestScores[subject] = { percentage }
             }
 
-            // Contar intentos de fraude
-            if (resultAny.tabChangeCount > 0 || resultAny.lockedByTabChange === true) {
+            // Contar intentos de fraude (todas las fases y materias)
+            if ((resultAny.tabChangeCount ?? 0) > 0 || resultAny.lockedByTabChange === true) {
               phaseFraudAttempts++
             }
 

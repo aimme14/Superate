@@ -2027,22 +2027,30 @@ export default function ICFESAnalysisInterface() {
           console.log('📊 Ranking - Total estudiantes en el grado:', classmates.length);
         }
         
-        // Determinar la fase actual basada en los datos disponibles
-        // Priorizar Fase III, luego Fase II, luego Fase I
-        let currentPhase: 'first' | 'second' | 'third' = 'third';
-        if (phase3Data) {
-          currentPhase = 'third';
-        } else if (phase2Data) {
-          currentPhase = 'second';
-        } else if (phase1Data) {
-          currentPhase = 'first';
+        // Usar la fase seleccionada por el usuario para el ranking (puesto de la fase)
+        // Si está "Todas las Fases", no mostramos puesto por fase
+        if (selectedPhase === 'all') {
+          setStudentRank(null);
+          setTotalStudents(null);
+          if (isMounted) setIsLoadingRank(false);
+          return;
+        }
+        
+        const phaseMap = { phase1: 'first' as const, phase2: 'second' as const, phase3: 'third' as const };
+        const currentPhase = phaseMap[selectedPhase];
+        const hasDataForPhase = (currentPhase === 'first' && phase1Data) || (currentPhase === 'second' && phase2Data) || (currentPhase === 'third' && phase3Data);
+        if (!hasDataForPhase) {
+          setStudentRank(null);
+          setTotalStudents(classmates.length);
+          if (isMounted) setIsLoadingRank(false);
+          return;
         }
         
         if (import.meta.env.DEV) {
-          console.log('📊 Ranking - Fase actual:', currentPhase);
+          console.log('📊 Ranking - Fase seleccionada:', selectedPhase, '->', currentPhase);
         }
         
-        // Calcular puntaje global de cada estudiante para la fase actual
+        // Calcular puntaje de cada estudiante para la fase seleccionada
         const studentScores: { studentId: string; score: number }[] = [];
         
         for (const classmate of classmates) {
@@ -2076,21 +2084,20 @@ export default function ICFESAnalysisInterface() {
         // Ordenar por puntaje (mayor a menor)
         studentScores.sort((a, b) => b.score - a.score);
 
-        // Encontrar el puesto del estudiante actual
+        // Encontrar el puesto del estudiante actual dentro de la fase
         const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
+        const totalInPhase = studentScores.length; // Estudiantes que presentaron esta fase
         if (currentStudentIndex !== -1) {
           setStudentRank(currentStudentIndex + 1); // +1 porque el puesto empieza en 1
-          // ✅ CORRECCIÓN: Usar el total de estudiantes del grado, no solo los que tienen evaluaciones
-          setTotalStudents(classmates.length);
+          setTotalStudents(totalInPhase); // Total de estudiantes con evaluaciones en esta fase
           if (import.meta.env.DEV) {
-            console.log('📊 Ranking - Puesto del estudiante:', currentStudentIndex + 1, 'de', classmates.length, 'estudiantes');
+            console.log('📊 Ranking - Puesto del estudiante en la fase:', currentStudentIndex + 1, 'de', totalInPhase, 'estudiantes');
           }
         } else {
           setStudentRank(null);
-          // Aún así, mostrar el total de estudiantes del grado
-          setTotalStudents(classmates.length);
+          setTotalStudents(totalInPhase);
           if (import.meta.env.DEV) {
-            console.log('📊 Ranking - Estudiante no encontrado en el ranking, pero hay', classmates.length, 'estudiantes en el grado');
+            console.log('📊 Ranking - Estudiante no encontrado en el ranking de la fase, total con evaluaciones:', totalInPhase);
           }
         }
       } catch (error) {
@@ -2112,7 +2119,7 @@ export default function ICFESAnalysisInterface() {
     return () => {
       isMounted = false;
     };
-  }, [analysisData, user?.uid, phase1Data, phase2Data, phase3Data]);
+  }, [analysisData, user?.uid, phase1Data, phase2Data, phase3Data, selectedPhase]);
 
   useEffect(() => {
     const fetchDataAndAnalyze = async () => {
@@ -3072,9 +3079,9 @@ export default function ICFESAnalysisInterface() {
         });
       }
 
-      // Contar intentos de fraude
+      // Contar intentos de fraude (todas las fases y materias)
       // Se considera fraude si hay cambios de pestaña o si el examen fue bloqueado por cambio de pestaña
-      if (evalData.tabChangeCount > 0 || evalData.lockedByTabChange === true) {
+      if ((evalData.tabChangeCount ?? 0) > 0 || evalData.lockedByTabChange === true) {
         fraudAttempts++;
       }
     });
@@ -5288,7 +5295,9 @@ export default function ICFESAnalysisInterface() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{currentData.overall.score}</p>
-                            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Puntaje Global</p>
+                            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                              {selectedPhase === 'all' ? 'Puntaje Global' : `Puntaje de Fase ${currentData.overall.currentPhase}`}
+                            </p>
                           </div>
                           <Award className="h-8 w-8 text-yellow-500" />
                         </div>
@@ -5328,7 +5337,9 @@ export default function ICFESAnalysisInterface() {
                     ) : (
                       <div className={cn("flex items-center gap-2 p-2 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-100')}>
                         <Trophy className="h-5 w-5 text-gray-400" />
-                        <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Puesto no disponible</span>
+                        <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          {selectedPhase === 'all' ? 'Selecciona una fase para ver tu puesto' : 'Puesto no disponible'}
+                        </span>
                       </div>
                     )}
                   </div>

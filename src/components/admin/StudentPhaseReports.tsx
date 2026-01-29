@@ -27,10 +27,10 @@ import { useFilteredStudents } from '@/hooks/query/useStudentQuery'
 import { useNotification } from '@/hooks/ui/useNotification'
 import { studentSummaryService } from '@/services/studentSummary/studentSummary.service'
 import { getUserById } from '@/controllers/user.controller'
+import { getInstitutionById } from '@/controllers/institution.controller'
 import { getFilteredStudents } from '@/controllers/student.controller'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
-import { useUserInstitution } from '@/hooks/query/useUserInstitution'
 
 const db = getFirestore(firebaseApp)
 
@@ -68,7 +68,6 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
   const [isBulkCancelled, setIsBulkCancelled] = useState(false)
 
   const { notifySuccess, notifyError } = useNotification()
-  const { institutionName } = useUserInstitution()
 
   // Obtener estudiantes filtrados
   const { students, isLoading: isLoadingStudents } = useFilteredStudents({
@@ -537,7 +536,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
         })
       }
 
-      if (evalData.tabChangeCount > 0 || evalData.lockedByTabChange === true) {
+      if ((evalData.tabChangeCount ?? 0) > 0 || evalData.lockedByTabChange === true) {
         fraudAttempts++
       }
     })
@@ -904,14 +903,22 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
         return
       }
 
-      // Obtener datos del estudiante
+      // Obtener datos del estudiante (nombre, documento e institución)
       const userResult = await getUserById(studentId)
       let studentName = 'Estudiante'
       let studentIdNumber = studentId
+      let pdfInstitutionName = ''
       if (userResult.success && userResult.data) {
         const userData = userResult.data as any
         studentName = userData.name || 'Estudiante'
         studentIdNumber = userData.idNumber || userData.identification || studentId
+        const institutionId = userData.inst || userData.institutionId
+        if (institutionId) {
+          const instResult = await getInstitutionById(institutionId)
+          if (instResult.success && instResult.data?.name) {
+            pdfInstitutionName = instResult.data.name
+          }
+        }
       }
 
       const currentDate = new Date()
@@ -1036,8 +1043,8 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
       } = await import('@/pages/promedio')
       
       const pdfHTML = isPhase3 
-        ? generatePhase3PDFHTML(summary, studentName, studentIdNumber, institutionName || '', currentDate, sortedSubjects, globalScore, globalPercentile, phase1SubjectsData, phase2SubjectsData, phaseMetrics, pdfStudentRank, pdfTotalStudents)
-        : generatePhase1And2PDFHTML(summary, studentName, studentIdNumber, institutionName || '', currentDate, phaseName, phaseMetrics, pdfStudentRank, pdfTotalStudents, sortedSubjects)
+        ? generatePhase3PDFHTML(summary, studentName, studentIdNumber, pdfInstitutionName || 'No especificada', currentDate, sortedSubjects, globalScore, globalPercentile, phase1SubjectsData, phase2SubjectsData, phaseMetrics, pdfStudentRank, pdfTotalStudents)
+        : generatePhase1And2PDFHTML(summary, studentName, studentIdNumber, pdfInstitutionName || 'No especificada', currentDate, phaseName, phaseMetrics, pdfStudentRank, pdfTotalStudents, sortedSubjects)
 
       printWindow.document.write(pdfHTML)
       printWindow.document.close()
