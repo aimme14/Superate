@@ -1,4 +1,4 @@
-import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Leaf, Timer, Users, Play, HelpCircle, Maximize, X, Database } from "lucide-react"
+import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Leaf, Timer, Users, Play, HelpCircle, Maximize, X, Database, Shield } from "lucide-react"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
 import { useState, useEffect, useMemo } from "react"
@@ -841,37 +841,12 @@ const ExamWithFirebase = () => {
             </ul>
           </div>
 
-          {/* Advertencia cambio de pestaña */}
-          <Alert className="border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-800">Control de Pestañas</AlertTitle>
-            <AlertDescription className="text-red-700">
-              El sistema detectará si cambias de pestaña o pierdes el foco de la ventana. Después de 2 intentos, el examen se finalizará automáticamente.
-            </AlertDescription>
-          </Alert>
-          <Alert className="border-purple-200 bg-purple-50">
-            <Maximize className="h-4 w-4 text-purple-600" />
-            <AlertTitle className="text-purple-800">Modo Pantalla Completa</AlertTitle>
-            <AlertDescription className="text-purple-700">
-              El examen se realizará en pantalla completa. Si sales de este modo durante la prueba, se mostrará una alerta y podrás elegir entre volver al examen o finalizarlo automáticamente.
-            </AlertDescription>
-          </Alert>
-
-          {/* Advertencia de una sola presentación */}
-          <Alert className="border-green-200 bg-green-50">
-            <Database className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-800">Una Sola Oportunidad</AlertTitle>
-            <AlertDescription className="text-green-700">
-              Solo puedes presentar este examen una vez. Tus respuestas se guardarán automáticamente y no podrás volver a intentarlo.
-            </AlertDescription>
-          </Alert>
-
-          {/* Nueva advertencia sobre seguimiento de tiempo */}
-          <Alert className="border-blue-200 bg-blue-50">
-            <Clock className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-800">Seguimiento de Tiempo</AlertTitle>
-            <AlertDescription className="text-blue-700">
-              El sistema registrará el tiempo que dedicas a cada pregunta individualmente. Esta información se incluirá en tus resultados finales.
+          {/* Advertencia antitrampa */}
+          <Alert className="border-orange-200 bg-orange-50">
+            <Shield className="h-4 w-4 text-orange-600" />
+            <AlertTitle className="text-orange-800">Antitrampa</AlertTitle>
+            <AlertDescription className="text-orange-700">
+              Al intentar hacer trampa (cambiar de pestaña, salir de pantalla completa, etc.), la acción quedará registrada, el examen se finalizará automáticamente y ese intento de trampa será notificado al acudiente.
             </AlertDescription>
           </Alert>
 
@@ -1329,10 +1304,21 @@ const ExamWithFirebase = () => {
                     nextQuestion();
                   }
                 }}
-                disabled={!answers[currentQ.id]}
+                disabled={!answers[currentQ.id] || isSubmitting}
                 className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
               >
-                {currentQuestion === examData.questions.length - 1 ? 'Finalizar examen' : 'Siguiente'} <ChevronRight className="h-4 w-4" />
+                {currentQuestion === examData.questions.length - 1 ? (
+                  isSubmitting ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>Finalizar examen <ChevronRight className="h-4 w-4" /></>
+                  )
+                ) : (
+                  <>Siguiente <ChevronRight className="h-4 w-4" /></>
+                )}
               </Button>
             </CardFooter>
           </Card>

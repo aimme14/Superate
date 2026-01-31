@@ -16,8 +16,9 @@ export type GroupedQuestionRange = { start: number; end: number };
 export type GroupedQuestionsMap = { [startIndex: number]: GroupedQuestionRange };
 
 /**
- * Detecta grupos de preguntas agrupadas (mismo informativeText) para mostrar
- * el mensaje "Las preguntas X a Y se responden con base en la siguiente información".
+ * Detecta grupos de preguntas agrupadas (mismo informativeText/imagen/contexto) para mostrar
+ * el aviso: "Las siguientes preguntas (X a Y) se responden con base en el mismo texto / información."
+ * Aplica a: Matemáticas, Lenguaje, Ciencias Naturales (Biología, Química, Física), Ciencias Sociales.
  * Excluye inglés (subjectCode === 'IN').
  */
 export function detectGroupedQuestions(questions: any[]): GroupedQuestionsMap {

@@ -26,7 +26,7 @@ const Quiz = () => {
         <Header />
         {subject === 'Lenguaje' ? (
           <ExamFormLecture />
-        ) : subject === 'Matemáticas' ? (
+        ) : subject === 'Matemáticas' || subject === 'Matematicas' ? (
           <ExamFormMath />
         ) : subject === 'Ciencias Sociales' ? (
           <ExamFormSociales />

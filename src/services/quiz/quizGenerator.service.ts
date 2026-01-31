@@ -1086,13 +1086,16 @@ class QuizGeneratorService {
   }
 
   /**
-   * Ordena las preguntas agrupadas por orden de creación (más antigua primero)
-   * Mantiene el orden dentro de cada grupo basado en fecha de creación
-   * Para todas las materias excepto inglés:
-   * - Las preguntas con informativeText (comprensión de lectura corta) se agrupan y muestran consecutivamente
-   * - Las preguntas sin informativeText (opción múltiple estándar) pueden estar en cualquier orden
+   * Ordena las preguntas asegurando que las agrupadas (mismo texto/contexto) se muestren consecutivas.
+   * Regla obligatoria: si un grupo contiene N preguntas, deben aparecer una tras otra sin intercalar.
+   * Aplica a: Matemáticas, Lenguaje, Ciencias Naturales (Biología, Química, Física), Ciencias Sociales.
+   * Excluye: Inglés (tiene lógica propia).
+   *
+   * @param questions - Preguntas a ordenar
+   * @param subject - Materia (para excluir Inglés)
+   * @param shuffleGroupOrder - Si true, mezcla el orden de los grupos para variedad (Fase 2 y 3)
    */
-  private sortGroupedQuestionsByCreationOrder(questions: Question[], subject: string): Question[] {
+  private sortGroupedQuestionsByCreationOrder(questions: Question[], subject: string, shuffleGroupOrder = false): Question[] {
     // Para inglés, usar la lógica especial existente
     if (subject === 'Inglés') {
       // Agrupar preguntas por informativeText (para preguntas agrupadas)
@@ -1192,31 +1195,39 @@ class QuizGeneratorService {
       });
     });
 
-    // Reconstruir el array: primero las preguntas agrupadas (consecutivas), luego las no agrupadas
+    // Reconstruir el array: grupos consecutivos (opcionalmente en orden aleatorio), luego no agrupadas
     const result: Question[] = [];
     const processedIds = new Set<string>();
 
-    // Agregar primero todas las preguntas agrupadas (comprensión de lectura corta) consecutivamente
+    // Orden de grupos: primera aparición en questions (o aleatorio si shuffleGroupOrder)
+    const seenKeys = new Set<string>();
+    const orderedGroupKeys: string[] = [];
     questions.forEach(question => {
-      if (processedIds.has(question.id || question.code)) {
-        return;
-      }
-
       if (question.informativeText && question.informativeText.trim() !== '') {
         const normalizedText = this.normalizeInformativeTextForGroup(question.informativeText);
         const informativeImages = JSON.stringify(question.informativeImages || []);
         const groupKey = `${normalizedText}_${informativeImages}`;
-        const group = groupedMap[groupKey];
-
-        if (group) {
-          result.push(...group);
-          group.forEach(q => processedIds.add(q.id || q.code));
+        if (groupedMap[groupKey] && !seenKeys.has(groupKey)) {
+          seenKeys.add(groupKey);
+          orderedGroupKeys.push(groupKey);
         }
       }
     });
 
-    // Agregar después las preguntas no agrupadas (opción múltiple estándar) - pueden estar en cualquier orden
-    ungrouped.forEach(question => {
+    const finalGroupKeys = shuffleGroupOrder ? this.shuffleArray(orderedGroupKeys) : orderedGroupKeys;
+
+    // Agregar grupos de preguntas agrupadas (consecutivas, sin intercalar)
+    finalGroupKeys.forEach(groupKey => {
+      const group = groupedMap[groupKey];
+      if (group) {
+        result.push(...group);
+        group.forEach(q => processedIds.add(q.id || q.code));
+      }
+    });
+
+    // Agregar después las preguntas no agrupadas (opción múltiple estándar)
+    const ungroupedShuffled = shuffleGroupOrder ? this.shuffleArray([...ungrouped]) : ungrouped;
+    ungroupedShuffled.forEach(question => {
       if (!processedIds.has(question.id || question.code)) {
         result.push(question);
         processedIds.add(question.id || question.code);
@@ -1364,8 +1375,8 @@ class QuizGeneratorService {
         return this.generateStandardPhase2Quiz(subject, config, grade, excludeQuestionIds);
       }
 
-      // Mezclar preguntas
-      const shuffledQuestions = this.shuffleArray(questions);
+      // Ordenar respetando grupos consecutivos (regla obligatoria: preguntas agrupadas juntas)
+      const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject, true);
 
       // Generar ID único para el cuestionario
       const quizId = this.generateQuizId(subject, 'second', grade);
@@ -1378,14 +1389,14 @@ class QuizGeneratorService {
         subject: subject,
         subjectCode: this.getSubjectCode(subject),
         phase: 'second',
-        questions: shuffledQuestions,
+        questions: sortedQuestions,
         timeLimit: config.timeLimit || 50,
-        totalQuestions: shuffledQuestions.length,
+        totalQuestions: sortedQuestions.length,
         instructions: PHASE_INSTRUCTIONS.second,
         createdAt: new Date()
       };
 
-      console.log(`✅ Cuestionario personalizado Fase 2 generado: ${quiz.title} con ${shuffledQuestions.length} preguntas`);
+      console.log(`✅ Cuestionario personalizado Fase 2 generado: ${quiz.title} con ${sortedQuestions.length} preguntas`);
       console.log(`   - ${distribution.primaryWeaknessCount} preguntas de ${distribution.primaryWeakness}`);
       console.log(`   - ${distribution.otherTopicsCount} preguntas distribuidas en otros temas`);
       return success(quiz);
@@ -1426,6 +1437,9 @@ class QuizGeneratorService {
       }
     }
 
+    // Ordenar respetando grupos consecutivos (regla obligatoria para todas las fases)
+    const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject, true);
+
     const quizId = this.generateQuizId(subject, 'second', grade);
     const quiz: GeneratedQuiz = {
       id: quizId,
@@ -1434,9 +1448,9 @@ class QuizGeneratorService {
       subject: subject,
       subjectCode: this.getSubjectCode(subject),
       phase: 'second',
-      questions: questions,
+      questions: sortedQuestions,
       timeLimit: config.timeLimit || 50,
-      totalQuestions: questions.length,
+      totalQuestions: sortedQuestions.length,
       instructions: PHASE_INSTRUCTIONS.second,
       createdAt: new Date()
     };
@@ -1694,8 +1708,8 @@ class QuizGeneratorService {
         }));
       }
 
-      // Paso 5: Mezclar todas las preguntas para orden aleatorio
-      const finalQuestions = this.shuffleArray(selectedQuestions);
+      // Paso 5: Ordenar respetando grupos consecutivos (regla obligatoria para todas las fases)
+      const finalQuestions = this.sortGroupedQuestionsByCreationOrder(selectedQuestions, subject, true);
 
       // Generar ID único para el cuestionario
       const quizId = this.generateQuizId(subject, 'third', grade);
