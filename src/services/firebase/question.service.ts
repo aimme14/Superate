@@ -25,6 +25,7 @@ import { firebaseApp } from '@/services/db';
 import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
+import { shuffleArray } from '@/utils/arrayUtils';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -758,11 +759,11 @@ class QuestionService {
       // Si hay menos preguntas de las solicitadas, devolver todas
       if (allQuestions.length <= count) {
         console.log(`📝 Devolviendo todas las ${allQuestions.length} preguntas encontradas`);
-        return success(this.shuffleArray(allQuestions));
+        return success(shuffleArray(allQuestions));
       }
 
       // Mezclar y tomar el número solicitado
-      const shuffled = this.shuffleArray(allQuestions);
+      const shuffled = shuffleArray(allQuestions);
       const randomQuestions = shuffled.slice(0, count);
 
       console.log(`✅ ${randomQuestions.length} preguntas aleatorias obtenidas`);
@@ -776,20 +777,6 @@ class QuestionService {
       }
       return failure(new ErrorAPI(normalizeError(e, 'obtener preguntas aleatorias')));
     }
-  }
-
-  /**
-   * Mezcla un array usando el algoritmo Fisher-Yates
-   * @param array - Array a mezclar
-   * @returns Array mezclado
-   */
-  private shuffleArray<T>(array: T[]): T[] {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
   }
 
   /**

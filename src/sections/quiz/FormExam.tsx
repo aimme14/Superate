@@ -11,6 +11,7 @@ import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
+import { shuffleArray } from "@/utils/arrayUtils";
 
 const db = getFirestore(firebaseApp);
 
@@ -34,16 +35,6 @@ interface Question {
   }[];
   correctAnswer: string;
 }
-
-// Función para aleatorizar array (algoritmo Fisher-Yates)
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
 
 // Verifica si el usuario ya presentó el examen
 const checkExamStatus = async (userId: string, examId: string, phase?: 'first' | 'second' | 'third') => {
@@ -920,7 +911,7 @@ const ExamWithFirebase = () => {
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <AlertTitle className="text-orange-800">Advertencia</AlertTitle>
                   <AlertDescription className="text-orange-700">
-                    Has salido de pantalla completa y cambiado de pestaña. ⚠️ Esta es tu primera advertencia. Si lo vuelves a hacer una segunda vez, el examen se finalizará automáticamente.
+                    Has cambiado de pestaña, lo cual se considera intento de fraude y quedará registrado. Será notificado al acudiente. ⚠️ Esta es tu primera advertencia. Si lo vuelves a hacer, el examen se finalizará automáticamente.
                   </AlertDescription>
                 </Alert>
                 <p className="text-gray-700">
@@ -930,7 +921,7 @@ const ExamWithFirebase = () => {
             ) : (
               <>
                 <p className="text-gray-700 mb-4">
-                  El examen debe realizarse en pantalla completa. Por favor, vuelve a poner pantalla completa.
+                  El examen debe realizarse en pantalla completa. Cambiar de pestaña durante el examen se considera intento de fraude, quedará registrado y será notificado al acudiente. Por favor, vuelve a poner pantalla completa.
                 </p>
                 <Alert className="border-amber-200 bg-amber-50">
                   <AlertCircle className="h-4 w-4 text-amber-600" />

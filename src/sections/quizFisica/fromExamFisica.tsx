@@ -19,6 +19,7 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { processExamResults } from "@/utils/phaseIntegration";
 import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
+import { GroupedQuestionNotice } from "@/components/quiz/GroupedQuestionNotice";
 import ImageGallery from "@/components/common/ImageGallery";
 import 'katex/dist/katex.min.css'
 
@@ -1407,17 +1408,8 @@ const ExamWithFirebase = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Mensaje de preguntas agrupadas consecutivas */}
               {groupedQuestionMessage && (
-                <Alert className={cn("mb-4", appTheme === 'dark' ? 'border-blue-800 bg-blue-900/30' : 'border-blue-200 bg-blue-50')}>
-                  <AlertCircle className="h-4 w-4 text-blue-600" />
-                  <AlertTitle className={cn(appTheme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
-                    Preguntas Agrupadas
-                  </AlertTitle>
-                  <AlertDescription className={cn(appTheme === 'dark' ? 'text-blue-200' : 'text-blue-700')}>
-                    Las siguientes preguntas ({groupedQuestionMessage.start} a {groupedQuestionMessage.end}) se responden con base en el mismo texto / información.
-                  </AlertDescription>
-                </Alert>
+                <GroupedQuestionNotice range={groupedQuestionMessage} theme={appTheme === 'dark' ? 'dark' : 'light'} />
               )}
               
               <div className="prose prose-lg max-w-none">
@@ -1849,7 +1841,7 @@ const ExamWithFirebase = () => {
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <AlertTitle className={cn(appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>Advertencia</AlertTitle>
                   <AlertDescription className={cn(appTheme === 'dark' ? 'text-orange-200' : 'text-orange-700')}>
-                    Has salido de pantalla completa y cambiado de pestaña. ⚠️ Esta es tu primera advertencia. Si lo vuelves a hacer una segunda vez, el examen se finalizará automáticamente.
+                    Has cambiado de pestaña, lo cual se considera intento de fraude y quedará registrado. Será notificado al acudiente. ⚠️ Esta es tu primera advertencia. Si lo vuelves a hacer, el examen se finalizará automáticamente.
                   </AlertDescription>
                 </Alert>
                 <p className={cn(appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
@@ -1859,7 +1851,7 @@ const ExamWithFirebase = () => {
             ) : (
               <>
                 <p className={cn("mb-4", appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                  El examen debe realizarse en pantalla completa. Por favor, vuelve a poner pantalla completa.
+                  El examen debe realizarse en pantalla completa. Cambiar de pestaña durante el examen se considera intento de fraude, quedará registrado y será notificado al acudiente. Por favor, vuelve a poner pantalla completa.
                 </p>
                 <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
                   <AlertCircle className="h-4 w-4 text-amber-600" />

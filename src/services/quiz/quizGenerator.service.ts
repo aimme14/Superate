@@ -1,5 +1,7 @@
 import { questionService, Question, QuestionFilters } from '@/services/firebase/question.service';
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME, GRADE_MAPPING } from '@/utils/subjects.config';
+import { shuffleArray } from '@/utils/arrayUtils';
+import { validateGroupedQuestionsConsecutive } from '@/utils/quizGroupedQuestions';
 import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
@@ -387,6 +389,14 @@ class QuizGeneratorService {
       // Las preguntas agrupadas tienen el mismo informativeText (especialmente para inglés)
       const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject);
 
+      // Validación: asegurar que grupos estén consecutivos (excluye Inglés)
+      if (subject !== 'Inglés') {
+        const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
+        if (!validation.isValid) {
+          console.error('❌ Validación de agrupación fallida:', validation.message, validation.violations);
+        }
+      }
+
       // Generar ID único para el cuestionario
       const quizId = this.generateQuizId(subject, phase, grade);
 
@@ -530,7 +540,7 @@ class QuizGeneratorService {
       if (fallbackResult.success && fallbackResult.data.length > 0) {
         const existingIds = new Set(questions.map(q => q.id || q.code));
         const extras = fallbackResult.data.filter(q => !existingIds.has(q.id || q.code));
-        questions = this.shuffleArray([...questions, ...extras]).slice(0, rule.totalQuestions);
+        questions = shuffleArray([...questions, ...extras]).slice(0, rule.totalQuestions);
       }
     }
 
@@ -787,7 +797,7 @@ class QuizGeneratorService {
       }
 
       // Mezclar los grupos para selección aleatoria
-      const shuffledGroups = this.shuffleArray(groups);
+      const shuffledGroups = shuffleArray(groups);
       
       // Seleccionar el primer grupo disponible (ya está mezclado)
       const selectedGroup = shuffledGroups[0];
@@ -824,7 +834,7 @@ class QuizGeneratorService {
     }
 
     // Mezclar aleatoriamente el orden de los grupos (para que cada estudiante tenga orden diferente)
-    const shuffledSelectedGroups = this.shuffleArray(selectedGroups);
+    const shuffledSelectedGroups = shuffleArray(selectedGroups);
 
     // Aplanar los grupos en un solo array de preguntas
     const finalQuestions: Question[] = [];
@@ -846,7 +856,7 @@ class QuizGeneratorService {
 
     const topicEntries = topicCodes.map(code => ({
       code,
-      questions: this.shuffleArray(topicQuestionMap[code] || [])
+      questions: shuffleArray(topicQuestionMap[code] || [])
     }));
 
     const selected: TopicQuestion[] = [];
@@ -894,7 +904,7 @@ class QuizGeneratorService {
       selected.splice(removeIndex, 1);
     }
 
-    return this.shuffleArray(selected.map(item => item.question));
+    return shuffleArray(selected.map(item => item.question));
   }
 
   private dedupeQuestions(questions: Question[]): Question[] {
@@ -1065,16 +1075,7 @@ class QuizGeneratorService {
       }
     }
 
-    return this.shuffleArray(Array.from(collected.values())).slice(0, expectedCount);
-  }
-
-  private shuffleArray<T>(array: T[]): T[] {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
+    return shuffleArray(Array.from(collected.values())).slice(0, expectedCount);
   }
 
   /**
@@ -1214,7 +1215,7 @@ class QuizGeneratorService {
       }
     });
 
-    const finalGroupKeys = shuffleGroupOrder ? this.shuffleArray(orderedGroupKeys) : orderedGroupKeys;
+    const finalGroupKeys = shuffleGroupOrder ? shuffleArray(orderedGroupKeys) : orderedGroupKeys;
 
     // Agregar grupos de preguntas agrupadas (consecutivas, sin intercalar)
     finalGroupKeys.forEach(groupKey => {
@@ -1226,7 +1227,7 @@ class QuizGeneratorService {
     });
 
     // Agregar después las preguntas no agrupadas (opción múltiple estándar)
-    const ungroupedShuffled = shuffleGroupOrder ? this.shuffleArray([...ungrouped]) : ungrouped;
+    const ungroupedShuffled = shuffleGroupOrder ? shuffleArray([...ungrouped]) : ungrouped;
     ungroupedShuffled.forEach(question => {
       if (!processedIds.has(question.id || question.code)) {
         result.push(question);
@@ -1378,6 +1379,11 @@ class QuizGeneratorService {
       // Ordenar respetando grupos consecutivos (regla obligatoria: preguntas agrupadas juntas)
       const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject, true);
 
+      const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
+      if (!validation.isValid) {
+        console.error('❌ [Fase 2 personalizada] Validación de agrupación fallida:', validation.message, validation.violations);
+      }
+
       // Generar ID único para el cuestionario
       const quizId = this.generateQuizId(subject, 'second', grade);
 
@@ -1439,6 +1445,11 @@ class QuizGeneratorService {
 
     // Ordenar respetando grupos consecutivos (regla obligatoria para todas las fases)
     const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject, true);
+
+    const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
+    if (!validation.isValid) {
+      console.error('❌ [Fase 2 estándar] Validación de agrupación fallida:', validation.message, validation.violations);
+    }
 
     const quizId = this.generateQuizId(subject, 'second', grade);
     const quiz: GeneratedQuiz = {
@@ -1644,7 +1655,7 @@ class QuizGeneratorService {
       // Primera pasada: asignar hasta 10 preguntas a cada tema
       for (const topic of topics) {
         const available = topicQuestionsMap[topic.code] || [];
-        const shuffled = this.shuffleArray([...available]);
+        const shuffled = shuffleArray([...available]);
         const selected: Question[] = [];
         
         for (const question of shuffled) {
@@ -1673,7 +1684,7 @@ class QuizGeneratorService {
             });
             
             if (available.length > 0 && questionsByTopic[topic.code].length < questionsPerTopic) {
-              const shuffled = this.shuffleArray([...available]);
+              const shuffled = shuffleArray([...available]);
               const needed = questionsPerTopic - questionsByTopic[topic.code].length;
               const toAdd = shuffled.slice(0, Math.min(needed, available.length));
               
@@ -1710,6 +1721,11 @@ class QuizGeneratorService {
 
       // Paso 5: Ordenar respetando grupos consecutivos (regla obligatoria para todas las fases)
       const finalQuestions = this.sortGroupedQuestionsByCreationOrder(selectedQuestions, subject, true);
+
+      const validation = validateGroupedQuestionsConsecutive(finalQuestions, 'IN');
+      if (!validation.isValid) {
+        console.error('❌ [Fase 3] Validación de agrupación fallida:', validation.message, validation.violations);
+      }
 
       // Generar ID único para el cuestionario
       const quizId = this.generateQuizId(subject, 'third', grade);
