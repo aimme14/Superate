@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "init-db": "tsx src/scripts/runInitialization.ts",
     "setup-storage": "node setup-firebase-storage.js",
-    "diagnose-phase": "tsx src/scripts/diagnosePhaseProgress.ts"
+    "diagnose-phase": "tsx src/scripts/diagnosePhaseProgress.ts",
+    "migrate-videos": "npm run migrate-videos --prefix functions",
+    "migrate-weblinks": "npm run migrate-weblinks --prefix functions"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

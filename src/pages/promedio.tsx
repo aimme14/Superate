@@ -5262,7 +5262,7 @@ export default function ICFESAnalysisInterface() {
             </TabsTrigger>
             <TabsTrigger value="study-plan" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 border-gray-200')}>
               <BookOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">Plan de Estudio</span>
+              <span className="hidden sm:inline">Plan de Estudio IA</span>
             </TabsTrigger>
           </TabsList>
 
@@ -5899,6 +5899,7 @@ export default function ICFESAnalysisInterface() {
               );
             })()}
           </TabsContent>
+
         </Tabs>
 
         {/* Mensajes Motivadores */}

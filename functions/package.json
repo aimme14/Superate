@@ -18,7 +18,10 @@
     "view-justifications": "npm run build && node lib/scripts/viewJustifications.js",
     "generate-vocabulary": "npm run build && node lib/scripts/generateVocabulary.js",
     "delete-examples": "npm run build && node lib/scripts/deleteExamples.js",
-    "test": "echo \"No tests configured yet\" && exit 0",
+    "test": "npm run build && node lib/scripts/test-study-plan-smoke.js",
+    "test:smoke": "npm run build && node lib/scripts/test-study-plan-smoke.js",
+    "migrate-videos": "npm run build && node lib/scripts/migrateVideosToAnswerIA.js",
+    "migrate-weblinks": "npm run build && node lib/scripts/migrateWebLinks.js",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
   },
