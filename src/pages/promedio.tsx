@@ -862,6 +862,7 @@ function PersonalizedStudyPlan({
   // Estado para almacenar las autorizaciones de planes de estudio por materia
   const [subjectAuthorizations, setSubjectAuthorizations] = useState<Record<string, boolean>>({});
   const [loadingAuthorizations, setLoadingAuthorizations] = useState<boolean>(true);
+  const [studentGrade, setStudentGrade] = useState<string | undefined>(undefined);
   const { notifySuccess, notifyError } = useNotification();
 
   // URL base de Cloud Functions
@@ -888,8 +889,10 @@ function PersonalizedStudyPlan({
         // Obtener información del estudiante para obtener el gradeId
         const userResult = await dbService.getUserById(studentId);
         if (userResult.success && userResult.data) {
-          const studentData = userResult.data;
-          const gradeId = studentData.gradeId || studentData.grade;
+          const studentData = userResult.data as { gradeId?: string; grade?: string; gradeName?: string };
+          const gradeId = studentData.gradeId || (typeof studentData.grade === 'string' ? studentData.grade : undefined);
+          const gradeName = studentData.gradeName || (typeof studentData.grade === 'string' ? studentData.grade : undefined);
+          setStudentGrade(gradeName || gradeId);
           
           if (gradeId) {
             // Solo verificar autorización para Fase I y Fase II
@@ -924,13 +927,14 @@ function PersonalizedStudyPlan({
             }
           } else {
             console.warn('No se encontró gradeId para el estudiante');
-            // Si no hay gradeId, no autorizar ninguna materia
+            setStudentGrade(undefined);
             subjectsWithTopics.forEach(subject => {
               authorizations[subject.name] = false;
             });
           }
         } else {
           console.error('Error obteniendo información del estudiante');
+          setStudentGrade(undefined);
           subjectsWithTopics.forEach(subject => {
             authorizations[subject.name] = false;
           });
@@ -940,6 +944,7 @@ function PersonalizedStudyPlan({
         subjectsWithTopics.forEach(subject => {
           authorizations[subject.name] = false;
         });
+        setStudentGrade(undefined);
       }
       
       setSubjectAuthorizations(authorizations);
@@ -1001,6 +1006,7 @@ function PersonalizedStudyPlan({
           studentId,
           phase,
           subject,
+          ...(studentGrade ? { grade: studentGrade } : {}),
         }),
       });
 
@@ -2087,26 +2093,32 @@ export default function ICFESAnalysisInterface() {
         // Encontrar el puesto del estudiante actual dentro de la fase
         const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
         const totalInPhase = studentScores.length; // Estudiantes que presentaron esta fase
-        if (currentStudentIndex !== -1) {
-          setStudentRank(currentStudentIndex + 1); // +1 porque el puesto empieza en 1
-          setTotalStudents(totalInPhase); // Total de estudiantes con evaluaciones en esta fase
-          if (import.meta.env.DEV) {
-            console.log('📊 Ranking - Puesto del estudiante en la fase:', currentStudentIndex + 1, 'de', totalInPhase, 'estudiantes');
-          }
-        } else {
-          setStudentRank(null);
+        const rank = currentStudentIndex !== -1 ? currentStudentIndex + 1 : null;
+        // Diferir actualizaciones de estado para evitar insertBefore durante reconciliación de React/Radix Tabs
+        const applyRankUpdate = () => {
+          if (!isMounted) return;
+          setStudentRank(rank);
           setTotalStudents(totalInPhase);
-          if (import.meta.env.DEV) {
-            console.log('📊 Ranking - Estudiante no encontrado en el ranking de la fase, total con evaluaciones:', totalInPhase);
-          }
+          setIsLoadingRank(false);
+        };
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(applyRankUpdate);
+        } else {
+          setTimeout(applyRankUpdate, 0);
+        }
+        if (import.meta.env.DEV) {
+          console.log('📊 Ranking - Puesto del estudiante en la fase:', rank ?? 'N/A', 'de', totalInPhase, 'estudiantes');
         }
       } catch (error) {
         if (import.meta.env.DEV) {
           console.error('Error calculando puesto del estudiante:', error);
         }
+        const resetLoading = () => { if (isMounted) setIsLoadingRank(false); };
+        setTimeout(resetLoading, 0);
       } finally {
-        if (isMounted) {
-          setIsLoadingRank(false);
+        // Si hubo return temprano (!isMounted), diferir el reset para evitar insertBefore
+        if (!isMounted) {
+          setTimeout(() => setIsLoadingRank(false), 0);
         }
       }
     };
@@ -5288,7 +5300,7 @@ export default function ICFESAnalysisInterface() {
                 );
               }
               return (
-                <>
+                <div className="space-y-6" key="overview-content">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md')}>
                       <CardContent className="pt-6">
@@ -5700,7 +5712,7 @@ export default function ICFESAnalysisInterface() {
               }
               return null;
             })()}
-                </>
+                </div>
               );
             })()}
           </TabsContent>

@@ -3,13 +3,14 @@
  *
  * Copia los enlaces de la estructura antigua a la nueva:
  *   Antes: WebLinks/{Fase I|II|III}/{subject}/{topicId}/links/link01...link50
- *   Nueva:  WebLinks/{materia}/{topicId}/link1, link2...
+ *   Nueva:  WebLinks/{grado}/{materia}/{topicId}/links/link1, link2...
  *
- * Caché global por materia y topic (sin fase).
+ * Los datos antiguos se migran al grado "11" por defecto (sin info de grado).
  *
  * Uso:
  *   npm run build
  *   node lib/scripts/migrateWebLinks.js
+ *   GRADE=10 node lib/scripts/migrateWebLinks.js  # Migrar a grado específico
  *
  * Requiere: serviceAccountKey.json en functions/ (o GOOGLE_APPLICATION_CREDENTIALS)
  */
@@ -134,16 +135,22 @@ async function getAllWebLinksTopics(): Promise<
 }
 
 async function copyLinksToNewStructure(
+  grade: string,
   subject: string,
   topicId: string,
   links: LinkData[]
 ): Promise<number> {
-  const topicColRef = db.collection('WebLinks').doc(subject).collection(topicId);
+  const linksColRef = db
+    .collection('WebLinks')
+    .doc(grade)
+    .collection(subject)
+    .doc(topicId)
+    .collection('links');
 
   const batch = db.batch();
   links.slice(0, MAX_LINKS).forEach((link, idx) => {
     const order = idx + 1;
-    batch.set(topicColRef.doc(`link${order}`), {
+    batch.set(linksColRef.doc(`link${order}`), {
       title: link.title,
       url: link.url,
       description: link.description,
@@ -158,16 +165,17 @@ async function copyLinksToNewStructure(
 }
 
 async function main(): Promise<void> {
-  console.log('\n🔄 Migración WebLinks: ruta antigua → WebLinks/{materia}/{topicId}/link1...\n');
+  const grade = process.env.GRADE || '11';
+  console.log(`\n🔄 Migración WebLinks: ruta antigua → WebLinks/${grade}/{materia}/{topicId}/links/...\n`);
 
   const allTopics = await getAllWebLinksTopics();
   console.log(`📋 Encontrados ${allTopics.length} combinaciones (subject, topicId) con enlaces\n`);
 
   let totalLinks = 0;
   for (const { subject, topicId, links } of allTopics) {
-    const count = await copyLinksToNewStructure(subject, topicId, links);
+    const count = await copyLinksToNewStructure(grade, subject, topicId, links);
     totalLinks += count;
-    console.log(`   ✅ WebLinks/${subject}/${topicId}/ → ${count} enlaces`);
+    console.log(`   ✅ WebLinks/${grade}/${subject}/${topicId}/ → ${count} enlaces`);
   }
 
   console.log(`\n✅ Migración completada: ${totalLinks} enlaces copiados a la nueva estructura.\n`);

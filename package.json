@@ -12,7 +12,8 @@
     "setup-storage": "node setup-firebase-storage.js",
     "diagnose-phase": "tsx src/scripts/diagnosePhaseProgress.ts",
     "migrate-videos": "npm run migrate-videos --prefix functions",
-    "migrate-weblinks": "npm run migrate-weblinks --prefix functions"
+    "migrate-weblinks": "npm run migrate-weblinks --prefix functions",
+    "migrate-youtube-grade": "npm run migrate-youtube-grade --prefix functions"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
