@@ -233,6 +233,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // Recursos: enlaces web y videos YouTube (misma ruta que planes de estudio)
+    // WebLinks/{grado}/{materia}/{topic}/links, YoutubeLinks/{grado}/{materia}/{topic}/videos
+    match /WebLinks/{grado}/{materia}/{topic}/links/{linkId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdmin();
+    }
+    match /YoutubeLinks/{grado}/{materia}/{topic}/videos/{videoId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdmin();
+    }
+
     // Regla por defecto: denegar acceso a todo lo demás
     match /{document=**} {
       allow read, write: if false;

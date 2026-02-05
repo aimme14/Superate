@@ -17,7 +17,8 @@ import {
   ClipboardCheck,
   Loader2,
   DollarSign,
-  FileText
+  FileText,
+  FolderOpen
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
@@ -35,6 +36,7 @@ import { useGradeAnalysis } from '@/hooks/query/useGradeAnalysis'
 import { useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import RegistrationSettings from '@/components/admin/RegistrationSettings'
 import StudentPhaseReports from '@/components/admin/StudentPhaseReports'
+import AdminRecursos from '@/components/admin/AdminRecursos'
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
@@ -111,12 +113,12 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={cn("grid w-full grid-cols-9", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+        <TabsList className={cn("grid w-full grid-cols-10", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
           <TabsTrigger value="overview" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Home className="h-4 w-4" />
             <span>Resumen</span>
           </TabsTrigger>
-          <TabsTrigger value="users" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc- data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
+          <TabsTrigger value="users" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Users className="h-4 w-4" />
             <span>Usuarios</span>
           </TabsTrigger>
@@ -135,6 +137,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           <TabsTrigger value="study-plans" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <Brain className="h-4 w-4" />
             <span>Planes de Estudio</span>
+          </TabsTrigger>
+          <TabsTrigger value="recursos" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
+            <FolderOpen className="h-4 w-4" />
+            <span>Recursos</span>
           </TabsTrigger>
           <TabsTrigger value="analytics" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
             <BarChart3 className="h-4 w-4" />
@@ -630,6 +636,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
         <TabsContent value="study-plans">
           <StudyPlanAuthorizationManagement theme={theme} />
+        </TabsContent>
+
+        <TabsContent value="recursos" className="space-y-6">
+          <AdminRecursos theme={theme} />
         </TabsContent>
 
         <TabsContent value="analytics">
