@@ -16,6 +16,7 @@ import {
   getCanonicalTopicsWithWeakness,
   mapToCanonicalTopic,
   MAX_VIDEOS_PER_TOPIC,
+  MAX_EXERCISES_PER_TOPIC,
   VIDEOS_PER_TOPIC,
 } from '../config/subjects.config';
 import * as admin from 'firebase-admin';
@@ -30,6 +31,8 @@ export interface StudyPlanInput {
   studentId: string;
   phase: 'first' | 'second' | 'third';
   subject: string;
+  /** Grado para escalar WebLinks por nivel (ej: "6", "10", "11", "Décimo", "Undécimo"). Opcional: default "11". */
+  grade?: string;
 }
 
 export interface StudentWeakness {
@@ -74,6 +77,7 @@ export interface StudyPlanResponse {
     studentId: string;
     phase: string;
     subject: string;
+    grade?: string; // Grado para WebLinks (ej: "6".."11")
     weaknesses: StudentWeakness[];
   };
   diagnostic_summary: string; // 50 palabras sobre lo que trabajará
@@ -362,39 +366,191 @@ class StudyPlanService {
 
   /**
    * Crea webSearchInfo por defecto cuando Gemini no lo provee para un topic canónico.
-   * Para Física y Química usa criterios específicos (bachillerato, simulaciones, PhET, etc.).
+   * Criterios alineados con Icfes Saber 11°: ejercicios resueltos, descripción de temas,
+   * material para bachillerato/secundaria (grados 6 a 11) por área.
    */
   private createFallbackWebSearchInfo(topic: string, subject: string): TopicWebSearchInfo {
     const normalizedSubject = this.normalizeSubjectName(subject);
     console.log(`   ℹ️ Usando webSearchInfo fallback para "${topic}" (Gemini no lo incluyó)`);
 
+    // Matemáticas (álgebra, geometría, estadística): Icfes competencias interpretación, formulación, argumentación
+    if (normalizedSubject === 'matemáticas' || normalizedSubject === 'matematicas') {
+      return {
+        searchIntent: `Páginas web con material de ${topic} para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Contenido anclado al tema, orientado a interpretación, formulación y argumentación (ICFES Saber 11).`,
+        searchKeywords: [
+          topic,
+          'matemáticas bachillerato',
+          'secundaria estudiantes',
+          'ejercicios resueltos',
+          'descripción de temas',
+          'guía explicación',
+          'geometría álgebra estadística',
+        ],
+        expectedContentTypes: [
+          'descripción de temas',
+          'ejercicios resueltos',
+          'guía paso a paso',
+          'página web con explicación clara',
+          'contenido con ejemplos entendibles',
+          'material de práctica para secundaria',
+          'resumen conceptual accesible',
+        ],
+        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
+      };
+    }
+
+    // Lectura Crítica: bachillerato/secundaria, descripción temas, ejercicios resueltos, interpretar texto, definición palabras, textos literarios (cuentos, fragmentos novelas, poemas, narraciones), infografías/gráficas/tablas, conectores lógicos, tipos de texto, intención comunicativa
+    if (normalizedSubject.includes('lectura') && normalizedSubject.includes('crítica')) {
+      return {
+        searchIntent: `Páginas web con material de lectura crítica para bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, cómo interpretar y analizar textos, definición de palabras. Textos literarios cortos (cuentos, fragmentos de novelas, poemas, narraciones), infografías, gráficas y tablas. Conectores lógicos (sin embargo, por tanto, además). Tipos de texto (argumentativo, expositivo, narrativo), intención comunicativa. Cuadernillo lectura crítica Saber 11, textos argumentativos cortos con preguntas, ejercicios inferencia lectura crítica, comprensión lectora inferencial y crítica.`,
+        searchKeywords: [
+          topic,
+          'lectura crítica bachillerato secundaria',
+          'descripción de temas',
+          'ejercicios resueltos',
+          'interpretar texto analizar',
+          'definición de palabras',
+          'cuentos fragmentos novelas poemas narraciones',
+          'infografías gráficas tablas',
+          'conectores lógicos ejercicios',
+          'tipos de texto argumentativo expositivo narrativo',
+          'intención comunicativa',
+          'Cuadernillo lectura crítica Saber 11 pdf',
+          'textos argumentativos cortos con preguntas',
+          'ejercicios inferencia lectura crítica',
+          'Comprensión lectora inferencial y crítica',
+        ],
+        expectedContentTypes: [
+          'descripción de temas',
+          'ejercicios resueltos',
+          'guía de comprensión lectora',
+          'ejercicios de lectura crítica',
+          'textos literarios cortos con preguntas',
+          'infografías gráficas tablas interpretación',
+          'conectores lógicos ejercicios',
+          'material de práctica para secundaria',
+        ],
+        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
+      };
+    }
+
+    // Ciencias Sociales: Historia Colombia, independencia, Constitución 1991, Revolución Francesa/Industrial, guerras mundiales, región natural, economía, ramas del poder, democracia, competencias ciudadanas, ICFES Saber 11
+    if (normalizedSubject.includes('ciencias sociales') || normalizedSubject.includes('competencias ciudadanas')) {
+      return {
+        searchIntent: `Páginas web con material de ${topic} para ciencias sociales, bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Historia de Colombia (independencia, Constitución 1991), Revolución Francesa e Industrial, guerras mundiales, Guerra Fría. Regiones naturales de Colombia, clima, relieve, hidrografía, población. Economía (PIB, oferta y demanda, sectores económicos). Ramas del poder público, democracia, derechos y deberes, Estado social de derecho. Competencias ciudadanas y ética, mecanismos de participación (tutela, plebiscito, referendo). Ciencias sociales ICFES Saber 11 preguntas resueltas, Competencias ciudadanas.`,
+        searchKeywords: [
+          topic,
+          'ciencias sociales bachillerato secundaria',
+          'descripción de temas',
+          'ejercicios resueltos',
+          'Historia de Colombia independencia Constitución 1991',
+          'Revolución Francesa Revolución Industrial',
+          'regiones naturales Colombia economía',
+          'ramas del poder democracia',
+          'Competencias ciudadanas',
+          'Ciencias sociales ICFES Saber 11 preguntas resueltas',
+        ],
+        expectedContentTypes: [
+          'descripción de temas',
+          'ejercicios resueltos',
+          'guía paso a paso',
+          'página web con explicación clara',
+          'material de práctica para secundaria',
+        ],
+        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
+      };
+    }
+
+    // Física: Cinemática (MRU, MRUA, caída libre), Dinámica (Leyes Newton), trabajo/energía/potencia, ondas y sonido, electricidad y circuitos (Ley Coulomb, Ley Ohm), electromagnetismo, presión y fluidos, Física ICFES Saber 11
     if (normalizedSubject === 'física') {
       return {
-        searchIntent: `Páginas web y material entendible sobre ${topic} para física de bachillerato/secundaria. Incluye explicaciones claras, simulaciones (PhET), guías y ejemplos.`,
-        searchKeywords: [topic, 'física bachillerato', 'secundaria', 'simulaciones', 'PhET', 'explicación', 'guía'],
+        searchIntent: `Páginas web con material de ${topic} para física de bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Cinemática (MRU, MRUA, caída libre), interpretación de gráficas posición-tiempo y velocidad-tiempo. Dinámica (Leyes de Newton), planos inclinados, diagramas de cuerpo libre. Trabajo, energía y potencia, conservación de la energía. Cantidad de movimiento e impulso. Ondas y sonido (frecuencia, período, longitud de onda). Electricidad y circuitos (Ley de Coulomb, Ley de Ohm), circuitos serie y paralelo. Campo magnético, electromagnetismo, reflexión y refracción. Presión (P=F/A) y fluidos. Física ICFES Saber 11 preguntas tipo ICFES.`,
+        searchKeywords: [
+          topic,
+          'física bachillerato secundaria',
+          'descripción de temas',
+          'ejercicios resueltos',
+          'Cinemática MRU MRUA caída libre',
+          'Dinámica Leyes de Newton planos inclinados',
+          'trabajo energía potencia',
+          'ondas y sonido',
+          'Electricidad circuitos Ley de Ohm Ley de Coulomb',
+          'electromagnetismo reflexión refracción',
+          'presión fluidos',
+          'Física ICFES Saber 11 preguntas tipo ICFES',
+        ],
         expectedContentTypes: [
+          'descripción de temas',
+          'ejercicios resueltos',
           'página web con explicación clara',
           'guía paso a paso',
           'simulación o experimento virtual',
           'contenido con ejemplos entendibles',
           'material de práctica para secundaria',
         ],
-        educationalLevel: 'Contenido entendible para secundaria (grados 6 a 11)',
+        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
       };
     }
 
+    // Química: Estequiometría, tabla periódica, enlaces (iónico, covalente, metálico), polaridad, geometría molecular VSEPR, fuerzas intermoleculares, soluciones, ácidos y bases pH, hidrocarburos, grupos funcionales, nomenclatura, Balanceo de ecuaciones, Química orgánica ejercicios
     if (normalizedSubject === 'quimica') {
       return {
-        searchIntent: `Páginas web y material entendible sobre ${topic} para química de bachillerato/secundaria. Incluye explicaciones claras, experimentos, tabla periódica, guías y ejemplos.`,
-        searchKeywords: [topic, 'química bachillerato', 'secundaria', 'tabla periódica', 'experimentos', 'explicación', 'guía'],
+        searchIntent: `Páginas web con material de ${topic} para química de bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Estequiometría, tabla periódica y propiedades. Enlace iónico, covalente, metálico, polaridad, geometría molecular (VSEPR), fuerzas intermoleculares. Soluciones y concentraciones. Ácidos, bases y pH, escala de pH. Hidrocarburos (alcanos, alquenos, alquinos), grupos funcionales (alcoholes, ácidos carboxílicos, ésteres), nomenclatura básica. Filtración, decantación, destilación. Balanceo de ecuaciones químicas ejercicios, Química orgánica básica ejercicios nomenclatura.`,
+        searchKeywords: [
+          topic,
+          'química bachillerato secundaria',
+          'descripción de temas',
+          'ejercicios resueltos',
+          'Estequiometría tabla periódica',
+          'enlace iónico covalente metálico polaridad',
+          'geometría molecular VSEPR fuerzas intermoleculares',
+          'Soluciones concentraciones ácidos bases pH',
+          'hidrocarburos grupos funcionales nomenclatura',
+          'Balanceo de ecuaciones químicas ejercicios',
+          'Química orgánica básica ejercicios nomenclatura',
+        ],
         expectedContentTypes: [
+          'descripción de temas',
+          'ejercicios resueltos',
           'página web con explicación clara',
           'guía paso a paso',
           'experimentos o simulaciones',
           'contenido con ejemplos entendibles',
           'material de práctica para secundaria',
         ],
-        educationalLevel: 'Contenido entendible para secundaria (grados 6 a 11)',
+        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
+      };
+    }
+
+    // Biología: célula y organelos, tipos de células, transporte celular, mitosis y meiosis, genética y herencia, ADN/ARN, leyes de Mendel, evolución, ecosistemas, sistemas del cuerpo, fotosíntesis y respiración celular, bacterias virus hongos, Biología ICFES Saber 11
+    if (normalizedSubject === 'biología' || normalizedSubject === 'biologia') {
+      return {
+        searchIntent: `Páginas web con material de ${topic} para biología de bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Célula y organelos, tipos de células (animal, vegetal, procariota, eucariota), transporte celular (ósmosis, difusión), mitosis y meiosis. Genética y herencia, ADN y ARN, genes y cromosomas, leyes de Mendel, mutaciones, teorías de evolución, selección natural, adaptación. Ecosistemas y medio ambiente, cadenas y redes tróficas, niveles tróficos, ciclos biogeoquímicos (agua, carbono, nitrógeno), biodiversidad, impacto ambiental. Sistema digestivo, respiratorio, circulatorio, nervioso y endocrino, reproducción humana. Fotosíntesis y respiración celular, cloroplastos y mitocondrias. Bacterias, virus, hongos. Interpretación de gráficos y experimentos, variables dependientes e independientes. Biología ICFES Saber 11 preguntas tipo ICFES.`,
+        searchKeywords: [
+          topic,
+          'biología bachillerato secundaria',
+          'descripción de temas',
+          'ejercicios resueltos',
+          'Célula organelos mitosis meiosis',
+          'tipos de células animal vegetal procariota eucariota',
+          'transporte celular ósmosis difusión',
+          'Genética herencia ADN ARN leyes de Mendel',
+          'evolución selección natural adaptación',
+          'Ecosistemas cadenas tróficas ciclos biogeoquímicos',
+          'Fotosíntesis respiración celular cloroplastos mitocondrias',
+          'bacterias virus hongos',
+          'Biología ICFES Saber 11 preguntas tipo ICFES',
+        ],
+        expectedContentTypes: [
+          'descripción de temas',
+          'ejercicios resueltos',
+          'página web con explicación clara',
+          'guía paso a paso',
+          'contenido con ejemplos entendibles',
+          'material de práctica para secundaria',
+          'resumen conceptual',
+        ],
+        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
       };
     }
 
@@ -413,11 +569,35 @@ class StudyPlanService {
       };
     }
 
+    // Ciencias Naturales (genérico, si no es física ni química)
+    if (normalizedSubject.includes('ciencias naturales')) {
+      return {
+        searchIntent: `Páginas web con material de ${topic} para ciencias naturales, bachillerato/secundaria (grados 6 a 11). Descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Alineado a indagación, explicación de fenómenos y uso del conocimiento (ICFES Saber 11).`,
+        searchKeywords: [topic, 'ciencias naturales bachillerato', 'secundaria', 'ejercicios resueltos', 'descripción temas', 'guía', 'explicación'],
+        expectedContentTypes: [
+          'descripción de temas',
+          'ejercicios resueltos',
+          'guía paso a paso',
+          'página web con explicación clara',
+          'contenido con ejemplos entendibles',
+          'material de práctica para secundaria',
+        ],
+        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11)',
+      };
+    }
+
     return {
-      searchIntent: `Páginas web con material entendible sobre ${topic}, explicación clara y ejemplos, relacionado con la debilidad`,
-      searchKeywords: [topic, subject, 'explicación', 'ejemplos', 'entendible', 'guía'],
-      expectedContentTypes: ['página web con explicación clara', 'guía paso a paso', 'contenido con ejemplos entendibles'],
-      educationalLevel: 'Contenido entendible para secundaria',
+      searchIntent: `Páginas web con material sobre ${topic} para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicación clara y ejemplos para estudiantes. Contenido relacionado con la debilidad.`,
+      searchKeywords: [topic, subject, 'bachillerato', 'secundaria', 'ejercicios resueltos', 'descripción temas', 'explicación', 'guía'],
+      expectedContentTypes: [
+        'descripción de temas',
+        'ejercicios resueltos',
+        'página web con explicación clara',
+        'guía paso a paso',
+        'contenido con ejemplos entendibles',
+        'material de práctica',
+      ],
+      educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
     };
   }
 
@@ -575,67 +755,78 @@ Los siguientes canales de YouTube son altamente recomendados para el aprendizaje
 
 Puedes incluir estos nombres de canales en las keywords cuando sean relevantes para el tema, por ejemplo: ["reading comprehension", "Francisco Ochoa Inglés Fácil", "grammar exercises"]` : '';
 
-    // Instrucciones específicas de webSearchInfo para Física y Química (material más difícil de encontrar)
+    // Instrucciones específicas de webSearchInfo por materia (alineadas a Icfes Saber 11°)
     const normalizedSubjectForWeb = this.normalizeSubjectName(subject);
+    const webSearchMathSection =
+      normalizedSubjectForWeb === 'matemáticas' || normalizedSubjectForWeb === 'matematicas'
+        ? `
+**RECURSOS WEB PARA MATEMÁTICAS (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
+- Busca páginas web con **material para bachillerato o secundaria (grados 6 a 11)** anclado al tema (ej. geometría, álgebra, estadística). Competencias Icfes: interpretación y representación, formulación y ejecución, argumentación.
+- En **searchIntent** y **searchKeywords** incluye SIEMPRE: el tema específico (ej. "geometría", "ecuaciones cuadráticas"), **"ejercicios resueltos"**, **"descripción de temas"**, "bachillerato" o "secundaria", "estudiantes", "guía" o "explicación".
+- En **expectedContentTypes** incluye: "descripción de temas", "ejercicios resueltos", "guía paso a paso", "página web con explicación clara", "contenido con ejemplos entendibles", "material de práctica para secundaria".
+- Ejemplo para geometría: searchIntent = "Páginas web con material de geometría para bachillerato/secundaria (6-11): descripción de temas, ejercicios resueltos, explicaciones para estudiantes"; searchKeywords = ["geometría", "ejercicios resueltos", "descripción temas", "bachillerato", "secundaria estudiantes"].`
+        : '';
+
+    const webSearchLecturaSection =
+      normalizedSubjectForWeb.includes('lectura') && normalizedSubjectForWeb.includes('crítica')
+        ? `
+**RECURSOS WEB PARA LECTURA CRÍTICA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
+- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos, cómo interpretar y analizar textos, definición de palabras.
+- Textos literarios cortos (cuentos, fragmentos de novelas, poemas, narraciones). Infografías, gráficas y tablas. Conectores lógicos (sin embargo, por tanto, además). Tipos de texto (argumentativo, expositivo, narrativo), intención comunicativa.
+- Incluye en **searchKeywords** términos como: "Cuadernillo lectura crítica Saber 11 pdf", "Textos argumentativos cortos con preguntas", "Ejercicios inferencia lectura crítica", "Conectores lógicos ejercicios pdf", "Comprensión lectora inferencial y crítica".`
+        : '';
+
+    const webSearchCienciasSocialesSection =
+      normalizedSubjectForWeb.includes('ciencias sociales') || normalizedSubjectForWeb.includes('competencias ciudadanas')
+        ? `
+**RECURSOS WEB PARA CIENCIAS SOCIALES (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
+- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Historia de Colombia (independencia, Constitución 1991), Revolución Francesa e Industrial, guerras mundiales, Guerra Fría. Regiones naturales, economía (PIB, oferta y demanda), ramas del poder, democracia, Competencias ciudadanas, mecanismos de participación. "Ciencias sociales ICFES Saber 11 preguntas resueltas", "Competencias ciudadanas".`
+        : '';
+
     const webSearchPhysicsChemistrySection =
       normalizedSubjectForWeb === 'física'
         ? `
-**RECURSOS WEB PARA FÍSICA (OBLIGATORIO en webSearchInfo):**
-- Incluye en **searchIntent** y **searchKeywords** búsqueda de: material para **física de bachillerato/secundaria**, **simulaciones** (PhET), guías y explicaciones claras.
-- En **searchKeywords** incluye al menos: el tema específico, "física bachillerato" o "física secundaria", "simulaciones" o "PhET", "guía", "explicación".
-- En **expectedContentTypes** incluye: "simulación o experimento virtual", "guía paso a paso", "contenido con ejemplos entendibles", "material de práctica para secundaria".`
+**RECURSOS WEB PARA FÍSICA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
+- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Cinemática (MRU, MRUA, caída libre), Dinámica (Leyes de Newton), trabajo/energía/potencia, ondas y sonido, Electricidad y circuitos (Ley de Coulomb, Ley de Ohm), electromagnetismo, presión y fluidos. "Física ICFES Saber 11 preguntas tipo ICFES".`
         : normalizedSubjectForWeb === 'quimica'
           ? `
-**RECURSOS WEB PARA QUÍMICA (OBLIGATORIO en webSearchInfo):**
-- Incluye en **searchIntent** y **searchKeywords** búsqueda de: material para **química de bachillerato/secundaria**, **experimentos**, **tabla periódica**, guías y explicaciones claras.
-- En **searchKeywords** incluye al menos: el tema específico, "química bachillerato" o "química secundaria", "tabla periódica" o "experimentos", "guía", "explicación".
-- En **expectedContentTypes** incluye: "experimentos o simulaciones", "guía paso a paso", "contenido con ejemplos entendibles", "material de práctica para secundaria".`
+**RECURSOS WEB PARA QUÍMICA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
+- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Estequiometría, tabla periódica, enlace iónico/covalente/metálico, polaridad, geometría molecular (VSEPR), fuerzas intermoleculares, soluciones, ácidos y bases pH, hidrocarburos, grupos funcionales, nomenclatura. "Balanceo de ecuaciones químicas ejercicios", "Química orgánica básica ejercicios nomenclatura".`
           : '';
 
-    // Instrucciones específicas de webSearchInfo para Inglés: contenido EN ESPAÑOL que explica inglés
+    const webSearchBiologiaSection =
+      normalizedSubjectForWeb === 'biología' || normalizedSubjectForWeb === 'biologia'
+        ? `
+**RECURSOS WEB PARA BIOLOGÍA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
+- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Célula y organelos, tipos de células (animal, vegetal, procariota, eucariota), transporte celular (ósmosis, difusión), mitosis y meiosis. Genética y herencia, ADN y ARN, genes y cromosomas, leyes de Mendel, mutaciones, teorías de evolución, selección natural, adaptación. Ecosistemas, cadenas y redes tróficas, niveles tróficos, ciclos biogeoquímicos (agua, carbono, nitrógeno), biodiversidad, impacto ambiental. Sistemas digestivo, respiratorio, circulatorio, nervioso y endocrino, reproducción humana. Fotosíntesis y respiración celular, cloroplastos y mitocondrias. Bacterias, virus, hongos. Interpretación de gráficos y experimentos, variables dependientes e independientes. "Biología ICFES Saber 11 preguntas tipo ICFES", "Célula mitosis meiosis", "Ecosistemas cadenas tróficas ciclos biogeoquímicos", "Fotosíntesis y respiración celular resumen".`
+        : '';
+
     const webSearchEnglishSection =
       normalizedSubjectForWeb === 'inglés'
         ? `
 **RECURSOS WEB PARA INGLÉS (OBLIGATORIO en webSearchInfo):**
 - **CRÍTICO**: Busca **contenido en ESPAÑOL que explica inglés** (no páginas solo en inglés). Material para aprender inglés explicado en español, para secundaria/ICFES.
-- En **searchIntent** indica: páginas web **en español** que explican inglés (gramática, vocabulario, comprensión lectora) para el tema/debilidad. Ejemplo: "Páginas en español que explican [tema] de inglés para secundaria, gramática y vocabulario explicados en español".
-- En **searchKeywords** incluye siempre: "inglés explicado en español", "gramática inglés secundaria", "aprender inglés español", y el tema específico (ej. comprensión lectora, vocabulario, gramática).
+- En **searchIntent** indica: páginas web **en español** que explican inglés (gramática, vocabulario, comprensión lectora) para el tema/debilidad.
+- En **searchKeywords** incluye siempre: "inglés explicado en español", "gramática inglés secundaria", "aprender inglés español", y el tema específico.
 - En **expectedContentTypes** incluye: "página en español que explica inglés", "gramática inglés explicada en español", "guía paso a paso en español", "material para aprender inglés en español".`
         : '';
 
-    return `Eres un **experto con doctorado en educación secundaria y preparación para el examen ICFES Saber 11**, con amplia experiencia pedagógica, curricular y evaluativa. Tu objetivo es diseñar un **plan de estudio personalizado** basado en el desempeño real del estudiante, detectado a partir de un cuestionario previamente respondido y almacenado en base de datos.
+    return `Eres un experto en educación secundaria y preparación ICFES Saber 11. Diseñas planes de estudio personalizados basados en el desempeño real del estudiante.
 
-═══════════════════════════════════════════════════════════════
-📋 INFORMACIÓN DEL ESTUDIANTE Y SU DESEMPEÑO
-═══════════════════════════════════════════════════════════════
+--- Datos del estudiante ---
 
-**Estudiante:** ${studentId}
-**Fase:** ${phase}
-**Materia:** ${subject}
+**Estudiante:** ${studentId} | **Fase:** ${phase} | **Materia:** ${subject}
 
-**Temas abordados en el cuestionario:**
-${topicsList || 'No se especificaron temas'}
+**Temas del cuestionario:** ${topicsList || 'No especificados'}
 
-**DEBILIDADES IDENTIFICADAS (Temas con menos del 60% de aciertos):**
+**Debilidades (menos del 60% de aciertos):**
+${weaknesses.length > 0 ? weaknessesDescription : 'No se identificaron debilidades.'}
 
-${weaknesses.length > 0 ? weaknessesDescription : 'No se identificaron debilidades específicas. El estudiante tiene un buen desempeño general.'}
+Genera un plan enfocado solo en esas debilidades, alineado con ICFES Saber 11 y accionable.
 
-═══════════════════════════════════════════════════════════════
-🎯 TU MISIÓN COMO EXPERTO CON DOCTORADO EN EDUCACIÓN
-═══════════════════════════════════════════════════════════════
+--- Formato de respuesta ---
 
-Debes crear un **plan de estudio personalizado completo** que:
-
-1. **Se enfoque exclusivamente en las debilidades identificadas** - Este es el eje central de la ruta de mejora
-2. **Esté alineado con los lineamientos oficiales del ICFES Saber 11**
-3. **Priorice el fortalecimiento de competencias evaluadas en Saber 11 y las debilidades identificadas**
-4. **Sea práctico, accionable y orientado a resultados**
-
-═══════════════════════════════════════════════════════════════
-📋 ESTRUCTURA DE RESPUESTA REQUERIDA (JSON)
-═══════════════════════════════════════════════════════════════
-
-Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes o después. El JSON debe tener esta estructura exacta:
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después. Estructura:
 
 {
   "student_info": {
@@ -669,168 +860,40 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin texto adicional ante
       "level": "Básico|Intermedio|Avanzado",
       "keywords": ["keyword1", "keyword2", "keyword3"],
       "webSearchInfo": {
-        "searchIntent": "Páginas web y LIBROS o material en formato libro ENTENDIBLE para estudiantes de secundaria (grados 6 a 11), claramente sobre [TEMA DE LA DEBILIDAD]. Prioriza explicaciones claras, guías de estudio, capítulos de libro o material de lectura para secundaria. Incluye también contenido bien explicado que un estudiante de secundaria pueda comprender.",
-        "searchKeywords": ["[tema específico de la debilidad]", "libro secundaria", "guía de estudio", "explicación", "ejemplos", "entendible"],
-        "expectedContentTypes": ["página web con explicación clara", "guía paso a paso", "libro o capítulo de libro para secundaria", "guía de estudio en formato libro", "material de lectura para secundaria", "contenido con ejemplos entendibles", "material de práctica", "resumen conceptual accesible"],
-        "educationalLevel": "Contenido entendible para secundaria, grados 6 a 11 (lenguaje claro, ejemplos, nivel accesible)"
+        "searchIntent": "Páginas web con material sobre [TEMA DE LA DEBILIDAD] para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Contenido anclado al tema y alineado a competencias ICFES Saber 11.",
+        "searchKeywords": ["[tema específico, ej. geometría, ecuaciones cuadráticas]", "ejercicios resueltos", "descripción de temas", "bachillerato", "secundaria estudiantes", "guía", "explicación"],
+        "expectedContentTypes": ["descripción de temas", "ejercicios resueltos", "página web con explicación clara", "guía paso a paso", "contenido con ejemplos entendibles", "material de práctica", "resumen conceptual accesible", "libro o guía de estudio para secundaria"],
+        "educationalLevel": "Bachillerato o secundaria (grados 6 a 11), estudiantes"
       }
     }
   ]
 }
 
-═══════════════════════════════════════════════════════════════
-📝 ESPECIFICACIONES DETALLADAS
-═══════════════════════════════════════════════════════════════
+--- Especificaciones ---
 
-### 1. diagnostic_summary (Máximo 50 palabras)
-- Resumen conciso sobre la materia y los temas específicos a mejorar
-- Debe mencionar las debilidades principales identificadas
-- Ejemplo: "Este plan de estudio se enfoca en mejorar Matemáticas, específicamente en Álgebra y Geometría, donde el estudiante presenta dificultades con ecuaciones cuadráticas y propiedades de triángulos."
+**diagnostic_summary:** Máximo 50 palabras; menciona las debilidades principales.
+**study_plan_summary:** 100-150 palabras; estrategia de mejora y recursos (videos, ejercicios).
 
-### 2. study_plan_summary (100-150 palabras)
-- Resumen más detallado del plan de estudio
-- Debe explicar la estrategia de mejora
-- Debe mencionar los recursos incluidos (videos, ejercicios)
+**practice_exercises:** EXACTAMENTE 20 ejercicios. Genera este array ANTES que topics. Estilo ICFES (selección múltiple). Campos: question (texto con contexto si aplica), options (array de 4 strings con formato "A) Texto", "B) Texto", ...), correctAnswer (solo letra "A"|"B"|"C"|"D"), explanation (detallada), topic (coincide con debilidad). Enfocado en competencias, no memorización.
 
-### 3. practice_exercises (EXACTAMENTE 20 ejercicios) - ⚠️ GENERAR PRIMERO ESTOS EJERCICIOS ⚠️
-**ESTOS EJERCICIOS SON CRÍTICOS Y DEBEN GENERARSE COMPLETOS. GENERA ESTOS ANTES QUE LOS TOPICS.**
+**topics:** Mínimo 3, idealmente 5-8. Cada uno relacionado con una debilidad.
+Por topic: **name**, **description**, **level** (Básico|Intermedio|Avanzado), **keywords** (3-5 para videos; específicas, no genéricas). ${keywordsInstruction} ${englishChannelsSection}
 
-**REQUISITOS CRÍTICOS:**
-- **20 ejercicios** - ni más ni menos
-- Enfocados DIRECTAMENTE en las debilidades identificadas
-- Estilo ICFES Saber 11 (preguntas tipo selección múltiple con contexto)
-- Orientados a fortalecer COMPETENCIAS con fallas, NO memorización
-- Cada ejercicio debe tener:
-  - **question**: Pregunta completa con contexto (si aplica). Si la pregunta incluye contexto, inclúyelo en el mismo campo "question"
-  - **options**: Array de EXACTAMENTE 4 opciones como strings. Cada opción DEBE comenzar con su letra seguida de ") " (ejemplo: "A) Texto de la opción")
-  - **correctAnswer**: String con la letra de la respuesta correcta (ejemplo: "A", "B", "C", o "D")
-  - **explanation**: Explicación detallada de por qué esta es la respuesta correcta
-  - **topic**: Tema asociado que debe coincidir con una de las debilidades identificadas
-
-**FORMATO CRÍTICO DE OPCIONES:**
-- Las opciones DEBEN comenzar con la letra seguida de ") " (espacio después del paréntesis)
-- Ejemplo CORRECTO: ["A) Primera opción", "B) Segunda opción", "C) Tercera opción", "D) Cuarta opción"]
-- Ejemplo INCORRECTO: ["Primera opción", "Segunda opción", "Tercera opción", "Cuarta opción"] (sin prefijo)
-- El correctAnswer debe ser solo la letra (ejemplo: "A", no "A)" ni "A) Texto")
-
-**Ejemplo de estructura JSON completa para un ejercicio:**
-\`\`\`json
-{
-  "question": "Contexto: [Si aplica]\\n\\nTexto completo de la pregunta estilo ICFES",
-  "options": [
-    "A) Primera opción de respuesta",
-    "B) Segunda opción de respuesta",
-    "C) Tercera opción de respuesta",
-    "D) Cuarta opción de respuesta"
-  ],
-  "correctAnswer": "B",
-  "explanation": "Explicación detallada de por qué esta es la respuesta correcta, incluyendo el razonamiento paso a paso.",
-  "topic": "Tema relacionado con la debilidad identificada"
-}
-\`\`\`
-
-**IMPORTANTE SOBRE LOS EJERCICIOS:**
-- ✅ SIEMPRE incluye EXACTAMENTE 20 ejercicios en el array practice_exercises
-- ✅ GENERA ESTOS EJERCICIOS PRIMERO antes de los topics para asegurar que se completen
-- ✅ Cada ejercicio DEBE tener todas las propiedades requeridas (question, options, correctAnswer, explanation, topic)
-- ✅ Las opciones DEBEN tener el formato "A) Texto", "B) Texto", etc.
-- ✅ El correctAnswer DEBE ser solo la letra (A, B, C, o D)
-- ✅ Distribuye los ejercicios entre las diferentes debilidades identificadas
-- ✅ Los ejercicios deben ser progresivos en dificultad cuando sea apropiado
-
-### 4. topics (Mínimo 3, idealmente 5-8 temas)
-**REQUISITOS CRÍTICOS:**
-- Cada tema DEBE estar directamente relacionado con las debilidades identificadas
-- Los temas deben ser específicos y accionables
-- Cada tema debe tener keywords relevantes para buscar videos educativos en YouTube
-
-**Estructura de cada topic:**
-- **name**: Nombre claro y específico del tema (ej: "Ecuaciones cuadráticas", "Análisis de textos argumentativos")
-- **description**: Descripción detallada del tema, por qué es importante y cómo se relaciona con las debilidades
-- **level**: Nivel de dificultad: "Básico", "Intermedio" o "Avanzado"
-- **keywords**: Array de 3-5 palabras clave que se usarán para buscar videos educativos en YouTube
-  - Las keywords deben ser específicas y relevantes para el tema
-  - Ejemplos de keywords buenas: ["ecuaciones cuadráticas", "fórmula general", "factorización", "ICFES matemáticas"]
-  - Evita keywords muy genéricas como ["matemáticas", "estudio", "aprender"]
-- **webSearchInfo**: Información semántica para buscar recursos web educativos (OBLIGATORIO). Todo debe estar **claramente relacionado con la debilidad** del tema.
-  - **searchIntent**: Describe qué buscar: páginas web y **libros o material en formato libro** entendible para estudiantes de secundaria (grados 6 a 11) (explicación clara, guías de estudio, capítulos de libro). Prioriza recursos que un estudiante de secundaria pueda comprender. El contenido debe ser **directamente sobre el tema/debilidad** del topic (ej. competencias ciudadanas, ecuaciones cuadráticas).
-  - **searchKeywords**: Array de 3-6 palabras clave: **primero el tema específico de la debilidad** (ej. "ecuaciones cuadráticas", "competencias ciudadanas"), luego **incluye al menos uno relacionado con libros**: "libro secundaria", "guía de estudio", "capítulo libro", y términos como "explicación", "ejemplos", "entendible", "guía", "resumen".
-  - **expectedContentTypes**: Array de tipos de contenido esperados (incluye siempre al menos uno de libros):
-    - "página web con explicación clara"
-    - "guía paso a paso"
-    - **"libro o capítulo de libro para secundaria"** (recomendado)
-    - **"guía de estudio en formato libro"** o **"material de lectura para secundaria"**
-    - "contenido con ejemplos entendibles"
-    - "material de práctica"
-    - "resumen conceptual accesible"
-    - "ejercicios resueltos"
-  - **educationalLevel**: "Contenido entendible para secundaria (grados 6 a 11)" o similar (lenguaje claro, ejemplos, nivel accesible). No exijas que sea exclusivamente "para secundaria".
-
-**IMPORTANTE:**
-- ✅ Cada topic debe corresponder a una **debilidad específica**; webSearchInfo debe reflejar **esa debilidad** en searchIntent y searchKeywords
-- ✅ Las keywords deben ser lo suficientemente específicas para encontrar videos relevantes
-${keywordsInstruction}
-${englishChannelsSection}
-- ✅ Las keywords pueden incluir términos relacionados con ICFES o preparación para exámenes
-- ✅ **webSearchInfo es OBLIGATORIO** - Define QUÉ buscar, no DÓNDE buscar
-- ✅ NO incluyas URLs ni referencias a sitios específicos en webSearchInfo
-- ⚠️ **CRÍTICO PARA RECURSOS WEB**: Prioriza **páginas web con material entendible** para estudiantes de secundaria (grados 6 a 11) (lenguaje claro, ejemplos, nivel accesible). **Incluye búsqueda de LIBROS o material en formato libro** para secundaria sobre la debilidad (ej. competencias ciudadanas en ciencias sociales, ecuaciones cuadráticas en matemáticas): guías de estudio, capítulos de libro, material de lectura. **Todo debe ir claramente relacionado con la debilidad** del estudiante en ese tema.
+**webSearchInfo** (OBLIGATORIO por topic). Público: bachillerato o secundaria (grados 6-11). Sin URLs ni sitios específicos. **searchIntent:** material sobre el tema con descripción de temas, ejercicios resueltos, guías para estudiantes. **searchKeywords:** tema específico + "ejercicios resueltos" + "descripción de temas" + bachillerato/secundaria + estudiantes. **expectedContentTypes:** "descripción de temas", "ejercicios resueltos", "página web con explicación clara", "guía paso a paso", "contenido con ejemplos entendibles", "material de práctica para secundaria". **educationalLevel:** "Bachillerato o secundaria (grados 6 a 11), estudiantes".
+${webSearchMathSection}
+${webSearchLecturaSection}
 ${webSearchPhysicsChemistrySection}
+${webSearchBiologiaSection}
+${webSearchCienciasSocialesSection}
 ${webSearchEnglishSection}
 
-═══════════════════════════════════════════════════════════════
-⚠️ RESTRICCIONES CRÍTICAS
-═══════════════════════════════════════════════════════════════
+--- Restricciones ---
 
-🚫 **NO HAGAS:**
-- No uses markdown (\`\`\`json) alrededor del JSON
-- No agregues texto antes o después del JSON
-- No uses menos de 20 ejercicios (debe ser EXACTAMENTE 20)
-- No uses más de 50 palabras en diagnostic_summary
-- No crees ejercicios de memorización - enfócate en competencias
-- **NO incluyas campos video_resources ni study_links** - estos se generarán automáticamente por el sistema
-- **NO generes URLs ni enlaces finales en webSearchInfo** - Solo información semántica (palabras clave, intención, tipos de contenido)
-- **NO referencies sitios web específicos o dominios** - El backend se encargará de buscar y validar enlaces reales
+Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejercicios. No incluir video_resources ni study_links (se generan después). En webSearchInfo solo información semántica, sin URLs. Escapar comillas (\\") y saltos de línea (\\n) dentro de strings.
 
-✅ **SÍ HAZLO:**
-- Responde SOLO con JSON válido
-- **ESCAPA correctamente todas las comillas dobles dentro de strings usando \\"**
-- **ESCAPA correctamente todos los saltos de línea dentro de strings usando \\n**
-- **NO uses caracteres especiales sin escapar en texto**
-- Crea topics específicos y relevantes para las debilidades identificadas
-- Incluye keywords específicas y relevantes para cada topic (3-5 keywords por topic)
-- Crea ejercicios que fortalezcan las competencias evaluadas en ICFES
-- Incluye explicaciones detalladas en cada ejercicio
-- **IMPORTANTE: El sistema buscará videos automáticamente usando las keywords que proporciones**
-- Incluye webSearchInfo en cada topic con información clara sobre QUÉ buscar, no DÓNDE buscar
-- Usa vocabulario educativo estándar en los tipos de contenido esperados
+--- Orden en el JSON ---
 
-═══════════════════════════════════════════════════════════════
-🎓 CONSIDERACIONES PEDAGÓGICAS
-═══════════════════════════════════════════════════════════════
-
-- **Enfoque en competencias**: Los ejercicios deben evaluar comprensión, análisis y aplicación, no solo memorización
-- **Progresión lógica**: Organiza los recursos de manera que el estudiante pueda avanzar gradualmente
-- **Contexto ICFES**: Todas las preguntas deben reflejar el estilo y formato del examen real
-- **Recursos verificables**: Solo incluye videos y enlaces que puedas verificar que existen y son útiles
-
-═══════════════════════════════════════════════════════════════
-
-⚠️ **RECORDATORIO FINAL CRÍTICO - ORDEN DE GENERACIÓN:**
-- **IMPORTANTE**: Genera primero "practice_exercises" (los 20 ejercicios) ANTES que "topics"
-- DEBES incluir EXACTAMENTE 20 ejercicios en el campo "practice_exercises"
-- Los ejercicios SON OBLIGATORIOS y son parte esencial del plan de estudio
-- Si el JSON se trunca por límite de tokens, asegúrate de que los ejercicios estén completos (puedes acortar topics si es necesario)
-- Cada ejercicio debe tener: question, options (4 opciones con formato "A) Texto"), correctAnswer (solo letra), explanation, y topic
-
-**ORDEN RECOMENDADO EN EL JSON:**
-1. student_info
-2. diagnostic_summary
-3. study_plan_summary  
-4. **practice_exercises** ⬅️ GENERA ESTOS PRIMERO
-5. topics
-
-**Ahora genera el JSON completo con el plan de estudio personalizado. GENERA PRIMERO LOS 20 EJERCICIOS DE PRÁCTICA antes que los topics para evitar truncamiento.**`;
+1. student_info 2. diagnostic_summary 3. study_plan_summary 4. practice_exercises (20 ejercicios; genera primero) 5. topics`;
   }
 
   /**
@@ -1470,10 +1533,15 @@ ${webSearchEnglishSection}
         console.log(`   Se guardarán ${parsed.practice_exercises.length} ejercicio(s) válido(s)`);
       }
 
-      // Obtener videos desde AnswerIA/{studentId}/{materia}/{topicId}/ (caché) o YouTube
+      const grade = this.normalizeGradeForPath(input.grade);
+      if (!parsed.student_info) parsed.student_info = {} as StudyPlanResponse['student_info'];
+      (parsed.student_info as { grade?: string }).grade = grade;
+      console.log(`   📋 Grado (videos y WebLinks): ${grade}`);
+
+      // Obtener videos desde YoutubeLinks/{grado}/{materia}/{topicId}/ (caché) o YouTube
       // Usa topics CANÓNICOS (ejes de la materia) con debilidad. 7 videos por topic.
       // Llenado incremental en cada generación hasta MAX_VIDEOS_PER_TOPIC, sin duplicados.
-      console.log(`\n📹 Obteniendo videos educativos (AnswerIA por topic, YouTube si es necesario)...`);
+      console.log(`\n📹 Obteniendo videos educativos (YoutubeLinks/${grade}/{materia}/{topicId}/, YouTube si es necesario)...`);
 
       parsed.video_resources = [];
       parsed.study_links = [];
@@ -1495,6 +1563,7 @@ ${webSearchEnglishSection}
             console.log(`      Keywords: ${keywords.join(', ')}`);
 
             const videos = await this.getVideosForTopic(
+              grade,
               input.studentId,
               input.phase,
               input.subject,
@@ -1532,9 +1601,7 @@ ${webSearchEnglishSection}
         console.warn('⚠️ No se identificaron topics canónicos con debilidad. No se buscarán videos.');
       }
 
-      // Obtener enlaces web validados desde Firestore (caché) o buscar nuevos si es necesario
-      // Usa topics CANÓNICOS (ejes de la materia), igual que los videos
-      console.log(`\n🔗 Obteniendo enlaces web educativos (Firestore primero, búsqueda si es necesario)...`);
+      console.log(`\n🔗 Obteniendo enlaces web educativos (WebLinks/${grade}/{materia}/{topicId}/)...`);
 
       parsed.study_links = [];
 
@@ -1553,6 +1620,7 @@ ${webSearchEnglishSection}
             console.log(`      Intención: "${webSearchInfo.searchIntent}"`);
 
             const links = await this.getLinksForTopic(
+              grade,
               input.subject,
               canonicalTopic,
               webSearchInfo
@@ -1588,6 +1656,28 @@ ${webSearchEnglishSection}
         console.warn('⚠️ No se identificaron topics canónicos con debilidad. No se buscarán enlaces.');
       }
 
+      // 6b. Guardar ejercicios en EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ (base reutilizable)
+      if (parsed.practice_exercises && parsed.practice_exercises.length > 0) {
+        console.log(`\n📝 Guardando ejercicios en EjerciciosIA/${grade}/{materia}/{topicId}/...`);
+        const exercisesByTopic = new Map<string, typeof parsed.practice_exercises>();
+        for (const ex of parsed.practice_exercises) {
+          const canonicalTopic = mapToCanonicalTopic(input.subject, ex.topic);
+          const topicKey = canonicalTopic || this.normalizeTopicId(ex.topic);
+          if (!exercisesByTopic.has(topicKey)) {
+            exercisesByTopic.set(topicKey, []);
+          }
+          exercisesByTopic.get(topicKey)!.push(ex);
+        }
+        let totalSaved = 0;
+        for (const [topicKey, exs] of exercisesByTopic) {
+          const n = await this.saveExercisesToCache(grade, input.subject, topicKey, exs);
+          totalSaved += n;
+        }
+        if (totalSaved > 0) {
+          console.log(`   ✅ Total: ${totalSaved} ejercicio(s) guardados en EjerciciosIA`);
+        }
+      }
+
       // 7. Guardar en Firestore
       console.log(`\n💾 Guardando plan de estudio en Firestore...`);
       console.log(`   📊 Resumen antes de guardar:`);
@@ -1614,8 +1704,10 @@ ${webSearchEnglishSection}
         throw new Error('El plan debe tener al menos un video educativo');
       }
 
+      // Enlaces web: si no hay ninguno, se permite el plan pero se registra advertencia (no bloquear por API CSE o caché vacía)
       if (!hasLinks) {
-        throw new Error('El plan debe tener al menos un enlace web educativo');
+        console.warn('⚠️ El plan se generó sin enlaces web. Posibles causas: GOOGLE_CSE_API_KEY/GOOGLE_CSE_ID no configuradas, sin resultados en dominios confiables, o caché vacía.');
+        parsed.study_links = parsed.study_links || [];
       }
 
       // Verificar que los videos tengan campos válidos
@@ -1624,10 +1716,12 @@ ${webSearchEnglishSection}
         throw new Error(`${invalidVideos.length} video(s) sin título o URL válida`);
       }
 
-      // Verificar que los enlaces tengan campos válidos
-      const invalidLinks = parsed.study_links.filter(l => !l.title || !l.url);
-      if (invalidLinks.length > 0) {
-        throw new Error(`${invalidLinks.length} enlace(s) sin título o URL válida`);
+      // Verificar que los enlaces tengan campos válidos (solo si hay enlaces)
+      if (parsed.study_links.length > 0) {
+        const invalidLinks = parsed.study_links.filter(l => !l.title || !l.url);
+        if (invalidLinks.length > 0) {
+          throw new Error(`${invalidLinks.length} enlace(s) sin título o URL válida`);
+        }
       }
 
       // Verificar que los ejercicios tengan campos válidos
@@ -1784,12 +1878,13 @@ ${webSearchEnglishSection}
                 console.log(`   🔄 Algunos enlaces no tienen campo 'topic', obteniendo temas desde Firestore...`);
 
                 try {
-                  const allTopicsFromFirestore = await this.getAllTopicsFromFirestore(subject, phase);
+                  const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
+                  const allTopicsFromFirestore = await this.getAllTopicsFromFirestore(grade, subject, phase);
 
                   if (allTopicsFromFirestore.length > 0) {
                     const linksByTopicPromises = allTopicsFromFirestore.map(async (topicId) => {
                       try {
-                        const links = await this.getCachedLinks(subject, topicId, phase);
+                        const links = await this.getCachedLinks(grade, subject, topicId, phase);
                         return links;
                       } catch (error) {
                         console.warn(`   ⚠️ Error obteniendo enlaces para topic "${topicId}":`, error);
@@ -1826,12 +1921,14 @@ ${webSearchEnglishSection}
                 : (data.topics || []).map((t: { name: string }) => mapToCanonicalTopic(subject, t.name)).filter(Boolean) as string[];
 
               if (videosWithoutTopic.length > 0 && canonicalTopics.length > 0) {
-                console.log(`   🔄 Obteniendo videos desde AnswerIA organizados por topic canónico...`);
+                console.log(`   🔄 Obteniendo videos desde YoutubeLinks organizados por topic canónico...`);
 
                 try {
+                  const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
                   const videosByTopicPromises = [...new Set(canonicalTopics)].map(async (canonicalTopic) => {
                     try {
                       const videos = await this.getCachedVideos(
+                        grade,
                         studentId,
                         phase,
                         subject,
@@ -1981,11 +2078,12 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Obtiene videos para un topic canónico (desde AnswerIA o YouTube).
-   * Ruta: AnswerIA/{studentId}/materias/{materia}/topics/{topicId}/videos/
+   * Obtiene videos para un topic canónico (desde YoutubeLinks o YouTube).
+   * Ruta: YoutubeLinks/{grado}/{materia}/{topicId}/videos/video1, video2...
    * Llenado incremental por generación hasta MAX_VIDEOS_PER_TOPIC, sin duplicados.
    */
   private async getVideosForTopic(
+    grade: string,
     studentId: string,
     phase: 'first' | 'second' | 'third',
     subject: string,
@@ -2002,7 +2100,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }>> {
     try {
       console.log(`   📋 Iniciando búsqueda de videos para topic: "${topic}"`);
-      const cachedVideos = await this.getCachedVideos(studentId, phase, subject, topic);
+      const cachedVideos = await this.getCachedVideos(grade, studentId, phase, subject, topic);
       console.log(`   📦 Resultado: ${cachedVideos.length} video(s) en caché`);
 
       if (cachedVideos.length >= VIDEOS_PER_TOPIC) {
@@ -2042,8 +2140,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         console.warn(`   🔄 Fallback: buscando con keywords originales`);
         const fallbackVideos = await this.searchYouTubeVideos(keywords, 10, subject);
         if (fallbackVideos.length > 0) {
-          await this.saveVideosToCache(studentId, subject, topic, fallbackVideos, 0);
-          const all = await this.getCachedVideos(studentId, phase, subject, topic);
+          await this.saveVideosToCache(grade, studentId, subject, topic, fallbackVideos, 0);
+          const all = await this.getCachedVideos(grade, studentId, phase, subject, topic);
           return all.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
             title: v.title,
             url: v.url,
@@ -2062,10 +2160,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         return !existingIds.has(id);
       });
       if (uniqueNew.length > 0) {
-        await this.saveVideosToCache(studentId, subject, topic, uniqueNew, cachedVideos.length);
+        await this.saveVideosToCache(grade, studentId, subject, topic, uniqueNew, cachedVideos.length);
       }
 
-      const allVideos = await this.getCachedVideos(studentId, phase, subject, topic);
+      const allVideos = await this.getCachedVideos(grade, studentId, phase, subject, topic);
       return allVideos.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
         title: v.title,
         url: v.url,
@@ -2083,9 +2181,11 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Obtiene videos desde Firestore (caché).
-   * Ruta: YoutubeLinks/{materia}/{topicId}/video1, video2...
+   * Ruta: YoutubeLinks/{grado}/{materia}/{topicId}/video1, video2...
+   * Fallback: YoutubeLinks/{materia}/{topicId}/ (legacy sin grado)
    */
   private async getCachedVideos(
+    grade: string,
     _studentId: string,
     _phase: 'first' | 'second' | 'third',
     subject: string,
@@ -2102,6 +2202,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }>> {
     const db = this.getStudentDatabase();
     const topicId = this.normalizeTopicId(topic);
+    const gradeNorm = this.normalizeGradeForPath(grade);
 
     const parseVideoDoc = (data: admin.firestore.DocumentData) => ({
       title: data.título || data.title || '',
@@ -2134,10 +2235,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     };
 
     try {
-      const mainPath = `YoutubeLinks/${subject}/${topicId}/video1...video20`;
+      const mainPath = `YoutubeLinks/${gradeNorm}/${subject}/${topicId}/video1...video20`;
       console.log(`   🔍 Consultando: ${mainPath}`);
 
-      const topicColRef = db.collection('YoutubeLinks').doc(subject).collection(topicId);
+      const topicColRef = db.collection('YoutubeLinks').doc(gradeNorm).collection(subject).doc(topicId).collection('videos');
       let videos = await readFromPath(topicColRef, true);
 
       if (videos.length > 0) {
@@ -2145,13 +2246,26 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         return videos;
       }
 
+      const topicColRefLegacy = db.collection('YoutubeLinks').doc(subject).collection(topicId);
+      videos = await readFromPath(topicColRefLegacy, true);
+      if (videos.length > 0) {
+        console.log(`   📦 Videos (legacy sin grado): ${videos.length}`);
+        return videos;
+      }
+
       const defaultDb = admin.app().firestore();
       if (defaultDb !== db) {
         try {
-          const topicColRef2 = defaultDb.collection('YoutubeLinks').doc(subject).collection(topicId);
+          const topicColRef2 = defaultDb.collection('YoutubeLinks').doc(gradeNorm).collection(subject).doc(topicId).collection('videos');
           videos = await readFromPath(topicColRef2, true);
           if (videos.length > 0) {
             console.log(`   ✅ Videos (proyecto por defecto): ${videos.length}`);
+            return videos;
+          }
+          const topicColRef2Legacy = defaultDb.collection('YoutubeLinks').doc(subject).collection(topicId);
+          videos = await readFromPath(topicColRef2Legacy, true);
+          if (videos.length > 0) {
+            console.log(`   ✅ Videos (proyecto por defecto, legacy): ${videos.length}`);
             return videos;
           }
         } catch (e) {
@@ -2167,10 +2281,11 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Guarda videos en Firestore (caché).
-   * Ruta: YoutubeLinks/{materia}/{topicId}/video1, video2...
-   * Caché global por materia y topic (sin studentId).
+   * Ruta: YoutubeLinks/{grado}/{materia}/{topicId}/videos/video1, video2...
+   * Caché global por grado, materia y topic (sin studentId).
    */
   private async saveVideosToCache(
+    grade: string,
     _studentId: string,
     subject: string,
     topic: string,
@@ -2188,10 +2303,11 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     try {
       const db = this.getStudentDatabase();
       const topicId = this.normalizeTopicId(topic);
+      const gradeNorm = this.normalizeGradeForPath(grade);
 
-      const topicColRef = db.collection('YoutubeLinks').doc(subject).collection(topicId);
+      const topicColRef = db.collection('YoutubeLinks').doc(gradeNorm).collection(subject).doc(topicId).collection('videos');
 
-      const savePath = `YoutubeLinks/${subject}/${topicId}/video${startOrder + 1}...video${startOrder + videos.length}`;
+      const savePath = `YoutubeLinks/${gradeNorm}/${subject}/${topicId}/videos/video${startOrder + 1}...video${startOrder + videos.length}`;
       console.log(`   💾 Guardando ${videos.length} video(s) en: ${savePath}`);
 
       const batch = db.batch();
@@ -2587,12 +2703,13 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Construye la query de búsqueda CSE con el tema primero y frases exactas para términos compuestos.
-   * Para Física y Química añade términos específicos (bachillerato, simulaciones, PhET, etc.) para mejorar resultados.
+   * Por materia añade términos alineados a Icfes Saber 11°: ejercicios resueltos, descripción de temas, bachillerato/secundaria (6-11).
    */
   private buildEducationalSearchQuery(webSearchInfo: TopicWebSearchInfo, subject?: string): string {
     const topicKeywords = this.getTopicKeywordsForQuery(webSearchInfo);
-    const understandableTerms = 'entendible explicación clara ejemplos';
+    const understandableTerms = 'entendible explicación clara ejemplos estudiantes';
     const bookTerms = 'libro secundaria guía de estudio material lectura';
+    const baseStudentTerms = 'bachillerato secundaria grados 6 a 11 estudiantes';
     const normalizedSubject = subject ? this.normalizeSubjectName(subject) : '';
 
     const topicPart = topicKeywords
@@ -2607,12 +2724,22 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     const intentShort = (webSearchInfo.searchIntent || '').slice(0, 60).trim();
 
     let subjectTerms = '';
-    if (normalizedSubject === 'física') {
-      subjectTerms = 'física bachillerato secundaria simulaciones PhET guía';
+    if (normalizedSubject === 'matemáticas' || normalizedSubject === 'matematicas') {
+      subjectTerms = 'matemáticas bachillerato secundaria ejercicios resueltos descripción temas geometría álgebra estadística guía estudiantes';
+    } else if (normalizedSubject.includes('lectura') && normalizedSubject.includes('crítica')) {
+      subjectTerms = 'lectura crítica bachillerato secundaria descripción temas ejercicios resueltos interpretar texto cuentos poemas narraciones infografías gráficas tablas conectores lógicos tipos texto argumentativo expositivo narrativo Cuadernillo lectura crítica Saber 11 comprensión lectora inferencial y crítica';
+    } else if (normalizedSubject === 'física') {
+      subjectTerms = 'física bachillerato secundaria ejercicios resueltos descripción temas Cinemática MRU MRUA Dinámica Leyes Newton trabajo energía ondas electricidad Ley Ohm Ley Coulomb electromagnetismo presión fluidos Física ICFES Saber 11';
     } else if (normalizedSubject === 'quimica') {
-      subjectTerms = 'química bachillerato secundaria tabla periódica experimentos guía';
+      subjectTerms = 'química bachillerato secundaria ejercicios resueltos descripción temas Estequiometría tabla periódica enlace iónico covalente VSEPR soluciones ácidos bases pH hidrocarburos nomenclatura Balanceo ecuaciones químicas Química orgánica ejercicios nomenclatura';
+    } else if (normalizedSubject.includes('ciencias sociales') || normalizedSubject.includes('competencias ciudadanas')) {
+      subjectTerms = 'ciencias sociales bachillerato secundaria descripción temas ejercicios resueltos Historia Colombia Constitución 1991 Revolución Francesa economía ramas del poder Competencias ciudadanas ICFES Saber 11 preguntas resueltas';
+    } else if (normalizedSubject === 'biología' || normalizedSubject === 'biologia') {
+      subjectTerms = 'biología bachillerato secundaria descripción temas ejercicios resueltos Célula mitosis meiosis Genética ADN ARN leyes de Mendel Ecosistemas cadenas tróficas ciclos biogeoquímicos Fotosíntesis respiración celular bacterias virus hongos Biología ICFES Saber 11';
     } else if (normalizedSubject === 'inglés') {
       subjectTerms = 'inglés explicado en español gramática inglés secundaria material aprender inglés español';
+    } else {
+      subjectTerms = `${baseStudentTerms} ejercicios resueltos descripción temas guía`;
     }
 
     const query = [topicPart, subjectTerms, bookTerms, understandableTerms, restKeywords, intentShort]
@@ -3013,9 +3140,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Obtiene enlaces web para un topic desde Firestore (caché) o busca nuevos si es necesario.
-   * Ruta: WebLinks/{materia}/{topicId}/link1, link2...
+   * Ruta: WebLinks/{grado}/{materia}/{topicId}/link1, link2...
    */
   private async getLinksForTopic(
+    grade: string,
     subject: string,
     topic: string,
     webSearchInfo: TopicWebSearchInfo
@@ -3030,10 +3158,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
     try {
       console.log(`   📋 Iniciando búsqueda de enlaces web para topic: "${topic}"`);
-      console.log(`      Materia: ${subject}`);
+      console.log(`      Grado: ${grade}, Materia: ${subject}`);
       console.log(`      Intención: "${webSearchInfo.searchIntent}"`);
 
-      const cachedLinks = await this.getCachedLinks(subject, topic);
+      const cachedLinks = await this.getCachedLinks(grade, subject, topic);
       console.log(`   📦 Enlaces en caché para "${topic}": ${cachedLinks.length}`);
 
       if (cachedLinks.length >= TARGET_LINKS) {
@@ -3055,10 +3183,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       console.log(`   ✅ Encontrados ${uniqueNewLinks.length} enlace(s) nuevo(s)`);
 
       if (uniqueNewLinks.length > 0) {
-        await this.saveLinksToCache(subject, topic, uniqueNewLinks, cachedLinks.length);
+        await this.saveLinksToCache(grade, subject, topic, uniqueNewLinks, cachedLinks.length);
       }
 
-      const allLinks = await this.getCachedLinks(subject, topic);
+      const allLinks = await this.getCachedLinks(grade, subject, topic);
       const linksToReturn = allLinks.slice(0, LINKS_TO_RETURN).map((link) => ({ ...link, topic }));
       console.log(`   📤 Retornando ${linksToReturn.length} enlace(s) (de ${allLinks.length} en DB)`);
       return linksToReturn;
@@ -3076,21 +3204,24 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     _phase: 'first' | 'second' | 'third',
     subject: string,
     topic: string,
-    webSearchInfo: TopicWebSearchInfo
+    webSearchInfo: TopicWebSearchInfo,
+    grade?: string
   ): Promise<Array<{
     title: string;
     url: string;
     description: string;
   }>> {
-    return this.getLinksForTopic(subject, topic, webSearchInfo);
+    const g = this.normalizeGradeForPath(grade);
+    return this.getLinksForTopic(g, subject, topic, webSearchInfo);
   }
 
 
   /**
    * Obtiene enlaces desde Firestore (caché).
-   * Ruta: WebLinks/{materia}/{topicId}/link1, link2...
+   * Ruta: WebLinks/{grado}/{materia}/{topicId}/links/link1, link2...
    */
   private async getCachedLinks(
+    grade: string,
     subject: string,
     topic: string,
     _phase?: 'first' | 'second' | 'third'
@@ -3102,6 +3233,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }>> {
     const studentDb = this.getStudentDatabase();
     const topicId = this.normalizeTopicId(topic);
+    const gradeNorm = this.normalizeGradeForPath(grade);
 
     const parseLinkDoc = (data: admin.firestore.DocumentData) => ({
       title: data.title || '',
@@ -3133,22 +3265,39 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     };
 
     try {
-      const mainPath = `WebLinks/${subject}/${topicId}/link1...link${StudyPlanService.MAX_LINKS_PER_TOPIC}`;
+      const mainPath = `WebLinks/${gradeNorm}/${subject}/${topicId}/link1...`;
       console.log(`   🔍 Consultando WebLinks: ${mainPath}`);
 
-      const topicColRef = studentDb.collection('WebLinks').doc(subject).collection(topicId);
-      let links = await readFromPath(topicColRef, true);
+      const linksColRef = studentDb
+        .collection('WebLinks')
+        .doc(gradeNorm)
+        .collection(subject)
+        .doc(topicId)
+        .collection('links');
+      let links = await readFromPath(linksColRef, true);
 
       if (links.length > 0) {
         console.log(`   📦 Enlaces en caché: ${links.length}`);
         return links;
       }
 
+      const legacyColRef = studentDb.collection('WebLinks').doc(subject).collection(topicId);
+      links = await readFromPath(legacyColRef, true);
+      if (links.length > 0) {
+        console.log(`   ✅ Enlaces (ruta legacy sin grado): ${links.length}`);
+        return links;
+      }
+
       const defaultDb = admin.app().firestore();
       if (defaultDb !== studentDb) {
         try {
-          const topicColRef2 = defaultDb.collection('WebLinks').doc(subject).collection(topicId);
-          links = await readFromPath(topicColRef2, true);
+          const linksColRef2 = defaultDb
+            .collection('WebLinks')
+            .doc(gradeNorm)
+            .collection(subject)
+            .doc(topicId)
+            .collection('links');
+          links = await readFromPath(linksColRef2, true);
           if (links.length > 0) {
             console.log(`   ✅ Enlaces (proyecto por defecto): ${links.length}`);
             return links;
@@ -3166,10 +3315,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Guarda enlaces en Firestore (caché).
-   * Ruta: WebLinks/{materia}/{topicId}/link1, link2...
-   * Caché global por materia y topic (sin phase ni studentId).
+   * Ruta: WebLinks/{grado}/{materia}/{topicId}/links/link1, link2...
    */
   private async saveLinksToCache(
+    grade: string,
     subject: string,
     topic: string,
     links: Array<{
@@ -3182,8 +3331,14 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     try {
       const db = this.getStudentDatabase();
       const topicId = this.normalizeTopicId(topic);
+      const gradeNorm = this.normalizeGradeForPath(grade);
 
-      const topicColRef = db.collection('WebLinks').doc(subject).collection(topicId);
+      const linksColRef = db
+        .collection('WebLinks')
+        .doc(gradeNorm)
+        .collection(subject)
+        .doc(topicId)
+        .collection('links');
       const batch = db.batch();
 
       links.forEach((link, index) => {
@@ -3195,7 +3350,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         }
 
         const linkId = `link${order}`;
-        batch.set(topicColRef.doc(linkId), {
+        batch.set(linksColRef.doc(linkId), {
           title: link.title,
           url: link.url,
           description: link.description,
@@ -3206,7 +3361,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       });
 
       await batch.commit();
-      console.log(`   💾 Guardados ${links.length} enlace(s) en WebLinks/${subject}/${topicId}/`);
+      console.log(`   💾 Guardados ${links.length} enlace(s) en WebLinks/${gradeNorm}/${subject}/${topicId}/`);
     } catch (error: any) {
       console.error(`❌ Error guardando enlaces en caché:`, error.message);
       throw error;
@@ -3214,31 +3369,33 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Obtiene todos los topicIds disponibles en WebLinks para una materia.
-   * Ruta: WebLinks/{subject}/ → subcolecciones = topicIds
+   * Obtiene todos los topicIds disponibles en WebLinks para un grado y materia.
+   * Ruta: WebLinks/{grado}/{materia}/ → documentos = topicIds
    */
   private async getAllTopicsFromFirestore(
+    grade: string,
     subject: string,
     _phase?: 'first' | 'second' | 'third'
   ): Promise<string[]> {
     const studentDb = this.getStudentDatabase();
+    const gradeNorm = this.normalizeGradeForPath(grade);
 
     try {
-      const subjectDocRef = studentDb.collection('WebLinks').doc(subject);
-      const subcollections = await subjectDocRef.listCollections();
-      const topicIds = subcollections.map((c) => c.id);
+      const subjectColRef = studentDb.collection('WebLinks').doc(gradeNorm).collection(subject);
+      const snapshot = await subjectColRef.get();
+      const topicIds = snapshot.docs.map((d) => d.id);
 
       if (topicIds.length > 0) {
-        console.log(`   📚 Encontrados ${topicIds.length} tema(s) en WebLinks/${subject}/`);
+        console.log(`   📚 Encontrados ${topicIds.length} tema(s) en WebLinks/${gradeNorm}/${subject}/`);
         return topicIds;
       }
 
       const defaultDb = admin.app().firestore();
       if (defaultDb !== studentDb) {
-        const defaultSubjectRef = defaultDb.collection('WebLinks').doc(subject);
-        const defaultSubcols = await defaultSubjectRef.listCollections();
-        if (defaultSubcols.length > 0) {
-          return defaultSubcols.map((c) => c.id);
+        const defaultSubjectCol = defaultDb.collection('WebLinks').doc(gradeNorm).collection(subject);
+        const defaultSnap = await defaultSubjectCol.get();
+        if (!defaultSnap.empty) {
+          return defaultSnap.docs.map((d) => d.id);
         }
       }
 
@@ -3249,14 +3406,168 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     }
   }
 
+  /**
+   * Obtiene ejercicios desde Firestore (caché EjerciciosIA).
+   * Ruta: EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ejercicio1, ejercicio2...
+   */
+  private async getCachedExercises(
+    grade: string,
+    subject: string,
+    topic: string
+  ): Promise<Array<{
+    question: string;
+    options: string[];
+    correctAnswer: string;
+    explanation: string;
+    topic: string;
+  }>> {
+    const db = this.getStudentDatabase();
+    const topicId = this.normalizeTopicId(topic);
+    const gradeNorm = this.normalizeGradeForPath(grade);
+
+    const parseExerciseDoc = (data: admin.firestore.DocumentData) => ({
+      question: data.question || '',
+      options: Array.isArray(data.options) ? data.options : [],
+      correctAnswer: data.correctAnswer || '',
+      explanation: data.explanation || '',
+      topic: data.topic || topic,
+    });
+
+    const readFromPath = async (
+      ejerciciosColRef: admin.firestore.CollectionReference
+    ): Promise<Array<ReturnType<typeof parseExerciseDoc>>> => {
+      const promises: Promise<admin.firestore.DocumentSnapshot | null>[] = [];
+      for (let i = 1; i <= MAX_EXERCISES_PER_TOPIC; i++) {
+        promises.push(
+          ejerciciosColRef.doc(`ejercicio${i}`).get().then((d) => (d.exists ? d : null))
+        );
+      }
+      const docs = await Promise.all(promises);
+      const withOrder = docs
+        .filter((doc): doc is admin.firestore.DocumentSnapshot => doc !== null)
+        .map((doc) => {
+          const data = doc?.data();
+          return data ? { ...parseExerciseDoc(data), order: data.order ?? 0 } : null;
+        })
+        .filter((v): v is NonNullable<typeof v> & { order: number } => v !== null);
+      withOrder.sort((a, b) => (a.order as number) - (b.order as number));
+      return withOrder;
+    };
+
+    try {
+      const ejerciciosColRef = db
+        .collection('EjerciciosIA')
+        .doc(gradeNorm)
+        .collection(subject)
+        .doc(topicId)
+        .collection('ejercicios');
+      return await readFromPath(ejerciciosColRef);
+    } catch (error: any) {
+      console.warn(`   ⚠️ Error leyendo ejercicios desde EjerciciosIA:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Guarda ejercicios en Firestore (caché EjerciciosIA).
+   * Ruta: EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ejercicio1, ejercicio2...
+   * Incremental: agrega nuevos sin duplicar por texto de pregunta.
+   */
+  private async saveExercisesToCache(
+    grade: string,
+    subject: string,
+    topic: string,
+    exercises: Array<{
+      question: string;
+      options: string[];
+      correctAnswer: string;
+      explanation: string;
+      topic: string;
+    }>
+  ): Promise<number> {
+    if (exercises.length === 0) return 0;
+    try {
+      const db = this.getStudentDatabase();
+      const topicId = this.normalizeTopicId(topic);
+      const gradeNorm = this.normalizeGradeForPath(grade);
+
+      const cached = await this.getCachedExercises(grade, subject, topic);
+      const startOrder = cached.length;
+      const existingQuestions = new Set(
+        cached.map((e) => e.question.trim().toLowerCase().substring(0, 200))
+      );
+
+      const ejerciciosColRef = db
+        .collection('EjerciciosIA')
+        .doc(gradeNorm)
+        .collection(subject)
+        .doc(topicId)
+        .collection('ejercicios');
+
+      const toSave: typeof exercises = [];
+      for (const exercise of exercises) {
+        if (startOrder + toSave.length >= MAX_EXERCISES_PER_TOPIC) break;
+        const qKey = exercise.question.trim().toLowerCase().substring(0, 200);
+        if (existingQuestions.has(qKey)) continue;
+        existingQuestions.add(qKey);
+        toSave.push(exercise);
+      }
+
+      if (toSave.length === 0) return 0;
+
+      const batch = db.batch();
+      toSave.forEach((exercise, index) => {
+        const order = startOrder + index + 1;
+        batch.set(
+          ejerciciosColRef.doc(`ejercicio${order}`),
+          {
+            question: exercise.question,
+            options: exercise.options,
+            correctAnswer: exercise.correctAnswer,
+            explanation: exercise.explanation || '',
+            topic: exercise.topic || topic,
+            order,
+            savedAt: new Date(),
+          },
+          { merge: true }
+        );
+      });
+      await batch.commit();
+      console.log(`   💾 Guardados ${toSave.length} ejercicio(s) en EjerciciosIA/${gradeNorm}/${subject}/${topicId}/`);
+      return toSave.length;
+    } catch (error: any) {
+      console.error(`❌ Error guardando ejercicios en EjerciciosIA:`, error.message);
+      return 0;
+    }
+  }
+
   private normalizeTopicId(topic: string): string {
-    // Convertir a formato URL-safe y limitar longitud
     return topic
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9áéíóúñü]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .substring(0, 100);
+  }
+
+  /**
+   * Normaliza el grado para usar en la ruta WebLinks/{grado}/{materia}/{topicId}/.
+   * Retorna "6".."11" para escalabilidad por grados.
+   */
+  private normalizeGradeForPath(grade: string | undefined): string {
+    if (!grade || typeof grade !== 'string') return '11';
+    const g = grade.trim().toLowerCase();
+    const map: Record<string, string> = {
+      '6': '6', 'sexto': '6',
+      '7': '7', 'septimo': '7', 'séptimo': '7',
+      '8': '8', 'octavo': '8',
+      '9': '9', 'noveno': '9',
+      '0': '10', '10': '10', 'decimo': '10', 'décimo': '10',
+      '1': '11', '11': '11', 'undecimo': '11', 'undécimo': '11',
+    };
+    if (map[g]) return map[g];
+    if (/^[6-9]$|^1[01]$/.test(g)) return g;
+    return '11';
   }
 
 }

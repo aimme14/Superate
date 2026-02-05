@@ -544,7 +544,7 @@ export const generateStudyPlan = functions
     }
     
     try {
-      const { studentId, phase, subject } = req.body;
+      const { studentId, phase, subject, grade } = req.body;
       
       if (!studentId || !phase || !subject) {
         const response: APIResponse = {
@@ -571,6 +571,7 @@ export const generateStudyPlan = functions
         studentId,
         phase: phase as 'first' | 'second' | 'third',
         subject,
+        grade: grade || undefined,
       });
       
       const response: APIResponse = {

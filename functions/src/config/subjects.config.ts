@@ -96,6 +96,9 @@ export const MAX_VIDEOS_PER_TOPIC = 20;
 /** Cantidad de videos a retornar por topic con debilidad */
 export const VIDEOS_PER_TOPIC = 7;
 
+/** Límite máximo de ejercicios por topic en EjerciciosIA */
+export const MAX_EXERCISES_PER_TOPIC = 100;
+
 /**
  * Obtiene la materia por nombre (case-insensitive, normalizado)
  */
