@@ -16,6 +16,7 @@ import {
   getCanonicalTopicsWithWeakness,
   mapToCanonicalTopic,
   MAX_VIDEOS_PER_TOPIC,
+  MAX_EXERCISES_PER_TOPIC,
   VIDEOS_PER_TOPIC,
 } from '../config/subjects.config';
 import * as admin from 'firebase-admin';
@@ -1653,6 +1654,28 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
         }
       } else {
         console.warn('⚠️ No se identificaron topics canónicos con debilidad. No se buscarán enlaces.');
+      }
+
+      // 6b. Guardar ejercicios en EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ (base reutilizable)
+      if (parsed.practice_exercises && parsed.practice_exercises.length > 0) {
+        console.log(`\n📝 Guardando ejercicios en EjerciciosIA/${grade}/{materia}/{topicId}/...`);
+        const exercisesByTopic = new Map<string, typeof parsed.practice_exercises>();
+        for (const ex of parsed.practice_exercises) {
+          const canonicalTopic = mapToCanonicalTopic(input.subject, ex.topic);
+          const topicKey = canonicalTopic || this.normalizeTopicId(ex.topic);
+          if (!exercisesByTopic.has(topicKey)) {
+            exercisesByTopic.set(topicKey, []);
+          }
+          exercisesByTopic.get(topicKey)!.push(ex);
+        }
+        let totalSaved = 0;
+        for (const [topicKey, exs] of exercisesByTopic) {
+          const n = await this.saveExercisesToCache(grade, input.subject, topicKey, exs);
+          totalSaved += n;
+        }
+        if (totalSaved > 0) {
+          console.log(`   ✅ Total: ${totalSaved} ejercicio(s) guardados en EjerciciosIA`);
+        }
       }
 
       // 7. Guardar en Firestore
@@ -3380,6 +3403,141 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     } catch (error: any) {
       console.error(`❌ Error obteniendo temas desde WebLinks:`, error.message);
       return [];
+    }
+  }
+
+  /**
+   * Obtiene ejercicios desde Firestore (caché EjerciciosIA).
+   * Ruta: EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ejercicio1, ejercicio2...
+   */
+  private async getCachedExercises(
+    grade: string,
+    subject: string,
+    topic: string
+  ): Promise<Array<{
+    question: string;
+    options: string[];
+    correctAnswer: string;
+    explanation: string;
+    topic: string;
+  }>> {
+    const db = this.getStudentDatabase();
+    const topicId = this.normalizeTopicId(topic);
+    const gradeNorm = this.normalizeGradeForPath(grade);
+
+    const parseExerciseDoc = (data: admin.firestore.DocumentData) => ({
+      question: data.question || '',
+      options: Array.isArray(data.options) ? data.options : [],
+      correctAnswer: data.correctAnswer || '',
+      explanation: data.explanation || '',
+      topic: data.topic || topic,
+    });
+
+    const readFromPath = async (
+      ejerciciosColRef: admin.firestore.CollectionReference
+    ): Promise<Array<ReturnType<typeof parseExerciseDoc>>> => {
+      const promises: Promise<admin.firestore.DocumentSnapshot | null>[] = [];
+      for (let i = 1; i <= MAX_EXERCISES_PER_TOPIC; i++) {
+        promises.push(
+          ejerciciosColRef.doc(`ejercicio${i}`).get().then((d) => (d.exists ? d : null))
+        );
+      }
+      const docs = await Promise.all(promises);
+      const withOrder = docs
+        .filter((doc): doc is admin.firestore.DocumentSnapshot => doc !== null)
+        .map((doc) => {
+          const data = doc?.data();
+          return data ? { ...parseExerciseDoc(data), order: data.order ?? 0 } : null;
+        })
+        .filter((v): v is NonNullable<typeof v> & { order: number } => v !== null);
+      withOrder.sort((a, b) => (a.order as number) - (b.order as number));
+      return withOrder;
+    };
+
+    try {
+      const ejerciciosColRef = db
+        .collection('EjerciciosIA')
+        .doc(gradeNorm)
+        .collection(subject)
+        .doc(topicId)
+        .collection('ejercicios');
+      return await readFromPath(ejerciciosColRef);
+    } catch (error: any) {
+      console.warn(`   ⚠️ Error leyendo ejercicios desde EjerciciosIA:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Guarda ejercicios en Firestore (caché EjerciciosIA).
+   * Ruta: EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ejercicio1, ejercicio2...
+   * Incremental: agrega nuevos sin duplicar por texto de pregunta.
+   */
+  private async saveExercisesToCache(
+    grade: string,
+    subject: string,
+    topic: string,
+    exercises: Array<{
+      question: string;
+      options: string[];
+      correctAnswer: string;
+      explanation: string;
+      topic: string;
+    }>
+  ): Promise<number> {
+    if (exercises.length === 0) return 0;
+    try {
+      const db = this.getStudentDatabase();
+      const topicId = this.normalizeTopicId(topic);
+      const gradeNorm = this.normalizeGradeForPath(grade);
+
+      const cached = await this.getCachedExercises(grade, subject, topic);
+      const startOrder = cached.length;
+      const existingQuestions = new Set(
+        cached.map((e) => e.question.trim().toLowerCase().substring(0, 200))
+      );
+
+      const ejerciciosColRef = db
+        .collection('EjerciciosIA')
+        .doc(gradeNorm)
+        .collection(subject)
+        .doc(topicId)
+        .collection('ejercicios');
+
+      const toSave: typeof exercises = [];
+      for (const exercise of exercises) {
+        if (startOrder + toSave.length >= MAX_EXERCISES_PER_TOPIC) break;
+        const qKey = exercise.question.trim().toLowerCase().substring(0, 200);
+        if (existingQuestions.has(qKey)) continue;
+        existingQuestions.add(qKey);
+        toSave.push(exercise);
+      }
+
+      if (toSave.length === 0) return 0;
+
+      const batch = db.batch();
+      toSave.forEach((exercise, index) => {
+        const order = startOrder + index + 1;
+        batch.set(
+          ejerciciosColRef.doc(`ejercicio${order}`),
+          {
+            question: exercise.question,
+            options: exercise.options,
+            correctAnswer: exercise.correctAnswer,
+            explanation: exercise.explanation || '',
+            topic: exercise.topic || topic,
+            order,
+            savedAt: new Date(),
+          },
+          { merge: true }
+        );
+      });
+      await batch.commit();
+      console.log(`   💾 Guardados ${toSave.length} ejercicio(s) en EjerciciosIA/${gradeNorm}/${subject}/${topicId}/`);
+      return toSave.length;
+    } catch (error: any) {
+      console.error(`❌ Error guardando ejercicios en EjerciciosIA:`, error.message);
+      return 0;
     }
   }
 
