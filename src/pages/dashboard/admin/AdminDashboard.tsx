@@ -2,8 +2,14 @@ import { useState, useMemo } from 'react'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { 
   Users, 
   Building, 
@@ -18,7 +24,9 @@ import {
   Loader2,
   DollarSign,
   FileText,
-  FolderOpen
+  FolderOpen,
+  ChevronDown,
+  Settings
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
@@ -111,50 +119,216 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
         </Badge>
       </div>
 
-      {/* Tabs Navigation */}
+      {/* Tabs Navigation - Barra con menús desplegables horizontales */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={cn("grid w-full grid-cols-10", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-          <TabsTrigger value="overview" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
+        <nav
+          className={cn(
+            "flex w-full items-center justify-evenly gap-2 rounded-lg border p-1 text-sm font-medium",
+            theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-muted border-border/30 shadow-sm'
+          )}
+        >
+          {/* Inicio - sin desplegable */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              activeTab === 'overview'
+                ? theme === 'dark'
+                  ? 'bg-teal-600/80 text-white'
+                  : 'bg-primary text-primary-foreground'
+                : theme === 'dark'
+                  ? 'text-gray-400 hover:bg-zinc-700 hover:text-white'
+                  : 'text-black hover:bg-gray-100'
+            )}
+          >
             <Home className="h-4 w-4" />
-            <span>Resumen</span>
-          </TabsTrigger>
-          <TabsTrigger value="users" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <Users className="h-4 w-4" />
-            <span>Usuarios</span>
-          </TabsTrigger>
-          <TabsTrigger value="institutions" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <Building className="h-4 w-4" />
-            <span>Instituciones</span>
-          </TabsTrigger>
-          <TabsTrigger value="questions" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <BookOpen className="h-4 w-4" />
-            <span>Preguntas</span>
-          </TabsTrigger>
-          <TabsTrigger value="phases" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <Lock className="h-4 w-4" />
-            <span>Fases</span>
-          </TabsTrigger>
-          <TabsTrigger value="study-plans" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <Brain className="h-4 w-4" />
-            <span>Planes de Estudio</span>
-          </TabsTrigger>
-          <TabsTrigger value="recursos" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <FolderOpen className="h-4 w-4" />
-            <span>Recursos</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <BarChart3 className="h-4 w-4" />
-            <span>Análisis</span>
-          </TabsTrigger>
-          <TabsTrigger value="reports" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <FileText className="h-4 w-4" />
-            <span>Resúmenes PDF</span>
-          </TabsTrigger>
-          <TabsTrigger value="settings" className={cn("flex items-center space-x-2 font-bold", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white data-[state=inactive]:text-gray-400' : 'data-[state=inactive]:text-black')}>
-            <Lock className="h-4 w-4" />
-            <span>Configuración</span>
-          </TabsTrigger>
-        </TabsList>
+            <span>Inicio</span>
+          </button>
+
+          {/* Nos conforman: Usuarios, Instituciones, Registro */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  ['users', 'institutions', 'settings'].includes(activeTab)
+                    ? theme === 'dark'
+                      ? 'bg-teal-600/80 text-white'
+                      : 'bg-primary text-primary-foreground'
+                    : theme === 'dark'
+                      ? 'text-gray-400 hover:bg-zinc-700 hover:text-white'
+                      : 'text-black hover:bg-gray-100'
+                )}
+              >
+                <Users className="h-4 w-4" />
+                <span>Nos conforman</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className={cn(
+                "min-w-[10rem] rounded-lg shadow-lg",
+                theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'bg-white border-gray-200'
+              )}
+            >
+              <DropdownMenuItem
+                onClick={() => setActiveTab('users')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'users' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Usuarios
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('institutions')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'institutions' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <Building className="mr-2 h-4 w-4" />
+                Instituciones
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('settings')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'settings' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Registro
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Estudio: Preguntas, Fases, Planes de Estudio, Recursos */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  ['questions', 'phases', 'study-plans', 'recursos'].includes(activeTab)
+                    ? theme === 'dark'
+                      ? 'bg-teal-600/80 text-white'
+                      : 'bg-primary text-primary-foreground'
+                    : theme === 'dark'
+                      ? 'text-gray-400 hover:bg-zinc-700 hover:text-white'
+                      : 'text-black hover:bg-gray-100'
+                )}
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>Estudio</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className={cn(
+                "min-w-[10rem] rounded-lg shadow-lg",
+                theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'bg-white border-gray-200'
+              )}
+            >
+              <DropdownMenuItem
+                onClick={() => setActiveTab('questions')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'questions' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <BookOpen className="mr-2 h-4 w-4" />
+                Preguntas
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('phases')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'phases' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <Lock className="mr-2 h-4 w-4" />
+                Fases
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('study-plans')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'study-plans' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <Brain className="mr-2 h-4 w-4" />
+                Planes de Estudio
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('recursos')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'recursos' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Recursos
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Resultados: Análisis, Resúmenes PDF */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  ['analytics', 'reports'].includes(activeTab)
+                    ? theme === 'dark'
+                      ? 'bg-teal-600/80 text-white'
+                      : 'bg-primary text-primary-foreground'
+                    : theme === 'dark'
+                      ? 'text-gray-400 hover:bg-zinc-700 hover:text-white'
+                      : 'text-black hover:bg-gray-100'
+                )}
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Resultados</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className={cn(
+                "min-w-[10rem] rounded-lg shadow-lg",
+                theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'bg-white border-gray-200'
+              )}
+            >
+              <DropdownMenuItem
+                onClick={() => setActiveTab('analytics')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'analytics' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Análisis
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('reports')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'reports' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Resúmenes PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </nav>
 
         <TabsContent value="overview" className="space-y-6">
 
