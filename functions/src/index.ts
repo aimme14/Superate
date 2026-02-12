@@ -9,7 +9,7 @@ import * as functions from 'firebase-functions';
 import { justificationService } from './services/justification.service';
 import { questionService } from './services/question.service';
 import { geminiService } from './services/gemini.service';
-import { studyPlanService, TopicWebSearchInfo } from './services/studyPlan.service';
+import { studyPlanService } from './services/studyPlan.service';
 import { studentSummaryService } from './services/studentSummary.service';
 import { vocabularyService } from './services/vocabulary.service';
 import { APIResponse } from './types/question.types';
@@ -670,80 +670,62 @@ export const getStudyPlan = functions
   });
 
 /**
- * Genera enlaces web educativos para un tema específico
- * Endpoint independiente para pruebas y generación selectiva
- * 
+ * Obtiene enlaces web para un tema desde WebLinks (solo lectura desde caché).
+ *
  * POST /generateWebLinks
- * Body: { phase: 'first'|'second'|'third', subject: string, topic: string, webSearchInfo: TopicWebSearchInfo }
+ * Body: { phase: 'first'|'second'|'third', subject: string, topic: string, grade?: string }
  */
 export const generateWebLinks = functions
   .region(REGION)
   .runWith({
-    timeoutSeconds: 540,
-    memory: '1GB',
+    timeoutSeconds: 60,
+    memory: '256MB',
   })
   .https.onRequest(async (req, res) => {
-    // CORS
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.set('Access-Control-Allow-Headers', 'Content-Type');
-    
+
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
       return;
     }
-    
+
     if (req.method !== 'POST') {
-      const response: APIResponse = {
+      res.status(405).json({
         success: false,
         error: { message: 'Método no permitido. Usa POST' },
-      };
-      res.status(405).json(response);
+      } as APIResponse);
       return;
     }
-    
+
     try {
-      const { phase, subject, topic, webSearchInfo } = req.body;
-      
-      if (!phase || !subject || !topic || !webSearchInfo) {
-        const response: APIResponse = {
+      const { phase, subject, topic, grade } = req.body;
+
+      if (!phase || !subject || !topic) {
+        res.status(400).json({
           success: false,
-          error: { message: 'phase, subject, topic y webSearchInfo son requeridos' },
-        };
-        res.status(400).json(response);
+          error: { message: 'phase, subject y topic son requeridos' },
+        } as APIResponse);
         return;
       }
-      
-      // Validar fase
+
       if (!['first', 'second', 'third'].includes(phase)) {
-        const response: APIResponse = {
+        res.status(400).json({
           success: false,
           error: { message: 'phase debe ser: first, second o third' },
-        };
-        res.status(400).json(response);
+        } as APIResponse);
         return;
       }
-      
-      // Validar webSearchInfo
-      if (!webSearchInfo.searchIntent || !webSearchInfo.searchKeywords || !Array.isArray(webSearchInfo.searchKeywords)) {
-        const response: APIResponse = {
-          success: false,
-          error: { message: 'webSearchInfo debe tener searchIntent y searchKeywords (array)' },
-        };
-        res.status(400).json(response);
-        return;
-      }
-      
-      console.log(`🔗 Generando enlaces web para tema "${topic}", fase ${phase}, materia ${subject}`);
-      
+
       const links = await studyPlanService.generateWebLinksForTopic(
         phase as 'first' | 'second' | 'third',
         subject,
         topic,
-        webSearchInfo as TopicWebSearchInfo
+        grade
       );
-      
-      const response: APIResponse = {
+
+      res.status(200).json({
         success: true,
         data: {
           links,
@@ -752,19 +734,14 @@ export const generateWebLinks = functions
           subject,
           phase,
         },
-        metadata: {
-          timestamp: new Date(),
-        },
-      };
-      
-      res.status(200).json(response);
+        metadata: { timestamp: new Date() },
+      } as APIResponse);
     } catch (error: any) {
       console.error('Error en generateWebLinks:', error);
-      const response: APIResponse = {
+      res.status(500).json({
         success: false,
         error: { message: error.message || 'Error interno del servidor' },
-      };
-      res.status(500).json(response);
+      } as APIResponse);
     }
   });
 

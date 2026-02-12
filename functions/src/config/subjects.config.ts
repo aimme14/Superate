@@ -90,6 +90,71 @@ export const SUBJECTS_CONFIG: SubjectWithTopics[] = [
   },
 ];
 
+/**
+ * Mapeo código de grado → nombre para rutas del admin (YoutubeLinks/WebLinks).
+ * Coherente con src/utils/subjects.config.ts (GRADE_CODE_TO_NAME).
+ * Incluye "10"/"11" porque normalizeGradeForPath devuelve 10/11 para Décimo/Undécimo.
+ */
+export const GRADE_CODE_TO_NAME: Record<string, string> = {
+  '6': 'Sexto',
+  '7': 'Séptimo',
+  '8': 'Octavo',
+  '9': 'Noveno',
+  '10': 'Décimo',
+  '11': 'Undécimo',
+  '0': 'Décimo',
+  '1': 'Undécimo',
+};
+
+/** Nombres de grado usados en la ruta del admin (para validación) */
+const GRADE_NAMES = new Set(Object.values(GRADE_CODE_TO_NAME));
+
+/**
+ * Devuelve el nombre de grado usado en la ruta del admin (YoutubeLinks/WebLinks).
+ * Acepta código ("6"-"11") o nombre ("Sexto", "Séptimo", ...).
+ */
+export function getGradeNameForAdminPath(grade: string | undefined): string {
+  if (!grade || typeof grade !== 'string') return 'Undécimo';
+  const g = grade.trim();
+  if (GRADE_NAMES.has(g)) return g;
+  const byCode = GRADE_CODE_TO_NAME[g];
+  if (byCode) return byCode;
+  const lower = g.toLowerCase();
+  const map: Record<string, string> = {
+    'sexto': 'Sexto',
+    'séptimo': 'Séptimo',
+    'septimo': 'Séptimo',
+    'octavo': 'Octavo',
+    'noveno': 'Noveno',
+    'décimo': 'Décimo',
+    'decimo': 'Décimo',
+    'undécimo': 'Undécimo',
+    'undecimo': 'Undécimo',
+  };
+  return map[lower] ?? 'Undécimo';
+}
+
+/**
+ * Devuelve el topicCode (ej. "AL", "GE") para un tema canónico de una materia.
+ */
+/**
+ * Devuelve el topicCode (ej. "AL", "GE") para un tema canónico o su código.
+ * Acepta nombre del tema o código: si el argumento coincide con un topic.code de la materia, lo devuelve.
+ */
+export function getTopicCode(subjectName: string, topicNameOrCode: string): string | undefined {
+  const subject = getSubjectConfig(subjectName);
+  if (!subject) return undefined;
+  const normalized = topicNameOrCode.trim().toLowerCase();
+  const byCode = subject.topics.find(
+    (t) => t.code.toLowerCase() === normalized
+  );
+  if (byCode) return byCode.code;
+  const byName = subject.topics.find(
+    (t) => t.name.toLowerCase() === normalized
+  );
+  return byName?.code;
+}
+
 /** Límite máximo de videos por topic en la base de datos */
 export const MAX_VIDEOS_PER_TOPIC = 20;
 

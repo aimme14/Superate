@@ -29,6 +29,7 @@ import { SubjectsDetailedSummary } from "@/components/charts/SubjectsDetailedSum
 import { studentSummaryService } from "@/services/studentSummary/studentSummary.service"
 import { useNotification } from "@/hooks/ui/useNotification"
 import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
+import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config"
 import {
   Brain,
   Download,
@@ -52,7 +53,9 @@ import {
   Link as LinkIcon,
   Eye,
   Lock,
-  Info
+  Info,
+  Copy,
+  ExternalLink
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -493,6 +496,366 @@ interface StudyPlanData {
   }>;
 }
 
+/** Máximo de enlaces mostrados por tema antes de "Ver más". */
+const STUDY_LINKS_INITIAL_PER_TOPIC = 10;
+/** Máximo de videos mostrados por tema antes de "Ver más". */
+const STUDY_VIDEOS_INITIAL_PER_TOPIC = 10;
+
+/** Extrae el dominio de una URL de forma segura para mostrarlo en UI. */
+function getLinkDomain(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Sección de recursos web del plan (study_links). Grid responsive, sin tooltip nativo que solape,
+ * botón copiar enlace, títulos con line-clamp y "Ver más" por tema.
+ */
+function StudyLinksSection({
+  studyLinks,
+  theme,
+}: {
+  studyLinks: StudyPlanData['study_links'] | undefined;
+  theme: 'light' | 'dark';
+}) {
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+  const { notifySuccess, notifyError } = useNotification();
+
+  const links = studyLinks ?? [];
+  if (links.length === 0) {
+    return (
+      <div
+        className={cn(
+          'rounded-lg border p-4 text-center text-sm',
+          theme === 'dark'
+            ? 'border-zinc-600 bg-zinc-800/50 text-gray-400'
+            : 'border-gray-200 bg-gray-50 text-gray-600'
+        )}
+      >
+        No hay recursos web para esta materia. El administrador puede agregarlos en la sección de recursos (WebLinks).
+      </div>
+    );
+  }
+
+  const linksByTopic = links.reduce<Record<string, typeof links>>((acc, link) => {
+    const topic = link.topic ?? 'Sin categorizar';
+    if (!acc[topic]) acc[topic] = [];
+    acc[topic].push(link);
+    return acc;
+  }, {});
+  const topics = Object.keys(linksByTopic);
+
+  const toggleTopic = (topic: string) => {
+    setExpandedTopics((prev) => {
+      const next = new Set(prev);
+      if (next.has(topic)) next.delete(topic);
+      else next.add(topic);
+      return next;
+    });
+  };
+
+  const copyUrl = (e: React.MouseEvent, url: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(url).then(
+      () => notifySuccess({ message: 'Enlace copiado al portapapeles' }),
+      () => notifyError({ message: 'No se pudo copiar el enlace' })
+    );
+  };
+
+  const isSimpleList = topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar');
+  const cardWrapClass = theme === 'dark'
+    ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700'
+    : 'bg-gray-50 border-gray-200 hover:bg-gray-100';
+  const titleClass = cn('font-medium line-clamp-2', theme === 'dark' ? 'text-white' : '');
+  const titleClassCompact = cn('font-medium line-clamp-1 text-sm', theme === 'dark' ? 'text-white' : '');
+  const descClass = cn('text-sm line-clamp-2', theme === 'dark' ? 'text-gray-400' : 'text-gray-600');
+  const urlClass = cn('text-xs', theme === 'dark' ? 'text-purple-400' : 'text-purple-600');
+  const iconBtnClass = cn(
+    'p-1.5 rounded-md transition-colors',
+    theme === 'dark' ? 'hover:bg-zinc-600 text-gray-400' : 'hover:bg-gray-200 text-gray-600'
+  );
+
+  function renderLink(link: (typeof links)[number], index: number, topicLabel: string) {
+    const key = link.url ? `${topicLabel}-${link.url}-${index}` : `link-${topicLabel}-${index}`;
+    const domain = getLinkDomain(link.url);
+    const compact = !link.description?.trim();
+    return (
+      <div
+        key={key}
+        className={cn(
+          'flex flex-col rounded-lg border transition-colors',
+          compact ? 'gap-1 p-2' : 'gap-2 p-3',
+          cardWrapClass,
+          'border'
+        )}
+      >
+        <div className={cn('flex min-w-0', compact ? 'gap-1.5' : 'gap-2')}>
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn('flex-1 min-w-0 flex flex-col', compact ? 'gap-0' : 'gap-0.5')}
+          >
+            <h4 className={compact ? titleClassCompact : titleClass}>{link.title}</h4>
+            {!compact && link.description && <p className={descClass}>{link.description}</p>}
+            <span className={urlClass}>{domain}</span>
+          </a>
+          <div className="flex flex-shrink-0 items-start gap-0.5">
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={iconBtnClass}
+              aria-label="Abrir enlace"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+            <button
+              type="button"
+              onClick={(e) => copyUrl(e, link.url)}
+              className={iconBtnClass}
+              aria-label="Copiar enlace"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSimpleList) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {links.map((link, idx) => renderLink(link, idx, 'default'))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {topics.map((topic) => {
+        const topicLinks = linksByTopic[topic] ?? [];
+        const showMore = topicLinks.length > STUDY_LINKS_INITIAL_PER_TOPIC;
+        const expanded = expandedTopics.has(topic);
+        const visibleLinks = showMore && !expanded
+          ? topicLinks.slice(0, STUDY_LINKS_INITIAL_PER_TOPIC)
+          : topicLinks;
+        const hiddenCount = showMore && !expanded ? topicLinks.length - STUDY_LINKS_INITIAL_PER_TOPIC : 0;
+
+        return (
+          <div key={topic} className="space-y-3">
+            <h5
+              className={cn(
+                'font-semibold text-sm pb-2 border-b',
+                theme === 'dark' ? 'text-purple-300 border-zinc-600' : 'text-purple-700 border-gray-300'
+              )}
+            >
+              {topic}
+            </h5>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {visibleLinks.map((link, idx) => renderLink(link, idx, topic))}
+            </div>
+            {showMore && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'w-full text-xs',
+                  theme === 'dark' ? 'text-purple-300 hover:bg-zinc-700' : 'text-purple-600 hover:bg-gray-100'
+                )}
+                onClick={() => toggleTopic(topic)}
+              >
+                {expanded ? 'Ver menos' : `Ver más (${hiddenCount} más)`}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Tipo de un video del plan (video_resources). */
+type PlanVideo = StudyPlanData['video_resources'][number];
+
+/**
+ * Sección de videos educativos del plan. Misma organización que Recursos Web:
+ * grid responsive, botones abrir/copiar, sin tooltip que solape, "Ver más" por tema.
+ */
+function StudyVideosSection({
+  videos,
+  theme,
+}: {
+  videos: StudyPlanData['video_resources'] | undefined;
+  theme: 'light' | 'dark';
+}) {
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+  const { notifySuccess, notifyError } = useNotification();
+
+  const list = videos ?? [];
+  if (list.length === 0) {
+    return (
+      <div
+        className={cn(
+          'rounded-lg border p-4 text-center text-sm',
+          theme === 'dark'
+            ? 'border-zinc-600 bg-zinc-800/50 text-gray-400'
+            : 'border-gray-200 bg-gray-50 text-gray-600'
+        )}
+      >
+        No hay videos educativos para esta materia.
+      </div>
+    );
+  }
+
+  const byTopic = list.reduce<Record<string, PlanVideo[]>>((acc, video) => {
+    const topic = video.topic ?? 'Sin categorizar';
+    if (!acc[topic]) acc[topic] = [];
+    acc[topic].push(video);
+    return acc;
+  }, {});
+  const topics = Object.keys(byTopic);
+
+  const toggleTopic = (topic: string) => {
+    setExpandedTopics((prev) => {
+      const next = new Set(prev);
+      if (next.has(topic)) next.delete(topic);
+      else next.add(topic);
+      return next;
+    });
+  };
+
+  const copyUrl = (e: React.MouseEvent, url: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(url).then(
+      () => notifySuccess({ message: 'Enlace copiado al portapapeles' }),
+      () => notifyError({ message: 'No se pudo copiar el enlace' })
+    );
+  };
+
+  const isSimpleList = topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar');
+  const cardWrapClass = theme === 'dark'
+    ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700'
+    : 'bg-gray-50 border-gray-200 hover:bg-gray-100';
+  const titleClass = cn('font-medium line-clamp-2', theme === 'dark' ? 'text-white' : '');
+  const titleClassCompact = cn('font-medium line-clamp-1 text-sm', theme === 'dark' ? 'text-white' : '');
+  const descClass = cn('text-sm line-clamp-2', theme === 'dark' ? 'text-gray-400' : 'text-gray-600');
+  const urlClass = cn('text-xs', theme === 'dark' ? 'text-purple-400' : 'text-purple-600');
+  const iconBtnClass = cn(
+    'p-1.5 rounded-md transition-colors',
+    theme === 'dark' ? 'hover:bg-zinc-600 text-gray-400' : 'hover:bg-gray-200 text-gray-600'
+  );
+
+  function renderVideo(video: PlanVideo, index: number, topicLabel: string) {
+    const key = video.url ? `${topicLabel}-${video.url}-${index}` : `video-${topicLabel}-${index}`;
+    const domain = getLinkDomain(video.url);
+    const compact = !video.description?.trim();
+    return (
+      <div
+        key={key}
+        className={cn(
+          'flex flex-col rounded-lg border transition-colors',
+          compact ? 'gap-1 p-2' : 'gap-2 p-3',
+          cardWrapClass,
+          'border'
+        )}
+      >
+        <div className={cn('flex min-w-0', compact ? 'gap-1.5' : 'gap-2')}>
+          <a
+            href={video.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn('flex-1 min-w-0 flex flex-col', compact ? 'gap-0' : 'gap-0.5')}
+          >
+            <h4 className={compact ? titleClassCompact : titleClass}>{video.title}</h4>
+            {!compact && video.description && <p className={descClass}>{video.description}</p>}
+            <span className={urlClass}>{domain}</span>
+          </a>
+          <div className="flex flex-shrink-0 items-start gap-0.5">
+            <a
+              href={video.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={iconBtnClass}
+              aria-label="Abrir video"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+            <button
+              type="button"
+              onClick={(e) => copyUrl(e, video.url)}
+              className={iconBtnClass}
+              aria-label="Copiar enlace"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSimpleList) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {list.map((video, idx) => renderVideo(video, idx, 'default'))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {topics.map((topic) => {
+        const topicVideos = byTopic[topic] ?? [];
+        const showMore = topicVideos.length > STUDY_VIDEOS_INITIAL_PER_TOPIC;
+        const expanded = expandedTopics.has(topic);
+        const visibleVideos = showMore && !expanded
+          ? topicVideos.slice(0, STUDY_VIDEOS_INITIAL_PER_TOPIC)
+          : topicVideos;
+        const hiddenCount = showMore && !expanded ? topicVideos.length - STUDY_VIDEOS_INITIAL_PER_TOPIC : 0;
+
+        return (
+          <div key={topic} className="space-y-3">
+            <h5
+              className={cn(
+                'font-semibold text-sm pb-2 border-b',
+                theme === 'dark' ? 'text-purple-300 border-zinc-600' : 'text-purple-700 border-gray-300'
+              )}
+            >
+              {topic}
+            </h5>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {visibleVideos.map((video, idx) => renderVideo(video, idx, topic))}
+            </div>
+            {showMore && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'w-full text-xs',
+                  theme === 'dark' ? 'text-purple-300 hover:bg-zinc-700' : 'text-purple-600 hover:bg-gray-100'
+                )}
+                onClick={() => toggleTopic(topic)}
+              >
+                {expanded ? 'Ver menos' : `Ver más (${hiddenCount} más)`}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Componente de resumen de planes de estudio para "Todas las Fases"
 function StudyPlanSummary({
   phase1Data,
@@ -868,6 +1231,19 @@ function PersonalizedStudyPlan({
   // URL base de Cloud Functions
   const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
 
+  /** Convierte grado (código o nombre) al nombre usado en rutas (Sexto, Décimo, Undécimo, etc.) para enviar al backend. */
+  const toGradeNameForApi = (grade: string | undefined): string | undefined => {
+    if (!grade || typeof grade !== 'string') return undefined;
+    const g = grade.trim();
+    const byCode = GRADE_CODE_TO_NAME[g];
+    if (byCode) return byCode;
+    if (g === '10') return 'Décimo';
+    if (g === '11') return 'Undécimo';
+    const names = Object.values(GRADE_CODE_TO_NAME);
+    if (names.includes(g)) return g;
+    return g;
+  };
+
   // Verificar si un plan está completo (tiene videos, enlaces y ejercicios)
   const isPlanComplete = (plan: StudyPlanData | undefined): boolean => {
     if (!plan) return false;
@@ -892,7 +1268,8 @@ function PersonalizedStudyPlan({
           const studentData = userResult.data as { gradeId?: string; grade?: string; gradeName?: string };
           const gradeId = studentData.gradeId || (typeof studentData.grade === 'string' ? studentData.grade : undefined);
           const gradeName = studentData.gradeName || (typeof studentData.grade === 'string' ? studentData.grade : undefined);
-          setStudentGrade(gradeName || gradeId);
+          const rawGrade = gradeName || gradeId;
+          setStudentGrade(rawGrade ? (toGradeNameForApi(rawGrade) ?? rawGrade) : undefined);
           
           if (gradeId) {
             // Solo verificar autorización para Fase I y Fase II
@@ -996,9 +1373,17 @@ function PersonalizedStudyPlan({
 
   // Generar plan de estudio para una materia
   const generateStudyPlan = async (subject: string) => {
+    const gradeForApi = studentGrade ? (toGradeNameForApi(studentGrade) ?? studentGrade) : undefined;
+    if (!gradeForApi) {
+      notifyError({
+        title: 'Grado requerido',
+        message: 'No se pudo obtener el grado del estudiante. Asigna un grado al estudiante para generar el plan de estudio.',
+      });
+      return;
+    }
     setGeneratingFor(subject);
     try {
-      // Iniciar generación del plan (esto puede tardar varios minutos)
+      // Iniciar generación del plan (esto puede tardar varios minutos). Siempre enviamos grado en formato nombre (Sexto, Décimo, Undécimo).
       const response = await fetch(`${FUNCTIONS_URL}/generateStudyPlan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1006,7 +1391,7 @@ function PersonalizedStudyPlan({
           studentId,
           phase,
           subject,
-          ...(studentGrade ? { grade: studentGrade } : {}),
+          grade: gradeForApi,
         }),
       });
 
@@ -1161,7 +1546,7 @@ function PersonalizedStudyPlan({
         const plan = studyPlans[subject.name];
         const isGenerating = generatingFor === subject.name;
         const isAuthorized = subjectAuthorizations[subject.name] ?? false;
-        const shouldShowButton = hasWeaknesses && canShowGenerateButton(subject.name);
+        const shouldShowButton = hasWeaknesses && canShowGenerateButton(subject.name) && !!studentGrade;
 
         return (
           <AccordionItem 
@@ -1224,6 +1609,11 @@ function PersonalizedStudyPlan({
                           <>
                             <div className={cn("animate-spin rounded-full h-3 w-3 border-b-2 inline-block mr-2", theme === 'dark' ? 'border-gray-400' : 'border-gray-600')}></div>
                             Verificando...
+                          </>
+                        ) : !studentGrade ? (
+                          <>
+                            <AlertTriangle className="h-3 w-3 inline mr-2" />
+                            Asigna un grado al estudiante para generar el plan
                           </>
                         ) : !isAuthorized ? (
                           <>
@@ -1304,100 +1694,12 @@ function PersonalizedStudyPlan({
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      {(() => {
-                        // Agrupar videos por tema
-                        const videosByTopic = (plan.video_resources || []).reduce((acc, video) => {
-                          const topic = video.topic || 'Sin categorizar';
-                          if (!acc[topic]) {
-                            acc[topic] = [];
-                          }
-                          acc[topic].push(video);
-                          return acc;
-                        }, {} as Record<string, typeof plan.video_resources>);
-
-                        const topics = Object.keys(videosByTopic);
-
-                        // Si no hay temas o solo hay uno sin categorizar, mostrar lista simple
-                        if (topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar')) {
-                          return (
-                            <div className="space-y-3">
-                              {plan.video_resources?.map((video, idx) => (
-                                <a
-                                  key={idx}
-                                  href={video.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={cn(
-                                    "block p-3 rounded-lg border transition-colors",
-                                    theme === 'dark' 
-                                      ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
-                                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                  )}
-                                >
-                                  <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
-                                    {video.title}
-                                  </h4>
-                                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                                    {video.description}
-                                  </p>
-                                  <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
-                                    {video.url}
-                                  </p>
-                                </a>
-                              ))}
-                            </div>
-                          );
-                        }
-
-                        // Mostrar agrupado por temas
-                        return (
-                          <div className="space-y-4">
-                            {topics.map((topic) => (
-                              <div key={topic} className="space-y-2">
-                                <h5 className={cn(
-                                  "font-semibold text-sm mb-2 pb-1 border-b",
-                                  theme === 'dark' 
-                                    ? 'text-purple-300 border-zinc-600' 
-                                    : 'text-purple-700 border-gray-300'
-                                )}>
-                                  {topic}
-                                </h5>
-                                <div className="space-y-2 pl-2">
-                                  {videosByTopic[topic]?.map((video, idx) => (
-                                    <a
-                                      key={idx}
-                                      href={video.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        "block p-3 rounded-lg border transition-colors",
-                                        theme === 'dark' 
-                                          ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
-                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                      )}
-                                    >
-                                      <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
-                                        {video.title}
-                                      </h4>
-                                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                                        {video.description}
-                                      </p>
-                                      <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
-                                        {video.url}
-                                      </p>
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                      <StudyVideosSection videos={plan.video_resources} theme={theme} />
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
 
-                {/* Enlaces de estudio */}
+                {/* Enlaces de estudio (fuente: WebLinks en backend) */}
                 <Accordion type="single" collapsible value={expandedSection[`${subject.name}-links`] || undefined}>
                   <AccordionItem value="links">
                     <AccordionTrigger className={cn(theme === 'dark' ? 'text-white hover:text-gray-300' : '')}>
@@ -1407,95 +1709,10 @@ function PersonalizedStudyPlan({
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      {(() => {
-                        // Agrupar enlaces por tema
-                        const linksByTopic = (plan.study_links || []).reduce((acc, link) => {
-                          const topic = link.topic || 'Sin categorizar';
-                          if (!acc[topic]) {
-                            acc[topic] = [];
-                          }
-                          acc[topic].push(link);
-                          return acc;
-                        }, {} as Record<string, typeof plan.study_links>);
-
-                        const topics = Object.keys(linksByTopic);
-
-                        // Si no hay temas o solo hay uno sin categorizar, mostrar lista simple
-                        if (topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar')) {
-                          return (
-                            <div className="space-y-3">
-                              {plan.study_links?.map((link, idx) => (
-                                <a
-                                  key={idx}
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={cn(
-                                    "block p-3 rounded-lg border transition-colors",
-                                    theme === 'dark' 
-                                      ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
-                                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                  )}
-                                >
-                                  <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
-                                    {link.title}
-                                  </h4>
-                                  <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                                    {link.description}
-                                  </p>
-                                  <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
-                                    {link.url}
-                                  </p>
-                                </a>
-                              ))}
-                            </div>
-                          );
-                        }
-
-                        // Mostrar agrupado por temas
-                        return (
-                          <div className="space-y-4">
-                            {topics.map((topic) => (
-                              <div key={topic} className="space-y-2">
-                                <h5 className={cn(
-                                  "font-semibold text-sm mb-2 pb-1 border-b",
-                                  theme === 'dark' 
-                                    ? 'text-purple-300 border-zinc-600' 
-                                    : 'text-purple-700 border-gray-300'
-                                )}>
-                                  {topic}
-                                </h5>
-                                <div className="space-y-2 pl-2">
-                                  {linksByTopic[topic]?.map((link, idx) => (
-                                    <a
-                                      key={idx}
-                                      href={link.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        "block p-3 rounded-lg border transition-colors",
-                                        theme === 'dark' 
-                                          ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700' 
-                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                      )}
-                                    >
-                                      <h4 className={cn("font-medium mb-1", theme === 'dark' ? 'text-white' : '')}>
-                                        {link.title}
-                                      </h4>
-                                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                                        {link.description}
-                                      </p>
-                                      <p className={cn("text-xs mt-1", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
-                                        {link.url}
-                                      </p>
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                      <StudyLinksSection
+                        studyLinks={plan.study_links}
+                        theme={theme}
+                      />
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
@@ -1672,12 +1889,23 @@ function PersonalizedStudyPlan({
                       ) : (
                         <>
                           <div className={cn("flex items-center justify-center gap-2 mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                            <Clock className="h-5 w-5" />
-                            <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                              {isAuthorized
-                                ? 'El plan de estudio estará disponible después de generar el plan de la materia anterior en el orden de cascada.'
-                                : 'El plan de estudio no está autorizado para esta materia.'}
-                            </p>
+                            {!studentGrade ? (
+                              <>
+                                <AlertTriangle className="h-5 w-5" />
+                                <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                  Asigna un grado al estudiante para poder generar el plan de estudio.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="h-5 w-5" />
+                                <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                  {isAuthorized
+                                    ? 'El plan de estudio estará disponible después de generar el plan de la materia anterior en el orden de cascada.'
+                                    : 'El plan de estudio no está autorizado para esta materia.'}
+                                </p>
+                              </>
+                            )}
                           </div>
                           <div className={cn("p-3 rounded-lg", theme === 'dark' ? 'bg-zinc-700/30 border border-zinc-600/50' : 'bg-gray-50 border border-gray-200')}>
                             <p className={cn("text-sm font-medium mb-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>

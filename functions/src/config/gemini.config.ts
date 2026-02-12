@@ -48,7 +48,7 @@ const generationConfig = {
   temperature: 0.8,
   topP: 0.95,
   topK: 64,
-  maxOutputTokens: 32768, // Aumentado a 32k para permitir respuestas muy largas (planes de estudio completos)
+  maxOutputTokens: 65536, // 64k para planes con muchos ejercicios/topics y evitar truncado que malforma el JSON
 };
 
 /**

@@ -14,6 +14,9 @@ if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'devel
 import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
 import {
   getCanonicalTopicsWithWeakness,
+  getGradeNameForAdminPath,
+  getSubjectConfig,
+  getTopicCode,
   mapToCanonicalTopic,
   MAX_VIDEOS_PER_TOPIC,
   MAX_EXERCISES_PER_TOPIC,
@@ -342,265 +345,6 @@ class StudyPlanService {
     return weaknesses;
   }
 
-  /** Máximo de enlaces por topic en caché (WebLinks) */
-  private static readonly MAX_LINKS_PER_TOPIC = 50;
-
-  /**
-   * Obtiene webSearchInfo para un topic canónico desde los topics de Gemini que mapean a él.
-   * Si ninguno tiene webSearchInfo, retorna un fallback generado.
-   */
-  private getWebSearchInfoForCanonicalTopic(
-    canonicalTopic: string,
-    geminiTopics: Array<{ name: string; webSearchInfo?: TopicWebSearchInfo }>,
-    subject: string
-  ): TopicWebSearchInfo {
-    for (const gt of geminiTopics) {
-      const mapped = mapToCanonicalTopic(subject, gt.name);
-      if (mapped === canonicalTopic && gt.webSearchInfo) {
-        return gt.webSearchInfo;
-      }
-    }
-    const searchTopic = this.getDescriptiveSearchTopic(subject, canonicalTopic);
-    return this.createFallbackWebSearchInfo(searchTopic, subject);
-  }
-
-  /**
-   * Crea webSearchInfo por defecto cuando Gemini no lo provee para un topic canónico.
-   * Criterios alineados con Icfes Saber 11°: ejercicios resueltos, descripción de temas,
-   * material para bachillerato/secundaria (grados 6 a 11) por área.
-   */
-  private createFallbackWebSearchInfo(topic: string, subject: string): TopicWebSearchInfo {
-    const normalizedSubject = this.normalizeSubjectName(subject);
-    console.log(`   ℹ️ Usando webSearchInfo fallback para "${topic}" (Gemini no lo incluyó)`);
-
-    // Matemáticas (álgebra, geometría, estadística): Icfes competencias interpretación, formulación, argumentación
-    if (normalizedSubject === 'matemáticas' || normalizedSubject === 'matematicas') {
-      return {
-        searchIntent: `Páginas web con material de ${topic} para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Contenido anclado al tema, orientado a interpretación, formulación y argumentación (ICFES Saber 11).`,
-        searchKeywords: [
-          topic,
-          'matemáticas bachillerato',
-          'secundaria estudiantes',
-          'ejercicios resueltos',
-          'descripción de temas',
-          'guía explicación',
-          'geometría álgebra estadística',
-        ],
-        expectedContentTypes: [
-          'descripción de temas',
-          'ejercicios resueltos',
-          'guía paso a paso',
-          'página web con explicación clara',
-          'contenido con ejemplos entendibles',
-          'material de práctica para secundaria',
-          'resumen conceptual accesible',
-        ],
-        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
-      };
-    }
-
-    // Lectura Crítica: bachillerato/secundaria, descripción temas, ejercicios resueltos, interpretar texto, definición palabras, textos literarios (cuentos, fragmentos novelas, poemas, narraciones), infografías/gráficas/tablas, conectores lógicos, tipos de texto, intención comunicativa
-    if (normalizedSubject.includes('lectura') && normalizedSubject.includes('crítica')) {
-      return {
-        searchIntent: `Páginas web con material de lectura crítica para bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, cómo interpretar y analizar textos, definición de palabras. Textos literarios cortos (cuentos, fragmentos de novelas, poemas, narraciones), infografías, gráficas y tablas. Conectores lógicos (sin embargo, por tanto, además). Tipos de texto (argumentativo, expositivo, narrativo), intención comunicativa. Cuadernillo lectura crítica Saber 11, textos argumentativos cortos con preguntas, ejercicios inferencia lectura crítica, comprensión lectora inferencial y crítica.`,
-        searchKeywords: [
-          topic,
-          'lectura crítica bachillerato secundaria',
-          'descripción de temas',
-          'ejercicios resueltos',
-          'interpretar texto analizar',
-          'definición de palabras',
-          'cuentos fragmentos novelas poemas narraciones',
-          'infografías gráficas tablas',
-          'conectores lógicos ejercicios',
-          'tipos de texto argumentativo expositivo narrativo',
-          'intención comunicativa',
-          'Cuadernillo lectura crítica Saber 11 pdf',
-          'textos argumentativos cortos con preguntas',
-          'ejercicios inferencia lectura crítica',
-          'Comprensión lectora inferencial y crítica',
-        ],
-        expectedContentTypes: [
-          'descripción de temas',
-          'ejercicios resueltos',
-          'guía de comprensión lectora',
-          'ejercicios de lectura crítica',
-          'textos literarios cortos con preguntas',
-          'infografías gráficas tablas interpretación',
-          'conectores lógicos ejercicios',
-          'material de práctica para secundaria',
-        ],
-        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
-      };
-    }
-
-    // Ciencias Sociales: Historia Colombia, independencia, Constitución 1991, Revolución Francesa/Industrial, guerras mundiales, región natural, economía, ramas del poder, democracia, competencias ciudadanas, ICFES Saber 11
-    if (normalizedSubject.includes('ciencias sociales') || normalizedSubject.includes('competencias ciudadanas')) {
-      return {
-        searchIntent: `Páginas web con material de ${topic} para ciencias sociales, bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Historia de Colombia (independencia, Constitución 1991), Revolución Francesa e Industrial, guerras mundiales, Guerra Fría. Regiones naturales de Colombia, clima, relieve, hidrografía, población. Economía (PIB, oferta y demanda, sectores económicos). Ramas del poder público, democracia, derechos y deberes, Estado social de derecho. Competencias ciudadanas y ética, mecanismos de participación (tutela, plebiscito, referendo). Ciencias sociales ICFES Saber 11 preguntas resueltas, Competencias ciudadanas.`,
-        searchKeywords: [
-          topic,
-          'ciencias sociales bachillerato secundaria',
-          'descripción de temas',
-          'ejercicios resueltos',
-          'Historia de Colombia independencia Constitución 1991',
-          'Revolución Francesa Revolución Industrial',
-          'regiones naturales Colombia economía',
-          'ramas del poder democracia',
-          'Competencias ciudadanas',
-          'Ciencias sociales ICFES Saber 11 preguntas resueltas',
-        ],
-        expectedContentTypes: [
-          'descripción de temas',
-          'ejercicios resueltos',
-          'guía paso a paso',
-          'página web con explicación clara',
-          'material de práctica para secundaria',
-        ],
-        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
-      };
-    }
-
-    // Física: Cinemática (MRU, MRUA, caída libre), Dinámica (Leyes Newton), trabajo/energía/potencia, ondas y sonido, electricidad y circuitos (Ley Coulomb, Ley Ohm), electromagnetismo, presión y fluidos, Física ICFES Saber 11
-    if (normalizedSubject === 'física') {
-      return {
-        searchIntent: `Páginas web con material de ${topic} para física de bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Cinemática (MRU, MRUA, caída libre), interpretación de gráficas posición-tiempo y velocidad-tiempo. Dinámica (Leyes de Newton), planos inclinados, diagramas de cuerpo libre. Trabajo, energía y potencia, conservación de la energía. Cantidad de movimiento e impulso. Ondas y sonido (frecuencia, período, longitud de onda). Electricidad y circuitos (Ley de Coulomb, Ley de Ohm), circuitos serie y paralelo. Campo magnético, electromagnetismo, reflexión y refracción. Presión (P=F/A) y fluidos. Física ICFES Saber 11 preguntas tipo ICFES.`,
-        searchKeywords: [
-          topic,
-          'física bachillerato secundaria',
-          'descripción de temas',
-          'ejercicios resueltos',
-          'Cinemática MRU MRUA caída libre',
-          'Dinámica Leyes de Newton planos inclinados',
-          'trabajo energía potencia',
-          'ondas y sonido',
-          'Electricidad circuitos Ley de Ohm Ley de Coulomb',
-          'electromagnetismo reflexión refracción',
-          'presión fluidos',
-          'Física ICFES Saber 11 preguntas tipo ICFES',
-        ],
-        expectedContentTypes: [
-          'descripción de temas',
-          'ejercicios resueltos',
-          'página web con explicación clara',
-          'guía paso a paso',
-          'simulación o experimento virtual',
-          'contenido con ejemplos entendibles',
-          'material de práctica para secundaria',
-        ],
-        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
-      };
-    }
-
-    // Química: Estequiometría, tabla periódica, enlaces (iónico, covalente, metálico), polaridad, geometría molecular VSEPR, fuerzas intermoleculares, soluciones, ácidos y bases pH, hidrocarburos, grupos funcionales, nomenclatura, Balanceo de ecuaciones, Química orgánica ejercicios
-    if (normalizedSubject === 'quimica') {
-      return {
-        searchIntent: `Páginas web con material de ${topic} para química de bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Estequiometría, tabla periódica y propiedades. Enlace iónico, covalente, metálico, polaridad, geometría molecular (VSEPR), fuerzas intermoleculares. Soluciones y concentraciones. Ácidos, bases y pH, escala de pH. Hidrocarburos (alcanos, alquenos, alquinos), grupos funcionales (alcoholes, ácidos carboxílicos, ésteres), nomenclatura básica. Filtración, decantación, destilación. Balanceo de ecuaciones químicas ejercicios, Química orgánica básica ejercicios nomenclatura.`,
-        searchKeywords: [
-          topic,
-          'química bachillerato secundaria',
-          'descripción de temas',
-          'ejercicios resueltos',
-          'Estequiometría tabla periódica',
-          'enlace iónico covalente metálico polaridad',
-          'geometría molecular VSEPR fuerzas intermoleculares',
-          'Soluciones concentraciones ácidos bases pH',
-          'hidrocarburos grupos funcionales nomenclatura',
-          'Balanceo de ecuaciones químicas ejercicios',
-          'Química orgánica básica ejercicios nomenclatura',
-        ],
-        expectedContentTypes: [
-          'descripción de temas',
-          'ejercicios resueltos',
-          'página web con explicación clara',
-          'guía paso a paso',
-          'experimentos o simulaciones',
-          'contenido con ejemplos entendibles',
-          'material de práctica para secundaria',
-        ],
-        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
-      };
-    }
-
-    // Biología: célula y organelos, tipos de células, transporte celular, mitosis y meiosis, genética y herencia, ADN/ARN, leyes de Mendel, evolución, ecosistemas, sistemas del cuerpo, fotosíntesis y respiración celular, bacterias virus hongos, Biología ICFES Saber 11
-    if (normalizedSubject === 'biología' || normalizedSubject === 'biologia') {
-      return {
-        searchIntent: `Páginas web con material de ${topic} para biología de bachillerato y secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos. Célula y organelos, tipos de células (animal, vegetal, procariota, eucariota), transporte celular (ósmosis, difusión), mitosis y meiosis. Genética y herencia, ADN y ARN, genes y cromosomas, leyes de Mendel, mutaciones, teorías de evolución, selección natural, adaptación. Ecosistemas y medio ambiente, cadenas y redes tróficas, niveles tróficos, ciclos biogeoquímicos (agua, carbono, nitrógeno), biodiversidad, impacto ambiental. Sistema digestivo, respiratorio, circulatorio, nervioso y endocrino, reproducción humana. Fotosíntesis y respiración celular, cloroplastos y mitocondrias. Bacterias, virus, hongos. Interpretación de gráficos y experimentos, variables dependientes e independientes. Biología ICFES Saber 11 preguntas tipo ICFES.`,
-        searchKeywords: [
-          topic,
-          'biología bachillerato secundaria',
-          'descripción de temas',
-          'ejercicios resueltos',
-          'Célula organelos mitosis meiosis',
-          'tipos de células animal vegetal procariota eucariota',
-          'transporte celular ósmosis difusión',
-          'Genética herencia ADN ARN leyes de Mendel',
-          'evolución selección natural adaptación',
-          'Ecosistemas cadenas tróficas ciclos biogeoquímicos',
-          'Fotosíntesis respiración celular cloroplastos mitocondrias',
-          'bacterias virus hongos',
-          'Biología ICFES Saber 11 preguntas tipo ICFES',
-        ],
-        expectedContentTypes: [
-          'descripción de temas',
-          'ejercicios resueltos',
-          'página web con explicación clara',
-          'guía paso a paso',
-          'contenido con ejemplos entendibles',
-          'material de práctica para secundaria',
-          'resumen conceptual',
-        ],
-        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
-      };
-    }
-
-    if (normalizedSubject === 'inglés') {
-      return {
-        searchIntent: `Páginas web en ESPAÑOL que explican inglés para secundaria: ${topic}. Material en español para aprender inglés (gramática, vocabulario, comprensión lectora). Explicaciones claras en español, ejemplos y guías para ICFES.`,
-        searchKeywords: [topic, 'inglés explicado en español', 'gramática inglés secundaria', 'aprender inglés español', 'material inglés ICFES', 'explicación', 'guía'],
-        expectedContentTypes: [
-          'página en español que explica inglés',
-          'gramática inglés explicada en español',
-          'guía paso a paso en español',
-          'contenido con ejemplos entendibles',
-          'material de práctica para secundaria',
-        ],
-        educationalLevel: 'Contenido en español para aprender inglés, secundaria (grados 6 a 11)',
-      };
-    }
-
-    // Ciencias Naturales (genérico, si no es física ni química)
-    if (normalizedSubject.includes('ciencias naturales')) {
-      return {
-        searchIntent: `Páginas web con material de ${topic} para ciencias naturales, bachillerato/secundaria (grados 6 a 11). Descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Alineado a indagación, explicación de fenómenos y uso del conocimiento (ICFES Saber 11).`,
-        searchKeywords: [topic, 'ciencias naturales bachillerato', 'secundaria', 'ejercicios resueltos', 'descripción temas', 'guía', 'explicación'],
-        expectedContentTypes: [
-          'descripción de temas',
-          'ejercicios resueltos',
-          'guía paso a paso',
-          'página web con explicación clara',
-          'contenido con ejemplos entendibles',
-          'material de práctica para secundaria',
-        ],
-        educationalLevel: 'Bachillerato o secundaria (grados 6 a 11)',
-      };
-    }
-
-    return {
-      searchIntent: `Páginas web con material sobre ${topic} para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicación clara y ejemplos para estudiantes. Contenido relacionado con la debilidad.`,
-      searchKeywords: [topic, subject, 'bachillerato', 'secundaria', 'ejercicios resueltos', 'descripción temas', 'explicación', 'guía'],
-      expectedContentTypes: [
-        'descripción de temas',
-        'ejercicios resueltos',
-        'página web con explicación clara',
-        'guía paso a paso',
-        'contenido con ejemplos entendibles',
-        'material de práctica',
-      ],
-      educationalLevel: 'Bachillerato o secundaria (grados 6 a 11), estudiantes',
-    };
-  }
-
   /**
    * Obtiene keywords para un topic canónico combinando las de los topics de Gemini que mapean a él.
    */
@@ -860,7 +604,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después. Es
       "level": "Básico|Intermedio|Avanzado",
       "keywords": ["keyword1", "keyword2", "keyword3"],
       "webSearchInfo": {
-        "searchIntent": "Páginas web con material sobre [TEMA DE LA DEBILIDAD] para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Contenido anclado al tema y alineado a competencias ICFES Saber 11.",
+        "searchIntent": "Páginas web con material sobre [TEMA DE LA DEBILIDAD] para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Contenido anclado al tema.",
         "searchKeywords": ["[tema específico, ej. geometría, ecuaciones cuadráticas]", "ejercicios resueltos", "descripción de temas", "bachillerato", "secundaria estudiantes", "guía", "explicación"],
         "expectedContentTypes": ["descripción de temas", "ejercicios resueltos", "página web con explicación clara", "guía paso a paso", "contenido con ejemplos entendibles", "material de práctica", "resumen conceptual accesible", "libro o guía de estudio para secundaria"],
         "educationalLevel": "Bachillerato o secundaria (grados 6 a 11), estudiantes"
@@ -889,7 +633,8 @@ ${webSearchEnglishSection}
 
 --- Restricciones ---
 
-Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejercicios. No incluir video_resources ni study_links (se generan después). En webSearchInfo solo información semántica, sin URLs. Escapar comillas (\\") y saltos de línea (\\n) dentro de strings.
+Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejercicios. No incluir video_resources ni study_links (se generan después). En webSearchInfo solo información semántica, sin URLs.
+CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dentro de cualquier string usa \\\" para comillas y \\n para saltos de línea. (3) Devuelve un único objeto; sin texto antes ni después.
 
 --- Orden en el JSON ---
 
@@ -1610,24 +1355,12 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
 
         const linkPromises = canonicalTopics.map(async (canonicalTopic) => {
           try {
-            const webSearchInfo = this.getWebSearchInfoForCanonicalTopic(
-              canonicalTopic,
-              parsed.topics || [],
-              input.subject
-            );
-
             console.log(`   🔍 Procesando enlaces para topic canónico: "${canonicalTopic}"`);
-            console.log(`      Intención: "${webSearchInfo.searchIntent}"`);
 
-            const links = await this.getLinksForTopic(
-              grade,
-              input.subject,
-              canonicalTopic,
-              webSearchInfo
-            );
+            const links = await this.getLinksForTopic(grade, input.subject, canonicalTopic);
 
             if (links.length > 0) {
-              console.log(`   ✅ Obtenidos ${links.length} enlace(s) para "${canonicalTopic}" (objetivo: 4)`);
+              console.log(`   ✅ Obtenidos ${links.length} enlace(s) para "${canonicalTopic}"`);
             } else {
               console.warn(`   ⚠️ No se encontraron enlaces para topic "${canonicalTopic}"`);
             }
@@ -1646,19 +1379,14 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
         parsed.study_links = allLinks.flat();
 
         const totalLinks = parsed.study_links.length;
-        const expectedLinks = canonicalTopics.length * 4;
-        console.log(`✅ Total de ${totalLinks} enlace(s) obtenido(s) para el plan de estudio`);
-        console.log(`   📊 Esperados: ${expectedLinks} enlaces (${canonicalTopics.length} topics × 4 enlaces)`);
-        if (totalLinks < expectedLinks) {
-          console.warn(`   ⚠️ Faltan ${expectedLinks - totalLinks} enlace(s) (algunos topics no tienen suficientes enlaces)`);
-        }
+        console.log(`✅ Total de ${totalLinks} enlace(s) obtenido(s) para el plan (${canonicalTopics.length} topic(s) canónico(s)); luego se rellenan desde WebLinks para todos los temas de la materia`);
       } else {
         console.warn('⚠️ No se identificaron topics canónicos con debilidad. No se buscarán enlaces.');
       }
 
-      // 6b. Guardar ejercicios en EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ (base reutilizable)
+      // 6b. Guardar ejercicios en EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ (misma ruta que admin)
       if (parsed.practice_exercises && parsed.practice_exercises.length > 0) {
-        console.log(`\n📝 Guardando ejercicios en EjerciciosIA/${grade}/{materia}/{topicId}/...`);
+        console.log(`\n📝 Guardando ejercicios en EjerciciosIA (grado/materiaCode/topicCode)...`);
         const exercisesByTopic = new Map<string, typeof parsed.practice_exercises>();
         for (const ex of parsed.practice_exercises) {
           const canonicalTopic = mapToCanonicalTopic(input.subject, ex.topic);
@@ -1704,9 +1432,9 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
         throw new Error('El plan debe tener al menos un video educativo');
       }
 
-      // Enlaces web: si no hay ninguno, se permite el plan pero se registra advertencia (no bloquear por API CSE o caché vacía)
+      // Enlaces web: si no hay ninguno, se permite el plan pero se registra advertencia (los links solo vienen de WebLinks/caché)
       if (!hasLinks) {
-        console.warn('⚠️ El plan se generó sin enlaces web. Posibles causas: GOOGLE_CSE_API_KEY/GOOGLE_CSE_ID no configuradas, sin resultados en dominios confiables, o caché vacía.');
+        console.warn('⚠️ El plan se generó sin enlaces web. Agrega enlaces en WebLinks (admin) para la materia y temas del plan.');
         parsed.study_links = parsed.study_links || [];
       }
 
@@ -1716,12 +1444,21 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
         throw new Error(`${invalidVideos.length} video(s) sin título o URL válida`);
       }
 
-      // Verificar que los enlaces tengan campos válidos (solo si hay enlaces)
+      // Filtrar enlaces sin título o URL válida (evitar fallar todo el plan por datos incompletos de caché o API)
       if (parsed.study_links.length > 0) {
-        const invalidLinks = parsed.study_links.filter(l => !l.title || !l.url);
-        if (invalidLinks.length > 0) {
-          throw new Error(`${invalidLinks.length} enlace(s) sin título o URL válida`);
+        const validLinks = parsed.study_links.filter(
+          (l) => (l.title && l.url) || (l.title && (l as any).link)
+        ).map((l) => ({
+          title: l.title || 'Enlace',
+          url: l.url || (l as any).link || '',
+          description: l.description || '',
+          topic: l.topic,
+        })).filter((l) => l.url && l.url.startsWith('http'));
+        const removed = parsed.study_links.length - validLinks.length;
+        if (removed > 0) {
+          console.warn(`⚠️ Se omitieron ${removed} enlace(s) sin título o URL válida. Se conservan ${validLinks.length} enlace(s) válido(s).`);
         }
+        parsed.study_links = validLinks;
       }
 
       // Verificar que los ejercicios tengan campos válidos
@@ -1732,10 +1469,14 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
       
       await this.saveStudyPlan(input, parsed);
 
+      // study_links: todos los enlaces de la materia (todos los temas en WebLinks, no solo los del plan)
+      const allTopicNamesForSubject = getSubjectConfig(input.subject)?.topics.map((t) => t.name) ?? [];
+      parsed.study_links = await this.buildStudyLinksFromWebLinks(grade, input.subject, allTopicNamesForSubject, input.phase);
+
       const processingTime = Date.now() - startTime;
       console.log(`\n✅ Plan de estudio generado y guardado exitosamente en ${(processingTime / 1000).toFixed(1)}s`);
       console.log(`   ✅ Videos: ${parsed.video_resources.length}`);
-      console.log(`   ✅ Enlaces: ${parsed.study_links.length}`);
+      console.log(`   ✅ Enlaces (desde WebLinks): ${parsed.study_links.length}`);
       console.log(`   ✅ Ejercicios: ${parsed.practice_exercises.length}`);
 
       return {
@@ -1783,9 +1524,10 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
         .collection(phaseName)
         .doc(input.subject);
       
-      // Preparar datos para guardar
+      // Preparar datos para guardar (study_links no se persiste: fuente de verdad es WebLinks)
       const dataToSave = {
         ...studyPlan,
+        study_links: [] as StudyPlanResponse['study_links'],
         generatedAt: new Date(),
         generatedBy: GEMINI_CONFIG.MODEL_NAME,
         version: '1.0',
@@ -1870,48 +1612,14 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejerc
               console.log(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
             }
             
-            // Si los enlaces no tienen el campo 'topic', obtener todos los temas desde Firestore y agrupar enlaces
-            if (data.study_links && Array.isArray(data.study_links) && data.study_links.length > 0) {
-              const linksWithoutTopic = data.study_links.filter(link => !link.topic);
-              
-              if (linksWithoutTopic.length > 0) {
-                console.log(`   🔄 Algunos enlaces no tienen campo 'topic', obteniendo temas desde Firestore...`);
-
-                try {
-                  const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
-                  const allTopicsFromFirestore = await this.getAllTopicsFromFirestore(grade, subject, phase);
-
-                  if (allTopicsFromFirestore.length > 0) {
-                    const linksByTopicPromises = allTopicsFromFirestore.map(async (topicId) => {
-                      try {
-                        const links = await this.getCachedLinks(grade, subject, topicId, phase);
-                        return links;
-                      } catch (error) {
-                        console.warn(`   ⚠️ Error obteniendo enlaces para topic "${topicId}":`, error);
-                        return [];
-                      }
-                    });
-                    
-                    const allLinksByTopic = await Promise.all(linksByTopicPromises);
-                    const newLinks = allLinksByTopic.flat();
-                    
-                    if (newLinks.length > 0) {
-                      console.log(`   ✅ Obtenidos ${newLinks.length} enlace(s) desde Firestore organizados por tema`);
-                      // Reemplazar todos los enlaces con los nuevos que tienen topic desde Firestore
-                      data.study_links = newLinks;
-                    } else {
-                      console.warn(`   ⚠️ No se encontraron enlaces en Firestore`);
-                    }
-                  } else {
-                    console.warn(`   ⚠️ No se encontraron temas en Firestore para ${subject} en ${phase}`);
-                  }
-                } catch (error) {
-                  console.warn(`   ⚠️ Error obteniendo enlaces desde Firestore:`, error);
-                  // Continuar con los enlaces originales si hay error
-                }
-              }
+            // study_links: todos los enlaces de la materia (todos los temas en WebLinks, no solo los del plan)
+            const gradeForLinks = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
+            const allTopicNamesForSubject = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
+            data.study_links = await this.buildStudyLinksFromWebLinks(gradeForLinks, subject, allTopicNamesForSubject, phase);
+            if (data.study_links.length > 0) {
+              console.log(`   ✅ study_links desde WebLinks: ${data.study_links.length} enlace(s) para ${allTopicNamesForSubject.length} tema(s)`);
             }
-            
+
             // Verificar que los videos tienen el campo 'topic'; si no, obtener desde AnswerIA por topic canónico
             if (data.video_resources && Array.isArray(data.video_resources) && data.video_resources.length > 0) {
               const videosWithoutTopic = data.video_resources.filter(video => !video.topic);
@@ -2079,7 +1787,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Obtiene videos para un topic canónico (desde YoutubeLinks o YouTube).
-   * Ruta: YoutubeLinks/{grado}/{materia}/{topicId}/videos/video1, video2...
+   * Ruta unificada con admin: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos.
    * Llenado incremental por generación hasta MAX_VIDEOS_PER_TOPIC, sin duplicados.
    */
   private async getVideosForTopic(
@@ -2181,8 +1889,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Obtiene videos desde Firestore (caché).
-   * Ruta: YoutubeLinks/{grado}/{materia}/{topicId}/video1, video2...
-   * Fallback: YoutubeLinks/{materia}/{topicId}/ (legacy sin grado)
+   * Ruta unificada con admin: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos.
+   * Incluye documentos creados por el admin (IDs auto-generados) y por la API (video1, video2...).
    */
   private async getCachedVideos(
     grade: string,
@@ -2201,8 +1909,15 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     topic?: string;
   }>> {
     const db = this.getStudentDatabase();
-    const topicId = this.normalizeTopicId(topic);
-    const gradeNorm = this.normalizeGradeForPath(grade);
+    const gradoPath = getGradeNameForAdminPath(grade);
+    const subjectConfig = getSubjectConfig(subject);
+    const materiaCode = subjectConfig?.code;
+    const topicCode = getTopicCode(subject, topic);
+
+    if (!materiaCode || !topicCode) {
+      console.warn(`   ⚠️ No se pudo resolver ruta admin para materia="${subject}" topic="${topic}" (materiaCode=${materiaCode ?? '?'}, topicCode=${topicCode ?? '?'})`);
+      return [];
+    }
 
     const parseVideoDoc = (data: admin.firestore.DocumentData) => ({
       title: data.título || data.title || '',
@@ -2215,64 +1930,30 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       topic,
     });
 
-    const readFromPath = async (
-      topicRef: admin.firestore.CollectionReference,
-      useVideo1Format: boolean
-    ): Promise<Array<ReturnType<typeof parseVideoDoc>>> => {
-      const promises: Promise<admin.firestore.DocumentSnapshot | null>[] = [];
-      for (let i = 1; i <= MAX_VIDEOS_PER_TOPIC; i++) {
-        const vidId = useVideo1Format ? `video${i}` : `video${String(i).padStart(2, '0')}`;
-        promises.push(topicRef.doc(vidId).get().then((d) => (d.exists ? d : null)));
-      }
-      const docs = await Promise.all(promises);
-      return docs
-        .filter((doc): doc is admin.firestore.DocumentSnapshot => doc !== null)
-        .map((doc) => {
-          const data = doc?.data();
-          return data ? parseVideoDoc(data) : null;
-        })
-        .filter((v): v is NonNullable<typeof v> => v !== null);
-    };
-
     try {
-      const mainPath = `YoutubeLinks/${gradeNorm}/${subject}/${topicId}/video1...video20`;
+      const mainPath = `YoutubeLinks/${gradoPath}/${materiaCode}/${topicCode}/videos`;
       console.log(`   🔍 Consultando: ${mainPath}`);
 
-      const topicColRef = db.collection('YoutubeLinks').doc(gradeNorm).collection(subject).doc(topicId).collection('videos');
-      let videos = await readFromPath(topicColRef, true);
+      const videosColRef = db.collection('YoutubeLinks').doc(gradoPath).collection(materiaCode).doc(topicCode).collection('videos');
+      const snapshot = await videosColRef.get();
 
+      const orderOrTime = (data: admin.firestore.DocumentData): number => {
+        if (typeof data.order === 'number') return data.order;
+        const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
+        return t ?? 0;
+      };
+
+      const withOrder = snapshot.docs
+        .map((d) => ({ doc: d, data: d.data(), order: orderOrTime(d.data()) }))
+        .filter((x) => x.data?.url)
+        .sort((a, b) => a.order - b.order)
+        .slice(0, MAX_VIDEOS_PER_TOPIC);
+
+      const videos = withOrder.map((x) => parseVideoDoc(x.data));
       if (videos.length > 0) {
         console.log(`   📦 Videos en caché: ${videos.length}`);
-        return videos;
       }
-
-      const topicColRefLegacy = db.collection('YoutubeLinks').doc(subject).collection(topicId);
-      videos = await readFromPath(topicColRefLegacy, true);
-      if (videos.length > 0) {
-        console.log(`   📦 Videos (legacy sin grado): ${videos.length}`);
-        return videos;
-      }
-
-      const defaultDb = admin.app().firestore();
-      if (defaultDb !== db) {
-        try {
-          const topicColRef2 = defaultDb.collection('YoutubeLinks').doc(gradeNorm).collection(subject).doc(topicId).collection('videos');
-          videos = await readFromPath(topicColRef2, true);
-          if (videos.length > 0) {
-            console.log(`   ✅ Videos (proyecto por defecto): ${videos.length}`);
-            return videos;
-          }
-          const topicColRef2Legacy = defaultDb.collection('YoutubeLinks').doc(subject).collection(topicId);
-          videos = await readFromPath(topicColRef2Legacy, true);
-          if (videos.length > 0) {
-            console.log(`   ✅ Videos (proyecto por defecto, legacy): ${videos.length}`);
-            return videos;
-          }
-        } catch (e) {
-          console.warn(`   ⚠️ Error leyendo proyecto por defecto:`, (e as Error).message);
-        }
-      }
-      return [];
+      return videos;
     } catch (error: any) {
       console.error(`❌ Error obteniendo videos desde caché:`, error.message);
       return [];
@@ -2281,7 +1962,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Guarda videos en Firestore (caché).
-   * Ruta: YoutubeLinks/{grado}/{materia}/{topicId}/videos/video1, video2...
+   * Ruta unificada con admin: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos/video1, video2...
    * Caché global por grado, materia y topic (sin studentId).
    */
   private async saveVideosToCache(
@@ -2302,12 +1983,18 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   ): Promise<void> {
     try {
       const db = this.getStudentDatabase();
-      const topicId = this.normalizeTopicId(topic);
-      const gradeNorm = this.normalizeGradeForPath(grade);
+      const gradoPath = getGradeNameForAdminPath(grade);
+      const subjectConfig = getSubjectConfig(subject);
+      const materiaCode = subjectConfig?.code;
+      const topicCode = getTopicCode(subject, topic);
 
-      const topicColRef = db.collection('YoutubeLinks').doc(gradeNorm).collection(subject).doc(topicId).collection('videos');
+      if (!materiaCode || !topicCode) {
+        console.warn(`   ⚠️ No se pudo resolver ruta admin para guardar videos (materia="${subject}" topic="${topic}"). No se guardan en caché.`);
+        return;
+      }
 
-      const savePath = `YoutubeLinks/${gradeNorm}/${subject}/${topicId}/videos/video${startOrder + 1}...video${startOrder + videos.length}`;
+      const topicColRef = db.collection('YoutubeLinks').doc(gradoPath).collection(materiaCode).doc(topicCode).collection('videos');
+      const savePath = `YoutubeLinks/${gradoPath}/${materiaCode}/${topicCode}/videos/video${startOrder + 1}...video${startOrder + videos.length}`;
       console.log(`   💾 Guardando ${videos.length} video(s) en: ${savePath}`);
 
       const batch = db.batch();
@@ -2584,612 +2271,31 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Lista de dominios educativos confiables para buscar recursos
+   * Nombre de la colección Firestore para recursos web (única fuente de verdad).
+   * Ruta completa: WebLinks/{grado}/{materiaCode}/{topicCode}/links
+   * Debe coincidir con el admin de recursos y con firestore.rules.
    */
-  /** Dominios educativos confiables para recursos web (incluye subdominios) */
-  private readonly TRUSTED_EDUCATIONAL_DOMAINS = [
-    // Dominios .edu por país
-    'edu.co',
-    'edu.mx',
-    'edu.ar',
-    'edu.pe',
-    'edu.ec',
-    'edu.cl',
-    'edu.ve',
-    'edu.uy',
-    // Instituciones y ministerios Colombia/LATAM
-    'icfes.gov.co',
-    'mineducacion.gov.co',
-    'colombiaaprende.edu.co',
-    'educ.ar',
-    'me.gov.ar',
-    'mep.go.cr',
-    'minedu.gob.pe',
-    'mineduc.cl',
-    // Plataformas internacionales
-    'khanacademy.org',
-    'es.khanacademy.org',
-    'coursera.org',
-    'edx.org',
-    'ck12.org',
-    'openstax.org',
-    'libretexts.org',
-    'es.libretexts.org',
-    // Matemáticas y ciencias
-    'geogebra.org',
-    'desmos.com',
-    'thatquiz.org',
-    'vitutor.com',
-    'phet.colorado.edu',
-    'colorado.edu',
-    // Recursos en español / LATAM
-    'profesorenlinea.cl',
-    'sectormatematica.cl',
-    'aulafacil.com',
-    'monografias.com',
-    'duolingo.com',
-    // Editoriales
-    'santillana.com.co',
-    'sm.com.co',
-    'norma.com.co',
-    // Referencia
-    'wikipedia.org',
-    'es.wikipedia.org',
-    'bbc.co.uk', // Bitesize
-    // Libros y material en formato libro para secundaria
-    'books.google.com',
-    'openlibrary.org',
-    'archive.org',
-  ];
+  private static readonly WEBLINKS_COLLECTION = 'WebLinks';
 
   /**
-   * Palabras genéricas que no indican tema; no se usan solas para filtrar relevancia.
-   * Las keywords del tema (ej. "ecuaciones cuadráticas") sí deben aparecer en título/snippet.
-   */
-  private static readonly GENERIC_WEB_KEYWORDS = new Set([
-    'explicacion', 'explicación', 'ejemplos', 'entendible', 'guia', 'guía', 'resumen', 'clara', 'claro',
-    'contenido', 'material', 'practica', 'práctica', 'paso', 'accesible', 'lenguaje', 'bien', 'explicado',
-    'educativo', 'educativa', 'estudiantes', 'secundaria', 'aprender', 'estudio', 'recursos', 'web',
-    'pagina', 'página', 'articulo', 'artículo', 'introductorio', 'conceptual', 'resueltos',
-  ]);
-
-  /**
-   * Normaliza texto para comparación: minúsculas y sin acentos.
-   */
-  private normalizeTextForRelevance(text: string): string {
-    if (!text || typeof text !== 'string') return '';
-    return text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{M}/gu, '')
-      .replace(/ñ/g, 'n');
-  }
-
-  /**
-   * Obtiene keywords del tema (sustantivas) para filtrar relevancia (normalizadas).
-   * Excluye términos genéricos; si todos son genéricos, usa los 2 primeros.
-   */
-  private getTopicKeywordsForRelevance(webSearchInfo: TopicWebSearchInfo): string[] {
-    const normalizedGeneric = new Set(
-      Array.from(StudyPlanService.GENERIC_WEB_KEYWORDS).map((w) =>
-        this.normalizeTextForRelevance(w)
-      )
-    );
-    const keywords = webSearchInfo.searchKeywords || [];
-    const substantive = keywords
-      .map((k) => this.normalizeTextForRelevance(k.trim()))
-      .filter((k) => k.length >= 2 && !normalizedGeneric.has(k));
-    if (substantive.length > 0) return substantive;
-    return keywords.slice(0, 2).map((k) => this.normalizeTextForRelevance(k.trim())).filter(Boolean);
-  }
-
-  /**
-   * Obtiene keywords del tema en forma original (para construir la query CSE).
-   * Primero las sustantivas; si todas son genéricas, los 2 primeros.
-   */
-  private getTopicKeywordsForQuery(webSearchInfo: TopicWebSearchInfo): string[] {
-    const normalizedGeneric = new Set(
-      Array.from(StudyPlanService.GENERIC_WEB_KEYWORDS).map((w) =>
-        this.normalizeTextForRelevance(w)
-      )
-    );
-    const keywords = (webSearchInfo.searchKeywords || []).map((k) => k.trim()).filter(Boolean);
-    const substantive = keywords.filter(
-      (k) => this.normalizeTextForRelevance(k).length >= 2 && !normalizedGeneric.has(this.normalizeTextForRelevance(k))
-    );
-    if (substantive.length > 0) return substantive;
-    return keywords.slice(0, 2);
-  }
-
-  /**
-   * Construye la query de búsqueda CSE con el tema primero y frases exactas para términos compuestos.
-   * Por materia añade términos alineados a Icfes Saber 11°: ejercicios resueltos, descripción de temas, bachillerato/secundaria (6-11).
-   */
-  private buildEducationalSearchQuery(webSearchInfo: TopicWebSearchInfo, subject?: string): string {
-    const topicKeywords = this.getTopicKeywordsForQuery(webSearchInfo);
-    const understandableTerms = 'entendible explicación clara ejemplos estudiantes';
-    const bookTerms = 'libro secundaria guía de estudio material lectura';
-    const baseStudentTerms = 'bachillerato secundaria grados 6 a 11 estudiantes';
-    const normalizedSubject = subject ? this.normalizeSubjectName(subject) : '';
-
-    const topicPart = topicKeywords
-      .map((kw) => (kw.includes(' ') ? `"${kw}"` : kw))
-      .join(' ');
-
-    const restKeywords = (webSearchInfo.searchKeywords || [])
-      .filter((k) => !topicKeywords.includes(k.trim()))
-      .slice(0, 3)
-      .join(' ');
-
-    const intentShort = (webSearchInfo.searchIntent || '').slice(0, 60).trim();
-
-    let subjectTerms = '';
-    if (normalizedSubject === 'matemáticas' || normalizedSubject === 'matematicas') {
-      subjectTerms = 'matemáticas bachillerato secundaria ejercicios resueltos descripción temas geometría álgebra estadística guía estudiantes';
-    } else if (normalizedSubject.includes('lectura') && normalizedSubject.includes('crítica')) {
-      subjectTerms = 'lectura crítica bachillerato secundaria descripción temas ejercicios resueltos interpretar texto cuentos poemas narraciones infografías gráficas tablas conectores lógicos tipos texto argumentativo expositivo narrativo Cuadernillo lectura crítica Saber 11 comprensión lectora inferencial y crítica';
-    } else if (normalizedSubject === 'física') {
-      subjectTerms = 'física bachillerato secundaria ejercicios resueltos descripción temas Cinemática MRU MRUA Dinámica Leyes Newton trabajo energía ondas electricidad Ley Ohm Ley Coulomb electromagnetismo presión fluidos Física ICFES Saber 11';
-    } else if (normalizedSubject === 'quimica') {
-      subjectTerms = 'química bachillerato secundaria ejercicios resueltos descripción temas Estequiometría tabla periódica enlace iónico covalente VSEPR soluciones ácidos bases pH hidrocarburos nomenclatura Balanceo ecuaciones químicas Química orgánica ejercicios nomenclatura';
-    } else if (normalizedSubject.includes('ciencias sociales') || normalizedSubject.includes('competencias ciudadanas')) {
-      subjectTerms = 'ciencias sociales bachillerato secundaria descripción temas ejercicios resueltos Historia Colombia Constitución 1991 Revolución Francesa economía ramas del poder Competencias ciudadanas ICFES Saber 11 preguntas resueltas';
-    } else if (normalizedSubject === 'biología' || normalizedSubject === 'biologia') {
-      subjectTerms = 'biología bachillerato secundaria descripción temas ejercicios resueltos Célula mitosis meiosis Genética ADN ARN leyes de Mendel Ecosistemas cadenas tróficas ciclos biogeoquímicos Fotosíntesis respiración celular bacterias virus hongos Biología ICFES Saber 11';
-    } else if (normalizedSubject === 'inglés') {
-      subjectTerms = 'inglés explicado en español gramática inglés secundaria material aprender inglés español';
-    } else {
-      subjectTerms = `${baseStudentTerms} ejercicios resueltos descripción temas guía`;
-    }
-
-    const query = [topicPart, subjectTerms, bookTerms, understandableTerms, restKeywords, intentShort]
-      .filter(Boolean)
-      .join(' ');
-
-    return query;
-  }
-
-  /**
-   * Filtra enlaces cuyo título o snippet no mencionan el tema (relevancia por contenido).
-   */
-  private filterByContentRelevance(
-    items: Array<{ title: string; link: string; snippet: string }>,
-    webSearchInfo: TopicWebSearchInfo
-  ): Array<{ title: string; link: string; snippet: string }> {
-    const topicKeywords = this.getTopicKeywordsForRelevance(webSearchInfo);
-    if (topicKeywords.length === 0) return items;
-
-    const relevant = items.filter((item) => {
-      const text = `${item.title || ''} ${item.snippet || ''}`;
-      const normalized = this.normalizeTextForRelevance(text);
-      const hasTopic = topicKeywords.some((kw) => normalized.includes(kw));
-      if (!hasTopic) {
-        console.log(
-          `   ⚠️ Enlace descartado (sin relación con el tema en título/snippet): ${(item.title || item.link).substring(0, 50)}...`
-        );
-      }
-      return hasTopic;
-    });
-
-    return relevant;
-  }
-
-  /**
-   * Extrae términos buscables de expectedContentTypes (palabras significativas, sin genéricos).
-   */
-  private getExpectedContentTypeTerms(webSearchInfo: TopicWebSearchInfo): string[] {
-    const types = webSearchInfo.expectedContentTypes || [];
-    const normalizedGeneric = new Set(
-      Array.from(StudyPlanService.GENERIC_WEB_KEYWORDS).map((w) =>
-        this.normalizeTextForRelevance(w)
-      )
-    );
-    const terms: string[] = [];
-    for (const t of types) {
-      const words = t
-        .toLowerCase()
-        .split(/\s+/)
-        .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))
-        .filter((w) => w.length >= 2 && !normalizedGeneric.has(this.normalizeTextForRelevance(w)));
-      terms.push(...words);
-    }
-    return [...new Set(terms)];
-  }
-
-  /**
-   * Puntúa un enlace por cuántos términos de expectedContentTypes aparecen en título/snippet.
-   * Mayor puntuación = más alineado con el tipo de contenido esperado (guía, ejercicios, etc.).
-   */
-  private scoreLinkByExpectedContentType(
-    item: { title: string; link: string; snippet: string },
-    expectedTerms: string[]
-  ): number {
-    if (expectedTerms.length === 0) return 0;
-    const text = this.normalizeTextForRelevance(`${item.title || ''} ${item.snippet || ''}`);
-    const normalizedTerms = expectedTerms.map((t) => this.normalizeTextForRelevance(t));
-    return normalizedTerms.filter((term) => text.includes(term)).length;
-  }
-
-  /**
-   * Ordena enlaces por afinidad con expectedContentTypes (más coincidencias primero).
-   */
-  private sortByExpectedContentType(
-    items: Array<{ title: string; link: string; snippet: string }>,
-    webSearchInfo: TopicWebSearchInfo
-  ): Array<{ title: string; link: string; snippet: string }> {
-    const terms = this.getExpectedContentTypeTerms(webSearchInfo);
-    if (terms.length === 0) return items;
-    const scored = items.map((item) => ({
-      item,
-      score: this.scoreLinkByExpectedContentType(item, terms),
-    }));
-    scored.sort((a, b) => b.score - a.score);
-    return scored.map((s) => s.item);
-  }
-
-  /**
-   * Valida que un enlace responda correctamente (HTTP válido)
-   * @param url - URL a validar
-   * @returns true si el enlace es válido, false en caso contrario
-   */
-  private async validateLink(url: string): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
-      
-      // Intentar primero con HEAD (más eficiente)
-      try {
-        const response = await fetch(url, {
-          method: 'HEAD', // Solo HEAD para verificar sin descargar contenido
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; SuperateBot/1.0; +https://superate.edu.co)',
-          },
-        });
-        
-        clearTimeout(timeoutId);
-        
-        // Considerar válido si el status es 200-399 (redirecciones también son válidas)
-        const isValid = response.status >= 200 && response.status < 400;
-        
-        if (!isValid) {
-          console.log(`   ⚠️ Enlace inválido (${response.status}): ${url}`);
-        }
-        
-        return isValid;
-      } catch (headError: any) {
-        // Si HEAD falla (algunos servidores lo bloquean), intentar con GET
-        clearTimeout(timeoutId);
-        
-        const getController = new AbortController();
-        const getTimeoutId = setTimeout(() => getController.abort(), 10000);
-        
-        try {
-          const response = await fetch(url, {
-            method: 'GET',
-            signal: getController.signal,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (compatible; SuperateBot/1.0; +https://superate.edu.co)',
-            },
-          });
-          
-          clearTimeout(getTimeoutId);
-          
-          const isValid = response.status >= 200 && response.status < 400;
-          
-          if (!isValid) {
-            console.log(`   ⚠️ Enlace inválido (${response.status}): ${url}`);
-          }
-          
-          return isValid;
-        } catch (getError: any) {
-          clearTimeout(getTimeoutId);
-          console.log(`   ⚠️ Error validando enlace ${url} (HEAD y GET fallaron): ${getError.message}`);
-          return false;
-        }
-      }
-    } catch (error: any) {
-      console.log(`   ⚠️ Error validando enlace ${url}: ${error.message}`);
-      return false;
-    }
-  }
-
-  /** Máximo de resultados por request en Google CSE (API permite 1-10) */
-  private static readonly CSE_RESULTS_PER_PAGE = 10;
-
-  /** Máximo de páginas a consultar (10 resultados/página, start máx 91) */
-  private static readonly CSE_MAX_PAGES = 5;
-
-  /**
-   * Busca enlaces educativos usando Google Custom Search API con paginación.
-   * Solo busca en dominios educativos confiables.
-   * @param webSearchInfo - Información semántica de búsqueda del tema
-   * @param maxResults - Número máximo de resultados a retornar
-   * @param subject - Materia (opcional); para Física y Química se añaden términos específicos a la query
-   * @returns Array de enlaces encontrados y validados
-   */
-  private async searchEducationalLinks(
-    webSearchInfo: TopicWebSearchInfo,
-    maxResults: number = 10,
-    subject?: string
-  ): Promise<Array<{
-    title: string;
-    url: string;
-    description: string;
-  }>> {
-    console.log(`\n🔍 [searchEducationalLinks] Iniciando búsqueda de enlaces educativos`);
-    console.log(`   Intención: "${webSearchInfo.searchIntent}"`);
-    console.log(`   Keywords: ${webSearchInfo.searchKeywords.join(', ')}`);
-    console.log(`   Max resultados solicitados: ${maxResults}`);
-
-    const GOOGLE_CSE_API_KEY = process.env.GOOGLE_CSE_API_KEY;
-    const GOOGLE_CSE_ID = process.env.GOOGLE_CSE_ID;
-
-    console.log(`   🔑 Verificando API Keys...`);
-    if (!GOOGLE_CSE_API_KEY || !GOOGLE_CSE_ID) {
-      console.error('❌ [searchEducationalLinks] GOOGLE_CSE_API_KEY o GOOGLE_CSE_ID no están configuradas.');
-      return [];
-    }
-
-    try {
-      const query = this.buildEducationalSearchQuery(webSearchInfo, subject);
-
-      console.log(`   📝 Query (tema primero + frases exactas${subject ? `, materia: ${subject}` : ''}): "${query.substring(0, 100)}..."`);
-      console.log(`   🎯 Usando paginación (hasta ${StudyPlanService.CSE_MAX_PAGES} páginas × ${StudyPlanService.CSE_RESULTS_PER_PAGE} resultados)`);
-
-      const allItems: Array<{ title: string; link: string; snippet: string }> = [];
-      const pagesToFetch = Math.min(
-        StudyPlanService.CSE_MAX_PAGES,
-        Math.ceil(Math.max(maxResults * 2, 20) / StudyPlanService.CSE_RESULTS_PER_PAGE)
-      );
-
-      for (let page = 0; page < pagesToFetch; page++) {
-        const start = page * StudyPlanService.CSE_RESULTS_PER_PAGE + 1;
-        const searchUrl = `https://www.googleapis.com/customsearch/v1?` +
-          `key=${GOOGLE_CSE_API_KEY}` +
-          `&cx=${GOOGLE_CSE_ID}` +
-          `&q=${encodeURIComponent(query)}` +
-          `&lr=lang_es` +
-          `&num=${StudyPlanService.CSE_RESULTS_PER_PAGE}` +
-          `&start=${start}` +
-          `&safe=active`;
-
-        const response = await fetch(searchUrl);
-        if (!response.ok) {
-          console.error(`❌ Error CSE página ${page + 1}: ${response.status}`);
-          break;
-        }
-
-        const data = await response.json() as {
-          items?: Array<{ title: string; link: string; snippet: string }>;
-          error?: { code: number; message: string };
-        };
-
-        if (data.error) {
-          console.error(`❌ CSE error: ${data.error.message}`);
-          break;
-        }
-
-        if (!data.items || data.items.length === 0) {
-          break;
-        }
-
-        allItems.push(...data.items);
-        console.log(`   📄 Página ${page + 1}: ${data.items.length} resultado(s) (total acumulado: ${allItems.length})`);
-
-        if (data.items.length < StudyPlanService.CSE_RESULTS_PER_PAGE) {
-          break;
-        }
-
-        if (page < pagesToFetch - 1) {
-          await new Promise((r) => setTimeout(r, 400));
-        }
-      }
-
-      if (allItems.length === 0) {
-        console.warn(`⚠️ No se encontraron enlaces para la búsqueda`);
-        return [];
-      }
-
-      // PASO 6: Filtrar solo enlaces de dominios confiables
-      console.log(`   🔍 Filtrando por dominios confiables...`);
-
-      const trustedLinks = allItems.filter(item => {
-        try {
-          const url = new URL(item.link);
-          const hostname = url.hostname.toLowerCase();
-          
-          // Verificar si el hostname coincide con algún dominio confiable
-          const isTrusted = this.TRUSTED_EDUCATIONAL_DOMAINS.some(trustedDomain => {
-            const trustedDomainLower = trustedDomain.toLowerCase();
-            
-            // 1. Coincidencia exacta
-            if (hostname === trustedDomainLower) {
-              return true;
-            }
-            
-            // 2. Verificar si es un subdominio del dominio confiable
-            // Ejemplo: es.khanacademy.org debe coincidir con khanacademy.org
-            if (hostname.endsWith('.' + trustedDomainLower)) {
-              return true;
-            }
-            
-            // 3. Para dominios de segundo nivel como .edu.co, verificar si termina con el dominio
-            // Ejemplo: math.colombiaaprende.edu.co debe coincidir con colombiaaprende.edu.co
-            // Esto ya está cubierto por el caso 2, pero lo dejamos explícito
-            
-            return false;
-          });
-          
-          if (!isTrusted) {
-            console.log(`   ⚠️ Enlace descartado (dominio no confiable): ${hostname} de ${item.link}`);
-          }
-          
-          return isTrusted;
-        } catch (error) {
-          // Si no se puede parsear la URL, descartar
-          console.log(`   ⚠️ Error parseando URL: ${item.link}`, error);
-          return false;
-        }
-      });
-
-      console.log(`   ✅ Enlaces en dominios confiables: ${trustedLinks.length} de ${allItems.length}`);
-      
-      if (trustedLinks.length === 0) {
-        console.warn(`⚠️ [searchEducationalLinks] No se encontraron enlaces en dominios confiables`);
-        console.warn(`   Query: "${query}"`);
-        
-        // Mostrar dominios encontrados
-        const foundDomains = new Set<string>();
-        allItems.forEach(item => {
-          try {
-            const hostname = new URL(item.link).hostname;
-            foundDomains.add(hostname);
-          } catch {
-            // Ignorar URLs inválidas
-          }
-        });
-        
-        console.warn(`   📋 Dominios encontrados en la búsqueda (${foundDomains.size} únicos):`);
-        Array.from(foundDomains).slice(0, 10).forEach((domain, idx) => {
-          console.warn(`      ${idx + 1}. ${domain}`);
-        });
-        if (foundDomains.size > 10) {
-          console.warn(`      ... y ${foundDomains.size - 10} más`);
-        }
-        
-        console.warn(`   💡 Sugerencia: Verifica que los dominios encontrados coincidan con los configurados`);
-        console.warn(`   💡 O agrega más dominios a TRUSTED_EDUCATIONAL_DOMAINS si es necesario`);
-        return [];
-      }
-
-      // PASO 6b: Filtrar por relevancia (título o snippet deben mencionar el tema)
-      console.log(`   🔍 Filtrando por relevancia al tema (título/snippet)...`);
-      const topicKeywords = this.getTopicKeywordsForRelevance(webSearchInfo);
-      console.log(`   📌 Keywords de tema para relevancia: ${topicKeywords.join(', ') || '(ninguna, no se filtra)'}`);
-      let relevantLinks = this.filterByContentRelevance(trustedLinks, webSearchInfo);
-      console.log(`   ✅ Enlaces con contenido relacionado al tema: ${relevantLinks.length} de ${trustedLinks.length}`);
-
-      if (relevantLinks.length === 0) {
-        console.warn(`⚠️ [searchEducationalLinks] No quedaron enlaces con título/snippet relacionado al tema`);
-        console.warn(`   Query: "${query}"`);
-        return [];
-      }
-
-      // PASO 6c: Ordenar por afinidad con expectedContentTypes (guía, ejercicios, resumen, etc.)
-      const expectedTerms = this.getExpectedContentTypeTerms(webSearchInfo);
-      if (expectedTerms.length > 0) {
-        console.log(`   📋 Priorizando por tipos esperados: ${expectedTerms.slice(0, 8).join(', ')}${expectedTerms.length > 8 ? '...' : ''}`);
-        relevantLinks = this.sortByExpectedContentType(relevantLinks, webSearchInfo);
-      }
-
-      // PASO 7: Validar cada enlace (verificar que responda correctamente)
-      console.log(`   🔍 Validando ${relevantLinks.length} enlace(s) encontrado(s)...`);
-      console.log(`   ⏱️  Esto puede tardar varios segundos (validación HTTP)...`);
-      const validatedLinks: Array<{
-        title: string;
-        url: string;
-        description: string;
-      }> = [];
-
-      let validatedCount = 0;
-      let invalidCount = 0;
-      
-      for (let i = 0; i < Math.min(relevantLinks.length, maxResults * 2); i++) {
-        const item = relevantLinks[i];
-        console.log(`   🔗 [${i + 1}/${Math.min(relevantLinks.length, maxResults * 2)}] Validando: ${item.link.substring(0, 60)}...`);
-        
-        const isValid = await this.validateLink(item.link);
-        
-        if (isValid) {
-          validatedCount++;
-          validatedLinks.push({
-            title: item.title,
-            url: item.link,
-            description: item.snippet || webSearchInfo.searchIntent,
-          });
-          
-          console.log(`      ✅ Válido (${validatedCount}/${maxResults})`);
-          
-          // Si ya tenemos suficientes enlaces validados, detener
-          if (validatedLinks.length >= maxResults) {
-            console.log(`   🎯 Objetivo alcanzado: ${maxResults} enlaces válidos`);
-            break;
-          }
-        } else {
-          invalidCount++;
-          console.log(`      ❌ Inválido (${invalidCount} inválidos hasta ahora)`);
-        }
-        
-        // Pequeña pausa para no sobrecargar
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      console.log(`\n✅ [searchEducationalLinks] Resumen de validación:`);
-      console.log(`   ✅ Enlaces válidos: ${validatedLinks.length}`);
-      console.log(`   ❌ Enlaces inválidos: ${invalidCount}`);
-      console.log(`   📊 Total procesados: ${validatedCount + invalidCount}`);
-      console.log(`   🎯 Objetivo: ${maxResults} enlaces`);
-      
-      return validatedLinks;
-    } catch (error: any) {
-      console.error(`❌ Error buscando enlaces educativos:`, error.message);
-      return [];
-    }
-  }
-
-  /**
-   * Obtiene enlaces web para un topic desde Firestore (caché) o busca nuevos si es necesario.
-   * Ruta: WebLinks/{grado}/{materia}/{topicId}/link1, link2...
+   * Obtiene enlaces web para un topic desde Firestore (WebLinks). Solo caché; no se usa motor de búsqueda.
+   * Ruta: WebLinks/{grado}/{materiaCode}/{topicCode}/links
    */
   private async getLinksForTopic(
     grade: string,
     subject: string,
-    topic: string,
-    webSearchInfo: TopicWebSearchInfo
+    topic: string
   ): Promise<Array<{
     title: string;
     url: string;
     description: string;
     topic?: string;
   }>> {
-    const TARGET_LINKS = StudyPlanService.MAX_LINKS_PER_TOPIC;
-    const LINKS_TO_RETURN = 4;
-
     try {
-      console.log(`   📋 Iniciando búsqueda de enlaces web para topic: "${topic}"`);
-      console.log(`      Grado: ${grade}, Materia: ${subject}`);
-      console.log(`      Intención: "${webSearchInfo.searchIntent}"`);
-
+      console.log(`   📋 Obteniendo enlaces web para topic: "${topic}" (desde caché)`);
       const cachedLinks = await this.getCachedLinks(grade, subject, topic);
       console.log(`   📦 Enlaces en caché para "${topic}": ${cachedLinks.length}`);
-
-      if (cachedLinks.length >= TARGET_LINKS) {
-        console.log(`   ✅ Usando ${LINKS_TO_RETURN} enlace(s) desde caché`);
-        return cachedLinks.slice(0, LINKS_TO_RETURN).map((link) => ({ ...link, topic }));
-      }
-
-      const linksNeeded = TARGET_LINKS - cachedLinks.length;
-      console.log(`   🔍 Faltan ${linksNeeded} enlace(s), buscando...`);
-
-      const newLinks = await this.searchEducationalLinks(webSearchInfo, linksNeeded + 10, subject);
-
-      if (newLinks.length === 0) {
-        return cachedLinks.slice(0, LINKS_TO_RETURN).map((link) => ({ ...link, topic }));
-      }
-
-      const existingUrls = new Set(cachedLinks.map((l) => l.url));
-      const uniqueNewLinks = newLinks.filter((l) => !existingUrls.has(l.url));
-      console.log(`   ✅ Encontrados ${uniqueNewLinks.length} enlace(s) nuevo(s)`);
-
-      if (uniqueNewLinks.length > 0) {
-        await this.saveLinksToCache(grade, subject, topic, uniqueNewLinks, cachedLinks.length);
-      }
-
-      const allLinks = await this.getCachedLinks(grade, subject, topic);
-      const linksToReturn = allLinks.slice(0, LINKS_TO_RETURN).map((link) => ({ ...link, topic }));
-      console.log(`   📤 Retornando ${linksToReturn.length} enlace(s) (de ${allLinks.length} en DB)`);
-      return linksToReturn;
+      return cachedLinks.map((link) => ({ ...link, topic }));
     } catch (error: any) {
       console.error(`❌ Error obteniendo enlaces para topic "${topic}":`, error.message);
       return [];
@@ -3197,14 +2303,13 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Genera y obtiene enlaces web educativos para un tema específico
-   * @deprecated Usar getLinksForTopic() directamente desde generateStudyPlan
+   * Obtiene enlaces web para un tema desde WebLinks (solo caché).
+   * @param grade Grado (ej. "Décimo"). Opcional; si no se pasa se usa default.
    */
   async generateWebLinksForTopic(
     _phase: 'first' | 'second' | 'third',
     subject: string,
     topic: string,
-    webSearchInfo: TopicWebSearchInfo,
     grade?: string
   ): Promise<Array<{
     title: string;
@@ -3212,13 +2317,44 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     description: string;
   }>> {
     const g = this.normalizeGradeForPath(grade);
-    return this.getLinksForTopic(g, subject, topic, webSearchInfo);
+    return this.getLinksForTopic(g, subject, topic);
   }
 
 
   /**
-   * Obtiene enlaces desde Firestore (caché).
-   * Ruta: WebLinks/{grado}/{materia}/{topicId}/links/link1, link2...
+   * Construye el array study_links desde WebLinks (única fuente de verdad).
+   * Trae TODOS los enlaces de cada topic (sin límite por tema).
+   * topicIds: nombres canónicos de temas (ej. "Álgebra y Cálculo", "Geometría") de getSubjectConfig(subject).topics;
+   * getTopicCode(subject, topicId) resuelve a código (AL, GE, ES) para la ruta WebLinks/{grado}/{materiaCode}/{topicCode}/links.
+   */
+  private async buildStudyLinksFromWebLinks(
+    grade: string,
+    subject: string,
+    topicIds: string[],
+    phase?: 'first' | 'second' | 'third'
+  ): Promise<Array<{ title: string; url: string; description: string; topic?: string }>> {
+    if (topicIds.length === 0) return [];
+    const uniqueTopics = [...new Set(topicIds)];
+    const allLinksByTopic = await Promise.all(
+      uniqueTopics.map(async (topicId) => {
+        try {
+          return this.getCachedLinks(grade, subject, topicId, phase);
+        } catch (error: any) {
+          console.warn(`   ⚠️ Error obteniendo enlaces para topic "${topicId}":`, error?.message);
+          return [];
+        }
+      })
+    );
+    const total = allLinksByTopic.flat();
+    const perTopic = uniqueTopics.map((t, i) => `${t}:${allLinksByTopic[i].length}`).join(', ');
+    console.log(`   📊 buildStudyLinksFromWebLinks: ${total.length} enlace(s) total para ${uniqueTopics.length} tema(s) [${perTopic}] (sin límite por tema)`);
+    return total;
+  }
+
+  /**
+   * Obtiene todos los enlaces desde Firestore (sin límite).
+   * Ruta unificada con admin: WebLinks/{grado}/{materiaCode}/{topicCode}/links.
+   * Topics se buscan por nombre canónico (ej. "Álgebra y Cálculo") y se resuelven a topicCode (AL) vía getTopicCode.
    */
   private async getCachedLinks(
     grade: string,
@@ -3232,81 +2368,49 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     topic?: string;
   }>> {
     const studentDb = this.getStudentDatabase();
-    const topicId = this.normalizeTopicId(topic);
-    const gradeNorm = this.normalizeGradeForPath(grade);
+    const gradoPath = getGradeNameForAdminPath(grade);
+    const subjectConfig = getSubjectConfig(subject);
+    const materiaCode = subjectConfig?.code;
+    const topicCode = getTopicCode(subject, topic);
+
+    if (!materiaCode || !topicCode) {
+      console.warn(`   ⚠️ No se pudo resolver ruta admin para WebLinks materia="${subject}" topic="${topic}" (materiaCode=${materiaCode ?? '?'}, topicCode=${topicCode ?? '?'})`);
+      return [];
+    }
 
     const parseLinkDoc = (data: admin.firestore.DocumentData) => ({
-      title: data.title || '',
-      url: data.url || '',
+      title: data.title || data.name || 'Enlace',
+      url: data.url || data.link || '',
       description: data.description || '',
       topic,
     });
 
-    const readFromPath = async (
-      linksColRef: admin.firestore.CollectionReference,
-      useLink1Format: boolean
-    ): Promise<Array<ReturnType<typeof parseLinkDoc>>> => {
-      const max = StudyPlanService.MAX_LINKS_PER_TOPIC;
-      const promises: Promise<admin.firestore.DocumentSnapshot | null>[] = [];
-      for (let i = 1; i <= max; i++) {
-        const linkId = useLink1Format ? `link${i}` : `link${String(i).padStart(2, '0')}`;
-        promises.push(linksColRef.doc(linkId).get().then((d) => (d.exists ? d : null)));
-      }
-      const docs = await Promise.all(promises);
-      const withOrder = docs
-        .filter((doc): doc is admin.firestore.DocumentSnapshot => doc !== null)
-        .map((doc) => {
-          const data = doc?.data();
-          return data ? { ...parseLinkDoc(data), order: data.order ?? 0 } : null;
-        })
-        .filter((v): v is NonNullable<typeof v> => v !== null);
-      withOrder.sort((a, b) => (a.order as number) - (b.order as number));
-      return withOrder;
-    };
-
     try {
-      const mainPath = `WebLinks/${gradeNorm}/${subject}/${topicId}/link1...`;
+      const mainPath = `${StudyPlanService.WEBLINKS_COLLECTION}/${gradoPath}/${materiaCode}/${topicCode}/links`;
       console.log(`   🔍 Consultando WebLinks: ${mainPath}`);
 
       const linksColRef = studentDb
-        .collection('WebLinks')
-        .doc(gradeNorm)
-        .collection(subject)
-        .doc(topicId)
+        .collection(StudyPlanService.WEBLINKS_COLLECTION)
+        .doc(gradoPath)
+        .collection(materiaCode)
+        .doc(topicCode)
         .collection('links');
-      let links = await readFromPath(linksColRef, true);
+      const snapshot = await linksColRef.get();
 
-      if (links.length > 0) {
-        console.log(`   📦 Enlaces en caché: ${links.length}`);
-        return links;
-      }
+      const orderOrTime = (data: admin.firestore.DocumentData): number => {
+        if (typeof data.order === 'number') return data.order;
+        const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
+        return t ?? 0;
+      };
 
-      const legacyColRef = studentDb.collection('WebLinks').doc(subject).collection(topicId);
-      links = await readFromPath(legacyColRef, true);
-      if (links.length > 0) {
-        console.log(`   ✅ Enlaces (ruta legacy sin grado): ${links.length}`);
-        return links;
-      }
+      const withOrder = snapshot.docs
+        .map((d) => ({ doc: d, data: d.data(), order: orderOrTime(d.data()) }))
+        .filter((x) => x.data?.url || x.data?.link)
+        .sort((a, b) => a.order - b.order);
+      const links = withOrder.map((x) => parseLinkDoc(x.data));
 
-      const defaultDb = admin.app().firestore();
-      if (defaultDb !== studentDb) {
-        try {
-          const linksColRef2 = defaultDb
-            .collection('WebLinks')
-            .doc(gradeNorm)
-            .collection(subject)
-            .doc(topicId)
-            .collection('links');
-          links = await readFromPath(linksColRef2, true);
-          if (links.length > 0) {
-            console.log(`   ✅ Enlaces (proyecto por defecto): ${links.length}`);
-            return links;
-          }
-        } catch (e) {
-          console.warn(`   ⚠️ Error leyendo WebLinks proyecto por defecto:`, (e as Error).message);
-        }
-      }
-      return [];
+      console.log(`   📦 WebLinks ${mainPath}: ${snapshot.docs.length} doc(s) en colección, ${links.length} enlace(s) devueltos (todos, sin límite)`);
+      return links;
     } catch (error: any) {
       console.error(`❌ Error obteniendo enlaces desde caché:`, error.message);
       return [];
@@ -3314,101 +2418,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Guarda enlaces en Firestore (caché).
-   * Ruta: WebLinks/{grado}/{materia}/{topicId}/links/link1, link2...
-   */
-  private async saveLinksToCache(
-    grade: string,
-    subject: string,
-    topic: string,
-    links: Array<{
-      title: string;
-      url: string;
-      description: string;
-    }>,
-    startOrder: number = 0
-  ): Promise<void> {
-    try {
-      const db = this.getStudentDatabase();
-      const topicId = this.normalizeTopicId(topic);
-      const gradeNorm = this.normalizeGradeForPath(grade);
-
-      const linksColRef = db
-        .collection('WebLinks')
-        .doc(gradeNorm)
-        .collection(subject)
-        .doc(topicId)
-        .collection('links');
-      const batch = db.batch();
-
-      links.forEach((link, index) => {
-        const order = startOrder + index + 1;
-
-        if (order > StudyPlanService.MAX_LINKS_PER_TOPIC) {
-          console.warn(`   ⚠️ Límite de ${StudyPlanService.MAX_LINKS_PER_TOPIC} enlaces para "${topic}", omitiendo`);
-          return;
-        }
-
-        const linkId = `link${order}`;
-        batch.set(linksColRef.doc(linkId), {
-          title: link.title,
-          url: link.url,
-          description: link.description,
-          order,
-          savedAt: new Date(),
-          topic,
-        }, { merge: true });
-      });
-
-      await batch.commit();
-      console.log(`   💾 Guardados ${links.length} enlace(s) en WebLinks/${gradeNorm}/${subject}/${topicId}/`);
-    } catch (error: any) {
-      console.error(`❌ Error guardando enlaces en caché:`, error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtiene todos los topicIds disponibles en WebLinks para un grado y materia.
-   * Ruta: WebLinks/{grado}/{materia}/ → documentos = topicIds
-   */
-  private async getAllTopicsFromFirestore(
-    grade: string,
-    subject: string,
-    _phase?: 'first' | 'second' | 'third'
-  ): Promise<string[]> {
-    const studentDb = this.getStudentDatabase();
-    const gradeNorm = this.normalizeGradeForPath(grade);
-
-    try {
-      const subjectColRef = studentDb.collection('WebLinks').doc(gradeNorm).collection(subject);
-      const snapshot = await subjectColRef.get();
-      const topicIds = snapshot.docs.map((d) => d.id);
-
-      if (topicIds.length > 0) {
-        console.log(`   📚 Encontrados ${topicIds.length} tema(s) en WebLinks/${gradeNorm}/${subject}/`);
-        return topicIds;
-      }
-
-      const defaultDb = admin.app().firestore();
-      if (defaultDb !== studentDb) {
-        const defaultSubjectCol = defaultDb.collection('WebLinks').doc(gradeNorm).collection(subject);
-        const defaultSnap = await defaultSubjectCol.get();
-        if (!defaultSnap.empty) {
-          return defaultSnap.docs.map((d) => d.id);
-        }
-      }
-
-      return [];
-    } catch (error: any) {
-      console.error(`❌ Error obteniendo temas desde WebLinks:`, error.message);
-      return [];
-    }
-  }
-
-  /**
    * Obtiene ejercicios desde Firestore (caché EjerciciosIA).
-   * Ruta: EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ejercicio1, ejercicio2...
+   * Ruta unificada con admin: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicio1, ejercicio2...
    */
   private async getCachedExercises(
     grade: string,
@@ -3422,8 +2433,15 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     topic: string;
   }>> {
     const db = this.getStudentDatabase();
-    const topicId = this.normalizeTopicId(topic);
-    const gradeNorm = this.normalizeGradeForPath(grade);
+    const gradoPath = getGradeNameForAdminPath(grade);
+    const subjectConfig = getSubjectConfig(subject);
+    const materiaCode = subjectConfig?.code;
+    const topicCode = getTopicCode(subject, topic);
+
+    if (!materiaCode || !topicCode) {
+      console.warn(`   ⚠️ No se pudo resolver ruta admin para EjerciciosIA materia="${subject}" topic="${topic}"`);
+      return [];
+    }
 
     const parseExerciseDoc = (data: admin.firestore.DocumentData) => ({
       question: data.question || '',
@@ -3433,9 +2451,14 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       topic: data.topic || topic,
     });
 
-    const readFromPath = async (
-      ejerciciosColRef: admin.firestore.CollectionReference
-    ): Promise<Array<ReturnType<typeof parseExerciseDoc>>> => {
+    try {
+      const ejerciciosColRef = db
+        .collection('EjerciciosIA')
+        .doc(gradoPath)
+        .collection(materiaCode)
+        .doc(topicCode)
+        .collection('ejercicios');
+
       const promises: Promise<admin.firestore.DocumentSnapshot | null>[] = [];
       for (let i = 1; i <= MAX_EXERCISES_PER_TOPIC; i++) {
         promises.push(
@@ -3452,16 +2475,6 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         .filter((v): v is NonNullable<typeof v> & { order: number } => v !== null);
       withOrder.sort((a, b) => (a.order as number) - (b.order as number));
       return withOrder;
-    };
-
-    try {
-      const ejerciciosColRef = db
-        .collection('EjerciciosIA')
-        .doc(gradeNorm)
-        .collection(subject)
-        .doc(topicId)
-        .collection('ejercicios');
-      return await readFromPath(ejerciciosColRef);
     } catch (error: any) {
       console.warn(`   ⚠️ Error leyendo ejercicios desde EjerciciosIA:`, error.message);
       return [];
@@ -3470,7 +2483,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
   /**
    * Guarda ejercicios en Firestore (caché EjerciciosIA).
-   * Ruta: EjerciciosIA/{grado}/{materia}/{topicId}/ejercicios/ejercicio1, ejercicio2...
+   * Ruta unificada con admin: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicio1, ejercicio2...
    * Incremental: agrega nuevos sin duplicar por texto de pregunta.
    */
   private async saveExercisesToCache(
@@ -3488,8 +2501,15 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     if (exercises.length === 0) return 0;
     try {
       const db = this.getStudentDatabase();
-      const topicId = this.normalizeTopicId(topic);
-      const gradeNorm = this.normalizeGradeForPath(grade);
+      const gradoPath = getGradeNameForAdminPath(grade);
+      const subjectConfig = getSubjectConfig(subject);
+      const materiaCode = subjectConfig?.code;
+      const topicCode = getTopicCode(subject, topic);
+
+      if (!materiaCode || !topicCode) {
+        console.warn(`   ⚠️ No se pudo resolver ruta admin para guardar ejercicios (materia="${subject}" topic="${topic}"). No se guardan en caché.`);
+        return 0;
+      }
 
       const cached = await this.getCachedExercises(grade, subject, topic);
       const startOrder = cached.length;
@@ -3499,9 +2519,9 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
       const ejerciciosColRef = db
         .collection('EjerciciosIA')
-        .doc(gradeNorm)
-        .collection(subject)
-        .doc(topicId)
+        .doc(gradoPath)
+        .collection(materiaCode)
+        .doc(topicCode)
         .collection('ejercicios');
 
       const toSave: typeof exercises = [];
@@ -3533,7 +2553,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         );
       });
       await batch.commit();
-      console.log(`   💾 Guardados ${toSave.length} ejercicio(s) en EjerciciosIA/${gradeNorm}/${subject}/${topicId}/`);
+      console.log(`   💾 Guardados ${toSave.length} ejercicio(s) en EjerciciosIA/${gradoPath}/${materiaCode}/${topicCode}/ejercicios`);
       return toSave.length;
     } catch (error: any) {
       console.error(`❌ Error guardando ejercicios en EjerciciosIA:`, error.message);
