@@ -99,7 +99,8 @@ export interface StudyPlanResponse {
     explanation: string;
     topic: string;
   }>;
-  // Estos campos se llenan después de buscar videos en YouTube y generar enlaces validados
+  // Videos: fuente de verdad es YoutubeLinks; no se persisten en AnswerIA.
+  // topic = tema canónico (ruta); topicDisplayName = nombre del plan (Gemini) para UI.
   video_resources: Array<{
     title: string;
     url: string;
@@ -108,7 +109,8 @@ export interface StudyPlanResponse {
     videoId?: string;
     duration?: string;
     language?: string;
-    topic?: string; // Tema al que pertenece el video
+    topic?: string; // Tema canónico de la materia (ruta YoutubeLinks)
+    topicDisplayName?: string; // Nombre libre del plan para mostrar en UI
   }>;
   study_links: Array<{
     title: string;
@@ -1297,6 +1299,18 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       if (canonicalTopics.length > 0) {
         console.log(`   📚 Topics canónicos con debilidad: ${canonicalTopics.join(', ')}`);
 
+        // Varios topics del plan pueden mapear al mismo canónico: unir nombres para UI (ej. "Ecuaciones · Polinomios")
+        const canonicalToDisplayNames = new Map<string, string[]>();
+        for (const t of parsed.topics || []) {
+          const canonical = mapToCanonicalTopic(input.subject, t.name);
+          if (canonical) {
+            const list = canonicalToDisplayNames.get(canonical) ?? [];
+            if (!list.includes(t.name)) list.push(t.name);
+            canonicalToDisplayNames.set(canonical, list);
+          }
+        }
+        const formatDisplayName = (names: string[]) => names.join(' · ');
+
         const videoPromises = canonicalTopics.map(async (canonicalTopic) => {
           try {
             const keywords = this.getKeywordsForCanonicalTopic(
@@ -1322,9 +1336,11 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
               console.warn(`   ⚠️ No se encontraron videos para topic "${canonicalTopic}"`);
             }
 
+            const displayName = formatDisplayName(canonicalToDisplayNames.get(canonicalTopic) ?? [canonicalTopic]);
             return videos.map((video) => ({
               ...video,
               topic: canonicalTopic,
+              topicDisplayName: displayName,
             }));
           } catch (error: any) {
             console.error(`   ❌ Error procesando videos para topic "${canonicalTopic}":`, error.message);
@@ -1524,10 +1540,12 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         .collection(phaseName)
         .doc(input.subject);
       
-      // Preparar datos para guardar (study_links no se persiste: fuente de verdad es WebLinks)
+      // Preparar datos para guardar.
+      // study_links y video_resources no se persisten: fuentes de verdad son WebLinks y YoutubeLinks.
       const dataToSave = {
         ...studyPlan,
         study_links: [] as StudyPlanResponse['study_links'],
+        video_resources: [] as StudyPlanResponse['video_resources'],
         generatedAt: new Date(),
         generatedBy: GEMINI_CONFIG.MODEL_NAME,
         version: '1.0',
@@ -1612,7 +1630,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
               console.log(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
             }
             
-            // study_links: todos los enlaces de la materia (todos los temas en WebLinks, no solo los del plan)
+            // study_links: fuente de verdad WebLinks; se construyen al leer
             const gradeForLinks = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
             const allTopicNamesForSubject = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
             data.study_links = await this.buildStudyLinksFromWebLinks(gradeForLinks, subject, allTopicNamesForSubject, phase);
@@ -1620,57 +1638,51 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
               console.log(`   ✅ study_links desde WebLinks: ${data.study_links.length} enlace(s) para ${allTopicNamesForSubject.length} tema(s)`);
             }
 
-            // Verificar que los videos tienen el campo 'topic'; si no, obtener desde AnswerIA por topic canónico
-            if (data.video_resources && Array.isArray(data.video_resources) && data.video_resources.length > 0) {
-              const videosWithoutTopic = data.video_resources.filter(video => !video.topic);
-              const weaknessTopics = (data.student_info?.weaknesses || []).map((w: { topic: string }) => w.topic);
-              const canonicalTopics = weaknessTopics.length > 0
-                ? getCanonicalTopicsWithWeakness(subject, weaknessTopics)
-                : (data.topics || []).map((t: { name: string }) => mapToCanonicalTopic(subject, t.name)).filter(Boolean) as string[];
+            // video_resources: fuente de verdad YoutubeLinks; siempre se construyen al leer (no se persisten en AnswerIA)
+            const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
+            const weaknessTopics = (data.student_info?.weaknesses || []).map((w: { topic: string }) => w.topic);
+            const canonicalTopics = weaknessTopics.length > 0
+              ? getCanonicalTopicsWithWeakness(subject, weaknessTopics)
+              : [...new Set((data.topics || []).map((t: { name: string }) => mapToCanonicalTopic(subject, t.name)).filter(Boolean) as string[])];
 
-              if (videosWithoutTopic.length > 0 && canonicalTopics.length > 0) {
-                console.log(`   🔄 Obteniendo videos desde YoutubeLinks organizados por topic canónico...`);
-
-                try {
-                  const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
-                  const videosByTopicPromises = [...new Set(canonicalTopics)].map(async (canonicalTopic) => {
-                    try {
-                      const videos = await this.getCachedVideos(
-                        grade,
-                        studentId,
-                        phase,
-                        subject,
-                        canonicalTopic
-                      );
-                      return videos.map(video => ({
-                        ...video,
-                        topic: canonicalTopic,
-                      }));
-                    } catch (error) {
-                      console.warn(`   ⚠️ Error obteniendo videos para topic "${canonicalTopic}":`, error);
-                      return [];
-                    }
-                  });
-                  
-                  const allVideosByTopic = await Promise.all(videosByTopicPromises);
-                  const newVideos = allVideosByTopic.flat();
-                  
-                  if (newVideos.length > 0) {
-                    console.log(`   ✅ Obtenidos ${newVideos.length} video(s) desde Firestore organizados por tema`);
-                    // Reemplazar los videos sin topic con los nuevos que tienen topic
-                    // Mantener los videos que ya tenían topic
-                    const videosWithTopic = data.video_resources.filter(video => video.topic);
-                    data.video_resources = [...videosWithTopic, ...newVideos];
-                  } else {
-                    console.warn(`   ⚠️ No se encontraron videos en Firestore para los topics del plan`);
-                  }
-                } catch (error) {
-                  console.warn(`   ⚠️ Error obteniendo videos desde Firestore:`, error);
-                  // Continuar con los videos originales si hay error
-                }
+            // Varios topics del plan pueden mapear al mismo canónico: unir nombres para UI (ej. "Ecuaciones · Polinomios")
+            const canonicalToDisplayNames = new Map<string, string[]>();
+            for (const t of data.topics || []) {
+              const canonical = mapToCanonicalTopic(subject, t.name);
+              if (canonical) {
+                const list = canonicalToDisplayNames.get(canonical) ?? [];
+                if (!list.includes(t.name)) list.push(t.name);
+                canonicalToDisplayNames.set(canonical, list);
               }
             }
-            
+            const formatDisplayName = (names: string[]) => names.join(' · ');
+
+            if (canonicalTopics.length > 0) {
+              console.log(`   📹 Construyendo video_resources desde YoutubeLinks (${canonicalTopics.length} topic(s) canónico(s))...`);
+              const videosByTopic = await Promise.all(
+                canonicalTopics.map(async (canonicalTopic) => {
+                  try {
+                    const videos = await this.getCachedVideos(grade, studentId, phase, subject, canonicalTopic);
+                    const displayName = formatDisplayName(canonicalToDisplayNames.get(canonicalTopic) ?? [canonicalTopic]);
+                    return videos.map((video) => ({
+                      ...video,
+                      topic: canonicalTopic,
+                      topicDisplayName: displayName,
+                    }));
+                  } catch (error: any) {
+                    console.warn(`   ⚠️ Error obteniendo videos para topic "${canonicalTopic}":`, error?.message);
+                    return [];
+                  }
+                })
+              );
+              data.video_resources = videosByTopic.flat();
+              if (data.video_resources.length > 0) {
+                console.log(`   ✅ video_resources desde YoutubeLinks: ${data.video_resources.length} video(s)`);
+              }
+            } else {
+              data.video_resources = [];
+            }
+
             return data;
           }
         } catch (error: any) {
@@ -1786,9 +1798,64 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Obtiene videos para un topic canónico (desde YoutubeLinks o YouTube).
+   * Asegura que el caché de YoutubeLinks tenga al menos minCount videos para el topic.
+   * Si no hidrata: devuelve la lista en caché para evitar una segunda lectura.
+   * Si hidrata: devuelve null y el llamador debe leer con getCachedVideos.
+   */
+  private async ensureVideosInCache(
+    grade: string,
+    subject: string,
+    topic: string,
+    keywords: string[],
+    minCount: number = VIDEOS_PER_TOPIC
+  ): Promise<Array<{
+    title: string;
+    url: string;
+    description: string;
+    channelTitle: string;
+    videoId?: string;
+    duration?: string;
+    language?: string;
+  }> | null> {
+    const cached = await this.getCachedVideos(grade, '', 'first', subject, topic);
+    if (cached.length >= minCount) {
+      return cached;
+    }
+    if (cached.length >= MAX_VIDEOS_PER_TOPIC) {
+      return cached;
+    }
+
+    const videosNeeded = MAX_VIDEOS_PER_TOPIC - cached.length;
+    console.log(`   ⚠️ Faltan videos en caché. Buscando hasta ${videosNeeded} más en YouTube...`);
+    const searchTopic = this.getDescriptiveSearchTopic(subject, topic);
+    const semanticInfo = await this.getYouTubeSearchSemanticInfo(searchTopic, subject, 'first', keywords);
+    const searchKeywords = semanticInfo?.searchKeywords || keywords;
+    const videosToSearch = Math.min(Math.max(videosNeeded + 5, 10), 25);
+    const newVideos = await this.searchYouTubeVideos(searchKeywords, videosToSearch, subject, topic);
+
+    if (newVideos.length === 0 && cached.length === 0) {
+      console.warn(`   🔄 Fallback: buscando con keywords originales`);
+      const fallbackVideos = await this.searchYouTubeVideos(keywords, 10, subject, topic);
+      if (fallbackVideos.length > 0) {
+        await this.saveVideosToCache(grade, '', subject, topic, fallbackVideos, 0);
+      }
+      return null;
+    }
+
+    const existingIds = new Set(cached.map((v) => v.videoId || v.url));
+    const uniqueNew = newVideos.filter((v) => {
+      const id = v.videoId || v.url;
+      return !existingIds.has(id);
+    });
+    if (uniqueNew.length > 0) {
+      await this.saveVideosToCache(grade, '', subject, topic, uniqueNew, cached.length);
+    }
+    return null;
+  }
+
+  /**
+   * Obtiene videos para un topic canónico: asegura caché y lee una sola vez desde YoutubeLinks.
    * Ruta unificada con admin: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos.
-   * Llenado incremental por generación hasta MAX_VIDEOS_PER_TOPIC, sin duplicados.
    */
   private async getVideosForTopic(
     grade: string,
@@ -1807,72 +1874,11 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     language?: string;
   }>> {
     try {
-      console.log(`   📋 Iniciando búsqueda de videos para topic: "${topic}"`);
-      const cachedVideos = await this.getCachedVideos(grade, studentId, phase, subject, topic);
-      console.log(`   📦 Resultado: ${cachedVideos.length} video(s) en caché`);
-
-      if (cachedVideos.length >= VIDEOS_PER_TOPIC) {
-        console.log(`   ✅ Suficientes videos en caché. Retornando ${VIDEOS_PER_TOPIC} videos.`);
-        return cachedVideos.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
-          title: v.title,
-          url: v.url,
-          description: v.description,
-          channelTitle: v.channelTitle,
-          videoId: v.videoId,
-          duration: v.duration,
-          language: v.language,
-        }));
-      }
-
-      if (cachedVideos.length >= MAX_VIDEOS_PER_TOPIC) {
-        return cachedVideos.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
-          title: v.title,
-          url: v.url,
-          description: v.description,
-          channelTitle: v.channelTitle,
-          videoId: v.videoId,
-          duration: v.duration,
-          language: v.language,
-        }));
-      }
-
-      const videosNeeded = MAX_VIDEOS_PER_TOPIC - cachedVideos.length;
-      console.log(`   ⚠️ Faltan videos. Buscando hasta ${videosNeeded} más en YouTube (incremental)...`);
-      const searchTopic = this.getDescriptiveSearchTopic(subject, topic);
-      const semanticInfo = await this.getYouTubeSearchSemanticInfo(searchTopic, subject, 'first', keywords);
-      const searchKeywords = semanticInfo?.searchKeywords || keywords;
-      const videosToSearch = Math.min(Math.max(videosNeeded + 5, 10), 25);
-      const newVideos = await this.searchYouTubeVideos(searchKeywords, videosToSearch, subject);
-
-      if (newVideos.length === 0 && cachedVideos.length === 0) {
-        console.warn(`   🔄 Fallback: buscando con keywords originales`);
-        const fallbackVideos = await this.searchYouTubeVideos(keywords, 10, subject);
-        if (fallbackVideos.length > 0) {
-          await this.saveVideosToCache(grade, studentId, subject, topic, fallbackVideos, 0);
-          const all = await this.getCachedVideos(grade, studentId, phase, subject, topic);
-          return all.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
-            title: v.title,
-            url: v.url,
-            description: v.description,
-            channelTitle: v.channelTitle,
-            videoId: v.videoId,
-            duration: v.duration,
-            language: v.language,
-          }));
-        }
-      }
-
-      const existingIds = new Set(cachedVideos.map((v) => v.videoId || v.url));
-      const uniqueNew = newVideos.filter((v) => {
-        const id = v.videoId || v.url;
-        return !existingIds.has(id);
-      });
-      if (uniqueNew.length > 0) {
-        await this.saveVideosToCache(grade, studentId, subject, topic, uniqueNew, cachedVideos.length);
-      }
-
-      const allVideos = await this.getCachedVideos(grade, studentId, phase, subject, topic);
-      return allVideos.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
+      console.log(`   📋 Obteniendo videos para topic canónico: "${topic}"`);
+      const maybeCached = await this.ensureVideosInCache(grade, subject, topic, keywords);
+      const list = maybeCached ?? await this.getCachedVideos(grade, studentId, phase, subject, topic);
+      console.log(`   📦 Leyendo caché: ${list.length} video(s)`);
+      return list.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
         title: v.title,
         url: v.url,
         description: v.description,
@@ -2129,15 +2135,28 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Busca videos educativos en YouTube usando keywords
+   * Log estructurado para observabilidad (Cloud Logging puede filtrar por jsonPayload).
+   */
+  private logYouTubeSearchEvent(
+    event: 'youtube_search' | 'youtube_search_error',
+    payload: { topic?: string; subject?: string; keywordsCount?: number; resultCount?: number; status?: number; message?: string }
+  ): void {
+    console.log(JSON.stringify({ event, ...payload }));
+  }
+
+  /**
+   * Busca videos educativos en YouTube usando keywords.
+   * No lanza errores: ante fallo de API o cuota agotada devuelve [] y registra evento estructurado.
    * @param keywords - Array de keywords para buscar
    * @param maxResults - Número máximo de videos a retornar (default: 3)
-   * @returns Array de videos encontrados con título, URL, descripción, canal, duración e idioma
+   * @param subject - Materia (para query y observabilidad)
+   * @param topic - Topic canónico (para observabilidad)
    */
   private async searchYouTubeVideos(
     keywords: string[],
     maxResults: number = 3,
-    subject?: string
+    subject?: string,
+    topic?: string
   ): Promise<Array<{
     title: string;
     url: string;
@@ -2150,12 +2169,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
     
     if (!YOUTUBE_API_KEY) {
-      console.error('❌ YOUTUBE_API_KEY no está configurada. No se pueden buscar videos.');
-      console.error('   Verifica que el secret esté configurado en Firebase Functions.');
+      this.logYouTubeSearchEvent('youtube_search_error', { topic, subject, keywordsCount: keywords.length, message: 'YOUTUBE_API_KEY no configurada' });
+      console.error('❌ YOUTUBE_API_KEY no está configurada.');
       return [];
     }
-    
-    console.log(`   ✅ YOUTUBE_API_KEY encontrada (longitud: ${YOUTUBE_API_KEY.length} caracteres)`);
 
     try {
       // Construir query de búsqueda combinando keywords
@@ -2190,28 +2207,17 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'No se pudo leer el error');
-        let errorData: any = {};
+        let errorData: { error?: { message?: string } } = {};
         try {
           errorData = JSON.parse(errorText);
         } catch {
-          // Si no se puede parsear, usar el texto directamente
+          // ignorar
         }
-        
-        console.error(`❌ Error en API de YouTube (${response.status}): ${response.statusText}`);
-        console.error(`   Detalles del error: ${errorText.substring(0, 500)}`);
-        
-        // Si es un error de autenticación, es crítico
+        const errMessage = errorData.error?.message || response.statusText || errorText.substring(0, 200);
+        this.logYouTubeSearchEvent('youtube_search_error', { topic, subject, keywordsCount: keywords.length, status: response.status, message: errMessage });
         if (response.status === 403 || response.status === 401) {
-          console.error(`   ❌ ERROR CRÍTICO: Problema de autenticación con YouTube API`);
-          console.error(`   Razón: ${errorData.error?.message || 'Desconocida'}`);
-          console.error(`   Soluciones:`);
-          console.error(`   1. Verifica que YOUTUBE_API_KEY sea válida`);
-          console.error(`   2. Verifica que YouTube Data API v3 esté habilitada en Google Cloud Console`);
-          console.error(`   3. Verifica que la API key tenga permisos para YouTube Data API v3`);
-          console.error(`   4. Verifica que la cuota de la API no se haya agotado`);
-          console.error(`   5. Si la API key tiene restricciones, verifica que permita acceso desde Cloud Functions`);
+          console.error(`   ❌ YouTube API: autenticación/cuota. Razón: ${errMessage}`);
         }
-        
         return [];
       }
 
@@ -2232,12 +2238,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       };
 
       if (!data.items || data.items.length === 0) {
-        console.warn(`⚠️ No se encontraron videos para keywords: ${keywords.join(', ')}`);
-        console.warn(`   Query completa: "${query}"`);
-        console.warn(`   Esto puede deberse a:`);
-        console.warn(`   1. Las keywords son muy específicas o no existen videos con esos términos`);
-        console.warn(`   2. Problemas con la API de YouTube`);
-        console.warn(`   3. Filtros muy restrictivos (videoEmbeddable=true)`);
+        this.logYouTubeSearchEvent('youtube_search', { topic, subject, keywordsCount: keywords.length, resultCount: 0 });
+        console.warn(`⚠️ No se encontraron videos para topic "${topic ?? '?'}" (${keywords.length} keywords)`);
         return [];
       }
 
@@ -2262,9 +2264,10 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         };
       });
 
-      console.log(`✅ Encontrados ${videos.length} video(s) para keywords: ${keywords.join(', ')}`);
+      this.logYouTubeSearchEvent('youtube_search', { topic, subject, keywordsCount: keywords.length, resultCount: videos.length });
       return videos;
     } catch (error: any) {
+      this.logYouTubeSearchEvent('youtube_search_error', { topic, subject, keywordsCount: keywords.length, message: error?.message ?? String(error) });
       console.error(`❌ Error buscando videos en YouTube:`, error.message);
       return [];
     }

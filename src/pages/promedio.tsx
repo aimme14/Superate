@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, startTransition } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -479,7 +479,8 @@ interface StudyPlanData {
     title: string;
     url: string;
     description: string;
-    topic?: string; // Tema al que pertenece el video
+    topic?: string; // Tema canónico (ruta)
+    topicDisplayName?: string; // Nombre del plan para mostrar en UI
   }>;
   practice_exercises: Array<{
     question: string;
@@ -700,20 +701,7 @@ function StudyVideosSection({
   const { notifySuccess, notifyError } = useNotification();
 
   const list = videos ?? [];
-  if (list.length === 0) {
-    return (
-      <div
-        className={cn(
-          'rounded-lg border p-4 text-center text-sm',
-          theme === 'dark'
-            ? 'border-zinc-600 bg-zinc-800/50 text-gray-400'
-            : 'border-gray-200 bg-gray-50 text-gray-600'
-        )}
-      >
-        No hay videos educativos para esta materia.
-      </div>
-    );
-  }
+  const hasVideos = list.length > 0;
 
   const byTopic = list.reduce<Record<string, PlanVideo[]>>((acc, video) => {
     const topic = video.topic ?? 'Sin categorizar';
@@ -741,7 +729,6 @@ function StudyVideosSection({
     );
   };
 
-  const isSimpleList = topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar');
   const cardWrapClass = theme === 'dark'
     ? 'bg-zinc-700/50 border-zinc-600 hover:bg-zinc-700'
     : 'bg-gray-50 border-gray-200 hover:bg-gray-100';
@@ -753,9 +740,11 @@ function StudyVideosSection({
     'p-1.5 rounded-md transition-colors',
     theme === 'dark' ? 'hover:bg-zinc-600 text-gray-400' : 'hover:bg-gray-200 text-gray-600'
   );
+  const isSimpleList = hasVideos && (topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar'));
 
-  function renderVideo(video: PlanVideo, index: number, topicLabel: string) {
-    const key = video.url ? `${topicLabel}-${video.url}-${index}` : `video-${topicLabel}-${index}`;
+  function renderVideo(video: PlanVideo, index: number, topicKey: string, topicIndex: number) {
+    const stableId = video.videoId || video.url || `i-${index}`;
+    const key = `v-${topicKey}-${stableId}-${index}`;
     const domain = getLinkDomain(video.url);
     const compact = !video.description?.trim();
     return (
@@ -803,37 +792,50 @@ function StudyVideosSection({
     );
   }
 
-  if (isSimpleList) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-        {list.map((video, idx) => renderVideo(video, idx, 'default'))}
-      </div>
-    );
-  }
-
   return (
+    <div className="min-h-[2rem]">
+      {!hasVideos && (
+        <div
+          className={cn(
+            'rounded-lg border p-4 text-center text-sm',
+            theme === 'dark'
+              ? 'border-zinc-600 bg-zinc-800/50 text-gray-400'
+              : 'border-gray-200 bg-gray-50 text-gray-600'
+          )}
+        >
+          No hay videos educativos para esta materia.
+        </div>
+      )}
+      {hasVideos && isSimpleList && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {list.map((video, idx) => renderVideo(video, idx, 'default', 0))}
+        </div>
+      )}
+      {hasVideos && !isSimpleList && (
     <div className="space-y-4">
-      {topics.map((topic) => {
+      {topics.map((topic, topicIndex) => {
         const topicVideos = byTopic[topic] ?? [];
+        const topicLabel = topicVideos[0]?.topicDisplayName ?? topic;
         const showMore = topicVideos.length > STUDY_VIDEOS_INITIAL_PER_TOPIC;
         const expanded = expandedTopics.has(topic);
         const visibleVideos = showMore && !expanded
           ? topicVideos.slice(0, STUDY_VIDEOS_INITIAL_PER_TOPIC)
           : topicVideos;
         const hiddenCount = showMore && !expanded ? topicVideos.length - STUDY_VIDEOS_INITIAL_PER_TOPIC : 0;
+        const sectionKey = `topic-${topicIndex}-${topic}`;
 
         return (
-          <div key={topic} className="space-y-3">
+          <div key={sectionKey} className="space-y-3">
             <h5
               className={cn(
                 'font-semibold text-sm pb-2 border-b',
                 theme === 'dark' ? 'text-purple-300 border-zinc-600' : 'text-purple-700 border-gray-300'
               )}
             >
-              {topic}
+              {topicLabel}
             </h5>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {visibleVideos.map((video, idx) => renderVideo(video, idx, topic))}
+              {visibleVideos.map((video, idx) => renderVideo(video, idx, topic, topicIndex))}
             </div>
             {showMore && (
               <Button
@@ -852,6 +854,8 @@ function StudyVideosSection({
           </div>
         );
       })}
+    </div>
+      )}
     </div>
   );
 }
@@ -1399,7 +1403,6 @@ function PersonalizedStudyPlan({
       
       if (result.success && result.data) {
         // El backend ya generó y guardó el plan completo
-        // Usar directamente el plan retornado
         setStudyPlans(prev => ({
           ...prev,
           [subject]: result.data,
@@ -1647,21 +1650,24 @@ function PersonalizedStudyPlan({
                   </div>
                 )}
 
-                {hasWeaknesses && isGenerating && (
-                  <div className="flex items-center justify-center gap-3 py-8">
-                    <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
-                    <div>
-                      <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                        Generando plan de estudio personalizado...
-                      </p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                        Estamos creando un plan detallado con videos, enlaces web y ejercicios de práctica. Esto puede tardar varios minutos. El plan aparecerá automáticamente cuando esté completo.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {hasWeaknesses && plan && !isGenerating && (
+                {hasWeaknesses && (
+                  <div
+                    key={isGenerating ? 'generating' : plan ? `plan-${subject.name}-${String((plan as { generatedAt?: unknown })?.generatedAt ?? plan.study_plan_summary?.length ?? 0)}` : 'waiting'}
+                  >
+                    {isGenerating && (
+                      <div className="flex items-center justify-center gap-3 py-8">
+                        <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
+                        <div>
+                          <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                            Generando plan de estudio personalizado...
+                          </p>
+                          <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                            Estamos creando un plan detallado con videos, enlaces web y ejercicios de práctica. Esto puede tardar varios minutos. El plan aparecerá automáticamente cuando esté completo.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {plan && !isGenerating && (
                   <div className="space-y-6">
                 {/* Resumen del diagnóstico */}
                 <div className={cn("p-4 rounded-lg", theme === 'dark' ? 'bg-purple-900/30 border border-purple-700/50' : 'bg-purple-50 border border-purple-200')}>
@@ -1694,7 +1700,9 @@ function PersonalizedStudyPlan({
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <StudyVideosSection videos={plan.video_resources} theme={theme} />
+                      <div key={plan.video_resources?.length ? 'videos-list' : 'videos-empty'}>
+                        <StudyVideosSection videos={plan.video_resources} theme={theme} />
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
@@ -1736,9 +1744,10 @@ function PersonalizedStudyPlan({
                           const isExpanded = expandedExercises[exerciseKey] || false;
                           const selectedAnswer = selectedAnswers[exerciseKey] || '';
                           const showAnswer = isExpanded;
+                          const cardKey = `${subject.name}-ex-${idx}-${String(exercise.question ?? '').slice(0, 40)}`;
 
                           return (
-                            <Card key={idx} className={cn(theme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-gray-50 border-gray-200')}>
+                            <Card key={cardKey} className={cn(theme === 'dark' ? 'bg-zinc-700/50 border-zinc-600' : 'bg-gray-50 border-gray-200')}>
                               <CardContent className="pt-4">
                                 <div className="space-y-3">
                                   <div>
@@ -1860,9 +1869,8 @@ function PersonalizedStudyPlan({
                   </AccordionItem>
                   </Accordion>
                   </div>
-                )}
-
-                {hasWeaknesses && !plan && !isGenerating && (
+                    )}
+                    {!plan && !isGenerating && (
                   <div>
                     <div className="text-center py-6">
                       {shouldShowButton ? (
@@ -1925,6 +1933,8 @@ function PersonalizedStudyPlan({
                         </>
                       )}
                     </div>
+                  </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2322,17 +2332,20 @@ export default function ICFESAnalysisInterface() {
         const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
         const totalInPhase = studentScores.length; // Estudiantes que presentaron esta fase
         const rank = currentStudentIndex !== -1 ? currentStudentIndex + 1 : null;
-        // Diferir actualizaciones de estado para evitar insertBefore durante reconciliación de React/Radix Tabs
+        // Diferir actualizaciones de estado para evitar insertBefore durante reconciliación de React/Radix
         const applyRankUpdate = () => {
           if (!isMounted) return;
           setStudentRank(rank);
           setTotalStudents(totalInPhase);
           setIsLoadingRank(false);
         };
-        if (typeof queueMicrotask === 'function') {
-          queueMicrotask(applyRankUpdate);
+        // Usar un frame adicional (rAF + setTimeout) para no colisionar con actualizaciones del plan
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(() => {
+            setTimeout(applyRankUpdate, 0);
+          });
         } else {
-          setTimeout(applyRankUpdate, 0);
+          setTimeout(applyRankUpdate, 50);
         }
         if (import.meta.env.DEV) {
           console.log('📊 Ranking - Puesto del estudiante en la fase:', rank ?? 'N/A', 'de', totalInPhase, 'estudiantes');
@@ -2368,7 +2381,7 @@ export default function ICFESAnalysisInterface() {
       const user = auth.currentUser;
 
       if (!user) {
-        setLoading(false);
+        startTransition(() => setLoading(false));
         return;
       }
 
@@ -2472,17 +2485,14 @@ export default function ICFESAnalysisInterface() {
 
         // Calcular datos consolidados para "Todas las Fases"
         const consolidatedData = calculateAllPhasesData(phase1Processed, phase2Processed, phase3Processed, user);
-        setAnalysisData(consolidatedData);
-        
-        // Establecer fase inicial automáticamente
-        if (phase3Evals.length > 0) {
-          setSelectedPhase('phase3');
-        } else if (phase2Evals.length > 0) {
-          setSelectedPhase('phase2');
-        } else if (phase1Evals.length > 0) {
-          setSelectedPhase('phase1');
-        }
-        
+        const initialPhase: 'phase1' | 'phase2' | 'phase3' | 'all' =
+          phase3Evals.length > 0 ? 'phase3' : phase2Evals.length > 0 ? 'phase2' : phase1Evals.length > 0 ? 'phase1' : 'all';
+        // Diferir actualización para evitar insertBefore al cambiar de spinner a contenido (Radix Tabs/Accordion)
+        startTransition(() => {
+          setAnalysisData(consolidatedData);
+          setSelectedPhase(initialPhase);
+        });
+
         // Generar recomendaciones con IA si está disponible
         if (geminiService.isAvailable() && consolidatedData.subjects.length > 0) {
           generateAIRecommendations(consolidatedData);
@@ -2490,7 +2500,7 @@ export default function ICFESAnalysisInterface() {
       } catch (error) {
         console.error("Error al obtener los datos:", error);
       } finally {
-        setLoading(false);
+        startTransition(() => setLoading(false));
       }
     };
 
