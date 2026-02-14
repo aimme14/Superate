@@ -479,6 +479,7 @@ interface StudyPlanData {
     title: string;
     url: string;
     description: string;
+    videoId?: string;
     topic?: string; // Tema canónico (ruta)
     topicDisplayName?: string; // Nombre del plan para mostrar en UI
   }>;
@@ -742,7 +743,7 @@ function StudyVideosSection({
   );
   const isSimpleList = hasVideos && (topics.length === 0 || (topics.length === 1 && topics[0] === 'Sin categorizar'));
 
-  function renderVideo(video: PlanVideo, index: number, topicKey: string, topicIndex: number) {
+  function renderVideo(video: PlanVideo, index: number, topicKey: string) {
     const stableId = video.videoId || video.url || `i-${index}`;
     const key = `v-${topicKey}-${stableId}-${index}`;
     const domain = getLinkDomain(video.url);
@@ -808,7 +809,7 @@ function StudyVideosSection({
       )}
       {hasVideos && isSimpleList && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {list.map((video, idx) => renderVideo(video, idx, 'default', 0))}
+          {list.map((video, idx) => renderVideo(video, idx, 'default'))}
         </div>
       )}
       {hasVideos && !isSimpleList && (
@@ -835,7 +836,7 @@ function StudyVideosSection({
               {topicLabel}
             </h5>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {visibleVideos.map((video, idx) => renderVideo(video, idx, topic, topicIndex))}
+              {visibleVideos.map((video, idx) => renderVideo(video, idx, topic))}
             </div>
             {showMore && (
               <Button
