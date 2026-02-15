@@ -1249,18 +1249,6 @@ function PersonalizedStudyPlan({
     return g;
   };
 
-  // Verificar si un plan está completo (tiene videos, enlaces y ejercicios).
-  // Se usa para badges/estadísticas; para "mostrar plan vs Generar Plan" basta con que exista plan en BD.
-  const isPlanComplete = (plan: StudyPlanData | undefined): boolean => {
-    if (!plan) return false;
-    
-    const hasVideos = plan.video_resources && Array.isArray(plan.video_resources) && plan.video_resources.length > 0;
-    const hasLinks = plan.study_links && Array.isArray(plan.study_links) && plan.study_links.length > 0;
-    const hasExercises = plan.practice_exercises && Array.isArray(plan.practice_exercises) && plan.practice_exercises.length > 0;
-    
-    return hasVideos && hasLinks && hasExercises;
-  };
-
   // Cargar autorizaciones de planes de estudio
   useEffect(() => {
     const loadAuthorizations = async () => {
