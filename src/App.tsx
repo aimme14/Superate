@@ -15,6 +15,7 @@ import AboutPage from "@/sections/about/page";
 import InformacionPage from "@/pages/informacion";
 import ResultadosPage from "@/pages/resultados";
 import PromedioPage from "@/pages/promedio";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import InnovativeHero from "@/pages/inovativeGero";
 import Prueba from "@/pages/prueba";
 import Intento from "@/pages/Intento";
@@ -82,7 +83,7 @@ function App() {
               {/* rutas publicas */}
               <Route path="/informacionPage" element={<InformacionPage />} />
               <Route path="/resultados" element={<ResultadosPage />} />
-              <Route path="/promedio" element={<PromedioPage />} />
+              <Route path="/promedio" element={<ErrorBoundary><PromedioPage /></ErrorBoundary>} />
               <Route path="/innovative-hero" element={<InnovativeHero />} />
               <Route path="/prueba" element={<Prueba />} />
               <Route path="/Intento" element={<Intento />} />

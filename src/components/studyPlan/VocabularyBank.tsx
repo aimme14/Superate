@@ -145,8 +145,6 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
   };
 
   // Contador visible: evita mostrar 0 mientras carga y asegura consistencia con la lista
-  const displayCount = Array.isArray(words) ? words.length : 0;
-
   return (
     <>
       <Accordion type="single" collapsible>
@@ -154,7 +152,7 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
           <AccordionTrigger className={cn(theme === 'dark' ? 'text-white hover:text-gray-300' : '')}>
             <div className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
-              Vocabulario Académico ({loading ? '…' : displayCount})
+              Vocabulario académico
             </div>
           </AccordionTrigger>
           <AccordionContent>

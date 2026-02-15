@@ -164,13 +164,21 @@ export const VIDEOS_PER_TOPIC = 7;
 /** Límite máximo de ejercicios por topic en EjerciciosIA */
 export const MAX_EXERCISES_PER_TOPIC = 100;
 
+/** Variantes de nombre sin tilde / en otro idioma que deben mapear a la materia canónica */
+const SUBJECT_NAME_ALIASES: Record<string, string> = {
+  'ingles': 'Inglés',
+  'english': 'Inglés',
+};
+
 /**
- * Obtiene la materia por nombre (case-insensitive, normalizado)
+ * Obtiene la materia por nombre (case-insensitive, normalizado).
+ * Acepta variantes sin tilde (ej. "ingles") y en inglés ("english") para Inglés.
  */
 export function getSubjectConfig(subjectName: string): SubjectWithTopics | undefined {
-  const normalized = subjectName.trim();
+  const normalized = subjectName.trim().toLowerCase();
+  const canonicalName = SUBJECT_NAME_ALIASES[normalized] ?? subjectName.trim();
   return SUBJECTS_CONFIG.find(
-    (s) => s.name.toLowerCase() === normalized.toLowerCase()
+    (s) => s.name.toLowerCase() === canonicalName.toLowerCase()
   );
 }
 
@@ -204,6 +212,7 @@ export function mapToCanonicalTopic(
   if (byContains) return byContains.name;
 
   // Fallback: buscar por palabras clave (ej: "álgebra" en "Ecuaciones cuadráticas")
+  // Para Inglés: Gemini devuelve nombres largos (transformEnglishTopicName); mapeamos por frases distintivas a Parte 1..7
   const keywords: Record<string, Record<string, string>> = {
     'Matemáticas': {
       'álgebra': 'Álgebra y Cálculo',
@@ -222,7 +231,78 @@ export function mapToCanonicalTopic(
       'filosófico': 'Textos filosoficos',
       'filosofico': 'Textos filosoficos',
     },
-    // Para otras materias, si no hay match, retornar el primer topic como fallback conservador
+    'Inglés': {
+      // Parte 6 y 4: más específico primero para no mapear "comprensión lectora crítica" a Parte 4
+      'comprensión lectora crítica': 'Parte 6',
+      'comprension lectora critica': 'Parte 6',
+      'propósito del autor': 'Parte 6',
+      'proposito del autor': 'Parte 6',
+      'interpretación de textos': 'Parte 6',
+      'interpretacion de textos': 'Parte 6',
+      'lectura inferencial': 'Parte 6',
+      // Parte 5
+      'comprensión global': 'Parte 5',
+      'comprension global': 'Parte 5',
+      'ideas principales': 'Parte 5',
+      'información específica': 'Parte 5',
+      'inferencias simples': 'Parte 5',
+      // Parte 4
+      'comprensión lectora': 'Parte 4',
+      'comprension lectora': 'Parte 4',
+      'gramática en contexto': 'Parte 4',
+      'gramatica en contexto': 'Parte 4',
+      'cohesión textual': 'Parte 4',
+      'cohesion textual': 'Parte 4',
+      'textos continuos y segmentados': 'Parte 4',
+      // Parte 7
+      'preposiciones': 'Parte 7',
+      'conectores': 'Parte 7',
+      'cuantificadores': 'Parte 7',
+      'tiempos verbales': 'Parte 7',
+      'pronombres relativos': 'Parte 7',
+      'vocabulario funcional': 'Parte 7',
+      'gramática aplicada': 'Parte 7',
+      'gramatica aplicada': 'Parte 7',
+      'uso del lenguaje en contexto': 'Parte 7',
+      // Parte 3
+      'competencia comunicativa': 'Parte 3',
+      'pragmática': 'Parte 3',
+      'pragmatica': 'Parte 3',
+      'diálogos': 'Parte 3',
+      'dialogos': 'Parte 3',
+      'conversacional': 'Parte 3',
+      'uso natural de expresiones': 'Parte 3',
+      // Parte 2
+      'asociación semántica': 'Parte 2',
+      'asociacion semantica': 'Parte 2',
+      'comprensión léxica': 'Parte 2',
+      'comprension lexica': 'Parte 2',
+      'reconocimiento léxico': 'Parte 2',
+      'reconocimiento lexico': 'Parte 2',
+      'léxico-semántico': 'Parte 2',
+      'lexico-semantico': 'Parte 2',
+      // Parte 1
+      'avisos públicos': 'Parte 1',
+      'avisos publicos': 'Parte 1',
+      'mensajes funcionales': 'Parte 1',
+      'vocabulario cotidiano': 'Parte 1',
+      'textos cortos contextuales': 'Parte 1',
+      // Variantes literales por si Gemini devuelve "Parte N" o "Part N"
+      'parte 1': 'Parte 1',
+      'parte 2': 'Parte 2',
+      'parte 3': 'Parte 3',
+      'parte 4': 'Parte 4',
+      'parte 5': 'Parte 5',
+      'parte 6': 'Parte 6',
+      'parte 7': 'Parte 7',
+      'part 1': 'Parte 1',
+      'part 2': 'Parte 2',
+      'part 3': 'Parte 3',
+      'part 4': 'Parte 4',
+      'part 5': 'Parte 5',
+      'part 6': 'Parte 6',
+      'part 7': 'Parte 7',
+    },
   };
 
   const subjectKeywords = keywords[subject.name];

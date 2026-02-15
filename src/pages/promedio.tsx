@@ -701,7 +701,7 @@ function StudyVideosSection({
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const { notifySuccess, notifyError } = useNotification();
 
-  const list = videos ?? [];
+  const list = Array.isArray(videos) ? videos : [];
   const hasVideos = list.length > 0;
 
   const byTopic = list.reduce<Record<string, PlanVideo[]>>((acc, video) => {
@@ -1249,7 +1249,8 @@ function PersonalizedStudyPlan({
     return g;
   };
 
-  // Verificar si un plan está completo (tiene videos, enlaces y ejercicios)
+  // Verificar si un plan está completo (tiene videos, enlaces y ejercicios).
+  // Se usa para badges/estadísticas; para "mostrar plan vs Generar Plan" basta con que exista plan en BD.
   const isPlanComplete = (plan: StudyPlanData | undefined): boolean => {
     if (!plan) return false;
     
@@ -1354,10 +1355,10 @@ function PersonalizedStudyPlan({
               `${FUNCTIONS_URL}/getStudyPlan?studentId=${studentId}&phase=${phase}&subject=${encodeURIComponent(subject.name)}`
             );
             const result = await response.json();
+            // Mostrar cualquier plan que exista en BD (aunque no tenga aún videos/enlaces);
+            // así no se pide "Generar Plan" si el plan ya está guardado.
             if (result.success && result.data) {
-              if (isPlanComplete(result.data)) {
-                plans[subject.name] = result.data;
-              }
+              plans[subject.name] = result.data;
             }
           } catch (error) {
             console.error(`Error cargando plan para ${subject.name}:`, error);
@@ -1387,6 +1388,7 @@ function PersonalizedStudyPlan({
       return;
     }
     setGeneratingFor(subject);
+    let clearedInRaf = false;
     try {
       // Iniciar generación del plan (esto puede tardar varios minutos). Siempre enviamos grado en formato nombre (Sexto, Décimo, Undécimo).
       const response = await fetch(`${FUNCTIONS_URL}/generateStudyPlan`, {
@@ -1401,17 +1403,22 @@ function PersonalizedStudyPlan({
       });
 
       const result = await response.json();
-      
+
       if (result.success && result.data) {
-        // El backend ya generó y guardó el plan completo
-        setStudyPlans(prev => ({
-          ...prev,
-          [subject]: result.data,
-        }));
+        const planData = result.data;
         notifySuccess({
           title: 'Plan generado exitosamente',
           message: `El plan de estudio para ${subject} se ha generado correctamente.`
         });
+        // Diferir actualización para no colisionar con Ranking u otros updates y evitar insertBefore (Radix).
+        clearedInRaf = true;
+        setTimeout(() => {
+          setStudyPlans(prev => ({
+            ...prev,
+            [subject]: planData,
+          }));
+          setGeneratingFor(null);
+        }, 80);
       } else {
         const errorMessage = result.error?.message || 'No se pudo generar el plan de estudio';
         console.error('Error generando plan:', errorMessage);
@@ -1432,7 +1439,10 @@ function PersonalizedStudyPlan({
           : errorMessage
       });
     } finally {
-      setGeneratingFor(null);
+      // Solo limpiar spinner aquí si no fue éxito (en éxito se limpia dentro del rAF junto con setStudyPlans)
+      if (!clearedInRaf) {
+        setGeneratingFor(null);
+      }
     }
   };
 
@@ -1554,7 +1564,7 @@ function PersonalizedStudyPlan({
 
         return (
           <AccordionItem 
-            key={subject.name}
+            key={`${subject.name}-${isGenerating ? 'loading' : plan ? 'plan' : 'empty'}`}
             value={subject.name}
             className={cn(
               "border rounded-lg overflow-hidden transition-all border-b-0",
@@ -1652,9 +1662,7 @@ function PersonalizedStudyPlan({
                 )}
 
                 {hasWeaknesses && (
-                  <div
-                    key={isGenerating ? 'generating' : plan ? `plan-${subject.name}-${String((plan as { generatedAt?: unknown })?.generatedAt ?? plan.study_plan_summary?.length ?? 0)}` : 'waiting'}
-                  >
+                  <div key={`plan-content-${subject.name}-${isGenerating ? 'loading' : plan ? 'plan' : 'empty'}`}>
                     {isGenerating && (
                       <div className="flex items-center justify-center gap-3 py-8">
                         <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>

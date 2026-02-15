@@ -189,6 +189,14 @@ class StudyPlanService {
   }
 
   /**
+   * Indica si la materia es Inglés (acepta "Inglés", "ingles", "Ingles", "english").
+   */
+  private isEnglishSubject(subject: string): boolean {
+    const n = this.normalizeSubjectName(subject);
+    return n === 'inglés' || n === 'ingles' || n === 'english';
+  }
+
+  /**
    * Obtiene los resultados del estudiante para una fase y materia específica
    */
   private async getStudentResults(
@@ -365,6 +373,10 @@ class StudyPlanService {
     if (keywordsSet.size > 0) {
       return Array.from(keywordsSet);
     }
+    // Fallback: para Inglés usar keywords cortas por tema; para otras materias frase + educación ICFES
+    if (this.isEnglishSubject(subject) && StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic]) {
+      return StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic];
+    }
     const searchTopic = this.getDescriptiveSearchTopic(subject, canonicalTopic);
     return [searchTopic, subject, 'educación ICFES'];
   }
@@ -397,17 +409,31 @@ class StudyPlanService {
   }
 
   /**
-   * Nombres descriptivos cortos para búsqueda (videos y enlaces) en Inglés.
-   * Se usan en lugar de "Parte 1", "Parte 2", etc. para obtener mejores resultados.
+   * Frases cortas para búsqueda (YouTube/enlaces) en Inglés.
+   * Parte 1 = avisos públicos / mensajes funcionales (ICFES), no publicitarios.
    */
   private static readonly ENGLISH_SEARCH_TOPIC_NAMES: Record<string, string> = {
-    'Parte 1': 'Comprensión de avisos públicos, mensajes funcionales, vocabulario cotidiano en inglés',
-    'Parte 2': 'Vocabulario, asociación semántica, comprensión léxica en inglés',
-    'Parte 3': 'Competencia comunicativa, pragmática del idioma, uso natural de expresiones en inglés',
-    'Parte 4': 'Comprensión lectora, gramática en contexto, cohesión textual en inglés',
-    'Parte 5': 'Comprensión global del texto, ideas principales, vocabulario en contexto en inglés',
-    'Parte 6': 'Comprensión lectora crítica, propósito del autor, interpretación de textos en inglés',
-    'Parte 7': 'Gramática aplicada al contexto, preposiciones, conectores, vocabulario funcional en inglés',
+    'Parte 1': 'Avisos y mensajes en inglés, vocabulario cotidiano',
+    'Parte 2': 'Vocabulario inglés, asociación de palabras',
+    'Parte 3': 'Diálogos inglés, expresiones cotidianas',
+    'Parte 4': 'Comprensión lectora y gramática en contexto inglés',
+    'Parte 5': 'Ideas principales, vocabulario en contexto inglés',
+    'Parte 6': 'Comprensión lectora crítica, propósito del autor inglés',
+    'Parte 7': 'Gramática inglés, preposiciones y conectores',
+  };
+
+  /**
+   * Fallback de keywords por tema para Inglés cuando Gemini no devuelve keywords.
+   * Términos genéricos por tema para encontrar videos útiles de CUALQUIER canal (no solo los recomendados).
+   */
+  private static readonly ENGLISH_FALLBACK_KEYWORDS: Record<string, string[]> = {
+    'Parte 1': ['avisos públicos inglés', 'mensajes cortos inglés', 'vocabulario cotidiano', 'aprender inglés español', 'ICFES inglés'],
+    'Parte 2': ['vocabulario inglés', 'asociación de palabras', 'comprensión léxica', 'aprender inglés español', 'ICFES inglés'],
+    'Parte 3': ['diálogos inglés', 'expresiones cotidianas', 'conversación inglés', 'aprender inglés español', 'ICFES inglés'],
+    'Parte 4': ['comprensión lectora inglés', 'gramática en contexto', 'lectura inglés', 'aprender inglés español', 'ICFES inglés'],
+    'Parte 5': ['ideas principales texto', 'vocabulario en contexto inglés', 'comprensión de lectura', 'aprender inglés español', 'ICFES inglés'],
+    'Parte 6': ['comprensión lectora crítica', 'propósito del autor', 'interpretación textos inglés', 'aprender inglés español', 'ICFES inglés'],
+    'Parte 7': ['gramática inglés', 'preposiciones conectores', 'ejercicios gramática inglés', 'aprender inglés español', 'ICFES inglés'],
   };
 
   /**
@@ -415,7 +441,7 @@ class StudyPlanService {
    * Para Inglés usa nombres descriptivos en lugar de "Parte 1", "Parte 2", etc.
    */
   private getDescriptiveSearchTopic(subject: string, canonicalTopic: string): string {
-    if (this.normalizeSubjectName(subject) === 'inglés' && StudyPlanService.ENGLISH_SEARCH_TOPIC_NAMES[canonicalTopic]) {
+    if (this.isEnglishSubject(subject) && StudyPlanService.ENGLISH_SEARCH_TOPIC_NAMES[canonicalTopic]) {
       return StudyPlanService.ENGLISH_SEARCH_TOPIC_NAMES[canonicalTopic];
     }
     return canonicalTopic;
@@ -427,7 +453,7 @@ class StudyPlanService {
    */
   private transformEnglishTopicName(topicName: string): string {
     const topicMap: Record<string, string> = {
-      'Parte 1': 'Comprensión de avisos públicos, Interpretación de mensajes funcionales, Vocabulario cotidiano, Nombre recomendado: Comprensión de avisos públicos, Interpretación de mensajes funcionales, Vocabulario cotidiano, Nombre técnico alternativo: Comprensión de textos cortos contextuales',
+      'Parte 1': 'Comprensión de avisos públicos, Interpretación de mensajes funcionales, Vocabulario cotidiano, Nombre recomendado: Comprensión de avisos públicos, Vocabulario cotidiano:',
       'Parte 2': 'Vocabulario, Asociación semántica, Comprensión léxica, Nombre recomendado: Vocabulario, Asociación semántica, Comprensión léxica, Nombre técnico alternativo: Reconocimiento léxico-semántico',
       'Parte 3': 'Competencia comunicativa, Pragmática del idioma, Uso natural de expresiones, Nombre recomendado: Uso funcional del idioma en diálogos, Nombre técnico alternativo: Competencia pragmática y conversacional',
       'Parte 4': 'Comprensión lectora, Gramática en contexto, Cohesión textual, Nombre recomendado: Comprensión lectora y gramática contextual. Nombre técnico alternativo: Procesamiento gramatical en textos continuos y segmentados',
@@ -456,7 +482,7 @@ class StudyPlanService {
       questionDetails.forEach((q: any) => {
         if (q.topic) {
           // Para inglés, transformar los nombres de temas
-          const topicName = subject === 'Inglés' 
+          const topicName = this.isEnglishSubject(subject)
             ? this.transformEnglishTopicName(q.topic)
             : q.topic;
           allTopics.add(topicName);
@@ -473,7 +499,7 @@ class StudyPlanService {
       ).join('\n');
       
       // Para inglés, transformar el nombre del tema en la descripción de debilidades
-      const displayTopic = subject === 'Inglés' 
+      const displayTopic = this.isEnglishSubject(subject)
         ? this.transformEnglishTopicName(w.topic)
         : w.topic;
       
@@ -483,23 +509,15 @@ ${sampleQuestions}`;
     }).join('\n\n');
 
     // Construir instrucción de keywords según la materia
-    const keywordsInstruction = subject === 'Inglés'
+    const keywordsInstruction = this.isEnglishSubject(subject)
       ? '- ✅ **Para Inglés: Incluye keywords los videos serán en español explicando temas de inglés'
       : '- ✅ Incluye keywords en español (los videos se buscarán en español)';
     
-    // Construir sección de canales recomendados para inglés
-    const englishChannelsSection = subject === 'Inglés' ? `
-**CANALES RECOMENDADOS PARA INGLÉS:**
-Los siguientes canales de YouTube son altamente recomendados para el aprendizaje de inglés y pueden ser referenciados en las keywords:
-- Francisco Ochoa Inglés Fácil
-- Inglés Para Perezosos
-- Soy Miguel Idiomas
-- EasySpeak Inglés
-- Kale Anders
-- aprendoinglescantando6191
-- GrammarSongs by Melissa 
-
-Puedes incluir estos nombres de canales en las keywords cuando sean relevantes para el tema, por ejemplo: ["reading comprehension", "Francisco Ochoa Inglés Fácil", "grammar exercises"]` : '';
+    // Instrucción para inglés: priorizar keywords que encuentren videos útiles de CUALQUIER canal
+    const englishChannelsSection = this.isEnglishSubject(subject) ? `
+**KEYWORDS PARA INGLÉS (videos en español que explican inglés):**
+- Incluye términos que encuentren contenido útil de **cualquier canal** (no solo canales específicos): el tema + "aprender inglés", "inglés explicado en español", "gramática inglés", "vocabulario inglés", "ICFES inglés", "clase inglés bachillerato".
+- Puedes mencionar canales conocidos como referencia opcional, pero **prioriza palabras clave genéricas** para que YouTube devuelva videos útiles de diversos canales educativos.` : '';
 
     // Instrucciones específicas de webSearchInfo por materia (alineadas a Icfes Saber 11°)
     const normalizedSubjectForWeb = this.normalizeSubjectName(subject);
@@ -1294,7 +1312,22 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       parsed.study_links = [];
 
       const weaknessTopics = (parsed.student_info?.weaknesses || []).map((w) => w.topic);
-      const canonicalTopics = getCanonicalTopicsWithWeakness(input.subject, weaknessTopics);
+      let canonicalTopics = getCanonicalTopicsWithWeakness(input.subject, weaknessTopics);
+
+      // Fallback para Inglés: si no se mapeó ninguna debilidad a Parte 1..7, derivar desde los topics del plan (Gemini)
+      if (canonicalTopics.length === 0 && this.isEnglishSubject(input.subject) && (parsed.topics?.length ?? 0) > 0) {
+        const seen = new Set<string>();
+        for (const t of parsed.topics || []) {
+          const canonical = mapToCanonicalTopic(input.subject, t.name);
+          if (canonical && !seen.has(canonical)) {
+            seen.add(canonical);
+            canonicalTopics.push(canonical);
+          }
+        }
+        if (canonicalTopics.length > 0) {
+          console.log(`   🇬🇧 Inglés: no se mapearon debilidades; usando ${canonicalTopics.length} topic(s) del plan: ${canonicalTopics.join(', ')}`);
+        }
+      }
 
       if (canonicalTopics.length > 0) {
         console.log(`   📚 Topics canónicos con debilidad: ${canonicalTopics.join(', ')}`);
@@ -1351,11 +1384,35 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         const allVideos = await Promise.all(videoPromises);
         parsed.video_resources = allVideos.flat();
 
-        const totalVideos = parsed.video_resources.length;
+        let totalVideos = parsed.video_resources.length;
         const expectedVideos = canonicalTopics.length * VIDEOS_PER_TOPIC;
         console.log(`✅ Total de ${totalVideos} video(s) obtenido(s) para el plan de estudio`);
         console.log(`   📊 Esperados: ~${expectedVideos} videos (${canonicalTopics.length} topics × ${VIDEOS_PER_TOPIC} videos)`);
-        if (totalVideos === 0) {
+
+        // Rescate para Inglés: si no se encontró ningún video, búsqueda genérica para no bloquear el plan
+        if (totalVideos === 0 && this.isEnglishSubject(input.subject)) {
+          console.warn(`   🇬🇧 Inglés: 0 videos por topic; intentando búsqueda genérica de rescate...`);
+          const rescueKeywords = ['inglés explicado en español', 'gramática inglés bachillerato', 'ICFES inglés'];
+          const rescueVideos = await this.searchYouTubeVideos(rescueKeywords, 7, 'Inglés', canonicalTopics[0]);
+          if (rescueVideos.length > 0) {
+            const displayName = (() => {
+              const names: string[] = [];
+              for (const t of parsed.topics || []) {
+                if (mapToCanonicalTopic(input.subject, t.name) === canonicalTopics[0] && !names.includes(t.name)) names.push(t.name);
+              }
+              return names.length > 0 ? names.join(' · ') : canonicalTopics[0];
+            })();
+            parsed.video_resources = rescueVideos.map((v) => ({
+              ...v,
+              topic: canonicalTopics[0],
+              topicDisplayName: displayName,
+            }));
+            totalVideos = parsed.video_resources.length;
+            console.log(`   ✅ Rescate: se añadieron ${totalVideos} video(s) genéricos de inglés para el plan.`);
+          } else {
+            console.error(`❌ ERROR CRÍTICO: No se encontraron videos para ningún topic ni en búsqueda de rescate.`);
+          }
+        } else if (totalVideos === 0) {
           console.error(`❌ ERROR CRÍTICO: No se encontraron videos para ningún topic.`);
         }
       } else {
@@ -1750,8 +1807,8 @@ Para el siguiente tema con debilidad identificada, devuelve:
 **Materia:** ${subject}
 **Fase:** ${phaseMap[phase]}
 **Keywords básicas del tema:** ${keywords.join(', ')}
-${subject === 'Inglés' ? `
-IMPORTANTE PARA INGLÉS: Buscamos videos EN ESPAÑOL que explican inglés (gramática, vocabulario, comprensión lectora) para secundaria/ICFES. En searchKeywords incluye siempre términos como: "inglés explicado en español", "gramática inglés secundaria", "aprender inglés español", o "videos en español inglés". Combina el tema descriptivo anterior con estos términos para que YouTube devuelva videos en español que enseñan el tema de inglés.` : ''}
+${this.isEnglishSubject(subject) ? `
+IMPORTANTE PARA INGLÉS: Buscamos videos EN ESPAÑOL que explican inglés, de CUALQUIER canal útil. En searchKeywords usa términos GENÉRICOS por tema (ej. "aprender inglés", "inglés explicado en español", "gramática inglés", "vocabulario inglés", "ICFES inglés") combinados con el tema. NO uses solo nombres de canales: prioriza palabras clave que encuentren contenido educativo de diversos canales.` : ''}
 
 Devuelve exclusivamente un objeto JSON válido con esta estructura:
 {
@@ -2175,22 +2232,26 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     }
 
     try {
-      // Construir query de búsqueda combinando keywords
-      let query = keywords.join(' ');
-      
+      // Limitar a ~6 términos para no degradar relevancia en YouTube (especialmente cuando Gemini falla y se usa fallback)
+      const cappedKeywords = keywords.slice(0, 6);
+      let query = cappedKeywords.join(' ');
+      if (cappedKeywords.length < keywords.length) {
+        console.log(`   📌 Query limitada a ${cappedKeywords.length} términos para mejor relevancia`);
+      }
+
       // Para inglés, agregar términos en español para encontrar videos en español que expliquen inglés
-      if (subject === 'Inglés') {
+      if (subject && this.isEnglishSubject(subject)) {
         query = query + ' español explicación';
         console.log(`   🇬🇧 Búsqueda para Inglés: agregando términos en español para encontrar videos en español`);
       } else {
         query = query + ' educación ICFES';
       }
-      
+
       // Construir URL de búsqueda
-      // Usamos type=video para solo videos, videoEmbeddable=true para videos públicos
-      // y order=relevance para obtener los más relevantes
-      // Para inglés, usamos región de Colombia (CO) para priorizar contenido en español
-      const regionCode = subject === 'Inglés' ? '&regionCode=CO' : '';
+      // type=video, videoEmbeddable=true, order=relevance
+      // Para Inglés: regionCode=CO y relevanceLanguage=es para priorizar contenido en español
+      const regionCode = subject && this.isEnglishSubject(subject) ? '&regionCode=CO' : '';
+      const relevanceLanguage = subject && this.isEnglishSubject(subject) ? '&relevanceLanguage=es' : '';
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?` +
         `part=snippet` +
         `&q=${encodeURIComponent(query)}` +
@@ -2199,6 +2260,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         `&maxResults=${maxResults}` +
         `&order=relevance` +
         `${regionCode}` +
+        `${relevanceLanguage}` +
         `&key=${YOUTUBE_API_KEY}`;
 
       console.log(`🔍 Buscando videos en YouTube con keywords: ${keywords.join(', ')}`);
@@ -2221,21 +2283,38 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         return [];
       }
 
-      const data = await response.json() as {
+      let data = await response.json() as {
         items?: Array<{
-          id: {
-            videoId: string;
-          };
+          id: { videoId: string };
           snippet: {
             title: string;
             description: string;
             channelTitle: string;
-            thumbnails?: {
-              default?: { url: string };
-            };
+            thumbnails?: { default?: { url: string } };
           };
         }>;
       };
+
+      // Si Inglés devolvió 0 resultados, reintentar sin relevanceLanguage (puede ser demasiado restrictivo)
+      if (subject && this.isEnglishSubject(subject) && (!data.items || data.items.length === 0)) {
+        console.warn(`   🇬🇧 Primera búsqueda con relevanceLanguage=es sin resultados; reintentando sin filtro de idioma...`);
+        const searchUrlFallback = `https://www.googleapis.com/youtube/v3/search?` +
+          `part=snippet` +
+          `&q=${encodeURIComponent(query)}` +
+          `&type=video` +
+          `&videoEmbeddable=true` +
+          `&maxResults=${maxResults}` +
+          `&order=relevance` +
+          `${regionCode}` +
+          `&key=${YOUTUBE_API_KEY}`;
+        const resFallback = await fetch(searchUrlFallback);
+        if (resFallback.ok) {
+          const dataFallback = await resFallback.json() as typeof data;
+          if (dataFallback.items && dataFallback.items.length > 0) {
+            data = dataFallback;
+          }
+        }
+      }
 
       if (!data.items || data.items.length === 0) {
         this.logYouTubeSearchEvent('youtube_search', { topic, subject, keywordsCount: keywords.length, resultCount: 0 });
