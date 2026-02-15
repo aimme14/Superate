@@ -5451,7 +5451,7 @@ export default function ICFESAnalysisInterface() {
                       ? 'bg-green-600 hover:bg-green-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
-                  disabled={!phase2Data}
+                  disabled={!phase2Data || activeTab === 'study-plan'}
                 >
                   <Target className="h-4 w-4 mr-2" />
                   Fase II
@@ -5469,7 +5469,7 @@ export default function ICFESAnalysisInterface() {
                       ? 'bg-orange-600 hover:bg-orange-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
-                  disabled={!phase3Data}
+                  disabled={!phase3Data || activeTab === 'study-plan'}
                 >
                   <Target className="h-4 w-4 mr-2" />
                   Fase III
@@ -5487,6 +5487,7 @@ export default function ICFESAnalysisInterface() {
                       ? 'bg-purple-600 hover:bg-purple-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
+                  disabled={activeTab === 'study-plan'}
                 >
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Todas las Fases
@@ -5497,7 +5498,16 @@ export default function ICFESAnalysisInterface() {
         </Card>
 
         {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value);
+            if (value === 'study-plan' && selectedPhase !== 'phase1') {
+              setSelectedPhase('phase1');
+            }
+          }}
+          className="space-y-6"
+        >
           <TabsList className={cn("grid w-full grid-cols-2 md:grid-cols-3", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
             <TabsTrigger value="overview" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700 border-gray-200')}>
               <BarChart3 className="h-4 w-4" />
