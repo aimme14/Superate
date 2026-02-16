@@ -30,8 +30,8 @@ export function TipsICFESSection({ tips, theme }: TipsICFESSectionProps) {
   const categories = Object.keys(byCategory).sort();
 
   const triggerClass = cn(
-    'text-left py-3 px-4 hover:no-underline transition-colors',
-    theme === 'dark' ? 'hover:bg-amber-500/5 text-zinc-200' : 'hover:bg-gray-50'
+    'text-left py-3 px-4 hover:no-underline',
+    theme === 'dark' ? 'text-zinc-200' : ''
   );
   const titleClass = cn('font-medium', theme === 'dark' ? 'text-zinc-200' : 'text-gray-900');
   const descClass = cn('text-sm', theme === 'dark' ? 'text-zinc-400' : 'text-gray-600');

@@ -5548,7 +5548,8 @@ export default function ICFESAnalysisInterface() {
           value={activeTab}
           onValueChange={(value) => {
             setActiveTab(value);
-            if (value === 'study-plan' && selectedPhase !== 'phase1') {
+            // Plan de estudio IA siempre muestra el plan de Fase I
+            if (value === 'study-plan') {
               setSelectedPhase('phase1');
             }
           }}
