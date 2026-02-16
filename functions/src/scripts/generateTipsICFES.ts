@@ -73,6 +73,7 @@ async function main(): Promise<void> {
   }
 
   let totalSaved = 0;
+  let failedBatches = 0;
   const iterations = Math.ceil(batchSize / TIPS_PER_REQUEST);
 
   for (let i = 0; i < iterations; i++) {
@@ -80,21 +81,34 @@ async function main(): Promise<void> {
       ? batchSize % TIPS_PER_REQUEST
       : TIPS_PER_REQUEST;
     console.log(`   Lote ${i + 1}/${iterations} (generando ${count} tips)...`);
-    try {
-      const result = await generateAndSaveTips({ count, categories });
-      totalSaved += result.saved;
-      console.log(`   ✅ Guardados: ${result.saved}, omitidos: ${result.skipped}`);
-      if (i < iterations - 1) {
-        await delay(DELAY_BETWEEN_BATCHES_MS);
+    let done = false;
+    for (let attempt = 1; attempt <= 2 && !done; attempt++) {
+      try {
+        const result = await generateAndSaveTips({ count, categories });
+        totalSaved += result.saved;
+        console.log(`   ✅ Guardados: ${result.saved}, omitidos: ${result.skipped}`);
+        done = true;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (attempt < 2) {
+          console.warn(`   ⚠ Reintentando lote ${i + 1} (intento ${attempt + 1}/2)...`);
+          await delay(2000);
+        } else {
+          console.error(`   ❌ Error en lote ${i + 1}:`, msg);
+          failedBatches++;
+        }
       }
-    } catch (err: any) {
-      console.error(`   ❌ Error en lote ${i + 1}:`, err.message);
-      throw err;
+    }
+    if (i < iterations - 1) {
+      await delay(DELAY_BETWEEN_BATCHES_MS);
     }
   }
 
   console.log('');
   console.log(`✅ Total tips guardados en TipsIA: ${totalSaved}`);
+  if (failedBatches > 0) {
+    console.log(`⚠ ${failedBatches} lote(s) fallaron (JSON malformado o error de red). Puedes volver a ejecutar el script para generar más.`);
+  }
 }
 
 main().catch((err) => {
