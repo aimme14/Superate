@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -13,19 +14,21 @@ import HomePage from "@/pages/HomePage";
 import QuizPage from "@/pages/Quiz";
 import AboutPage from "@/sections/about/page";
 import InformacionPage from "@/pages/informacion";
-import ResultadosPage from "@/pages/resultados";
-import PromedioPage from "@/pages/promedio";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import InnovativeHero from "@/pages/inovativeGero";
 import Prueba from "@/pages/prueba";
-import Intento from "@/pages/Intento";
 import DemoImageOptionsPage from "@/pages/DemoImageOptions";
 
-// Dashboards específicos por rol
-import TeacherDashboard from "@/pages/dashboard/teacher/TeacherDashboard";
-import PrincipalDashboard from "@/pages/dashboard/principal/PrincipalDashboard";
-import RectorDashboard from "@/pages/dashboard/rector/RectorDashboard";
-import AdminDashboard from "@/pages/dashboard/admin/AdminDashboard";
+// Páginas pesadas: lazy load para reducir el bundle inicial
+const ResultadosPage = lazy(() => import("@/pages/resultados"));
+const PromedioPage = lazy(() => import("@/pages/promedio"));
+const Intento = lazy(() => import("@/pages/Intento"));
+
+// Dashboards específicos por rol (lazy para no cargarlos hasta que se necesiten)
+const TeacherDashboard = lazy(() => import("@/pages/dashboard/teacher/TeacherDashboard"));
+const PrincipalDashboard = lazy(() => import("@/pages/dashboard/principal/PrincipalDashboard"));
+const RectorDashboard = lazy(() => import("@/pages/dashboard/rector/RectorDashboard"));
+const AdminDashboard = lazy(() => import("@/pages/dashboard/admin/AdminDashboard"));
 
 function App() {
   return (
@@ -33,6 +36,7 @@ function App() {
       <AuthProvider>
 
         <BrowserRouter>
+          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>}>
           <Routes>
             <Route element={<RootLayout />}>
               {/* home index */}
@@ -93,6 +97,7 @@ function App() {
               
             </Route>
           </Routes>
+          </Suspense>
         </BrowserRouter>
 
       </AuthProvider>

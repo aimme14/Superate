@@ -12,6 +12,7 @@ import { geminiService } from './services/gemini.service';
 import { studyPlanService } from './services/studyPlan.service';
 import { studentSummaryService } from './services/studentSummary.service';
 import { vocabularyService } from './services/vocabulary.service';
+import { getRandomTips } from './services/tipsICFES.service';
 import { APIResponse } from './types/question.types';
 
 // =============================
@@ -19,6 +20,7 @@ import { APIResponse } from './types/question.types';
 // =============================
 
 const REGION = 'us-central1'; // Cambia según tu región
+const MAX_TIPS_LIMIT = 20;
 
 // =============================
 // ENDPOINTS DE JUSTIFICACIONES
@@ -661,6 +663,52 @@ export const getStudyPlan = functions
       res.status(200).json(response);
     } catch (error: any) {
       console.error('Error en getStudyPlan:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message: error.message || 'Error interno del servidor' },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+/**
+ * Obtiene tips aleatorios para "Tips para Romperla en el ICFES".
+ * GET /getTipsICFES?limit=10 (limit opcional, máximo 20)
+ */
+export const getTipsICFES = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 60, memory: '256MB' })
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa GET' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+
+    try {
+      const limitParam = req.query.limit;
+      const limit = limitParam != null ? Math.min(MAX_TIPS_LIMIT, Math.max(1, parseInt(String(limitParam), 10) || 10)) : 10;
+      const tips = await getRandomTips(limit);
+      const response: APIResponse = {
+        success: true,
+        data: tips,
+        metadata: { timestamp: new Date() },
+      };
+      res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error en getTipsICFES:', error);
       const response: APIResponse = {
         success: false,
         error: { message: error.message || 'Error interno del servidor' },

@@ -29,6 +29,8 @@ import { SubjectsDetailedSummary } from "@/components/charts/SubjectsDetailedSum
 import { studentSummaryService } from "@/services/studentSummary/studentSummary.service"
 import { useNotification } from "@/hooks/ui/useNotification"
 import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
+import { TipsICFESSection } from "@/components/studyPlan/TipsICFESSection"
+import type { TipICFES } from "@/interfaces/tipsICFES.interface"
 import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config"
 import {
   Brain,
@@ -55,7 +57,9 @@ import {
   Lock,
   Info,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Lightbulb,
+  RefreshCw
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -1552,7 +1556,7 @@ function PersonalizedStudyPlan({
 
         return (
           <AccordionItem 
-            key={`${subject.name}-${isGenerating ? 'loading' : plan ? 'plan' : 'empty'}`}
+            key={subject.name}
             value={subject.name}
             className={cn(
               "border rounded-lg overflow-hidden transition-all border-b-0",
@@ -1650,7 +1654,7 @@ function PersonalizedStudyPlan({
                 )}
 
                 {hasWeaknesses && (
-                  <div key={`plan-content-${subject.name}-${isGenerating ? 'loading' : plan ? 'plan' : 'empty'}`}>
+                  <div key={`plan-content-${subject.name}`}>
                     {isGenerating && (
                       <div className="flex items-center justify-center gap-3 py-8">
                         <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
@@ -2081,6 +2085,9 @@ export default function ICFESAnalysisInterface() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isPDFPhaseDialogOpen, setIsPDFPhaseDialogOpen] = useState(false);
   const [selectedPhasesForPDF, setSelectedPhasesForPDF] = useState<Array<'first' | 'second' | 'third'>>([]);
+  const [icfesTips, setIcfesTips] = useState<TipICFES[] | null>(null);
+  const [loadingTips, setLoadingTips] = useState(false);
+  const [tipsError, setTipsError] = useState(false);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
   const { user } = useAuthContext();
@@ -2131,6 +2138,44 @@ export default function ICFESAnalysisInterface() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cargar tips ICFES al abrir el tab Plan de estudio (una sola vez por sesión; retry resetea icfesTips)
+  const FUNCTIONS_URL_TIPS = import.meta.env.VITE_CLOUD_FUNCTIONS_URL || 'https://us-central1-superate-ia.cloudfunctions.net';
+  const loadIcfesTips = React.useCallback(() => {
+    setTipsError(false);
+    setLoadingTips(true);
+    setIcfesTips(null);
+  }, []);
+  useEffect(() => {
+    if (activeTab !== 'study-plan' || icfesTips !== null) return;
+    let cancelled = false;
+    setLoadingTips(true);
+    setTipsError(false);
+    fetch(`${FUNCTIONS_URL_TIPS}/getTipsICFES?limit=10`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((result: { success?: boolean; data?: TipICFES[] }) => {
+        if (cancelled) return;
+        if (result.success && Array.isArray(result.data)) {
+          setIcfesTips(result.data);
+        } else {
+          setIcfesTips([]);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setIcfesTips([]);
+          setTipsError(true);
+          console.warn('Error cargando tips ICFES:', err);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTips(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeTab, icfesTips, FUNCTIONS_URL_TIPS]);
 
   // Función para calcular el puntaje global de un estudiante para una fase específica
   const calculateStudentGlobalScoreForPhase = async (studentId: string, phase: 'first' | 'second' | 'third'): Promise<number> => {
@@ -2336,13 +2381,14 @@ export default function ICFESAnalysisInterface() {
           setTotalStudents(totalInPhase);
           setIsLoadingRank(false);
         };
-        // Usar un frame adicional (rAF + setTimeout) para no colisionar con actualizaciones del plan
+        // Mayor retraso si el tab activo es Plan de estudio (muchos Accordions montando)
+        const delayMs = activeTab === 'study-plan' ? 150 : 50;
         if (typeof requestAnimationFrame !== 'undefined') {
           requestAnimationFrame(() => {
-            setTimeout(applyRankUpdate, 0);
+            setTimeout(applyRankUpdate, delayMs);
           });
         } else {
-          setTimeout(applyRankUpdate, 50);
+          setTimeout(applyRankUpdate, delayMs + 30);
         }
         if (import.meta.env.DEV) {
           console.log('📊 Ranking - Puesto del estudiante en la fase:', rank ?? 'N/A', 'de', totalInPhase, 'estudiantes');
@@ -6147,12 +6193,67 @@ export default function ICFESAnalysisInterface() {
               }
 
               return (
-                <PersonalizedStudyPlan
-                  subjectsWithTopics={currentData.subjectsWithTopics}
-                  phase={currentPhase}
-                  studentId={user?.uid || ''}
-                  theme={theme}
-                />
+                <div className="space-y-6" key="study-plan-content">
+                  <Accordion type="single" collapsible className="mb-6">
+                    <AccordionItem value="tips-icfes" className={cn("border rounded-lg overflow-hidden", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-200 bg-white/80')}>
+                      <AccordionTrigger className={cn("px-4 py-3 hover:no-underline", theme === 'dark' ? 'hover:bg-zinc-700/50 text-white' : 'hover:bg-gray-50')}>
+                        <span id="tips-icfes-heading" className="flex items-center gap-2 text-lg font-semibold">
+                          <Lightbulb className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
+                          Tips para Romperla en el ICFES
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="px-4 pb-4 pt-1">
+                          {loadingTips && (
+                            <div className={cn("flex items-center justify-center gap-3 py-6 rounded-lg border", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
+                              <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-amber-400' : 'border-amber-600')} />
+                              <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Cargando tips...</span>
+                            </div>
+                          )}
+                          {!loadingTips && icfesTips && icfesTips.length > 0 && (
+                            <>
+                              <TipsICFESSection tips={icfesTips} theme={theme} />
+                              <div className="mt-4 flex justify-center">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={loadIcfesTips}
+                                  disabled={loadingTips}
+                                  className={cn(
+                                    "gap-2",
+                                    theme === 'dark'
+                                      ? "border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25 hover:border-amber-400/50"
+                                      : ""
+                                  )}
+                                >
+                                  <RefreshCw className={cn("h-4 w-4", loadingTips && "animate-spin")} />
+                                  Obtener más consejos
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                          {!loadingTips && (!icfesTips || icfesTips.length === 0) && (
+                            <div className={cn("flex flex-col items-center justify-center gap-3 py-6 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
+                              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                                {tipsError ? 'No se pudieron cargar los tips. Revisa que la función getTipsICFES esté desplegada.' : 'No hay tips disponibles en este momento.'}
+                              </p>
+                              <Button type="button" variant="outline" size="sm" onClick={loadIcfesTips} className={theme === 'dark' ? 'border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25' : ''}>
+                                Reintentar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                  <PersonalizedStudyPlan
+                    subjectsWithTopics={currentData.subjectsWithTopics}
+                    phase={currentPhase}
+                    studentId={user?.uid || ''}
+                    theme={theme}
+                  />
+                </div>
               );
             })()}
           </TabsContent>

@@ -23,6 +23,7 @@
     "migrate-videos": "npm run build && node lib/scripts/migrateVideosToAnswerIA.js",
     "migrate-weblinks": "npm run build && node lib/scripts/migrateWebLinks.js",
     "migrate-youtube-grade": "npm run build && node lib/scripts/migrateYoutubeLinksToGrade.js",
+    "generate-tips": "npm run build && node lib/scripts/generateTipsICFES.js",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
   },
