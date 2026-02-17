@@ -147,7 +147,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           </button>
 
           {/* Nos conforman: Usuarios, Instituciones, Registro */}
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
@@ -208,7 +208,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           </DropdownMenu>
 
           {/* Estudio: Preguntas, Fases, Planes de Estudio, Recursos */}
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
@@ -279,7 +279,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           </DropdownMenu>
 
           {/* Resultados: Análisis, Resúmenes PDF */}
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"

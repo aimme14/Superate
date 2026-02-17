@@ -1700,7 +1700,7 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" title="Más opciones">
                           <MoreVertical className="h-4 w-4" />

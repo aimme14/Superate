@@ -1024,201 +1024,17 @@ function StudentsAnalysisTab({
             </div>
           ) : (
             <Accordion type="multiple" className="w-full">
-              {institutions.map((institution) => {
-                // Obtener estudiantes de esta institución
-                const { students: institutionStudents } = useFilteredStudents({
-                  institutionId: institution.id,
-                  isActive: true
-                })
-
-                // Agrupar estudiantes por año académico
-                const studentsByYear = useMemo(() => {
-                  const grouped: { [year: number]: any[] } = {}
-                  institutionStudents?.forEach((student: any) => {
-                    const year = getStudentYear(student)
-                    if (year) {
-                      if (!grouped[year]) {
-                        grouped[year] = []
-                      }
-                      grouped[year].push(student)
-                    }
-                  })
-                  return grouped
-                }, [institutionStudents])
-
-                const years = Object.keys(studentsByYear).map(Number).sort((a, b) => b - a)
-                const totalCampuses = institution.campuses?.length || 0
-                const totalGrades = institution.campuses?.reduce((sum: number, campus: any) => 
-                  sum + (campus.grades?.length || 0), 0
-                ) || 0
-                
-                return (
-                  <AccordionItem 
-                    key={institution.id} 
-                    value={institution.id}
-                    className={cn(
-                      "border rounded-lg mb-2 px-4",
-                      theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-white'
-                    )}
-                  >
-                    <AccordionTrigger className={cn(
-                      "hover:no-underline",
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    )}>
-                      <div className="flex items-center justify-between w-full pr-4">
-                        <div className="flex items-center gap-3">
-                          <Building className="h-5 w-5" />
-                          <span className="font-medium">{institution.name}</span>
-                        </div>
-                        <span className={cn(
-                          "text-sm",
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        )}>
-                          ({totalGrades} {totalGrades === 1 ? 'grado' : 'grados'}, {totalCampuses} {totalCampuses === 1 ? 'sede' : 'sedes'})
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="pt-2 pb-4 pl-8">
-                        <Accordion type="multiple" className="w-full">
-                          {years.map((year) => {
-                            const yearStudents = studentsByYear[year] || []
-                            // Agrupar estudiantes del año por sede y grado
-                            const studentsByCampusAndGrade: { [campusId: string]: { [gradeId: string]: any[] } } = {}
-                            
-                            yearStudents.forEach((student: any) => {
-                              const campusId = student.campus || student.campusId
-                              const gradeId = student.grade || student.gradeId
-                              if (campusId && gradeId) {
-                                if (!studentsByCampusAndGrade[campusId]) {
-                                  studentsByCampusAndGrade[campusId] = {}
-                                }
-                                if (!studentsByCampusAndGrade[campusId][gradeId]) {
-                                  studentsByCampusAndGrade[campusId][gradeId] = []
-                                }
-                                studentsByCampusAndGrade[campusId][gradeId].push(student)
-                              }
-                            })
-
-                            // Obtener sedes que tienen estudiantes de este año
-                            const campusesWithStudents = institution.campuses?.filter((campus: any) => 
-                              studentsByCampusAndGrade[campus.id]
-                            ) || []
-
-                            return (
-                              <AccordionItem
-                                key={`${institution.id}-year-${year}`}
-                                value={`${institution.id}-year-${year}`}
-                                className={cn(
-                                  "border rounded-lg mb-2 px-4",
-                                  theme === 'dark' ? 'border-zinc-700 bg-zinc-800/40' : 'border-gray-200 bg-gray-50/80'
-                                )}
-                              >
-                                <AccordionTrigger className={cn(
-                                  "hover:no-underline",
-                                  theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
-                                )}>
-                                  <div className="flex items-center justify-between w-full pr-4">
-                                    <div className="flex items-center gap-3">
-                                      <span className="font-medium">Año {year}</span>
-                                    </div>
-                                    <span className={cn(
-                                      "text-sm",
-                                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                    )}>
-                                      ({yearStudents.length} {yearStudents.length === 1 ? 'estudiante' : 'estudiantes'})
-                                    </span>
-                                  </div>
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <div className="pt-2 pb-4 pl-8">
-                                    <Accordion type="multiple" className="w-full">
-                                      {campusesWithStudents.map((campus: any) => {
-                                        const campusStudentsByGrade = studentsByCampusAndGrade[campus.id] || {}
-                                        const gradesWithStudents = campus.grades?.filter((grade: any) => 
-                                          campusStudentsByGrade[grade.id]
-                                        ) || []
-
-                                        return (
-                                          <AccordionItem
-                                            key={`${institution.id}-${year}-${campus.id}`}
-                                            value={`${institution.id}-${year}-${campus.id}`}
-                                            className={cn(
-                                              "border rounded-lg mb-2 px-4",
-                                              theme === 'dark' ? 'border-zinc-700 bg-zinc-800/30' : 'border-gray-200 bg-gray-50'
-                                            )}
-                                          >
-                                            <AccordionTrigger className={cn(
-                                              "hover:no-underline",
-                                              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                                            )}>
-                                              <div className="flex items-center justify-between w-full pr-4">
-                                                <div className="flex items-center gap-3">
-                                                  <Building className="h-4 w-4" />
-                                                  <span className="font-medium">{campus.name}</span>
-                                                </div>
-                                                <span className={cn(
-                                                  "text-sm",
-                                                  theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                                )}>
-                                                  ({gradesWithStudents.length} {gradesWithStudents.length === 1 ? 'grado' : 'grados'})
-                                                </span>
-                                              </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent>
-                                              <div className="pt-2 pb-4 pl-8">
-                                                <Accordion type="multiple" className="w-full">
-                                                  {gradesWithStudents.map((grade: any) => {
-                                                    return (
-                                                      <AccordionItem
-                                                        key={`${institution.id}-${year}-${campus.id}-${grade.id}`}
-                                                        value={`${institution.id}-${year}-${campus.id}-${grade.id}`}
-                                                        className={cn(
-                                                          "border rounded-lg mb-2 px-4",
-                                                          theme === 'dark' ? 'border-zinc-700 bg-zinc-800/20' : 'border-gray-200 bg-gray-50/50'
-                                                        )}
-                                                      >
-                                                        <AccordionTrigger className={cn(
-                                                          "hover:no-underline",
-                                                          theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                                                        )}>
-                                                          <span className="font-medium">{grade.name}</span>
-                                                        </AccordionTrigger>
-                                                        <AccordionContent>
-                                                          <div className="pt-2 pb-4">
-                                                            <StudentList 
-                                                              institutionId={institution.id}
-                                                              campusId={campus.id}
-                                                              gradeId={grade.id}
-                                                              theme={theme}
-                                                              selectedStudent={selectedStudent}
-                                                              setSelectedStudent={setSelectedStudent}
-                                                              year={year}
-                                                              setIsDialogOpen={setIsDialogOpen}
-                                                            />
-                                                          </div>
-                                                        </AccordionContent>
-                                                      </AccordionItem>
-                                                    )
-                                                  })}
-                                                </Accordion>
-                                              </div>
-                                            </AccordionContent>
-                                          </AccordionItem>
-                                        )
-                                      })}
-                                    </Accordion>
-                                  </div>
-                                </AccordionContent>
-                              </AccordionItem>
-                            )
-                          })}
-                        </Accordion>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )
-              })}
+              {institutions.map((institution) => (
+                <InstitutionStudentsAccordionItem
+                  key={institution.id}
+                  institution={institution}
+                  theme={theme}
+                  getStudentYear={getStudentYear}
+                  selectedStudent={selectedStudent}
+                  setSelectedStudent={setSelectedStudent}
+                  setIsDialogOpen={setIsDialogOpen}
+                />
+              ))}
             </Accordion>
           )}
         </CardContent>
@@ -1237,6 +1053,210 @@ function StudentsAnalysisTab({
         />
       )}
     </div>
+  )
+}
+
+// Componente: Acordeón de estudiantes por institución (extraído para cumplir reglas de hooks)
+function InstitutionStudentsAccordionItem({
+  institution,
+  theme,
+  getStudentYear,
+  selectedStudent,
+  setSelectedStudent,
+  setIsDialogOpen
+}: {
+  institution: any
+  theme: 'light' | 'dark'
+  getStudentYear: (student: any) => number | null
+  selectedStudent: any | null
+  setSelectedStudent: (student: any | null) => void
+  setIsDialogOpen: (open: boolean) => void
+}) {
+  const { students: institutionStudents } = useFilteredStudents({
+    institutionId: institution.id,
+    isActive: true
+  })
+
+  const studentsByYear = useMemo(() => {
+    const grouped: { [year: number]: any[] } = {}
+    institutionStudents?.forEach((student: any) => {
+      const year = getStudentYear(student)
+      if (year) {
+        if (!grouped[year]) {
+          grouped[year] = []
+        }
+        grouped[year].push(student)
+      }
+    })
+    return grouped
+  }, [institutionStudents, getStudentYear])
+
+  const years = Object.keys(studentsByYear).map(Number).sort((a, b) => b - a)
+  const totalCampuses = institution.campuses?.length || 0
+  const totalGrades = institution.campuses?.reduce((sum: number, campus: any) =>
+    sum + (campus.grades?.length || 0), 0
+  ) || 0
+
+  return (
+    <AccordionItem
+      value={institution.id}
+      className={cn(
+        "border rounded-lg mb-2 px-4",
+        theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-white'
+      )}
+    >
+      <AccordionTrigger className={cn(
+        "hover:no-underline",
+        theme === 'dark' ? 'text-white' : 'text-gray-900'
+      )}>
+        <div className="flex items-center justify-between w-full pr-4">
+          <div className="flex items-center gap-3">
+            <Building className="h-5 w-5" />
+            <span className="font-medium">{institution.name}</span>
+          </div>
+          <span className={cn(
+            "text-sm",
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+          )}>
+            ({totalGrades} {totalGrades === 1 ? 'grado' : 'grados'}, {totalCampuses} {totalCampuses === 1 ? 'sede' : 'sedes'})
+          </span>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent>
+        <div className="pt-2 pb-4 pl-8">
+          <Accordion type="multiple" className="w-full">
+            {years.map((year) => {
+              const yearStudents = studentsByYear[year] || []
+              const studentsByCampusAndGrade: { [campusId: string]: { [gradeId: string]: any[] } } = {}
+
+              yearStudents.forEach((student: any) => {
+                const campusId = student.campus || student.campusId
+                const gradeId = student.grade || student.gradeId
+                if (campusId && gradeId) {
+                  if (!studentsByCampusAndGrade[campusId]) {
+                    studentsByCampusAndGrade[campusId] = {}
+                  }
+                  if (!studentsByCampusAndGrade[campusId][gradeId]) {
+                    studentsByCampusAndGrade[campusId][gradeId] = []
+                  }
+                  studentsByCampusAndGrade[campusId][gradeId].push(student)
+                }
+              })
+
+              const campusesWithStudents = institution.campuses?.filter((campus: any) =>
+                studentsByCampusAndGrade[campus.id]
+              ) || []
+
+              return (
+                <AccordionItem
+                  key={`${institution.id}-year-${year}`}
+                  value={`${institution.id}-year-${year}`}
+                  className={cn(
+                    "border rounded-lg mb-2 px-4",
+                    theme === 'dark' ? 'border-zinc-700 bg-zinc-800/40' : 'border-gray-200 bg-gray-50/80'
+                  )}
+                >
+                  <AccordionTrigger className={cn(
+                    "hover:no-underline",
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
+                  )}>
+                    <div className="flex items-center justify-between w-full pr-4">
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">Año {year}</span>
+                      </div>
+                      <span className={cn(
+                        "text-sm",
+                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                      )}>
+                        ({yearStudents.length} {yearStudents.length === 1 ? 'estudiante' : 'estudiantes'})
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="pt-2 pb-4 pl-8">
+                      <Accordion type="multiple" className="w-full">
+                        {campusesWithStudents.map((campus: any) => {
+                          const campusStudentsByGrade = studentsByCampusAndGrade[campus.id] || {}
+                          const gradesWithStudents = campus.grades?.filter((grade: any) =>
+                            campusStudentsByGrade[grade.id]
+                          ) || []
+
+                          return (
+                            <AccordionItem
+                              key={`${institution.id}-${year}-${campus.id}`}
+                              value={`${institution.id}-${year}-${campus.id}`}
+                              className={cn(
+                                "border rounded-lg mb-2 px-4",
+                                theme === 'dark' ? 'border-zinc-700 bg-zinc-800/30' : 'border-gray-200 bg-gray-50'
+                              )}
+                            >
+                              <AccordionTrigger className={cn(
+                                "hover:no-underline",
+                                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                              )}>
+                                <div className="flex items-center justify-between w-full pr-4">
+                                  <div className="flex items-center gap-3">
+                                    <Building className="h-4 w-4" />
+                                    <span className="font-medium">{campus.name}</span>
+                                  </div>
+                                  <span className={cn(
+                                    "text-sm",
+                                    theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                  )}>
+                                    ({gradesWithStudents.length} {gradesWithStudents.length === 1 ? 'grado' : 'grados'})
+                                  </span>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <div className="pt-2 pb-4 pl-8">
+                                  <Accordion type="multiple" className="w-full">
+                                    {gradesWithStudents.map((grade: any) => (
+                                      <AccordionItem
+                                        key={`${institution.id}-${year}-${campus.id}-${grade.id}`}
+                                        value={`${institution.id}-${year}-${campus.id}-${grade.id}`}
+                                        className={cn(
+                                          "border rounded-lg mb-2 px-4",
+                                          theme === 'dark' ? 'border-zinc-700 bg-zinc-800/20' : 'border-gray-200 bg-gray-50/50'
+                                        )}
+                                      >
+                                        <AccordionTrigger className={cn(
+                                          "hover:no-underline",
+                                          theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                        )}>
+                                          <span className="font-medium">{grade.name}</span>
+                                        </AccordionTrigger>
+                                        <AccordionContent>
+                                          <div className="pt-2 pb-4">
+                                            <StudentList
+                                              institutionId={institution.id}
+                                              campusId={campus.id}
+                                              gradeId={grade.id}
+                                              theme={theme}
+                                              selectedStudent={selectedStudent}
+                                              setSelectedStudent={setSelectedStudent}
+                                              year={year}
+                                              setIsDialogOpen={setIsDialogOpen}
+                                            />
+                                          </div>
+                                        </AccordionContent>
+                                      </AccordionItem>
+                                    ))}
+                                  </Accordion>
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          )
+                        })}
+                      </Accordion>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )
+            })}
+          </Accordion>
+        </div>
+      </AccordionContent>
+    </AccordionItem>
   )
 }
 

@@ -79,7 +79,9 @@ function App() {
                 
                 <Route path="/dashboard/admin" element={
                   <RoleProtectedRoute allowedRoles={['admin']}>
-                    <AdminDashboard theme="light" />
+                    <ErrorBoundary>
+                      <AdminDashboard theme="light" />
+                    </ErrorBoundary>
                   </RoleProtectedRoute>
                 } />
               </Route>

@@ -113,7 +113,7 @@ function CoordinatorCard({ principal, theme, onEdit, onDelete }: CoordinatorCard
             {showTeachers ? 'Ocultar' : 'Ver'} Docentes
           </Button>
           
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
                 <MoreVertical className="h-4 w-4" />
@@ -395,7 +395,7 @@ function TeacherCard({ teacher, theme, onEdit, onDelete }: TeacherCardProps) {
             {showStudents ? 'Ocultar' : 'Ver'} Estudiantes
           </Button>
           
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
                 <MoreVertical className="h-4 w-4" />
@@ -589,7 +589,7 @@ function RectorCard({ rector, theme, onEdit, onDelete }: RectorCardProps) {
             {showCampuses ? 'Ocultar' : 'Ver'} Sedes
           </Button>
           
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
                 <MoreVertical className="h-4 w-4" />
@@ -2443,7 +2443,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
                           </div>
                         </div>
                       </div>
-                      <DropdownMenu>
+                      <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm">
                             <MoreVertical className="h-4 w-4" />
