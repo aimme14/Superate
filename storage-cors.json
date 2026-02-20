@@ -1,0 +1,20 @@
+[
+  {
+    "origin": [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "https://superate-aylopezm-ufpsoeducos-projects.vercel.app"
+    ],
+    "method": ["GET", "PUT", "POST", "OPTIONS", "HEAD"],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "x-goog-resumable",
+      "x-goog-meta-*",
+      "Authorization"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

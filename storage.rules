@@ -1,0 +1,24 @@
+rules_version = '2';
+// Reglas de Firebase Storage.
+// Para restricción por rol admin en AI_Tools_icons, configurar custom claim (ej. admin: true) y usar request.auth.token.admin == true en write.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Iconos del Centro de Herramientas IA: AI_Tools_icons/{toolId}/icon.{ext}
+    match /AI_Tools_icons/{toolId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 1 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+    // Imágenes del banco de preguntas (existente)
+    match /questions/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    match /test/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

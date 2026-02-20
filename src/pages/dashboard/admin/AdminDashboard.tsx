@@ -10,9 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { 
-  Users, 
-  Building, 
+import {
+  Users,
+  Building,
   Activity,
   Server,
   Lock,
@@ -26,7 +26,8 @@ import {
   FileText,
   FolderOpen,
   ChevronDown,
-  Settings
+  Settings,
+  Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
@@ -45,6 +46,7 @@ import { useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import RegistrationSettings from '@/components/admin/RegistrationSettings'
 import StudentPhaseReports from '@/components/admin/StudentPhaseReports'
 import AdminRecursos from '@/components/admin/AdminRecursos'
+import AdminHerramientasIA from '@/components/admin/AdminHerramientasIA'
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
@@ -214,7 +216,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
                 type="button"
                 className={cn(
                   "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  ['questions', 'phases', 'study-plans', 'recursos'].includes(activeTab)
+                  ['questions', 'phases', 'study-plans', 'recursos', 'herramientas-ia'].includes(activeTab)
                     ? theme === 'dark'
                       ? 'bg-teal-600/80 text-white'
                       : 'bg-primary text-primary-foreground'
@@ -274,6 +276,16 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               >
                 <FolderOpen className="mr-2 h-4 w-4" />
                 Recursos
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('herramientas-ia')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'herramientas-ia' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Centro de Herramientas IA
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -814,6 +826,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
         <TabsContent value="recursos" className="space-y-6">
           <AdminRecursos theme={theme} />
+        </TabsContent>
+
+        <TabsContent value="herramientas-ia" className="space-y-6">
+          <AdminHerramientasIA theme={theme} />
         </TabsContent>
 
         <TabsContent value="analytics">

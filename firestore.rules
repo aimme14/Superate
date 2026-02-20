@@ -244,6 +244,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Centro de Herramientas IA: AI_Tools/{toolId}
+    match /AI_Tools/{toolId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdmin();
+    }
+
     // Regla por defecto: denegar acceso a todo lo demás
     match /{document=**} {
       allow read, write: if false;
