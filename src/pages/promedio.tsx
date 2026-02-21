@@ -30,7 +30,9 @@ import { studentSummaryService } from "@/services/studentSummary/studentSummary.
 import { useNotification } from "@/hooks/ui/useNotification"
 import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import { TipsICFESSection } from "@/components/studyPlan/TipsICFESSection"
+import { HerramientasIASection } from "@/components/studyPlan/HerramientasIASection"
 import type { TipICFES } from "@/interfaces/tipsICFES.interface"
+import { aiToolsService, type AIToolData } from "@/services/firebase/aiTools.service"
 import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config"
 import {
   Brain,
@@ -59,7 +61,8 @@ import {
   Copy,
   ExternalLink,
   Lightbulb,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -2088,6 +2091,9 @@ export default function ICFESAnalysisInterface() {
   const [icfesTips, setIcfesTips] = useState<TipICFES[] | null>(null);
   const [loadingTips, setLoadingTips] = useState(false);
   const [tipsError, setTipsError] = useState(false);
+  const [herramientasIA, setHerramientasIA] = useState<AIToolData[] | null>(null);
+  const [loadingHerramientasIA, setLoadingHerramientasIA] = useState(false);
+  const [herramientasIAError, setHerramientasIAError] = useState(false);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
   const { user } = useAuthContext();
@@ -2176,6 +2182,31 @@ export default function ICFESAnalysisInterface() {
       });
     return () => { cancelled = true; };
   }, [activeTab, icfesTips, FUNCTIONS_URL_TIPS]);
+
+  // Cargar herramientas IA (solo activas): al abrir el tab Plan de estudio o al pulsar Reintentar/Actualizar
+  const loadHerramientasIA = React.useCallback(async () => {
+    setHerramientasIAError(false);
+    setLoadingHerramientasIA(true);
+    try {
+      const res = await aiToolsService.getAll();
+      if (res.success) {
+        const active = res.data.filter((t) => t.isActive);
+        setHerramientasIA(active);
+      } else {
+        setHerramientasIA([]);
+        setHerramientasIAError(true);
+      }
+    } catch {
+      setHerramientasIA([]);
+      setHerramientasIAError(true);
+    } finally {
+      setLoadingHerramientasIA(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (activeTab !== 'study-plan') return;
+    loadHerramientasIA();
+  }, [activeTab, loadHerramientasIA]);
 
   // Función para calcular el puntaje global de un estudiante para una fase específica
   const calculateStudentGlobalScoreForPhase = async (studentId: string, phase: 'first' | 'second' | 'third'): Promise<number> => {
@@ -6240,6 +6271,57 @@ export default function ICFESAnalysisInterface() {
                                 {tipsError ? 'No se pudieron cargar los tips. Revisa que la función getTipsICFES esté desplegada.' : 'No hay tips disponibles en este momento.'}
                               </p>
                               <Button type="button" variant="outline" size="sm" onClick={loadIcfesTips} className={theme === 'dark' ? 'border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25' : ''}>
+                                Reintentar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="herramientas-ia" className={cn("border rounded-lg overflow-hidden", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-200 bg-white/80')}>
+                      <AccordionTrigger className={cn("px-4 py-3 hover:no-underline", theme === 'dark' ? 'hover:bg-zinc-700/50 text-white' : 'hover:bg-gray-50')}>
+                        <span id="herramientas-ia-heading" className="flex items-center gap-2 text-lg font-semibold">
+                          <Sparkles className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-teal-400' : 'text-teal-600')} />
+                          Herramientas IA
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="px-4 pb-4 pt-1">
+                          {loadingHerramientasIA && (
+                            <div className={cn("flex items-center justify-center gap-3 py-6 rounded-lg border", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
+                              <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-teal-400' : 'border-teal-600')} />
+                              <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Cargando herramientas...</span>
+                            </div>
+                          )}
+                          {!loadingHerramientasIA && herramientasIA && herramientasIA.length > 0 && (
+                            <>
+                              <HerramientasIASection tools={herramientasIA} theme={theme} />
+                              <div className="mt-4 flex justify-center">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={loadHerramientasIA}
+                                  disabled={loadingHerramientasIA}
+                                  className={cn(
+                                    "gap-2",
+                                    theme === 'dark'
+                                      ? "border-teal-400/40 bg-teal-500/15 text-teal-100 hover:bg-teal-500/25 hover:border-teal-400/50"
+                                      : ""
+                                  )}
+                                >
+                                  <RefreshCw className={cn("h-4 w-4", loadingHerramientasIA && "animate-spin")} />
+                                  Actualizar herramientas
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                          {!loadingHerramientasIA && (!herramientasIA || herramientasIA.length === 0) && (
+                            <div className={cn("flex flex-col items-center justify-center gap-3 py-6 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
+                              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                                {herramientasIAError ? 'No se pudieron cargar las herramientas. Revisa tu conexión.' : 'No hay herramientas IA disponibles en este momento.'}
+                              </p>
+                              <Button type="button" variant="outline" size="sm" onClick={loadHerramientasIA} className={theme === 'dark' ? 'border-teal-400/40 bg-teal-500/15 text-teal-100 hover:bg-teal-500/25' : ''}>
                                 Reintentar
                               </Button>
                             </div>
