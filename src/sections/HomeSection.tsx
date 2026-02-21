@@ -1,15 +1,17 @@
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import CarouselInfo from '#/pages/home/CarouselInfo'
+import { WhatsAppFab } from '@/components/WhatsAppFab'
 
 const HomeSection = ({ theme }: ThemeContextProps) => {
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex flex-col w-full relative">
       <CarouselInfo
         informations={heroItems}
         isLoading={false}
         theme={theme}
         error={null}
       />
+      <WhatsAppFab />
     </div>
   )
 }

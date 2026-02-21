@@ -22,8 +22,10 @@ import {
   Shield,
   Zap,
   PieChart as PieChartIcon,
-  Info
+  Info,
+  Wrench
 } from 'lucide-react'
+import { getWhatsAppUrl } from '@/components/WhatsAppFab'
 import { cn } from '@/lib/utils'
 import { useCoordinatorStats } from '@/hooks/query/useCoordinatorStats'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
@@ -184,12 +186,13 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="grid grid-cols-2 md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
       >
         {[
-          { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio', count: null },
-          { icon: GraduationCap, label: 'Docentes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos', count: stats?.totalTeachers || 0 },
-          { icon: Users, label: 'Análisis por estudiante', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes', count: null },
+          { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' as const, count: null },
+          { icon: GraduationCap, label: 'Docentes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos' as const, count: stats?.totalTeachers || 0 },
+          { icon: Users, label: 'Análisis por estudiante', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes' as const, count: null },
+          { icon: Wrench, label: 'Soporte técnico', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: null, count: null },
         ].map((btn, index) => (
           <motion.div
             key={btn.label}
@@ -197,28 +200,53 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 + index * 0.1 }}
           >
-            <Button
-              onClick={() => setActiveTab(btn.tab)}
-              className={cn(
-                "w-full h-18 flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br text-white shadow-lg transition-all",
-                btn.color
-              )}
-            >
-              <motion.div
-                animate={{ y: [0, -5, 0] }}
-                transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
-              >
-                <btn.icon className="h-6 w-6" />
-              </motion.div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-sm">{btn.label}</span>
-                {btn.count !== null && (
-                  <span className="text-xs opacity-90 font-medium bg-white/20 px-1.5 py-0.5 rounded-full">
-                    {btn.count}
-                  </span>
+            {btn.tab !== null ? (
+              <Button
+                onClick={() => setActiveTab(btn.tab)}
+                className={cn(
+                  "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                  btn.color
                 )}
-              </div>
-            </Button>
+              >
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
+                >
+                  <btn.icon className="h-6 w-6 shrink-0" />
+                </motion.div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-semibold text-sm truncate">{btn.label}</span>
+                  {btn.count !== null && btn.count !== undefined && (
+                    <span className="text-xs opacity-90 font-medium bg-white/20 px-1.5 py-0.5 rounded-full shrink-0">
+                      {btn.count}
+                    </span>
+                  )}
+                </div>
+              </Button>
+            ) : (
+              <Button
+                asChild
+                className={cn(
+                  "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                  btn.color
+                )}
+              >
+                <a
+                  href={getWhatsAppUrl('Hola, soy el coordinador de la institución, necesito soporte técnico, tengo algunos problemas con el sistema.')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-row items-center justify-center gap-2 w-full h-full"
+                >
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
+                  >
+                    <btn.icon className="h-6 w-6 shrink-0" />
+                  </motion.div>
+                  <span className="font-semibold text-sm truncate">{btn.label}</span>
+                </a>
+              </Button>
+            )}
           </motion.div>
         ))}
       </motion.div>

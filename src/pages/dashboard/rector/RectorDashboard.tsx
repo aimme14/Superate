@@ -28,7 +28,8 @@ import { useStudentsByTeacher, useFilteredStudents } from '@/hooks/query/useStud
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown, Award, TrendingUp, Clock, Shield, Zap, PieChart as PieChartIcon, Info } from 'lucide-react'
+import { Check, ChevronsUpDown, Award, TrendingUp, Clock, Shield, Zap, PieChart as PieChartIcon, Info, Wrench } from 'lucide-react'
+import { getWhatsAppUrl } from '@/components/WhatsAppFab'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -220,7 +221,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="grid grid-cols-2 md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
       >
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
@@ -236,7 +237,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             <Button
               onClick={() => setActiveTab(btn.tab)}
               className={cn(
-                "w-full h-18 flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br text-white shadow-lg transition-all",
+                "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
                 btn.color
               )}
             >
@@ -244,12 +245,40 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                 animate={{ y: [0, -5, 0] }}
                 transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
               >
-                <btn.icon className="h-6 w-6" />
+                <btn.icon className="h-6 w-6 shrink-0" />
               </motion.div>
-              <span className="font-semibold text-sm">{btn.label}</span>
+              <span className="font-semibold text-sm truncate">{btn.label}</span>
             </Button>
           </motion.div>
         ))}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+        >
+          <Button
+            asChild
+            className={cn(
+              "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+              theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700'
+            )}
+          >
+            <a
+              href={getWhatsAppUrl('Hola, soy el rector de la institución, necesito soporte técnico, tengo algunos problemas con el sistema.')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-row items-center justify-center gap-2 w-full h-full"
+            >
+              <motion.div
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
+              >
+                <Wrench className="h-6 w-6 shrink-0" />
+              </motion.div>
+              <span className="font-semibold text-sm truncate">Soporte técnico</span>
+            </a>
+          </Button>
+        </motion.div>
       </motion.div>
 
       {/* Contenido dinámico según tab activo */}
