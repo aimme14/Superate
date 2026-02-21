@@ -6278,7 +6278,7 @@ export default function ICFESAnalysisInterface() {
                         </div>
                       </AccordionContent>
                     </AccordionItem>
-                    <AccordionItem value="herramientas-ia" className={cn("border rounded-lg overflow-hidden", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-200 bg-white/80')}>
+                    <AccordionItem value="herramientas-ia" className={cn("mt-4 border rounded-lg overflow-hidden", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-200 bg-white/80')}>
                       <AccordionTrigger className={cn("px-4 py-3 hover:no-underline", theme === 'dark' ? 'hover:bg-zinc-700/50 text-white' : 'hover:bg-gray-50')}>
                         <span id="herramientas-ia-heading" className="flex items-center gap-2 text-lg font-semibold">
                           <Sparkles className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-teal-400' : 'text-teal-600')} />
