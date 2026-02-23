@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import {
   Plus,
   Link as LinkIcon,
@@ -14,6 +15,7 @@ import {
   Loader2,
   ExternalLink,
   Filter,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -50,6 +52,10 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
   const [filterTopic, setFilterTopic] = useState<string>('all')
   const [deleteTarget, setDeleteTarget] = useState<{ type: ResourceType; path: ResourcePath } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [editTarget, setEditTarget] = useState<WebLink | YoutubeLink | null>(null)
+  const [editUrl, setEditUrl] = useState('')
+  const [editTitle, setEditTitle] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const selectedSubject = getSubjectByCode(materiaCode)
   const topicOptions = selectedSubject?.topics ?? []
@@ -109,10 +115,10 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
           title: title.trim() || undefined,
         })
         if (res.success) {
+          loadResources()
           notifySuccess({ message: 'Enlace web agregado.' })
           setUrl('')
           setTitle('')
-          loadResources()
         } else {
           notifyError({ message: res.error.message })
         }
@@ -127,10 +133,10 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
           title: title.trim() || undefined,
         })
         if (res.success) {
+          loadResources()
           notifySuccess({ message: 'Video de YouTube agregado.' })
           setUrl('')
           setTitle('')
-          loadResources()
         } else {
           notifyError({ message: res.error.message })
         }
@@ -163,6 +169,51 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
   const openLink = (u: string) => {
     const href = u.startsWith('http') ? u : `https://${u}`
     window.open(href, '_blank')
+  }
+
+  const openEdit = (link: WebLink | YoutubeLink) => {
+    setEditTarget(link)
+    setEditUrl(link.url)
+    setEditTitle(link.title ?? '')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editTarget || !editUrl.trim()) {
+      notifyError({ message: 'La URL es obligatoria.' })
+      return
+    }
+    if (editTarget.tipo === 'youtube') {
+      const ytMatch = editUrl.trim().match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+      if (!ytMatch) {
+        notifyError({ message: 'URL de YouTube no válida. Usa enlaces de youtube.com o youtu.be' })
+        return
+      }
+    }
+    const path: ResourcePath = {
+      grado: editTarget.grado,
+      materiaCode: editTarget.materiaCode,
+      topicCode: editTarget.topicCode,
+      id: editTarget.id,
+    }
+    const data = { url: editUrl.trim(), title: editTitle.trim() }
+    setSavingEdit(true)
+    try {
+      const res =
+        editTarget.tipo === 'web'
+          ? await resourcesService.updateWebLink(path, data)
+          : await resourcesService.updateYoutubeLink(path, data)
+      if (res.success) {
+        notifySuccess({
+          message: editTarget.tipo === 'web' ? 'Enlace web actualizado.' : 'Video de YouTube actualizado.',
+        })
+        loadResources()
+        setEditTarget(null)
+      } else {
+        notifyError({ message: res.error.message })
+      }
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   return (
@@ -370,6 +421,15 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => openEdit(link)}
+                            title="Editar"
+                            aria-label="Editar recurso"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() =>
                               setDeleteTarget({
                                 type: 'web',
@@ -422,6 +482,15 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => openEdit(link)}
+                            title="Editar"
+                            aria-label="Editar recurso"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() =>
                               setDeleteTarget({
                                 type: 'youtube',
@@ -453,6 +522,109 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent
+          className={cn(
+            theme === 'dark'
+              ? 'bg-zinc-900 border-zinc-600 text-white shadow-xl shadow-black/40'
+              : 'bg-white border-gray-200 shadow-xl'
+          )}
+        >
+          <DialogHeader>
+            <DialogTitle
+              className={cn(
+                theme === 'dark' ? 'text-white' : 'text-gray-900',
+                'text-xl font-semibold'
+              )}
+            >
+              Editar recurso
+            </DialogTitle>
+            <DialogDescription
+              className={cn(
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-500',
+                'text-sm leading-relaxed'
+              )}
+            >
+              Modifica la URL o el título. Grado, materia y tema no se pueden cambiar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label
+                className={cn(
+                  theme === 'dark' ? 'text-gray-200' : 'text-gray-700',
+                  'font-medium'
+                )}
+              >
+                URL
+              </Label>
+              <Input
+                value={editUrl}
+                onChange={(e) => setEditUrl(e.target.value)}
+                placeholder={editTarget?.tipo === 'youtube' ? 'https://www.youtube.com/watch?v=...' : 'https://...'}
+                className={cn(
+                  theme === 'dark'
+                    ? 'bg-zinc-800 border-zinc-600 text-gray-100 placeholder:text-gray-500 focus-visible:ring-blue-500 focus-visible:border-blue-500'
+                    : 'bg-gray-50 border-gray-200 text-gray-900 focus-visible:ring-blue-500'
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                className={cn(
+                  theme === 'dark' ? 'text-gray-200' : 'text-gray-700',
+                  'font-medium'
+                )}
+              >
+                Título (opcional)
+              </Label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Ej: Guía de álgebra"
+                className={cn(
+                  theme === 'dark'
+                    ? 'bg-zinc-800 border-zinc-600 text-gray-100 placeholder:text-gray-500 focus-visible:ring-blue-500 focus-visible:border-blue-500'
+                    : 'bg-gray-50 border-gray-200 text-gray-900 focus-visible:ring-blue-500'
+                )}
+              />
+            </div>
+          </div>
+          <DialogFooter
+            className={cn(
+              'gap-2 sm:gap-0',
+              theme === 'dark' ? 'border-t border-zinc-700 pt-4' : 'border-t border-gray-200 pt-4'
+            )}
+          >
+            <Button
+              variant="outline"
+              onClick={() => setEditTarget(null)}
+              disabled={savingEdit}
+              className={cn(
+                theme === 'dark'
+                  ? 'border-zinc-600 text-gray-200 hover:bg-zinc-800 hover:text-white'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+              )}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={savingEdit}
+              className={cn(
+                'min-w-[140px]',
+                theme === 'dark'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white focus-visible:ring-blue-500'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white focus-visible:ring-blue-500'
+              )}
+            >
+              {savingEdit && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

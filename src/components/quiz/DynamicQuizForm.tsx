@@ -921,25 +921,9 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         <CardContent className="space-y-4">
           <Alert className={cn(theme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
             <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className={cn(theme === 'dark' ? 'text-red-300' : 'text-red-800')}>Posibles Causas</AlertTitle>
+            <AlertTitle className={cn(theme === 'dark' ? 'text-red-300' : 'text-red-800')}>¿Qué puedo hacer?</AlertTitle>
             <AlertDescription className={cn("space-y-2", theme === 'dark' ? 'text-red-200' : 'text-red-700')}>
-              <div>• No hay suficientes preguntas de {subject} en el banco de datos</div>
-              <div>• Problemas de conexión con Firebase</div>
-              <div>• Filtros muy específicos (grado: {grade}, fase: {phase})</div>
-              <div>• Error en la configuración del cuestionario</div>
-            </AlertDescription>
-          </Alert>
-          
-          <Alert className={cn(theme === 'dark' ? 'border-blue-800 bg-blue-900/30' : 'border-blue-200 bg-blue-50')}>
-            <Database className="h-4 w-4 text-blue-600" />
-            <AlertTitle className={cn(theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>Información de Debug</AlertTitle>
-            <AlertDescription className={cn(theme === 'dark' ? 'text-blue-200' : 'text-blue-700')}>
-              <div className="text-sm space-y-1">
-                <div><strong>Materia:</strong> {subject}</div>
-                <div><strong>Fase:</strong> {phase}</div>
-                <div><strong>Grado:</strong> {grade || 'No especificado'}</div>
-                <div><strong>Usuario:</strong> {userId ? 'Autenticado' : 'No autenticado'}</div>
-              </div>
+              No se pudo cargar el cuestionario. Puede deberse a problemas de conexión o a que no hay preguntas disponibles para esta evaluación. Intenta de nuevo en unos momentos o contacta a tu docente si el problema continúa.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -1393,7 +1377,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
-              Volver a las demas pruebas
+              Volver a las demás pruebas
             </Button>
           </CardFooter>
         </Card>

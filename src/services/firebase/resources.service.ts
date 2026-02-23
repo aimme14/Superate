@@ -4,6 +4,7 @@ import {
   doc,
   getDocs,
   deleteDoc,
+  updateDoc,
   Timestamp,
   addDoc,
 } from 'firebase/firestore';
@@ -78,12 +79,18 @@ export interface ResourceFilters {
   topicCode?: string;
 }
 
-/** Path para eliminar: necesitamos grado, materiaCode, topicCode e id del documento */
+/** Path para eliminar o actualizar: grado, materiaCode, topicCode e id del documento */
 export interface ResourcePath {
   grado: string;
   materiaCode: string;
   topicCode: string;
   id: string;
+}
+
+/** Datos editables de un recurso (solo URL y título) */
+export interface UpdateResourceData {
+  url?: string;
+  title?: string;
 }
 
 const GRADES = Object.values(GRADE_CODE_TO_NAME);
@@ -332,6 +339,60 @@ class ResourcesService {
     } catch (e) {
       console.error('❌ Error al eliminar enlace YouTube:', e);
       return failure(new ErrorAPI(normalizeError(e, 'eliminar enlace YouTube')));
+    }
+  }
+
+  /**
+   * Actualiza un enlace web (solo URL y/o título).
+   * Ruta: WebLinks/{grado}/{materiaCode}/{topicCode}/links/{id}
+   */
+  async updateWebLink(path: ResourcePath, data: UpdateResourceData): Promise<Result<void>> {
+    try {
+      const docRef = doc(
+        db,
+        WEBLINKS_ROOT,
+        path.grado,
+        path.materiaCode,
+        path.topicCode,
+        LINKS_SUBCOLLECTION,
+        path.id
+      );
+      const updates: Record<string, string | null> = {};
+      if (data.url !== undefined) updates.url = data.url.trim();
+      if (data.title !== undefined) updates.title = data.title.trim() || null;
+      if (Object.keys(updates).length === 0) return success(undefined);
+      await updateDoc(docRef, updates);
+      return success(undefined);
+    } catch (e) {
+      console.error('❌ Error al actualizar enlace web:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'actualizar enlace web')));
+    }
+  }
+
+  /**
+   * Actualiza un enlace de YouTube (solo URL y/o título).
+   * Ruta: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos/{id}
+   */
+  async updateYoutubeLink(path: ResourcePath, data: UpdateResourceData): Promise<Result<void>> {
+    try {
+      const docRef = doc(
+        db,
+        YOUTUBELINKS_ROOT,
+        path.grado,
+        path.materiaCode,
+        path.topicCode,
+        VIDEOS_SUBCOLLECTION,
+        path.id
+      );
+      const updates: Record<string, string | null> = {};
+      if (data.url !== undefined) updates.url = data.url.trim();
+      if (data.title !== undefined) updates.title = data.title.trim() || null;
+      if (Object.keys(updates).length === 0) return success(undefined);
+      await updateDoc(docRef, updates);
+      return success(undefined);
+    } catch (e) {
+      console.error('❌ Error al actualizar enlace YouTube:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'actualizar enlace YouTube')));
     }
   }
 }
