@@ -26,6 +26,7 @@ import { simulacrosService } from "@/services/firebase/simulacros.service";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
 import { SIMULACRO_MATERIAS } from "@/interfaces/simulacro.interface";
 import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown";
+import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -209,6 +210,7 @@ export default function RutaAcademicaAdaptativaPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8">
+        <RutaPreparacionSubNav theme={theme} />
         <div className="mb-8">
           <h1
             className={cn(
@@ -223,7 +225,7 @@ export default function RutaAcademicaAdaptativaPage() {
               theme === "dark" ? "text-gray-400" : "text-gray-600"
             )}
           >
-            Simulacros creados por tu institución, organizados por materia. Abre cada sección para ver documentos y hojas de respuestas.
+            Simulacros creados para brindar una preparación de alta calidad, alineados con la estructura evaluativa del ICFES, orientados a fortalecer competencias clave y maximizar la probabilidad de obtener puntajes altos en la prueba Saber 11°.
           </p>
         </div>
 

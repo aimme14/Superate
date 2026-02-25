@@ -32,6 +32,7 @@ import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import { TipsICFESSection } from "@/components/studyPlan/TipsICFESSection"
 import { HerramientasIASection } from "@/components/studyPlan/HerramientasIASection"
 import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown"
+import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav"
 import type { TipICFES } from "@/interfaces/tipsICFES.interface"
 import { aiToolsService, type AIToolData } from "@/services/firebase/aiTools.service"
 import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config"
@@ -2070,8 +2071,13 @@ function prepareSubjectTopicsData(
   return result;
 }
 
-export default function ICFESAnalysisInterface() {
-  const [activeTab, setActiveTab] = useState("overview")
+interface ICFESAnalysisInterfaceProps {
+  /** Si es true, muestra solo el contenido de Plan de Estudio IA (usado en /plan-estudio-ia) */
+  planOnly?: boolean;
+}
+
+export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalysisInterfaceProps) {
+  const [activeTab, setActiveTab] = useState(planOnly ? "study-plan" : "overview")
   const [selectedPhase, setSelectedPhase] = useState<'phase1' | 'phase2' | 'phase3' | 'all'>('all');
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [phase1Data, setPhase1Data] = useState<AnalysisData | null>(null);
@@ -2560,12 +2566,14 @@ export default function ICFESAnalysisInterface() {
 
         // Calcular datos consolidados para "Todas las Fases"
         const consolidatedData = calculateAllPhasesData(phase1Processed, phase2Processed, phase3Processed, user);
-        const initialPhase: 'phase1' | 'phase2' | 'phase3' | 'all' =
-          phase3Evals.length > 0 ? 'phase3' : phase2Evals.length > 0 ? 'phase2' : phase1Evals.length > 0 ? 'phase1' : 'all';
+        // Priorizar Fase I cuando hay Plan de estudio: los planes se generan tras el diagnóstico (Fase I)
+        const phaseForPlans: 'phase1' | 'phase2' | 'phase3' | 'all' =
+          phase1Evals.length > 0 ? 'phase1' : phase2Evals.length > 0 ? 'phase2' : phase3Evals.length > 0 ? 'phase3' : 'all';
+        const phaseForOverview = phase3Evals.length > 0 ? 'phase3' : phase2Evals.length > 0 ? 'phase2' : phase1Evals.length > 0 ? 'phase1' : 'all';
         // Diferir actualización para evitar insertBefore al cambiar de spinner a contenido (Radix Tabs/Accordion)
         startTransition(() => {
           setAnalysisData(consolidatedData);
-          setSelectedPhase(initialPhase);
+          setSelectedPhase(planOnly ? phaseForPlans : phaseForOverview);
         });
 
         // Generar recomendaciones con IA si está disponible
@@ -5393,15 +5401,22 @@ export default function ICFESAnalysisInterface() {
             <nav className="hidden md:flex items-center space-x-8">
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active={!planOnly} theme={theme} />
               <NavRutaPreparacionDropdown theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
+        {planOnly && (
+          <div className="container mx-auto px-4 pt-6">
+            <RutaPreparacionSubNav theme={theme} />
+          </div>
+        )}
         <div className="flex items-center justify-center py-20">
           <div className={cn("animate-spin rounded-full h-12 w-12 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
-          <span className={cn("ml-3 text-lg", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Cargando análisis...</span>
+          <span className={cn("ml-3 text-lg", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+            {planOnly ? 'Cargando plan de estudio...' : 'Cargando análisis...'}
+          </span>
         </div>
       </div>
     );
@@ -5430,17 +5445,24 @@ export default function ICFESAnalysisInterface() {
             <nav className="hidden md:flex items-center space-x-8">
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
+              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active={!planOnly} theme={theme} />
               <NavRutaPreparacionDropdown theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
         </header>
         <div className="container mx-auto px-4 py-20">
+          {planOnly && <RutaPreparacionSubNav theme={theme} />}
           <div className="text-center">
             <Brain className={cn("h-16 w-16 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-            <h2 className={cn("text-2xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Sin datos para analizar</h2>
-            <p className={cn("mb-6", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Necesitas presentar al menos una evaluación para generar tu análisis inteligente.</p>
+            <h2 className={cn("text-2xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {planOnly ? 'Sin datos para el plan de estudio' : 'Sin datos para analizar'}
+            </h2>
+            <p className={cn("mb-6", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              {planOnly
+                ? 'Necesitas presentar al menos una evaluación para generar tu plan de estudio personalizado con IA.'
+                : 'Necesitas presentar al menos una evaluación para generar tu análisis inteligente.'}
+            </p>
             <Link to="/dashboard#evaluacion">
               <Button className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg">
                 Presentar Primera Evaluación
@@ -5475,7 +5497,7 @@ export default function ICFESAnalysisInterface() {
           <nav className="hidden md:flex items-center space-x-8">
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
+            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active={!planOnly} theme={theme} />
             <NavRutaPreparacionDropdown theme={theme} />
             <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
@@ -5483,6 +5505,7 @@ export default function ICFESAnalysisInterface() {
       </header>
 
       <div className="container mx-auto py-6 px-4">
+        {planOnly && <RutaPreparacionSubNav theme={theme} />}
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div className="flex items-center gap-3">
@@ -5490,13 +5513,18 @@ export default function ICFESAnalysisInterface() {
               <Brain className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>Análisis Inteligente </h1>
-              <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Reporte de rendimiento académico</p>
+              <h1 className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>
+                {planOnly ? 'Plan de estudio IA' : 'Análisis Inteligente'}
+              </h1>
+              <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                {planOnly ? 'Plan personalizado con inteligencia artificial' : 'Reporte de rendimiento académico'}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Selector de Fase */}
+        {/* Selector de Fase - oculto en Plan de estudio IA */}
+        {!planOnly && (
         <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm mb-6')}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -5568,7 +5596,7 @@ export default function ICFESAnalysisInterface() {
                       ? 'bg-purple-600 hover:bg-purple-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
-                  disabled={activeTab === 'study-plan'}
+                  disabled={activeTab === 'study-plan' || planOnly}
                 >
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Todas las Fases
@@ -5577,20 +5605,19 @@ export default function ICFESAnalysisInterface() {
             </div>
           </CardContent>
         </Card>
+        )}
 
-        {/* Main Tabs */}
+        {/* Main Tabs o contenido de Plan de Estudio (cuando planOnly) */}
         <Tabs
-          value={activeTab}
+          value={planOnly ? "study-plan" : activeTab}
           onValueChange={(value) => {
-            setActiveTab(value);
-            // Plan de estudio IA siempre muestra el plan de Fase I
-            if (value === 'study-plan') {
-              setSelectedPhase('phase1');
-            }
+            if (!planOnly) setActiveTab(value);
+            if (value === 'study-plan') setSelectedPhase('phase1');
           }}
           className="space-y-6"
         >
-          <TabsList className={cn("grid w-full grid-cols-2 md:grid-cols-3", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
+          {!planOnly && (
+          <TabsList className={cn("grid w-full grid-cols-2", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
             <TabsTrigger value="overview" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700 border-gray-200')}>
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Resumen</span>
@@ -5599,11 +5626,8 @@ export default function ICFESAnalysisInterface() {
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">Diagnóstico</span>
             </TabsTrigger>
-            <TabsTrigger value="study-plan" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 border-gray-200')}>
-              <BookOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">Plan de Estudio IA</span>
-            </TabsTrigger>
           </TabsList>
+          )}
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
