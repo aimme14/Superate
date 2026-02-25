@@ -4,7 +4,6 @@ import {
   doc,
   getDocs,
   getDoc,
-  setDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -440,7 +439,8 @@ class SimulacrosService {
         }
       }
 
-      await updateDoc(docRef, updatePayload)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateDoc(docRef, updatePayload as any)
 
       const created = parseSimulacroDoc(id, {
         ...input,
@@ -487,7 +487,8 @@ class SimulacrosService {
         const current = parseSimulacroDoc(id, snap.data() as Record<string, unknown>)
         return success(current)
       }
-      await updateDoc(docRef, payload)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateDoc(docRef, payload as any)
       const updatedSnap = await getDoc(docRef)
       return success(
         parseSimulacroDoc(id, updatedSnap.data() as Record<string, unknown>)

@@ -81,7 +81,21 @@ export default function ViewerPdfPage() {
             setError('Simulacro no encontrado.')
             return
           }
-          const url = getPdfUrlFromSimulacro(res.data, tipo)
+          const url = getPdfUrlFromSimulacro(
+            {
+              pdfSimulacroUrl: res.data.pdfSimulacroUrl,
+              pdfHojaRespuestasUrl: res.data.pdfHojaRespuestasUrl,
+              icfes: res.data.icfes
+                ? {
+                    seccion1DocumentoUrl: res.data.icfes.seccion1DocumentoUrl,
+                    seccion1HojaUrl: res.data.icfes.seccion1HojaUrl,
+                    seccion2DocumentoUrl: res.data.icfes.seccion2DocumentoUrl,
+                    seccion2HojaUrl: res.data.icfes.seccion2HojaUrl,
+                  }
+                : undefined,
+            },
+            tipo
+          )
           if (!url) {
             setError('Este PDF no está disponible para este simulacro.')
             return

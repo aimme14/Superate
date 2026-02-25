@@ -20,7 +20,7 @@ import type { LucideIcon } from "lucide-react";
 import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { simulacrosService } from "@/services/firebase/simulacros.service";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
@@ -113,11 +113,11 @@ export default function RutaAcademicaAdaptativaPage() {
   }, [simulacros]);
 
   const orderedMaterias = useMemo(() => {
-    const values = SIMULACRO_MATERIAS.map((m) => m.value);
+    const values = SIMULACRO_MATERIAS.map((m) => m.value) as readonly string[];
     const present = Array.from(byMateria.keys());
     const ordered = values.filter((v) => present.includes(v));
     const rest = present.filter((p) => !values.includes(p));
-    return [...ordered, ...rest];
+    return [...ordered, ...rest] as string[];
   }, [byMateria]);
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export default function RutaAcademicaAdaptativaPage() {
       ingles: Languages,
       icfes: GraduationCap,
     };
-    return icons[value] ?? BookOpen;
+    return (icons as Record<string, LucideIcon>)[value] ?? BookOpen;
   };
 
   const selectedList = selectedMateria ? (byMateria.get(selectedMateria) ?? []) : [];

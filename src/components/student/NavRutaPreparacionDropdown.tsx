@@ -1,4 +1,3 @@
-import React from "react";
 import { Link } from "react-router-dom";
 import { Route, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
