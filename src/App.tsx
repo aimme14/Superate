@@ -18,6 +18,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import InnovativeHero from "@/pages/inovativeGero";
 import Prueba from "@/pages/prueba";
 import DemoImageOptionsPage from "@/pages/DemoImageOptions";
+import ViewerPdfPage from "@/pages/ViewerPdfPage";
+import RutaAcademicaAdaptativaPage from "@/pages/RutaAcademicaAdaptativaPage";
 
 // Páginas pesadas: lazy load para reducir el bundle inicial
 const ResultadosPage = lazy(() => import("@/pages/resultados"));
@@ -38,6 +40,8 @@ function App() {
         <BrowserRouter>
           <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>}>
           <Routes>
+            {/* Visor de PDF en pestaña propia: solo contenido, sin descargar/imprimir */}
+            <Route path="/viewer/pdf" element={<ViewerPdfPage />} />
             <Route element={<RootLayout />}>
               {/* home index */}
               <Route path="/" index element={<HomePage />} />
@@ -90,6 +94,7 @@ function App() {
               <Route path="/informacionPage" element={<InformacionPage />} />
               <Route path="/resultados" element={<ResultadosPage />} />
               <Route path="/promedio" element={<ErrorBoundary><PromedioPage /></ErrorBoundary>} />
+              <Route path="/ruta-academica-adaptativa" element={<RutaAcademicaAdaptativaPage />} />
               <Route path="/innovative-hero" element={<InnovativeHero />} />
               <Route path="/prueba" element={<Prueba />} />
               <Route path="/Intento" element={<Intento />} />

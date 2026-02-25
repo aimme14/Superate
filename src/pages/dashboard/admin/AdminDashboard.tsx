@@ -27,7 +27,8 @@ import {
   FolderOpen,
   ChevronDown,
   Settings,
-  Sparkles
+  Sparkles,
+  ClipboardList
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
@@ -47,6 +48,7 @@ import RegistrationSettings from '@/components/admin/RegistrationSettings'
 import StudentPhaseReports from '@/components/admin/StudentPhaseReports'
 import AdminRecursos from '@/components/admin/AdminRecursos'
 import AdminHerramientasIA from '@/components/admin/AdminHerramientasIA'
+import AdminSimulacros from '@/components/admin/AdminSimulacros'
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
@@ -216,7 +218,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
                 type="button"
                 className={cn(
                   "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  ['questions', 'phases', 'study-plans', 'recursos', 'herramientas-ia'].includes(activeTab)
+                  ['questions', 'phases', 'study-plans', 'recursos', 'herramientas-ia', 'simulacros'].includes(activeTab)
                     ? theme === 'dark'
                       ? 'bg-teal-600/80 text-white'
                       : 'bg-primary text-primary-foreground'
@@ -286,6 +288,16 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               >
                 <Sparkles className="mr-2 h-4 w-4" />
                 Centro de Herramientas IA
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('simulacros')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'simulacros' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Simulacros
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -830,6 +842,10 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
 
         <TabsContent value="herramientas-ia" className="space-y-6">
           <AdminHerramientasIA theme={theme} />
+        </TabsContent>
+
+        <TabsContent value="simulacros" className="space-y-6">
+          <AdminSimulacros theme={theme} />
         </TabsContent>
 
         <TabsContent value="analytics">

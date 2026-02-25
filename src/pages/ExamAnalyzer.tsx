@@ -13,6 +13,7 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
 import { phase1AIAnalysisService, Phase1ConsolidatedAnalysis } from "@/services/phase/phase1AIAnalysis.service";
+import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown";
 import { Brain, Sparkles, Loader2 as Loader2Icon } from "lucide-react";
 
 const db = getFirestore(firebaseApp);
@@ -304,6 +305,7 @@ const ExamAnalyzer = () => {
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
               <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
               <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
+              <NavRutaPreparacionDropdown theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
@@ -345,6 +347,7 @@ const ExamAnalyzer = () => {
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
               <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
               <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
+              <NavRutaPreparacionDropdown theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
@@ -388,6 +391,7 @@ const ExamAnalyzer = () => {
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
               <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
               <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
+              <NavRutaPreparacionDropdown theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>

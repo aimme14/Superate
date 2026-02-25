@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useThemeContext } from "@/context/ThemeContext";
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
+import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown";
 
 const db = getFirestore(firebaseApp);
 
@@ -674,6 +675,7 @@ export default function EvaluationsTab() {
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" active theme={theme} />
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
+            <NavRutaPreparacionDropdown theme={theme} />
             <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>

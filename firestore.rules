@@ -72,7 +72,7 @@ service cloud.firestore {
     // La colecci√≥n de usuarios antigua ha sido eliminada completamente
     // Todos los usuarios ahora est√°n en la nueva estructura jer√°rquica por instituci√≥n y rol
     
-    // NUEVA ESTRUCTURA JER√ÅRQUICA: Rectores
+    // NUEVA ESTRUCTURA JER√ˇRQUICA: Rectores
     match /superate/auth/institutions/{institutionId}/rectores/{rectorId} {
       // Los rectores activos pueden leer su propia informaci√≥n
       allow read: if canAccess() && request.auth.uid == rectorId;
@@ -98,7 +98,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // NUEVA ESTRUCTURA JER√ÅRQUICA: Coordinadores
+    // NUEVA ESTRUCTURA JER√ˇRQUICA: Coordinadores
     match /superate/auth/institutions/{institutionId}/coordinadores/{coordinadorId} {
       // Los coordinadores activos pueden leer su propia informaci√≥n
       allow read: if canAccess() && request.auth.uid == coordinadorId;
@@ -124,7 +124,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // NUEVA ESTRUCTURA JER√ÅRQUICA: Profesores
+    // NUEVA ESTRUCTURA JER√ˇRQUICA: Profesores
     match /superate/auth/institutions/{institutionId}/profesores/{profesorId} {
       // Los profesores activos pueden leer su propia informaci√≥n
       allow read: if canAccess() && request.auth.uid == profesorId;
@@ -150,7 +150,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // NUEVA ESTRUCTURA JER√ÅRQUICA: Estudiantes
+    // NUEVA ESTRUCTURA JER√ˇRQUICA: Estudiantes
     match /superate/auth/institutions/{institutionId}/estudiantes/{estudianteId} {
       // Los estudiantes activos pueden leer su propia informaci√≥n
       allow read: if canAccess() && request.auth.uid == estudianteId;
@@ -248,6 +248,22 @@ service cloud.firestore {
     match /AI_Tools/{toolId} {
       allow read: if canAccess();
       allow create, update, delete: if isAdmin();
+    }
+
+    // Simulacros tipo Saber 11 (ICFES): Simulacros/{simulacroId}
+    match /Simulacros/{simulacroId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdmin();
+      // Subcolecci?n de videos explicativos (1:N)
+      match /Videos/{videoId} {
+        allow read: if canAccess();
+        allow create, update, delete: if isAdmin();
+      }
+      // Materia ICFES: subcolecci?n ICFES/_/Videos (videos explicativos ICFES; doc intermedio para path impar)
+      match /ICFES/{icfesDocId}/Videos/{videoId} {
+        allow read: if canAccess();
+        allow create, update, delete: if isAdmin();
+      }
     }
 
     // Regla por defecto: denegar acceso a todo lo dem√°s

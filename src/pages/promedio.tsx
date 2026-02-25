@@ -31,6 +31,7 @@ import { useNotification } from "@/hooks/ui/useNotification"
 import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import { TipsICFESSection } from "@/components/studyPlan/TipsICFESSection"
 import { HerramientasIASection } from "@/components/studyPlan/HerramientasIASection"
+import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown"
 import type { TipICFES } from "@/interfaces/tipsICFES.interface"
 import { aiToolsService, type AIToolData } from "@/services/firebase/aiTools.service"
 import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config"
@@ -5393,6 +5394,7 @@ export default function ICFESAnalysisInterface() {
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
               <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
+              <NavRutaPreparacionDropdown theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
@@ -5429,6 +5431,7 @@ export default function ICFESAnalysisInterface() {
               <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
               <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
               <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
+              <NavRutaPreparacionDropdown theme={theme} />
               <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
             </nav>
           </div>
@@ -5473,6 +5476,7 @@ export default function ICFESAnalysisInterface() {
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active theme={theme} />
+            <NavRutaPreparacionDropdown theme={theme} />
             <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
           </nav>
         </div>
@@ -6231,7 +6235,7 @@ export default function ICFESAnalysisInterface() {
                       <AccordionTrigger className={cn("px-4 py-3 hover:no-underline", theme === 'dark' ? 'hover:bg-zinc-700/50 text-white' : 'hover:bg-gray-50')}>
                         <span id="tips-icfes-heading" className="flex items-center gap-2 text-lg font-semibold">
                           <Lightbulb className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
-                          Tips para Romperla en el ICFES
+                          Tips para Romperla en el ICFES - Altamente Recomendados Por La Inteligencia Artificial
                         </span>
                       </AccordionTrigger>
                       <AccordionContent>

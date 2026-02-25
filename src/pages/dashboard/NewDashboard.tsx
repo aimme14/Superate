@@ -9,6 +9,7 @@ import { useEffect } from "react"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
+import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown"
   
 
 export function Home() {
@@ -49,6 +50,7 @@ export function Home() {
             <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
             <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
             <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
+            <NavRutaPreparacionDropdown theme={theme} />
             <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" active theme={theme}/>
           </nav>
         </div>
