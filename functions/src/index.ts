@@ -13,6 +13,7 @@ import { studyPlanService } from './services/studyPlan.service';
 import { studentSummaryService } from './services/studentSummary.service';
 import { vocabularyService } from './services/vocabulary.service';
 import { getRandomTips } from './services/tipsICFES.service';
+import { getRandomEjercicios } from './services/ejerciciosIA.service';
 import { APIResponse } from './types/question.types';
 
 // =============================
@@ -668,6 +669,59 @@ export const getStudyPlan = functions
         error: { message: error.message || 'Error interno del servidor' },
       };
       res.status(500).json(response);
+    }
+  });
+
+/**
+ * Obtiene ejercicios aleatorios desde EjerciciosIA para el mini simulacro.
+ * GET /getRandomEjerciciosIA?grade=11&subject=MA&limit=10
+ * - grade: grado del estudiante (default "11" = Undécimo)
+ * - subject: código materia (MA, BI, CS...) o vacío para aleatorio
+ * - limit: cantidad (default 10)
+ */
+export const getRandomEjerciciosIA = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 60, memory: '256MB' })
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET' && req.method !== 'POST') {
+      res.status(405).json({
+        success: false,
+        error: { message: 'Método no permitido. Usa GET o POST' },
+      } as APIResponse);
+      return;
+    }
+
+    try {
+      const params = req.method === 'GET' ? req.query : req.body;
+      const grade = (params.grade as string) || '11';
+      const subject = (params.subject as string) || undefined;
+      const limitParam = params.limit;
+      const limit = limitParam != null
+        ? Math.min(50, Math.max(1, parseInt(String(limitParam), 10) || 10))
+        : 10;
+
+      const exercises = await getRandomEjercicios(grade, subject || undefined, limit);
+
+      res.status(200).json({
+        success: true,
+        data: exercises,
+        metadata: { count: exercises.length, timestamp: new Date() },
+      } as APIResponse);
+    } catch (error) {
+      console.error('Error en getRandomEjerciciosIA:', error);
+      res.status(500).json({
+        success: false,
+        error: { message: (error as Error).message || 'Error interno del servidor' },
+      } as APIResponse);
     }
   });
 

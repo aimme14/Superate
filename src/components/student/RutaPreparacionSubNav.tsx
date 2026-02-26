@@ -1,9 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
-import { Route, BookOpen } from "lucide-react";
+import { Pencil, BookOpen, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RUTA_ACADEMICA_PATH = "/ruta-academica-adaptativa";
 const PLAN_ESTUDIO_IA_PATH = "/plan-estudio-ia";
+const SIMULACROS_IA_PATH = "/simulacros-ia";
 
 interface RutaPreparacionSubNavProps {
   theme?: "light" | "dark";
@@ -11,12 +12,13 @@ interface RutaPreparacionSubNavProps {
 
 /**
  * Sub-navegación dentro de la sección Ruta de preparación.
- * Dos botones para alternar entre Ruta Académica adaptativa y Plan de estudio IA.
+ * Botones para alternar entre Ruta Académica Simulacros, Plan de estudio IA y Simulacros IA.
  */
 export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNavProps) {
   const { pathname } = useLocation();
   const isRutaAcademicaActive = pathname === RUTA_ACADEMICA_PATH;
   const isPlanEstudioActive = pathname === PLAN_ESTUDIO_IA_PATH;
+  const isSimulacrosIAActive = pathname === SIMULACROS_IA_PATH;
 
   const buttonClass = (active: boolean) =>
     cn(
@@ -42,8 +44,8 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
         className={buttonClass(isRutaAcademicaActive)}
         aria-current={isRutaAcademicaActive ? "page" : undefined}
       >
-        <Route className="w-5 h-5 flex-shrink-0" aria-hidden />
-        Ruta Académica adaptativa
+        <Pencil className="w-5 h-5 flex-shrink-0" aria-hidden />
+        Ruta Académica Simulacros
       </Link>
       <Link
         to={PLAN_ESTUDIO_IA_PATH}
@@ -52,6 +54,14 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
       >
         <BookOpen className="w-5 h-5 flex-shrink-0" aria-hidden />
         Plan de estudio IA
+      </Link>
+      <Link
+        to={SIMULACROS_IA_PATH}
+        className={buttonClass(isSimulacrosIAActive)}
+        aria-current={isSimulacrosIAActive ? "page" : undefined}
+      >
+        <Zap className="w-5 h-5 flex-shrink-0" aria-hidden />
+        Simulacros IA
       </Link>
     </div>
   );

@@ -21,6 +21,7 @@ import DemoImageOptionsPage from "@/pages/DemoImageOptions";
 import ViewerPdfPage from "@/pages/ViewerPdfPage";
 import RutaAcademicaAdaptativaPage from "@/pages/RutaAcademicaAdaptativaPage";
 import PlanEstudioIAPage from "@/pages/PlanEstudioIAPage";
+import SimulacrosIAPage from "@/pages/SimulacrosIAPage";
 
 // Páginas pesadas: lazy load para reducir el bundle inicial
 const ResultadosPage = lazy(() => import("@/pages/resultados"));
@@ -97,6 +98,7 @@ function App() {
               <Route path="/promedio" element={<ErrorBoundary><PromedioPage /></ErrorBoundary>} />
               <Route path="/ruta-academica-adaptativa" element={<RutaAcademicaAdaptativaPage />} />
               <Route path="/plan-estudio-ia" element={<ErrorBoundary><PlanEstudioIAPage /></ErrorBoundary>} />
+              <Route path="/simulacros-ia" element={<ErrorBoundary><SimulacrosIAPage /></ErrorBoundary>} />
               <Route path="/innovative-hero" element={<InnovativeHero />} />
               <Route path="/prueba" element={<Prueba />} />
               <Route path="/Intento" element={<Intento />} />

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const RUTA_ACADEMICA_PATH = "/ruta-academica-adaptativa";
 const PLAN_ESTUDIO_IA_PATH = "/plan-estudio-ia";
+const SIMULACROS_IA_PATH = "/simulacros-ia";
 
 interface NavRutaPreparacionDropdownProps {
   theme?: "light" | "dark";
@@ -11,13 +12,15 @@ interface NavRutaPreparacionDropdownProps {
 
 /**
  * Enlace principal "Ruta de preparación" en la barra de navegación.
- * Lleva a la sección Ruta Académica adaptativa, donde aparecen
- * los dos botones internos (Ruta Académica adaptativa y Plan de estudio IA).
+ * Lleva a la sección Ruta Académica Simulacros, donde aparecen
+ * los botones internos (Ruta Académica Simulacros, Plan de estudio IA, Simulacros IA).
  */
 export function NavRutaPreparacionDropdown({ theme = "light" }: NavRutaPreparacionDropdownProps) {
   const { pathname } = useLocation();
   const isActive =
-    pathname === RUTA_ACADEMICA_PATH || pathname === PLAN_ESTUDIO_IA_PATH;
+    pathname === RUTA_ACADEMICA_PATH ||
+    pathname === PLAN_ESTUDIO_IA_PATH ||
+    pathname === SIMULACROS_IA_PATH;
 
   return (
     <Link

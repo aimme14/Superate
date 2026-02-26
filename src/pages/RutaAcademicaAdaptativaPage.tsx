@@ -214,11 +214,12 @@ export default function RutaAcademicaAdaptativaPage() {
         <div className="mb-8">
           <h1
             className={cn(
-              "text-3xl font-bold mb-2",
+              "text-3xl font-bold mb-2 flex items-center gap-3",
               theme === "dark" ? "text-white" : "text-gray-900"
             )}
           >
-            Ruta Académica adaptativa
+            <BookOpen className="h-8 w-8 flex-shrink-0" />
+            Ruta Académica Simulacros
           </h1>
           <p
             className={cn(
