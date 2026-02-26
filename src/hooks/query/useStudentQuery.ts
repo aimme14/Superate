@@ -28,7 +28,7 @@ export const useFilteredStudents = (filters: StudentFilters) => {
       }
       return result.success ? result.data : []
     },
-    staleTime: 0, // Sin caché para debug
+    staleTime: 5 * 60 * 1000, // 5 min - evita refetch innecesario
   })
 
   return {

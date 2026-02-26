@@ -1,14 +1,12 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ContactRound, NotepadText, BarChart2, BookOpen, CheckCircle2, AlertCircle, Clock, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, AlertCircle, Clock, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-import { firebaseApp } from "@/services/firebase/db.service";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useUserInstitution } from "@/hooks/query/useUserInstitution";
+import { useStudentEvaluations, type ExamResult } from "@/hooks/query/useStudentEvaluations";
 import { questionService, Question } from "@/services/firebase/question.service";
 import ImageGallery from "@/components/common/ImageGallery";
 import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
@@ -17,10 +15,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useThemeContext } from "@/context/ThemeContext";
-import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
-import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown";
-
-const db = getFirestore(firebaseApp);
+import { StudentNav } from "@/components/student/StudentNav";
+import { getPhaseType } from "@/utils/firestoreHelpers";
 
 // Función para eliminar etiquetas HTML y obtener solo el texto
 const stripHtml = (html: string): string => {
@@ -128,48 +124,8 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
   return <div ref={containerRef} className={className} />
 }
 
-interface ExamScore {
-  correctAnswers: number;
-  totalAnswered: number;
-  totalQuestions: number;
-  percentage: number;
-  overallPercentage: number;
-}
-
-interface ExamResult {
-  userId: string;
-  examId: string;
-  examTitle: string;
-  answers: { [key: string]: string };
-  score: ExamScore;
-  topic: string;
-  timeExpired: boolean;
-  lockedByTabChange: boolean;
-  tabChangeCount: number;
-  startTime: string;
-  endTime: string;
-  timeSpent: number;
-  completed: boolean;
-  timestamp: number;
-  phase?: string;
-  questionDetails: Array<{
-    questionId: number | string;
-    questionText: string;
-    userAnswer: string | null;
-    correctAnswer: string;
-    topic: string;
-    isCorrect: boolean;
-    answered: boolean;
-  }>;
-}
-
-interface UserResults {
-  [examId: string]: ExamResult;
-}
-
 export default function EvaluationsTab() {
-  const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: evaluations = [], isLoading: loading } = useStudentEvaluations();
   const [selectedExam, setSelectedExam] = useState<ExamResult | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
@@ -191,148 +147,6 @@ export default function EvaluationsTab() {
   });
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
-
-  useEffect(() => {
-    const fetchEvaluations = async () => {
-      setLoading(true);
-      const auth = getAuth();
-      const user = auth.currentUser;
-
-      if (!user) {
-        setEvaluations([]);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        // Obtenemos los resultados de todas las subcolecciones de fases
-        const phases = getAllPhases();
-        const evaluationsArray: any[] = [];
-
-        // Leer de las subcolecciones de fases
-        for (const phaseName of phases) {
-          const phaseRef = collection(db, "results", user.uid, phaseName);
-          const phaseSnap = await getDocs(phaseRef);
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data();
-            // Determinar la fase: SIEMPRE usar el nombre de la subcolección como fuente de verdad
-            // Esto asegura que incluso si el documento tiene phase: undefined, sabemos la fase correcta
-            const phaseFromCollection = getPhaseType(phaseName); // Esto devuelve 'first', 'second', 'third' o null
-            const phaseFromDocument = examData.phase;
-            
-            // Priorizar: si el documento tiene una fase válida, usarla; sino, usar la de la subcolección
-            let finalPhase: string = 'first'; // Valor por defecto
-            
-            // Primero intentar usar la fase de la subcolección (fuente de verdad más confiable)
-            if (phaseFromCollection) {
-              finalPhase = phaseFromCollection;
-            }
-            
-            // Si el documento tiene una fase válida, intentar usarla (pero solo si es válida)
-            if (phaseFromDocument) {
-              const phaseType = getPhaseType(String(phaseFromDocument));
-              if (phaseType) {
-                // El documento tiene una fase válida en formato 'first', 'second', 'third'
-                finalPhase = phaseType;
-              } else if (phaseFromDocument === 'fase I' || phaseFromDocument === 'Fase I' || 
-                         phaseFromDocument === 'Fase II' || phaseFromDocument === 'fase II' ||
-                         phaseFromDocument === 'fase III' || phaseFromDocument === 'Fase III') {
-                // El documento tiene una fase en formato español, convertirla
-                const convertedPhase = getPhaseType(phaseFromDocument);
-                if (convertedPhase) {
-                  finalPhase = convertedPhase;
-                }
-              }
-            }
-            
-            // Asegurar que siempre tengamos un valor válido
-            if (!finalPhase || (finalPhase !== 'first' && finalPhase !== 'second' && finalPhase !== 'third')) {
-              // Si no pudimos determinar la fase, usar la de la subcolección o 'first' por defecto
-              finalPhase = phaseFromCollection || 'first';
-            }
-            
-            // Debug: Log para resultados problemáticos
-            if (!examData.phase || examData.phase === undefined) {
-              console.log(`🔍 Resultado sin phase en documento - Subcolección: ${phaseName}, Fase asignada: ${finalPhase}`, {
-                examTitle: examData.examTitle,
-                examId: doc.id,
-                phaseFromCollection,
-                phaseFromDocument: examData.phase
-              });
-            }
-            
-            evaluationsArray.push({
-              ...examData,
-              examId: doc.id,
-              phase: finalPhase,
-              tabChangeCount: examData.tabChangeCount ?? 0,
-              lockedByTabChange: examData.lockedByTabChange === true,
-            });
-          });
-        }
-
-        // También leer de la estructura antigua para compatibilidad
-        const oldDocRef = doc(db, "results", user.uid);
-        const oldDocSnap = await getDoc(oldDocRef);
-        if (oldDocSnap.exists()) {
-          const oldData = oldDocSnap.data() as UserResults;
-          Object.entries(oldData).forEach(([examId, examData]) => {
-            // Intentar inferir la fase del título o usar 'first' por defecto
-            let inferredPhase: string = 'first';
-            if (examData.phase) {
-              const phaseType = getPhaseType(String(examData.phase));
-              if (phaseType) {
-                inferredPhase = phaseType;
-              }
-            } else if (examData.examTitle) {
-              // Intentar inferir de el título
-              const title = String(examData.examTitle).toLowerCase();
-              if (title.includes('fase ii') || title.includes('segunda fase')) {
-                inferredPhase = 'second';
-              } else if (title.includes('fase iii') || title.includes('tercera fase')) {
-                inferredPhase = 'third';
-              }
-            }
-            
-            evaluationsArray.push({
-              ...examData,
-              examId,
-              phase: inferredPhase,
-              tabChangeCount: examData.tabChangeCount ?? 0,
-              lockedByTabChange: examData.lockedByTabChange === true,
-            });
-          });
-        }
-
-        // Ordenamos por fecha (más reciente primero)
-        evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-        // Debug: Log para ver qué fases tienen los resultados
-        console.log('📊 Resultados agrupados por fase:', {
-          total: evaluationsArray.length,
-          porFase: evaluationsArray.reduce((acc, evaluation) => {
-            const phase = evaluation.phase || 'sin fase';
-            acc[phase] = (acc[phase] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>),
-          sinFase: evaluationsArray.filter(e => !e.phase || e.phase === 'Sin fase').map(e => ({
-            examTitle: e.examTitle,
-            phase: e.phase,
-            examId: e.examId
-          }))
-        });
-
-        setEvaluations(evaluationsArray);
-      } catch (error) {
-        console.error("Error al obtener las evaluaciones:", error);
-        setEvaluations([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEvaluations();
-  }, []);
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('es-ES', {
@@ -671,13 +485,7 @@ export default function EvaluationsTab() {
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" active theme={theme} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-            <NavRutaPreparacionDropdown theme={theme} />
-            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-          </nav>
+          <StudentNav theme={theme || "light"} />
         </div>
       </header>
 
@@ -1184,31 +992,5 @@ export default function EvaluationsTab() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-// Componente auxiliar para navegación
-interface NavItemProps {
-  icon: React.ReactNode;
-  active?: boolean;
-  href: string;
-  text: string;
-  theme?: 'light' | 'dark';
-}
-
-function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps) {
-  return (
-    <Link
-      to={href}
-      className={cn(
-        "flex items-center",
-        active 
-          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
-          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
-      )}
-    >
-      <span className="mr-2">{icon}</span>
-      <span>{text}</span>
-    </Link>
   );
 }

@@ -1,9 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  ContactRound,
-  NotepadText,
-  BarChart2,
   BookOpen,
   FileText,
   FileCheck,
@@ -18,50 +15,15 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUserInstitution } from "@/hooks/query/useUserInstitution";
+import { useSimulacros } from "@/hooks/query/useSimulacros";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { simulacrosService } from "@/services/firebase/simulacros.service";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
 import { SIMULACRO_MATERIAS } from "@/interfaces/simulacro.interface";
-import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown";
+import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
-
-interface NavItemProps {
-  icon: React.ReactNode;
-  active?: boolean;
-  href: string;
-  text: string;
-  theme?: "light" | "dark";
-}
-
-function NavItem({
-  href,
-  icon,
-  text,
-  active = false,
-  theme = "light",
-}: NavItemProps) {
-  return (
-    <Link
-      to={href}
-      className={cn(
-        "flex items-center",
-        active
-          ? theme === "dark"
-            ? "text-red-400 font-medium"
-            : "text-red-600 font-medium"
-          : theme === "dark"
-            ? "text-gray-400 hover:text-gray-200"
-            : "text-gray-600 hover:text-gray-900"
-      )}
-    >
-      <span className="mr-2">{icon}</span>
-      <span>{text}</span>
-    </Link>
-  );
-}
 
 function buildViewerUrl(simulacroId: string, tipo: string): string {
   return `/viewer/pdf?simulacroId=${encodeURIComponent(simulacroId)}&tipo=${tipo}`;
@@ -70,35 +32,8 @@ function buildViewerUrl(simulacroId: string, tipo: string): string {
 export default function RutaAcademicaAdaptativaPage() {
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
-  const [simulacros, setSimulacros] = useState<Simulacro[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: simulacros = [], isLoading: loading, isError, error } = useSimulacros();
   const [selectedMateria, setSelectedMateria] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    simulacrosService
-      .getAllWithVideos()
-      .then((res) => {
-        if (cancelled) return;
-        if (res.success) {
-          setSimulacros(res.data);
-        } else {
-          setError(res.error?.message ?? "Error al cargar simulacros");
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err?.message ?? "Error al cargar simulacros");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const byMateria = useMemo(() => {
     const map = new Map<string, Simulacro[]>();
@@ -122,11 +57,11 @@ export default function RutaAcademicaAdaptativaPage() {
   }, [byMateria]);
 
   useEffect(() => {
-    if (loading || error || orderedMaterias.length === 0) return;
+    if (loading || isError || orderedMaterias.length === 0) return;
     if (selectedMateria === null || !orderedMaterias.includes(selectedMateria)) {
       setSelectedMateria(orderedMaterias[0]);
     }
-  }, [loading, error, orderedMaterias, selectedMateria]);
+  }, [loading, isError, orderedMaterias, selectedMateria]);
 
   const getMateriaLabel = (value: string) =>
     value === "icfes" ? "ICFES FILTRADOS" : (SIMULACRO_MATERIAS.find((m) => m.value === value)?.label ?? value);
@@ -179,33 +114,7 @@ export default function RutaAcademicaAdaptativaPage() {
               {isLoadingInstitution ? "Cargando..." : institutionName}
             </span>
           </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            <NavItem
-              href="/informacionPage"
-              icon={<ContactRound />}
-              text="Información del estudiante"
-              theme={theme}
-            />
-            <NavItem
-              href="/resultados"
-              icon={<NotepadText className="w-5 h-5" />}
-              text="Resultados"
-              theme={theme}
-            />
-            <NavItem
-              href="/promedio"
-              icon={<BarChart2 className="w-5 h-5" />}
-              text="Desempeño"
-              theme={theme}
-            />
-            <NavRutaPreparacionDropdown theme={theme} />
-            <NavItem
-              href="/dashboard#evaluacion"
-              icon={<BookOpen className="w-5 h-5" />}
-              text="Presentar prueba"
-              theme={theme}
-            />
-          </nav>
+          <StudentNav theme={theme} />
         </div>
       </header>
 
@@ -252,7 +161,7 @@ export default function RutaAcademicaAdaptativaPage() {
               </span>
             </CardContent>
           </Card>
-        ) : error ? (
+        ) : isError ? (
           <Card
             className={cn(
               theme === "dark" ? "bg-zinc-800 border-zinc-700" : ""
@@ -264,7 +173,7 @@ export default function RutaAcademicaAdaptativaPage() {
                   theme === "dark" ? "text-red-400" : "text-red-600"
                 )}
               >
-                {error}
+                {error instanceof Error ? error.message : "Error al cargar simulacros"}
               </p>
             </CardContent>
           </Card>

@@ -24,6 +24,7 @@ export const useUserInstitution = () => {
       return null
     },
     enabled: !!user?.uid,
+    staleTime: 5 * 60 * 1000, // 5 min - usuario cambia poco, evita refetch al navegar
   })
 
   // Extraer el institutionId del usuario

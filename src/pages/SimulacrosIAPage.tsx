@@ -1,10 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
 import {
-  ContactRound,
-  NotepadText,
-  BarChart2,
-  BookOpen,
   Play,
   ChevronLeft,
   ChevronRight,
@@ -30,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown";
+import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 import { getRandomEjercicios, type EjercicioIA } from "@/services/firebase/ejerciciosIA.service";
 import { dbService } from "@/services/firebase/db.service";
@@ -40,41 +35,6 @@ import { MathText } from "@/utils/renderMath";
 const SECONDS_PER_QUESTION = 75;
 const DEFAULT_GRADE = "11";
 const EXERCISES_LIMIT = 10;
-
-interface NavItemProps {
-  icon: React.ReactNode;
-  active?: boolean;
-  href: string;
-  text: string;
-  theme?: "light" | "dark";
-}
-
-function NavItem({
-  href,
-  icon,
-  text,
-  active = false,
-  theme = "light",
-}: NavItemProps) {
-  return (
-    <Link
-      to={href}
-      className={cn(
-        "flex items-center",
-        active
-          ? theme === "dark"
-            ? "text-red-400 font-medium"
-            : "text-red-600 font-medium"
-          : theme === "dark"
-            ? "text-gray-400 hover:text-gray-200"
-            : "text-gray-600 hover:text-gray-900"
-      )}
-    >
-      <span className="mr-2">{icon}</span>
-      <span>{text}</span>
-    </Link>
-  );
-}
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -239,13 +199,7 @@ export default function SimulacrosIAPage() {
               {isLoadingInstitution ? "Cargando..." : institutionName}
             </span>
           </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={themeSafe} />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={themeSafe} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={themeSafe} />
-            <NavRutaPreparacionDropdown theme={themeSafe} />
-            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={themeSafe} />
-          </nav>
+          <StudentNav theme={themeSafe} />
         </div>
       </header>
 

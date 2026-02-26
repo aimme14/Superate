@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ContactRound, NotepadText, BarChart2, BookOpen, TrendingUp, ArrowUp, Target, Award, Minus, ArrowDown, CheckCircle2, AlertTriangle, Loader2, Home } from "lucide-react";
+import { BookOpen, TrendingUp, ArrowUp, Target, Award, Minus, ArrowDown, CheckCircle2, AlertTriangle, Loader2, Home } from "lucide-react";
 import { Link } from "react-router-dom";
 import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
@@ -13,7 +13,7 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
 import { phase1AIAnalysisService, Phase1ConsolidatedAnalysis } from "@/services/phase/phase1AIAnalysis.service";
-import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown";
+import { StudentNav } from "@/components/student/StudentNav";
 import { Brain, Sparkles, Loader2 as Loader2Icon } from "lucide-react";
 
 const db = getFirestore(firebaseApp);
@@ -66,30 +66,9 @@ const topicToSubject = {
   'INGLES': 'Inglés'
 };
 
-// Componente de navegación
-interface NavItemProps {
-  icon: React.ReactNode;
-  active?: boolean;
-  href: string;
-  text: string;
-}
-
-function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps & { theme?: 'light' | 'dark' }) {
-  return (
-    <Link
-      to={href}
-      className={cn(
-        "flex items-center",
-        active 
-          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
-          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
-      )}
-    >
-      <span className="mr-2">{icon}</span>
-      <span>{text}</span>
-    </Link>
-  );
-}
+const examAnalyzerExtraItems = [
+  { href: "/exam-analyzer", icon: <Home className="w-5 h-5" />, text: "Mi progreso" },
+];
 
 const ExamAnalyzer = () => {
   const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
@@ -300,14 +279,7 @@ const ExamAnalyzer = () => {
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
-            <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-              <NavRutaPreparacionDropdown theme={theme} />
-              <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-            </nav>
+            <StudentNav theme={theme || "light"} extraItems={examAnalyzerExtraItems} />
           </div>
         </header>
 
@@ -342,14 +314,7 @@ const ExamAnalyzer = () => {
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
-            <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-              <NavRutaPreparacionDropdown theme={theme} />
-              <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-            </nav>
+            <StudentNav theme={theme || "light"} extraItems={examAnalyzerExtraItems} />
           </div>
         </header>
 
@@ -386,14 +351,7 @@ const ExamAnalyzer = () => {
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
-            <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-              <NavRutaPreparacionDropdown theme={theme} />
-              <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-            </nav>
+            <StudentNav theme={theme || "light"} extraItems={examAnalyzerExtraItems} />
           </div>
         </header>
 
@@ -433,13 +391,7 @@ const ExamAnalyzer = () => {
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-            <NavItem href="/exam-analyzer" icon={<Home className="w-5 h-5" />} text="Mi progreso" active theme={theme} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-          </nav>
+          <StudentNav theme={theme || "light"} extraItems={examAnalyzerExtraItems} />
         </div>
       </header>
 

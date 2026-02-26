@@ -31,7 +31,7 @@ import { useNotification } from "@/hooks/ui/useNotification"
 import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import { TipsICFESSection } from "@/components/studyPlan/TipsICFESSection"
 import { HerramientasIASection } from "@/components/studyPlan/HerramientasIASection"
-import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown"
+import { StudentNav } from "@/components/student/StudentNav"
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav"
 import type { TipICFES } from "@/interfaces/tipsICFES.interface"
 import { aiToolsService, type AIToolData } from "@/services/firebase/aiTools.service"
@@ -52,9 +52,7 @@ import {
   Zap,
   Trophy,
   Medal,
-  ContactRound,
   NotepadText,
-  BarChart2,
   Shield,
   Link as LinkIcon,
   Eye,
@@ -175,31 +173,6 @@ interface AnalysisData {
     resources: string[];
     timeEstimate: string;
   }>;
-}
-
-// Componente auxiliar para navegación
-interface NavItemProps {
-  icon: React.ReactNode;
-  active?: boolean;
-  href: string;
-  text: string;
-}
-
-function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps & { theme?: 'light' | 'dark' }) {
-  return (
-    <Link
-      to={href}
-      className={cn(
-        "flex items-center",
-        active 
-          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
-          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
-      )}
-    >
-      <span className="mr-2">{icon}</span>
-      <span>{text}</span>
-    </Link>
-  );
 }
 
 // Función helper para mapear nombres de pruebas a nombres descriptivos (solo para visualización del estudiante)
@@ -5398,13 +5371,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
-            <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active={!planOnly} theme={theme} />
-              <NavRutaPreparacionDropdown theme={theme} />
-              <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-            </nav>
+            <StudentNav theme={theme || "light"} />
           </div>
         </header>
         {planOnly && (
@@ -5442,13 +5409,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 {isLoadingInstitution ? 'Cargando...' : institutionName}
               </span>
             </div>
-            <nav className="hidden md:flex items-center space-x-8">
-              <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-              <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-              <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active={!planOnly} theme={theme} />
-              <NavRutaPreparacionDropdown theme={theme} />
-              <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-            </nav>
+            <StudentNav theme={theme || "light"} />
           </div>
         </header>
         <div className="container mx-auto px-4 py-20">
@@ -5494,13 +5455,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" active={!planOnly} theme={theme} />
-            <NavRutaPreparacionDropdown theme={theme} />
-            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" theme={theme} />
-          </nav>
+          <StudentNav theme={theme || "light"} />
         </div>
       </header>
 

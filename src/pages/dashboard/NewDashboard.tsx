@@ -1,5 +1,3 @@
-import { ContactRound, NotepadText, BarChart2, BookOpen } from "lucide-react"
-import { Link } from "react-router-dom"
 import InnovativeHero from "../inovativeGero"
 import { motion } from "framer-motion"
 import { AlertCircle } from "lucide-react"
@@ -9,7 +7,7 @@ import { useEffect } from "react"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
-import { NavRutaPreparacionDropdown } from "@/components/student/NavRutaPreparacionDropdown"
+import { StudentNav } from "@/components/student/StudentNav"
   
 
 export function Home() {
@@ -46,13 +44,7 @@ export function Home() {
             </span>
           </div>
 
-          <nav className="hidden md:flex items-center space-x-8">
-            <NavItem href="/informacionPage" icon={<ContactRound />} text="Información del estudiante" theme={theme} />
-            <NavItem href="/resultados" icon={<NotepadText className="w-5 h-5" />} text="Resultados" theme={theme} />
-            <NavItem href="/promedio" icon={<BarChart2 className="w-5 h-5" />} text="Desempeño" theme={theme} />
-            <NavRutaPreparacionDropdown theme={theme} />
-            <NavItem href="/dashboard#evaluacion" icon={<BookOpen className="w-5 h-5" />} text="Presentar prueba" active theme={theme}/>
-          </nav>
+          <StudentNav theme={theme || "light"} />
         </div>
       </header>
 
@@ -109,29 +101,4 @@ export function Home() {
   )
 }
 
-interface NavItemProps {
-  icon: React.ReactNode;
-  active?: boolean;
-  href: string;
-  text: string;
-  theme?: 'light' | 'dark';
-}
-
-// Componentes auxiliares
-function NavItem({ href, icon, text, active = false, theme = 'light' }: NavItemProps) {
-  return (
-    <Link
-      to={href}
-      className={cn(
-        "flex items-center",
-        active 
-          ? theme === 'dark' ? "text-red-400 font-medium" : "text-red-600 font-medium"
-          : theme === 'dark' ? "text-gray-400 hover:text-gray-200" : "text-gray-600 hover:text-gray-900"
-      )}
-    >
-      <span className="mr-2">{icon}</span>
-      <span>{text}</span>
-    </Link>
-  )
-}
 

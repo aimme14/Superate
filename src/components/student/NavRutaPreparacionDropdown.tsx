@@ -8,6 +8,7 @@ const SIMULACROS_IA_PATH = "/simulacros-ia";
 
 interface NavRutaPreparacionDropdownProps {
   theme?: "light" | "dark";
+  onPrefetch?: () => void;
 }
 
 /**
@@ -15,7 +16,7 @@ interface NavRutaPreparacionDropdownProps {
  * Lleva a la sección Ruta Académica Simulacros, donde aparecen
  * los botones internos (Ruta Académica Simulacros, Plan de estudio IA, Simulacros IA).
  */
-export function NavRutaPreparacionDropdown({ theme = "light" }: NavRutaPreparacionDropdownProps) {
+export function NavRutaPreparacionDropdown({ theme = "light", onPrefetch }: NavRutaPreparacionDropdownProps) {
   const { pathname } = useLocation();
   const isActive =
     pathname === RUTA_ACADEMICA_PATH ||
@@ -25,6 +26,7 @@ export function NavRutaPreparacionDropdown({ theme = "light" }: NavRutaPreparaci
   return (
     <Link
       to={RUTA_ACADEMICA_PATH}
+      onMouseEnter={onPrefetch}
       className={cn(
         "flex items-center",
         isActive
