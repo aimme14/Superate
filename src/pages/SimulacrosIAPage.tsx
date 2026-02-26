@@ -202,7 +202,6 @@ export default function SimulacrosIAPage() {
   }, [currentIndex, mode, exercises.length]);
 
   const currentExercise = exercises[currentIndex];
-  const answeredCount = Object.keys(selectedAnswers).length;
   const correctCount = exercises.reduce(
     (acc, ex, i) =>
       acc + (isAnswerCorrect(selectedAnswers[i], ex.correctAnswer, ex.options || []) ? 1 : 0),
