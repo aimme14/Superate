@@ -32,7 +32,7 @@ import { dbService } from "@/services/firebase/db.service";
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
 import { MathText } from "@/utils/renderMath";
 
-const SECONDS_PER_QUESTION = 75;
+const SECONDS_PER_QUESTION = 60;
 const DEFAULT_GRADE = "11";
 const EXERCISES_LIMIT = 10;
 
@@ -217,7 +217,7 @@ export default function SimulacrosIAPage() {
             Simulacros IA
           </h1>
           <p className={cn(themeSafe === "dark" ? "text-gray-400" : "text-gray-600")}>
-            Practica con 10 preguntas generadas por IA. Tienes 1 minuto 15 segundos por pregunta.
+            Practica con 10 preguntas generadas por IA. Tienes 1 minuto por pregunta.
           </p>
         </div>
 

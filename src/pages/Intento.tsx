@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { motion } from "framer-motion"
 import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck, Atom, Microscope, FlaskConical, Trophy } from 'lucide-react'
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import SubjectPhaseStatus from "@/components/quiz/SubjectPhaseStatus"
 import { PhaseType } from "@/interfaces/phase.interface"
 import { useAuthContext } from "@/context/AuthContext"
-import { phaseAuthorizationService } from "@/services/phase/phaseAuthorization.service"
+import { usePhaseStatusForSubjects } from "@/hooks/query/usePhaseStatusForSubjects"
 
 // Componente de tarjeta giratoria mejorado
 function FlipCard({
@@ -358,104 +358,13 @@ function NaturalSciencesCard({
 // Componente principal que usa las tarjetas
 export default function InteractiveCards() {
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
-  const [isPhase3Complete, setIsPhase3Complete] = useState(false)
-  const [isChecking, setIsChecking] = useState(true)
   const { isStudent } = useRole()
   const { theme } = useThemeContext()
   const { user } = useAuthContext()
 
-  // Lista de todas las materias del sistema
-  const ALL_SUBJECTS = [
-    'Matemáticas',
-    'Lenguaje',
-    'Ciencias Sociales',
-    'Biologia',
-    'Quimica',
-    'Física',
-    'Inglés'
-  ]
-
-  // Verificar si todas las materias de fase 3 están completadas
-  useEffect(() => {
-    const checkPhase3Completion = async () => {
-      if (!user?.uid || !isStudent) {
-        setIsChecking(false)
-        return
-      }
-
-      try {
-        const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(
-          user.uid,
-          'third'
-        )
-
-        if (progressResult.success && progressResult.data) {
-          const progress = progressResult.data
-          const completedSubjects = (progress.subjectsCompleted || []).map((s: string) => s.trim())
-          
-          // Verificar si todas las materias están completadas
-          const allCompleted = completedSubjects.length >= ALL_SUBJECTS.length
-          
-          // Verificación adicional: consultar directamente en Firestore
-          try {
-            const { getFirestore, collection, getDocs } = await import('firebase/firestore')
-            const { firebaseApp } = await import('@/services/db')
-            const db = getFirestore(firebaseApp)
-            const { getPhaseName } = await import('@/utils/firestoreHelpers')
-            
-            const phaseName = getPhaseName('third')
-            const resultsRef = collection(db, 'results', user.uid, phaseName)
-            const resultsSnapshot = await getDocs(resultsRef)
-            
-            // Contar exámenes completados por materia
-            const completedSubjectsSet = new Set<string>()
-            
-            resultsSnapshot.docs.forEach((doc: any) => {
-              const examData = doc.data()
-              if (examData.completed === true && examData.subject) {
-                const subject = examData.subject.trim().toLowerCase()
-                completedSubjectsSet.add(subject)
-              }
-            })
-            
-            // Verificar si todas las materias tienen examen completado
-            const allSubjectsCompleted = ALL_SUBJECTS.every(subject => {
-              const normalizedSubject = subject.trim().toLowerCase()
-              return completedSubjectsSet.has(normalizedSubject)
-            })
-            
-            setIsPhase3Complete(allSubjectsCompleted)
-            console.log('[InteractiveCards] Fase 3 completada:', {
-              allSubjectsCompleted,
-              completedCount: completedSubjectsSet.size,
-              totalSubjects: ALL_SUBJECTS.length
-            })
-          } catch (error) {
-            console.error('[InteractiveCards] Error verificando Firestore:', error)
-            // Fallback al progreso si hay error
-            setIsPhase3Complete(allCompleted)
-          }
-        } else {
-          setIsPhase3Complete(false)
-        }
-      } catch (error) {
-        console.error('[InteractiveCards] Error verificando fase 3:', error)
-        setIsPhase3Complete(false)
-      } finally {
-        setIsChecking(false)
-      }
-    }
-
-    checkPhase3Completion()
-    
-    // Recargar cuando la ventana vuelve a tener foco (después de completar un examen)
-    const handleFocus = () => {
-      checkPhase3Completion()
-    }
-
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [user?.uid, isStudent])
+  const { isPhase3Complete, isLoading: isChecking } = usePhaseStatusForSubjects(
+    isStudent ? user?.uid : undefined
+  )
 
   const toggleCard = (cardId: string) => {
     setFlippedCards((prev) => ({

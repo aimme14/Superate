@@ -1,10 +1,6 @@
-import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
-import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
-import { PhaseType } from '@/interfaces/phase.interface';
-import { dbService } from '@/services/firebase/db.service';
-import { useNotification } from '@/hooks/ui/useNotification';
+import { usePhaseStatusForSubjects } from '@/hooks/query/usePhaseStatusForSubjects';
 
 interface PhaseDashboardProps {
   theme: 'light' | 'dark';
@@ -12,66 +8,7 @@ interface PhaseDashboardProps {
 
 export default function PhaseDashboard(_props: PhaseDashboardProps) {
   const { user } = useAuthContext();
-  const { notifyError } = useNotification();
-  
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (user?.uid) {
-      loadStudentData();
-    }
-  }, [user]);
-
-  const loadStudentData = async () => {
-    if (!user?.uid) return;
-
-    setIsLoading(true);
-    try {
-      // Obtener información del estudiante
-      const userResult = await dbService.getUserById(user.uid);
-      if (!userResult.success) {
-        notifyError({ 
-          title: 'Error',
-          message: 'Error al cargar información del estudiante'
-        });
-        return;
-      }
-
-      const studentData = userResult.data;
-      const studentGradeId = studentData.gradeId || studentData.grade;
-      
-      if (!studentGradeId) {
-        notifyError({ 
-          title: 'Error',
-          message: 'No se encontró información de grado para el estudiante'
-        });
-        return;
-      }
-
-      // Cargar progreso y acceso para cada fase
-      const phases: PhaseType[] = ['first', 'second', 'third'];
-
-      for (const phase of phases) {
-        // Cargar progreso
-        await phaseAuthorizationService.getStudentPhaseProgress(user.uid, phase);
-
-        // Verificar acceso
-        await phaseAuthorizationService.canStudentAccessPhase(
-          user.uid,
-          studentGradeId,
-          phase
-        );
-      }
-    } catch (error) {
-      console.error('Error cargando datos del estudiante:', error);
-      notifyError({ 
-        title: 'Error',
-        message: 'Error al cargar información de fases'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { isLoading } = usePhaseStatusForSubjects(user?.uid);
 
   if (isLoading) {
     return (

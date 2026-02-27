@@ -9,19 +9,18 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Link } from "react-router-dom"
-import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore"
-import { getAuth } from "firebase/auth"
+import { getFirestore, collection, getDocs } from "firebase/firestore"
 import { firebaseApp } from "@/services/firebase/db.service"
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
+import { useStudentEvaluations } from "@/hooks/query/useStudentEvaluations"
+import { useStudentRanking } from "@/hooks/query/useStudentRanking"
+import { useStudyPlanData } from "@/hooks/query/useStudyPlanData"
 import { useThemeContext } from "@/context/ThemeContext"
 import { useAuthContext } from "@/context/AuthContext"
 import { getUserById } from "@/controllers/user.controller"
-import { dbService } from "@/services/firebase/db.service"
-import { studyPlanAuthorizationService } from "@/services/studyPlan/studyPlanAuthorization.service"
-import { SubjectName, StudyPlanPhase } from "@/interfaces/studyPlan.interface"
 import { cn } from "@/lib/utils"
 import { geminiService } from "@/services/ai/gemini.service"
-import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers"
+import { getPhaseType } from "@/utils/firestoreHelpers"
 import { SubjectTopicsAccordion } from "@/components/charts/SubjectTopicsAccordion"
 import { StrengthsRadarChart } from "@/components/charts/StrengthsRadarChart"
 import { SubjectsProgressChart } from "@/components/charts/SubjectsProgressChart"
@@ -35,7 +34,6 @@ import { StudentNav } from "@/components/student/StudentNav"
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav"
 import type { TipICFES } from "@/interfaces/tipsICFES.interface"
 import { aiToolsService, type AIToolData } from "@/services/firebase/aiTools.service"
-import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config"
 import {
   Brain,
   Download,
@@ -103,10 +101,6 @@ interface ExamResult {
     answered: boolean;
     timeSpent?: number; // Tiempo en segundos que se demoró en esta pregunta
   }>;
-}
-
-interface UserResults {
-  [examId: string]: ExamResult;
 }
 
 interface SubjectAnalysis {
@@ -1200,156 +1194,27 @@ function PersonalizedStudyPlan({
   studentId: string;
   theme?: 'light' | 'dark';
 }) {
-  const [studyPlans, setStudyPlans] = useState<Record<string, StudyPlanData>>({});
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [expandedSection] = useState<Record<string, string | null>>({});
-  // Estados para ejercicios de práctica: rastrear respuestas expandidas y selecciones del estudiante
   const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
-  const [loadingPlans, setLoadingPlans] = useState<boolean>(true);
-  // Estado para controlar qué materias están expandidas en el acordeón
   const [expandedSubjects, setExpandedSubjects] = useState<string[]>([]);
-  // Estado para almacenar las autorizaciones de planes de estudio por materia
-  const [subjectAuthorizations, setSubjectAuthorizations] = useState<Record<string, boolean>>({});
-  const [loadingAuthorizations, setLoadingAuthorizations] = useState<boolean>(true);
-  const [studentGrade, setStudentGrade] = useState<string | undefined>(undefined);
   const { notifySuccess, notifyError } = useNotification();
 
-  // URL base de Cloud Functions
-  const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
+  const {
+    subjectAuthorizations,
+    studyPlans,
+    studentGrade,
+    loadingPlans,
+    loadingAuthorizations,
+    addPlanLocally,
+  } = useStudyPlanData(studentId, phase, subjectsWithTopics);
 
-  /** Convierte grado (código o nombre) al nombre usado en rutas (Sexto, Décimo, Undécimo, etc.) para enviar al backend. */
-  const toGradeNameForApi = (grade: string | undefined): string | undefined => {
-    if (!grade || typeof grade !== 'string') return undefined;
-    const g = grade.trim();
-    const byCode = GRADE_CODE_TO_NAME[g];
-    if (byCode) return byCode;
-    if (g === '10') return 'Décimo';
-    if (g === '11') return 'Undécimo';
-    const names = Object.values(GRADE_CODE_TO_NAME);
-    if (names.includes(g)) return g;
-    return g;
-  };
-
-  // Cargar autorizaciones de planes de estudio
-  useEffect(() => {
-    const loadAuthorizations = async () => {
-      setLoadingAuthorizations(true);
-      const authorizations: Record<string, boolean> = {};
-      
-      try {
-        // Obtener información del estudiante para obtener el gradeId
-        const userResult = await dbService.getUserById(studentId);
-        if (userResult.success && userResult.data) {
-          const studentData = userResult.data as { gradeId?: string; grade?: string; gradeName?: string };
-          const gradeId = studentData.gradeId || (typeof studentData.grade === 'string' ? studentData.grade : undefined);
-          const gradeName = studentData.gradeName || (typeof studentData.grade === 'string' ? studentData.grade : undefined);
-          const rawGrade = gradeName || gradeId;
-          setStudentGrade(rawGrade ? (toGradeNameForApi(rawGrade) ?? rawGrade) : undefined);
-          
-          if (gradeId) {
-            // Solo verificar autorización para Fase I y Fase II
-            // Convertir phase a StudyPlanPhase (solo 'first' o 'second' son válidos)
-            const studyPlanPhase: StudyPlanPhase | null = 
-              phase === 'first' ? 'first' : 
-              phase === 'second' ? 'second' : 
-              null;
-            
-            if (studyPlanPhase) {
-              // Verificar autorización para cada materia en la fase actual
-              for (const subject of subjectsWithTopics) {
-                if (subject.weaknesses.length > 0) {
-                  try {
-                    const authResult = await studyPlanAuthorizationService.isStudyPlanAuthorized(
-                      gradeId,
-                      studyPlanPhase,
-                      subject.name as SubjectName
-                    );
-                    authorizations[subject.name] = authResult.success ? authResult.data : false;
-                  } catch (error) {
-                    console.error(`Error verificando autorización para ${subject.name}:`, error);
-                    authorizations[subject.name] = false;
-                  }
-                }
-              }
-            } else {
-              // Si es Fase III, no hay autorizaciones de planes de estudio
-              subjectsWithTopics.forEach(subject => {
-                authorizations[subject.name] = false;
-              });
-            }
-          } else {
-            console.warn('No se encontró gradeId para el estudiante');
-            setStudentGrade(undefined);
-            subjectsWithTopics.forEach(subject => {
-              authorizations[subject.name] = false;
-            });
-          }
-        } else {
-          console.error('Error obteniendo información del estudiante');
-          setStudentGrade(undefined);
-          subjectsWithTopics.forEach(subject => {
-            authorizations[subject.name] = false;
-          });
-        }
-      } catch (error) {
-        console.error('Error cargando autorizaciones:', error);
-        subjectsWithTopics.forEach(subject => {
-          authorizations[subject.name] = false;
-        });
-        setStudentGrade(undefined);
-      }
-      
-      setSubjectAuthorizations(authorizations);
-      setLoadingAuthorizations(false);
-    };
-
-    if (studentId && subjectsWithTopics.length > 0) {
-      loadAuthorizations();
-    } else {
-      setLoadingAuthorizations(false);
-    }
-  }, [studentId, phase, subjectsWithTopics]);
-
-  // Cargar planes existentes al montar (solo planes completos)
-  useEffect(() => {
-    const loadStudyPlans = async () => {
-      setLoadingPlans(true);
-      const plans: Record<string, StudyPlanData> = {};
-      
-      for (const subject of subjectsWithTopics) {
-        // Solo cargar planes para materias con debilidades
-        if (subject.weaknesses.length > 0) {
-          try {
-            const response = await fetch(
-              `${FUNCTIONS_URL}/getStudyPlan?studentId=${studentId}&phase=${phase}&subject=${encodeURIComponent(subject.name)}`
-            );
-            const result = await response.json();
-            // Mostrar cualquier plan que exista en BD (aunque no tenga aún videos/enlaces);
-            // así no se pide "Generar Plan" si el plan ya está guardado.
-            if (result.success && result.data) {
-              plans[subject.name] = result.data;
-            }
-          } catch (error) {
-            console.error(`Error cargando plan para ${subject.name}:`, error);
-          }
-        }
-      }
-      
-      setStudyPlans(plans);
-      setLoadingPlans(false);
-    };
-
-    if (studentId && subjectsWithTopics.length > 0) {
-      loadStudyPlans();
-    } else {
-      setLoadingPlans(false);
-    }
-  }, [studentId, phase, subjectsWithTopics]);
+  const FUNCTIONS_URL = import.meta.env.VITE_CLOUD_FUNCTIONS_URL || 'https://us-central1-superate-ia.cloudfunctions.net';
 
   // Generar plan de estudio para una materia
   const generateStudyPlan = async (subject: string) => {
-    const gradeForApi = studentGrade ? (toGradeNameForApi(studentGrade) ?? studentGrade) : undefined;
+    const gradeForApi = studentGrade;
     if (!gradeForApi) {
       notifyError({
         title: 'Grado requerido',
@@ -1380,15 +1245,9 @@ function PersonalizedStudyPlan({
           title: 'Plan generado exitosamente',
           message: `El plan de estudio para ${subject} se ha generado correctamente.`
         });
-        // Diferir actualización para no colisionar con Ranking u otros updates y evitar insertBefore (Radix).
         clearedInRaf = true;
-        setTimeout(() => {
-          setStudyPlans(prev => ({
-            ...prev,
-            [subject]: planData,
-          }));
-          setGeneratingFor(null);
-        }, 80);
+        addPlanLocally(subject, planData);
+        setTimeout(() => setGeneratingFor(null), 80);
       } else {
         const errorMessage = result.error?.message || 'No se pudo generar el plan de estudio';
         console.error('Error generando plan:', errorMessage);
@@ -1501,7 +1360,7 @@ function PersonalizedStudyPlan({
     );
   }
 
-  // Mostrar loading mientras se verifican los planes en la base de datos
+  // Mostrar loading mientras se cargan los planes
   if (loadingPlans) {
     return (
       <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
@@ -1509,7 +1368,7 @@ function PersonalizedStudyPlan({
           <div className="flex items-center justify-center gap-3 py-8">
             <div className={cn("animate-spin rounded-full h-6 w-6 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
             <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              Verificando planes de estudio en la base de datos...
+              Cargando planes de estudio...
             </p>
           </div>
         </CardContent>
@@ -2056,12 +1915,25 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
   const [phase1Data, setPhase1Data] = useState<AnalysisData | null>(null);
   const [phase2Data, setPhase2Data] = useState<AnalysisData | null>(null);
   const [phase3Data, setPhase3Data] = useState<AnalysisData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: evaluationsFromQuery = [], isLoading: evaluationsLoading } = useStudentEvaluations();
+  const loading = evaluationsLoading;
   const [, setLoadingAI] = useState(false);
-  const [evaluations, setEvaluations] = useState<ExamResult[]>([]);
-  const [studentRank, setStudentRank] = useState<number | null>(null);
-  const [totalStudents, setTotalStudents] = useState<number | null>(null);
-  const [isLoadingRank, setIsLoadingRank] = useState(false);
+  const evaluations = evaluationsFromQuery;
+  const { user } = useAuthContext();
+  const shouldFetchRanking = (activeTab === 'overview' || activeTab === 'diagnosis') && !planOnly && selectedPhase !== 'all';
+  const currentStudentScore = selectedPhase === 'phase1' && phase1Data
+    ? phase1Data.overall.score
+    : selectedPhase === 'phase2' && phase2Data
+      ? phase2Data.overall.score
+      : selectedPhase === 'phase3' && phase3Data
+        ? phase3Data.overall.score
+        : undefined;
+  const { rank: studentRank, totalInPhase: totalStudents, isLoading: isLoadingRank, isFetching: isRankRefetching } = useStudentRanking({
+    userId: user?.uid,
+    phase: selectedPhase,
+    currentStudentScore,
+    enabled: shouldFetchRanking && !!analysisData,
+  });
   const [currentMotivationalIndex, setCurrentMotivationalIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
@@ -2074,9 +1946,9 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
   const [herramientasIA, setHerramientasIA] = useState<AIToolData[] | null>(null);
   const [loadingHerramientasIA, setLoadingHerramientasIA] = useState(false);
   const [herramientasIAError, setHerramientasIAError] = useState(false);
+  const [shouldLoadSecondary, setShouldLoadSecondary] = useState(false);
   const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
-  const { user } = useAuthContext();
   const { notifySuccess, notifyError } = useNotification();
 
   // Frases motivadoras para estudiantes
@@ -2125,6 +1997,16 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lazy load: activar carga de Tips y Herramientas solo tras estar en tab Plan de estudio un momento
+  useEffect(() => {
+    if (activeTab !== 'study-plan') {
+      setShouldLoadSecondary(false);
+      return;
+    }
+    const t = setTimeout(() => setShouldLoadSecondary(true), 400);
+    return () => clearTimeout(t);
+  }, [activeTab]);
+
   // Cargar tips ICFES al abrir el tab Plan de estudio (una sola vez por sesión; retry resetea icfesTips)
   const FUNCTIONS_URL_TIPS = import.meta.env.VITE_CLOUD_FUNCTIONS_URL || 'https://us-central1-superate-ia.cloudfunctions.net';
   const loadIcfesTips = React.useCallback(() => {
@@ -2133,7 +2015,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     setIcfesTips(null);
   }, []);
   useEffect(() => {
-    if (activeTab !== 'study-plan' || icfesTips !== null) return;
+    if (activeTab !== 'study-plan' || !shouldLoadSecondary || icfesTips !== null) return;
     let cancelled = false;
     setLoadingTips(true);
     setTipsError(false);
@@ -2161,7 +2043,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
         if (!cancelled) setLoadingTips(false);
       });
     return () => { cancelled = true; };
-  }, [activeTab, icfesTips, FUNCTIONS_URL_TIPS]);
+  }, [activeTab, shouldLoadSecondary, icfesTips, FUNCTIONS_URL_TIPS]);
 
   // Cargar herramientas IA (solo activas): al abrir el tab Plan de estudio o al pulsar Reintentar/Actualizar
   const loadHerramientasIA = React.useCallback(async () => {
@@ -2184,9 +2066,9 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     }
   }, []);
   useEffect(() => {
-    if (activeTab !== 'study-plan') return;
+    if (activeTab !== 'study-plan' || !shouldLoadSecondary) return;
     loadHerramientasIA();
-  }, [activeTab, loadHerramientasIA]);
+  }, [activeTab, shouldLoadSecondary, loadHerramientasIA]);
 
   // Función para calcular el puntaje global de un estudiante para una fase específica
   const calculateStudentGlobalScoreForPhase = async (studentId: string, phase: 'first' | 'second' | 'third'): Promise<number> => {
@@ -2275,293 +2157,67 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     }
   };
 
-  // Calcular el puesto del estudiante
+  // Procesar evaluaciones desde React Query (cache compartido con Resultados)
   useEffect(() => {
-    let isMounted = true; // Flag para evitar actualizaciones de estado si el componente se desmonta
-    
-    const calculateRank = async () => {
-      if (!user?.uid || !analysisData) {
-        return;
-      }
+    if (!user) return;
 
-      setIsLoadingRank(true);
-      try {
-        // Obtener datos del estudiante actual
-        const userResult = await getUserById(user.uid);
-        if (!isMounted || !userResult.success || !userResult.data) {
-          if (isMounted) setIsLoadingRank(false);
-          return;
-        }
-
-        const studentData = userResult.data as any;
-        const institutionId = studentData.inst || studentData.institutionId;
-        const campusId = studentData.campus || studentData.campusId;
-        const gradeId = studentData.grade || studentData.gradeId;
-
-        if (!institutionId || !campusId || !gradeId) {
-          if (isMounted) setIsLoadingRank(false);
-          return;
-        }
-
-        // Obtener todos los estudiantes del mismo colegio, sede y grado
-        const { getFilteredStudents } = await import('@/controllers/student.controller');
-        const studentsResult = await getFilteredStudents({
-          institutionId,
-          campusId,
-          gradeId,
-          isActive: true
-        });
-
-        if (!isMounted || !studentsResult.success || !studentsResult.data) {
-          if (isMounted) setIsLoadingRank(false);
-          return;
-        }
-
-        const classmates = studentsResult.data;
-        
-        // Logs solo en desarrollo
-        if (import.meta.env.DEV) {
-          console.log('📊 Ranking - Total estudiantes en el grado:', classmates.length);
-        }
-        
-        // Usar la fase seleccionada por el usuario para el ranking (puesto de la fase)
-        // Si está "Todas las Fases", no mostramos puesto por fase
-        if (selectedPhase === 'all') {
-          setStudentRank(null);
-          setTotalStudents(null);
-          if (isMounted) setIsLoadingRank(false);
-          return;
-        }
-        
-        const phaseMap = { phase1: 'first' as const, phase2: 'second' as const, phase3: 'third' as const };
-        const currentPhase = phaseMap[selectedPhase];
-        const hasDataForPhase = (currentPhase === 'first' && phase1Data) || (currentPhase === 'second' && phase2Data) || (currentPhase === 'third' && phase3Data);
-        if (!hasDataForPhase) {
-          setStudentRank(null);
-          setTotalStudents(classmates.length);
-          if (isMounted) setIsLoadingRank(false);
-          return;
-        }
-        
-        if (import.meta.env.DEV) {
-          console.log('📊 Ranking - Fase seleccionada:', selectedPhase, '->', currentPhase);
-        }
-        
-        // Calcular puntaje de cada estudiante para la fase seleccionada
-        const studentScores: { studentId: string; score: number }[] = [];
-        
-        for (const classmate of classmates) {
-          if (!isMounted) break; // Salir si el componente se desmontó
-          
-          const studentId = (classmate as any).id || (classmate as any).uid;
-          if (studentId) {
-            try {
-              const score = await calculateStudentGlobalScoreForPhase(studentId, currentPhase);
-              if (import.meta.env.DEV) {
-                console.log(`📊 Ranking - Estudiante ${studentId}: score = ${score}`);
-              }
-              if (score > 0) { // Solo incluir estudiantes con evaluaciones en esta fase
-                studentScores.push({ studentId, score });
-              }
-            } catch (error) {
-              // Solo loggear errores en desarrollo, pero continuar con el siguiente estudiante
-              if (import.meta.env.DEV) {
-                console.error(`📊 Ranking - Error calculando score para estudiante ${studentId}:`, error);
-              }
-            }
-          }
-        }
-
-        if (!isMounted) return; // Verificar nuevamente antes de actualizar estado
-
-        if (import.meta.env.DEV) {
-          console.log('📊 Ranking - Estudiantes con evaluaciones:', studentScores.length);
-        }
-
-        // Ordenar por puntaje (mayor a menor)
-        studentScores.sort((a, b) => b.score - a.score);
-
-        // Encontrar el puesto del estudiante actual dentro de la fase
-        const currentStudentIndex = studentScores.findIndex(s => s.studentId === user.uid);
-        const totalInPhase = studentScores.length; // Estudiantes que presentaron esta fase
-        const rank = currentStudentIndex !== -1 ? currentStudentIndex + 1 : null;
-        // Diferir actualizaciones de estado para evitar insertBefore durante reconciliación de React/Radix
-        const applyRankUpdate = () => {
-          if (!isMounted) return;
-          setStudentRank(rank);
-          setTotalStudents(totalInPhase);
-          setIsLoadingRank(false);
-        };
-        // Mayor retraso si el tab activo es Plan de estudio (muchos Accordions montando)
-        const delayMs = activeTab === 'study-plan' ? 150 : 50;
-        if (typeof requestAnimationFrame !== 'undefined') {
-          requestAnimationFrame(() => {
-            setTimeout(applyRankUpdate, delayMs);
-          });
-        } else {
-          setTimeout(applyRankUpdate, delayMs + 30);
-        }
-        if (import.meta.env.DEV) {
-          console.log('📊 Ranking - Puesto del estudiante en la fase:', rank ?? 'N/A', 'de', totalInPhase, 'estudiantes');
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.error('Error calculando puesto del estudiante:', error);
-        }
-        const resetLoading = () => { if (isMounted) setIsLoadingRank(false); };
-        setTimeout(resetLoading, 0);
-      } finally {
-        // Si hubo return temprano (!isMounted), diferir el reset para evitar insertBefore
-        if (!isMounted) {
-          setTimeout(() => setIsLoadingRank(false), 0);
-        }
-      }
-    };
-
-    if (analysisData && user?.uid) {
-      calculateRank();
+    if (evaluationsFromQuery.length === 0 && !evaluationsLoading) {
+      startTransition(() => {
+        setPhase1Data(null);
+        setPhase2Data(null);
+        setPhase3Data(null);
+        setAnalysisData(null);
+      });
+      return;
     }
 
-    // Cleanup: marcar como desmontado cuando el componente se desmonte o cambien las dependencias
-    return () => {
-      isMounted = false;
-    };
-  }, [analysisData, user?.uid, phase1Data, phase2Data, phase3Data, selectedPhase]);
+    if (evaluationsFromQuery.length === 0) return;
 
-  useEffect(() => {
-    const fetchDataAndAnalyze = async () => {
-      setLoading(true);
-      const auth = getAuth();
-      const user = auth.currentUser;
+    const evaluationsArray = evaluationsFromQuery as ExamResult[];
+    const phase1Evals = evaluationsArray.filter(e => {
+      const phase = e.phase || '';
+      return phase === 'first' || phase === 'fase I' || phase === 'Fase I' || getPhaseType(phase) === 'first';
+    });
+    const phase2Evals = evaluationsArray.filter(e => {
+      const phase = e.phase || '';
+      return phase === 'second' || phase === 'fase II' || phase === 'Fase II' || getPhaseType(phase) === 'second';
+    });
+    const phase3Evals = evaluationsArray.filter(e => {
+      const phase = e.phase || '';
+      return phase === 'third' || phase === 'fase III' || phase === 'Fase III' || getPhaseType(phase) === 'third';
+    });
 
-      if (!user) {
-        startTransition(() => setLoading(false));
-        return;
-      }
+    let phase1Processed: AnalysisData | null = null;
+    let phase2Processed: AnalysisData | null = null;
+    let phase3Processed: AnalysisData | null = null;
 
-      try {
-        // Obtener resultados de todas las subcolecciones de fases
-        const phases = getAllPhases();
-        const evaluationsArray: any[] = [];
+    if (phase1Evals.length > 0) {
+      phase1Processed = processEvaluationData(phase1Evals, user);
+      setPhase1Data(phase1Processed);
+    }
+    if (phase2Evals.length > 0) {
+      phase2Processed = processEvaluationData(phase2Evals, user);
+      setPhase2Data(phase2Processed);
+    }
+    if (phase3Evals.length > 0) {
+      phase3Processed = processEvaluationData(phase3Evals, user);
+      setPhase3Data(phase3Processed);
+    }
 
-        // Leer de las subcolecciones de fases
-        for (const phaseName of phases) {
-          const phaseRef = collection(db, "results", user.uid, phaseName);
-          const phaseSnap = await getDocs(phaseRef);
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data();
-            evaluationsArray.push({
-              ...examData,
-              examId: doc.id,
-              phase: getPhaseType(phaseName) || phaseName,
-            });
-          });
-        }
+    const consolidatedData = calculateAllPhasesData(phase1Processed, phase2Processed, phase3Processed, user);
+    const phaseForPlans: 'phase1' | 'phase2' | 'phase3' | 'all' =
+      phase1Evals.length > 0 ? 'phase1' : phase2Evals.length > 0 ? 'phase2' : phase3Evals.length > 0 ? 'phase3' : 'all';
+    const phaseForOverview = phase3Evals.length > 0 ? 'phase3' : phase2Evals.length > 0 ? 'phase2' : phase1Evals.length > 0 ? 'phase1' : 'all';
 
-        // También leer de la estructura antigua para compatibilidad
-        const oldDocRef = doc(db, "results", user.uid);
-        const oldDocSnap = await getDoc(oldDocRef);
-        if (oldDocSnap.exists()) {
-          const oldData = oldDocSnap.data() as UserResults;
-          Object.entries(oldData).forEach(([examId, examData]) => {
-            evaluationsArray.push({
-              ...examData,
-              examId,
-            });
-          });
-        }
+    startTransition(() => {
+      setAnalysisData(consolidatedData);
+      setSelectedPhase(planOnly ? phaseForPlans : phaseForOverview);
+    });
 
-        evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        setEvaluations(evaluationsArray);
-
-        // Verificar y mostrar resumen del tiempo por pregunta
-        console.log('📊 Resumen de tiempo por pregunta:');
-        evaluationsArray.forEach(exam => {
-          if (exam.questionDetails && exam.questionDetails.length > 0) {
-            const questionsWithTime = exam.questionDetails.filter((q: { timeSpent?: number }) => q.timeSpent && q.timeSpent > 0);
-            const totalTimeQuestions = questionsWithTime.reduce((sum: number, q: { timeSpent?: number }) => sum + (q.timeSpent || 0), 0);
-            const avgTimePerQuestion = questionsWithTime.length > 0 ? totalTimeQuestions / questionsWithTime.length : 0;
-            
-            console.log(`  📝 ${exam.examTitle || exam.examId} (${exam.subject || 'Sin materia'}):`, {
-              totalQuestions: exam.questionDetails.length,
-              questionsWithTime: questionsWithTime.length,
-              avgTimePerQuestion: `${Math.round(avgTimePerQuestion)}s`,
-              totalTimeQuestions: `${Math.round(totalTimeQuestions)}s`,
-              hasQuestionTimeTracking: !!exam.questionTimeTracking
-            });
-          }
-        });
-
-        // Filtrar evaluaciones por fase
-        const phase1Evals = evaluationsArray.filter(e => {
-          const phase = e.phase || '';
-          return phase === 'first' || 
-                 phase === 'fase I' || 
-                 phase === 'Fase I' ||
-                 getPhaseType(phase) === 'first';
-        });
-        
-        const phase2Evals = evaluationsArray.filter(e => {
-          const phase = e.phase || '';
-          return phase === 'second' || 
-                 phase === 'fase II' || 
-                 phase === 'Fase II' ||
-                 getPhaseType(phase) === 'second';
-        });
-        
-        const phase3Evals = evaluationsArray.filter(e => {
-          const phase = e.phase || '';
-          return phase === 'third' || 
-                 phase === 'fase III' || 
-                 phase === 'Fase III' ||
-                 getPhaseType(phase) === 'third';
-        });
-
-        // Procesar datos por fase
-        let phase1Processed: AnalysisData | null = null;
-        let phase2Processed: AnalysisData | null = null;
-        let phase3Processed: AnalysisData | null = null;
-
-        if (phase1Evals.length > 0) {
-          phase1Processed = processEvaluationData(phase1Evals, user);
-          setPhase1Data(phase1Processed);
-        }
-        
-        if (phase2Evals.length > 0) {
-          phase2Processed = processEvaluationData(phase2Evals, user);
-          setPhase2Data(phase2Processed);
-        }
-        
-        if (phase3Evals.length > 0) {
-          phase3Processed = processEvaluationData(phase3Evals, user);
-          setPhase3Data(phase3Processed);
-        }
-
-        // Calcular datos consolidados para "Todas las Fases"
-        const consolidatedData = calculateAllPhasesData(phase1Processed, phase2Processed, phase3Processed, user);
-        // Priorizar Fase I cuando hay Plan de estudio: los planes se generan tras el diagnóstico (Fase I)
-        const phaseForPlans: 'phase1' | 'phase2' | 'phase3' | 'all' =
-          phase1Evals.length > 0 ? 'phase1' : phase2Evals.length > 0 ? 'phase2' : phase3Evals.length > 0 ? 'phase3' : 'all';
-        const phaseForOverview = phase3Evals.length > 0 ? 'phase3' : phase2Evals.length > 0 ? 'phase2' : phase1Evals.length > 0 ? 'phase1' : 'all';
-        // Diferir actualización para evitar insertBefore al cambiar de spinner a contenido (Radix Tabs/Accordion)
-        startTransition(() => {
-          setAnalysisData(consolidatedData);
-          setSelectedPhase(planOnly ? phaseForPlans : phaseForOverview);
-        });
-
-        // Generar recomendaciones con IA si está disponible
-        if (geminiService.isAvailable() && consolidatedData.subjects.length > 0) {
-          generateAIRecommendations(consolidatedData);
-        }
-      } catch (error) {
-        console.error("Error al obtener los datos:", error);
-      } finally {
-        startTransition(() => setLoading(false));
-      }
-    };
-
-    fetchDataAndAnalyze();
-  }, []);
+    if (geminiService.isAvailable() && consolidatedData.subjects.length > 0) {
+      generateAIRecommendations(consolidatedData);
+    }
+  }, [user, evaluationsFromQuery, evaluationsLoading, planOnly]);
 
   const processEvaluationData = (evaluations: ExamResult[], user: any): AnalysisData => {
     if (evaluations.length === 0) {
@@ -5619,48 +5275,55 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                           </div>
                           <Award className="h-8 w-8 text-yellow-500" />
                         </div>
-                  <div className="mt-3">
-                    {isLoadingRank ? (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-700/50">
-                        <div className={cn("animate-spin rounded-full h-4 w-4 border-b-2", theme === 'dark' ? 'border-yellow-400' : 'border-yellow-600')}></div>
-                        <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Calculando puesto...</span>
-                      </div>
-                    ) : studentRank !== null && totalStudents !== null ? (
-                      <div className={cn(
-                        "flex items-center gap-2 p-2 rounded-lg",
-                        studentRank === 1 
-                          ? theme === 'dark' ? 'bg-yellow-900/30 border border-yellow-700' : 'bg-yellow-50 border border-yellow-200'
-                          : studentRank <= 3
-                          ? theme === 'dark' ? 'bg-orange-900/30 border border-orange-700' : 'bg-orange-50 border border-orange-200'
-                          : theme === 'dark' ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'
-                      )}>
-                        <Trophy className={cn(
-                          "h-5 w-5",
-                          studentRank === 1 ? 'text-yellow-500' : studentRank <= 3 ? 'text-orange-500' : 'text-blue-500'
-                        )} />
-                        <div className="flex-1">
-                          <div className={cn(
-                            "flex items-baseline gap-1",
-                            studentRank === 1 
-                              ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-                              : studentRank <= 3
-                              ? theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-                              : theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
-                          )}>
-                            <span className="text-lg font-bold">{studentRank}°</span>
-                            <span className="text-xs">de {totalStudents} estudiantes</span>
+                  {selectedPhase !== 'all' && (
+                    <div className="mt-3">
+                      {isLoadingRank ? (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-700/50">
+                          <div className={cn("animate-spin rounded-full h-4 w-4 border-b-2", theme === 'dark' ? 'border-yellow-400' : 'border-yellow-600')}></div>
+                          <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Calculando puesto...</span>
+                        </div>
+                      ) : studentRank !== null && totalStudents !== null ? (
+                        <div className={cn(
+                          "flex items-center gap-2 p-2 rounded-lg",
+                          studentRank === 1 
+                            ? theme === 'dark' ? 'bg-yellow-900/30 border border-yellow-700' : 'bg-yellow-50 border border-yellow-200'
+                            : studentRank <= 3
+                            ? theme === 'dark' ? 'bg-orange-900/30 border border-orange-700' : 'bg-orange-50 border border-orange-200'
+                            : theme === 'dark' ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'
+                        )}>
+                          <Trophy className={cn(
+                            "h-5 w-5 flex-shrink-0",
+                            studentRank === 1 ? 'text-yellow-500' : studentRank <= 3 ? 'text-orange-500' : 'text-blue-500'
+                          )} />
+                          <div className="flex-1 min-w-0">
+                            <div className={cn(
+                              "flex items-baseline gap-1 flex-wrap",
+                              studentRank === 1 
+                                ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
+                                : studentRank <= 3
+                                ? theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
+                                : theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                            )}>
+                              <span className="text-lg font-bold">{studentRank}°</span>
+                              <span className="text-xs">de {totalStudents} estudiantes</span>
+                              {isRankRefetching && (
+                                <span className={cn("text-xs ml-1", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                                  · Actualizando…
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className={cn("flex items-center gap-2 p-2 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-100')}>
-                        <Trophy className="h-5 w-5 text-gray-400" />
-                        <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                          {selectedPhase === 'all' ? 'Selecciona una fase para ver tu puesto' : 'Puesto no disponible'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                      ) : (
+                        <div className={cn("flex items-center gap-2 p-2 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-100')}>
+                          <Trophy className="h-5 w-5 text-gray-400" />
+                          <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                            Puesto no disponible
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
