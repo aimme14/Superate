@@ -1,6 +1,7 @@
 /**
  * Utilidad de logging configurable.
- * En producción solo se muestran errores; en desarrollo se muestran todos los niveles.
+ * En producción: solo errores, y estos pasan por el sanitizador (productionErrorHandler).
+ * En desarrollo: todos los niveles sin sanitizar.
  */
 
 const isDev = import.meta.env.DEV;
