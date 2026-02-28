@@ -15,6 +15,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 const PDF_TIPO_KEYS = [
   'documento',
   'hoja',
+  'documento2',
+  'hoja2',
   'icfes1doc',
   'icfes1hoja',
   'icfes2doc',
@@ -23,7 +25,13 @@ const PDF_TIPO_KEYS = [
 type PdfTipo = (typeof PDF_TIPO_KEYS)[number]
 
 function getPdfUrlFromSimulacro(
-  data: { pdfSimulacroUrl?: string; pdfHojaRespuestasUrl?: string; icfes?: Record<string, string | undefined> },
+  data: {
+    pdfSimulacroUrl?: string
+    pdfHojaRespuestasUrl?: string
+    pdfSimulacroSeccion2Url?: string
+    pdfHojaRespuestasSeccion2Url?: string
+    icfes?: Record<string, string | undefined>
+  },
   tipo: PdfTipo
 ): string | null {
   switch (tipo) {
@@ -31,6 +39,10 @@ function getPdfUrlFromSimulacro(
       return data.pdfSimulacroUrl || null
     case 'hoja':
       return data.pdfHojaRespuestasUrl || null
+    case 'documento2':
+      return data.pdfSimulacroSeccion2Url || null
+    case 'hoja2':
+      return data.pdfHojaRespuestasSeccion2Url || null
     case 'icfes1doc':
       return data.icfes?.seccion1DocumentoUrl || null
     case 'icfes1hoja':
@@ -85,6 +97,8 @@ export default function ViewerPdfPage() {
             {
               pdfSimulacroUrl: res.data.pdfSimulacroUrl,
               pdfHojaRespuestasUrl: res.data.pdfHojaRespuestasUrl,
+              pdfSimulacroSeccion2Url: res.data.pdfSimulacroSeccion2Url,
+              pdfHojaRespuestasSeccion2Url: res.data.pdfHojaRespuestasSeccion2Url,
               icfes: res.data.icfes
                 ? {
                     seccion1DocumentoUrl: res.data.icfes.seccion1DocumentoUrl,

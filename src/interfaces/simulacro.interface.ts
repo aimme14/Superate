@@ -7,7 +7,7 @@
 export const SIMULACRO_GRADOS = ['9°', '10°', '11°'] as const
 export type SimulacroGrado = (typeof SIMULACRO_GRADOS)[number]
 
-/** Materias alineadas con Saber 11 / ICFES. ICFES tiene dos secciones (2 documentos + 2 hojas de respuesta + videos). */
+/** Materias alineadas con Saber 11 / ICFES. ICFES y Simulacros completos usan 4 PDFs (2 docs + 2 hojas). */
 export const SIMULACRO_MATERIAS = [
   { value: 'matematicas', label: 'Matemáticas' },
   { value: 'lectura-critica', label: 'Lectura Crítica' },
@@ -15,7 +15,14 @@ export const SIMULACRO_MATERIAS = [
   { value: 'sociales', label: 'Sociales' },
   { value: 'ingles', label: 'Inglés' },
   { value: 'icfes', label: 'ICFES' },
+  { value: 'simulacros-completos', label: 'Simulacros' },
 ] as const
+
+/** Materias que usan la estructura ICFES (4 PDFs opcionales en secciones) */
+export const MATERIAS_CON_4_SECCIONES = ['icfes', 'simulacros-completos'] as const
+export function isMateriaCon4Secciones(materia: string): boolean {
+  return (MATERIAS_CON_4_SECCIONES as readonly string[]).includes(materia)
+}
 export type SimulacroMateria = (typeof SIMULACRO_MATERIAS)[number]['value']
 
 export interface SimulacroVideo {
@@ -55,10 +62,14 @@ export interface Simulacro {
   comentario: string
   isActive: boolean
   createdAt: Date
-  /** URL del PDF del simulacro (obligatorio tras creación) */
+  /** URL del PDF del simulacro sección 1 (obligatorio tras creación si no hay sección 2) */
   pdfSimulacroUrl: string
-  /** URL del PDF de la hoja de respuestas asociada (1:1 con este simulacro) */
+  /** URL del PDF de la hoja de respuestas sección 1 */
   pdfHojaRespuestasUrl: string
+  /** URL del PDF del simulacro sección 2 (opcional; permite 2 documentos + 2 hojas como ICFES) */
+  pdfSimulacroSeccion2Url?: string
+  /** URL del PDF de la hoja de respuestas sección 2 (opcional) */
+  pdfHojaRespuestasSeccion2Url?: string
   /** Videos explicativos (subcolección; relación 1:N) */
   videos?: SimulacroVideo[]
   /** Materia ICFES: dos secciones (2 documentos PDF + 2 hojas de respuesta) y videos en ICFES/Videos */
@@ -87,6 +98,8 @@ export interface UpdateSimulacroInput {
   isActive?: boolean
   pdfSimulacroUrl?: string
   pdfHojaRespuestasUrl?: string
+  pdfSimulacroSeccion2Url?: string
+  pdfHojaRespuestasSeccion2Url?: string
   icfes?: SimulacroICFES
 }
 

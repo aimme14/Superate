@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -109,11 +108,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="rounded-full h-8 w-8 border-b-2 border-primary"
-        />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         <span className={cn('ml-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
           Cargando estadísticas...
         </span>
@@ -135,12 +130,10 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   return (
     <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-950' : 'bg-gray-100')}>
       <div className="flex flex-col gap-0.5">
-      {/* Header con logo y gradiente animado */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+      {/* Header con logo y gradiente */}
+      <div
         className={cn(
+          'animate-in fade-in slide-in-from-top-2 duration-300',
           "relative overflow-hidden rounded-none px-8 pt-8 pb-3 text-white shadow-2xl",
           theme === 'dark' 
             ? "bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900" 
@@ -165,30 +158,15 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                 />
               </div>
               <div>
-                <motion.h1 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-3xl font-bold mb-2"
-                >
+                <h1 className="text-3xl font-bold mb-2">
                   Bienvenido Rector de {institutionName || stats.institutionName || 'la Institución'}
-                </motion.h1>
-                <motion.p 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-lg opacity-90 mb-1"
-                >
+                </h1>
+                <p className="text-lg opacity-90 mb-1">
                   Rectoría - {institutionName || stats.institutionName}
-                </motion.p>
-                <motion.p 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-sm opacity-75"
-                >
+                </p>
+                <p className="text-sm opacity-75">
                   {stats.rectorEmail}
-                </motion.p>
+                </p>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-3">
@@ -205,35 +183,18 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             </div>
           </div>
         </div>
-        {/* Decoración de fondo animada */}
-        <motion.div
-          animate={{ rotate: [0, 360] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-0 right-0 opacity-10"
-        >
-          <School className="h-64 w-64" />
-        </motion.div>
-      </motion.div>
+        <School className="absolute top-0 right-0 h-64 w-64 opacity-10" aria-hidden />
+      </div>
       </div>
 
-      {/* Botones de acción animados al principio */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
-      >
+      {/* Botones de acción */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
           { icon: UserCog, label: 'Administrativos', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos' },
           { icon: Users, label: 'Análisis por estudiante', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes' },
-        ].map((btn, index) => (
-          <motion.div
-            key={btn.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 + index * 0.1 }}
-          >
+        ].map((btn) => (
+          <div key={btn.label}>
             <Button
               onClick={() => setActiveTab(btn.tab)}
               className={cn(
@@ -241,21 +202,12 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                 btn.color
               )}
             >
-              <motion.div
-                animate={{ y: [0, -5, 0] }}
-                transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
-              >
-                <btn.icon className="h-6 w-6 shrink-0" />
-              </motion.div>
+              <btn.icon className="h-6 w-6 shrink-0" />
               <span className="font-semibold text-sm truncate">{btn.label}</span>
             </Button>
-          </motion.div>
+          </div>
         ))}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
-        >
+        <div>
           <Button
             asChild
             className={cn(
@@ -269,17 +221,12 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               rel="noopener noreferrer"
               className="flex flex-row items-center justify-center gap-2 w-full h-full"
             >
-              <motion.div
-                animate={{ y: [0, -5, 0] }}
-                transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
-              >
-                <Wrench className="h-6 w-6 shrink-0" />
-              </motion.div>
+              <Wrench className="h-6 w-6 shrink-0" />
               <span className="font-semibold text-sm truncate">Soporte técnico</span>
             </a>
           </Button>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
 
       {/* Contenido dinámico según tab activo */}
       <div className="mx-4 md:mx-6 lg:mx-8 mt-3">
@@ -479,10 +426,7 @@ function InstitutionAverageCard({ theme, currentRector }: any) {
     <div className="space-y-1 flex-1 flex flex-col justify-between">
       <div className="flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
+          <div
             className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
           >
             {averageLoading ? (
@@ -493,7 +437,7 @@ function InstitutionAverageCard({ theme, currentRector }: any) {
                 {phaseAverage || 0}
               </span>
             )}
-          </motion.div>
+          </div>
           <Popover>
             <PopoverTrigger asChild>
               <button
@@ -600,10 +544,7 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
   return (
     <div className="space-y-3">
       {/* Estadísticas principales con animaciones */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+      <div
         className="grid grid-cols-1 md:grid-cols-2 gap-3"
       >
         {[
@@ -625,12 +566,9 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
             isCustom: true,
             customComponent: <InstitutionAverageCard theme={theme} currentRector={currentRector} />
           },
-        ].map((stat, index) => (
-          <motion.div
+        ].map((stat) => (
+          <div
             key={stat.title}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.6 + index * 0.1 }}
             className="h-full"
           >
             <Card className={cn(
@@ -644,12 +582,9 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
                 <CardTitle className={cn('text-xs font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                   {stat.title}
                 </CardTitle>
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: index * 0.3 }}
-                >
+                <div>
                   <stat.icon className={cn("h-4 w-4", `text-${stat.color}-500`)} />
-                </motion.div>
+                </div>
               </CardHeader>
               <CardContent className="relative z-10 px-3 pb-2 pt-0.5 flex-1 flex flex-col">
                 {stat.isCustom && stat.customComponent ? (
@@ -658,14 +593,11 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
                   </div>
                 ) : (
                   <>
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.8 + index * 0.1 }}
+                    <div
                       className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
                     >
                       {stat.value}
-                    </motion.div>
+                    </div>
                     {stat.change && (
                       <p className={cn('text-xs mt-1', 
                         stat.color === 'blue' 
@@ -679,9 +611,9 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
                 )}
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Ranking de estudiantes y logros */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1504,11 +1436,8 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
             {institutionStudents.map((item: any, index: number) => {
               console.log('📊 Ranking - Renderizando estudiante:', item.student.name, 'Puntaje Global:', item.globalScore, 'Exámenes:', item.totalExams)
               return (
-              <motion.div
+              <div
                 key={item.student.id || item.student.uid}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
                 className={cn(
                   "flex items-center justify-between p-3 rounded-lg border",
                   theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-300 bg-gray-100 hover:bg-gray-200'
@@ -1546,7 +1475,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                     {item.student.campusName || 'N/A'} • {item.student.jornada ? item.student.jornada.charAt(0).toUpperCase() + item.student.jornada.slice(1) : 'N/A'}
                   </p>
                 </div>
-              </motion.div>
+              </div>
               )
             })}
           </div>
@@ -1595,13 +1524,9 @@ function CampusesTab({ theme, stats, currentRector }: any) {
           <CardDescription>Rendimiento y estadísticas por sede</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {stats.campusOverview.map((campus: any, index: number) => (
-            <motion.div
+          {stats.campusOverview.map((campus: any) => (
+            <div
               key={campus.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 1.02, y: -5 }}
               className={cn("p-6 rounded-xl border-2 transition-all", 
                 theme === 'dark' 
                   ? 'border-zinc-700 hover:border-blue-600 bg-zinc-800' 
@@ -1642,19 +1567,17 @@ function CampusesTab({ theme, stats, currentRector }: any) {
                 </div>
               </div>
               <div className="relative w-full bg-gray-200 dark:bg-zinc-700 rounded-full h-3 overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${campus.average}%` }}
-                  transition={{ duration: 1, delay: index * 0.2 }}
+                <div
+                  style={{ width: `${campus.average}%` }}
                   className={cn(
-                    "absolute h-full rounded-full",
+                    "absolute h-full rounded-full transition-all duration-500",
                     theme === 'dark'
                       ? "bg-gradient-to-r from-blue-800 to-slate-800"
                       : "bg-gradient-to-r from-blue-700 to-slate-700"
                   )}
                 />
               </div>
-            </motion.div>
+            </div>
           ))}
         </CardContent>
       </Card>
@@ -1814,12 +1737,9 @@ function TeacherWithStudents({ teacher, theme, isExpanded }: any) {
           </div>
         ) : displayStudents && displayStudents.length > 0 ? (
           <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
-            {displayStudents.map((student: any, studentIndex: number) => (
-              <motion.div
+            {displayStudents.map((student: any) => (
+              <div
                 key={student.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: studentIndex * 0.02 }}
                 className={cn(
                   "flex items-center gap-2 p-2 rounded-md",
                   theme === 'dark' ? 'bg-zinc-700/50 hover:bg-zinc-700' : 'bg-gray-100 hover:bg-gray-200'
@@ -1829,7 +1749,7 @@ function TeacherWithStudents({ teacher, theme, isExpanded }: any) {
                 <span className={cn('text-sm', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                   {student.name}
                 </span>
-              </motion.div>
+              </div>
             ))}
           </div>
         ) : (
@@ -1892,13 +1812,9 @@ function StudentsTab({ theme, students }: any) {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                  {group.students.map((student: any, index: number) => (
-                    <motion.div
+                  {group.students.map((student: any) => (
+                    <div
                       key={student.id || student.uid}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.01 }}
-                      whileHover={{ scale: 1.02 }}
                       onClick={() => handleStudentClick(student)}
                       className={cn(
                         "p-2 rounded-lg border cursor-pointer transition-all",
@@ -1922,7 +1838,7 @@ function StudentsTab({ theme, students }: any) {
                           </p>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -2716,12 +2632,9 @@ function ResultsTab({ theme, stats, staticData }: any) {
               { label: 'Asistencia', value: stats.performanceMetrics.attendanceRate, color: 'blue' },
               { label: 'Coordinadores', value: stats.performanceMetrics.coordinatorsCount, color: 'slate' },
               { label: 'Retención Docente', value: stats.performanceMetrics.teacherRetention, color: 'blue' },
-            ].map((metric, index) => (
-              <motion.div
+            ].map((metric) => (
+              <div
                 key={metric.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
                 className="space-y-2"
               >
                 <div className="flex justify-between text-sm">
@@ -2733,18 +2646,16 @@ function ResultsTab({ theme, stats, staticData }: any) {
                   </span>
                 </div>
                 <div className="relative w-full bg-gray-200 dark:bg-zinc-700 rounded-full h-3 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${metric.value}%` }}
-                    transition={{ duration: 1, delay: index * 0.2 }}
-                    className={cn("absolute h-full rounded-full", 
+                  <div
+                    style={{ width: `${metric.value}%` }}
+                    className={cn("absolute h-full rounded-full transition-all duration-500", 
                       metric.color === 'blue' 
                         ? (theme === 'dark' ? 'bg-gradient-to-r from-blue-800 to-blue-900' : 'bg-gradient-to-r from-blue-700 to-blue-800')
                         : (theme === 'dark' ? 'bg-gradient-to-r from-slate-700 to-slate-800' : 'bg-gradient-to-r from-slate-600 to-slate-700')
                     )}
                   />
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </CardContent>

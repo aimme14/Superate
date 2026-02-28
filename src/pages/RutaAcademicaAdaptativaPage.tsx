@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
-import { SIMULACRO_MATERIAS } from "@/interfaces/simulacro.interface";
+import { SIMULACRO_MATERIAS, isMateriaCon4Secciones } from "@/interfaces/simulacro.interface";
 import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 
@@ -74,6 +74,7 @@ export default function RutaAcademicaAdaptativaPage() {
       sociales: Globe,
       ingles: Languages,
       icfes: GraduationCap,
+      "simulacros-completos": GraduationCap,
     };
     return (icons as Record<string, LucideIcon>)[value] ?? BookOpen;
   };
@@ -302,7 +303,7 @@ export default function RutaAcademicaAdaptativaPage() {
                           {sim.comentario ? ` · ${sim.comentario}` : ""}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          {sim.materia === "icfes" && sim.icfes ? (
+                          {isMateriaCon4Secciones(sim.materia) && sim.icfes ? (
                             <>
                               {sim.icfes.seccion1DocumentoUrl && (
                                 <Button variant="outline" size="sm" asChild>
@@ -340,31 +341,50 @@ export default function RutaAcademicaAdaptativaPage() {
                               )}
                             </>
                           ) : (
-                            sim.pdfSimulacroUrl && (
-                              <Button variant="outline" size="sm" asChild>
-                                <Link
-                                  to={buildViewerUrl(sim.id, "documento")}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={cn(
-                                    "gap-1.5",
-                                    theme === "dark" &&
-                                      "border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
-                                  )}
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  Documento PDF
-                                </Link>
-                              </Button>
-                            )
+                            <>
+                              {sim.pdfSimulacroUrl && (
+                                <Button variant="outline" size="sm" asChild>
+                                  <Link
+                                    to={buildViewerUrl(sim.id, "documento")}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={cn(
+                                      "gap-1.5",
+                                      theme === "dark" &&
+                                        "border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
+                                    )}
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    {sim.pdfSimulacroSeccion2Url ? "Sección 1 - Documento" : "Documento PDF"}
+                                  </Link>
+                                </Button>
+                              )}
+                              {sim.pdfSimulacroSeccion2Url && (
+                                <Button variant="outline" size="sm" asChild>
+                                  <Link
+                                    to={buildViewerUrl(sim.id, "documento2")}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={cn(
+                                      "gap-1.5",
+                                      theme === "dark" &&
+                                        "border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
+                                    )}
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Sección 2 - Documento
+                                  </Link>
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
 
                       {/* 2. Hoja de respuestas (sección propia) */}
-                      {(sim.materia === "icfes"
+                      {(isMateriaCon4Secciones(sim.materia)
                         ? (sim.icfes?.seccion1HojaUrl || sim.icfes?.seccion2HojaUrl)
-                        : sim.pdfHojaRespuestasUrl) && (
+                        : (sim.pdfHojaRespuestasUrl || sim.pdfHojaRespuestasSeccion2Url)) && (
                         <div
                           className={cn(
                             "mt-4 pt-3 border-t",
@@ -380,7 +400,7 @@ export default function RutaAcademicaAdaptativaPage() {
                             Hoja de respuestas
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            {sim.materia === "icfes" && sim.icfes ? (
+                            {isMateriaCon4Secciones(sim.materia) && sim.icfes ? (
                               <>
                                 {sim.icfes.seccion1HojaUrl && (
                                   <Button variant="outline" size="sm" asChild>
@@ -418,23 +438,42 @@ export default function RutaAcademicaAdaptativaPage() {
                                 )}
                               </>
                             ) : (
-                              sim.pdfHojaRespuestasUrl && (
-                                <Button variant="outline" size="sm" asChild>
-                                  <Link
-                                    to={buildViewerUrl(sim.id, "hoja")}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={cn(
-                                      "gap-1.5",
-                                      theme === "dark" &&
-                                        "border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
-                                    )}
-                                  >
-                                    <FileCheck className="h-4 w-4" />
-                                    Hoja de respuestas
-                                  </Link>
-                                </Button>
-                              )
+                              <>
+                                {sim.pdfHojaRespuestasUrl && (
+                                  <Button variant="outline" size="sm" asChild>
+                                    <Link
+                                      to={buildViewerUrl(sim.id, "hoja")}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={cn(
+                                        "gap-1.5",
+                                        theme === "dark" &&
+                                          "border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
+                                      )}
+                                    >
+                                      <FileCheck className="h-4 w-4" />
+                                      {sim.pdfHojaRespuestasSeccion2Url ? "Sección 1 - Hoja respuestas" : "Hoja de respuestas"}
+                                    </Link>
+                                  </Button>
+                                )}
+                                {sim.pdfHojaRespuestasSeccion2Url && (
+                                  <Button variant="outline" size="sm" asChild>
+                                    <Link
+                                      to={buildViewerUrl(sim.id, "hoja2")}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={cn(
+                                        "gap-1.5",
+                                        theme === "dark" &&
+                                          "border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
+                                      )}
+                                    >
+                                      <FileCheck className="h-4 w-4" />
+                                      Sección 2 - Hoja respuestas
+                                    </Link>
+                                  </Button>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

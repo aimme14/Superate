@@ -38,8 +38,17 @@ import { useNotification } from '@/hooks/ui/useNotification'
 import RichTextEditor, { RichTextEditorRef } from '@/components/common/RichTextEditor'
 import { questionService, Question, QuestionOption } from '@/services/firebase/question.service'
 import { useQuestions, useQuestionStats, useInvalidateQuestions } from '@/hooks/query/useQuestions'
+import { useDebounce } from '@/hooks/ui/useDebounce'
+import { useQuestionGrouping } from '@/hooks/query/useQuestionGrouping'
 import QuestionBankStats from '@/components/admin/QuestionBankStats'
 import QuestionBankFilters from '@/components/admin/QuestionBankFilters'
+import QuestionBankList from '@/components/admin/questionBank/QuestionBankList'
+import {
+  stripHtmlTags,
+  extractMatchingText,
+  extractMatchingGroupId,
+  sortQuestionsByCreationOrder,
+} from '@/components/admin/questionBank/questionBankUtils'
 import ImageGallery from '@/components/common/ImageGallery'
 import { 
   SUBJECTS_CONFIG, 
@@ -56,15 +65,6 @@ import 'katex/dist/katex.min.css'
 
 interface QuestionBankProps {
   theme: 'light' | 'dark'
-}
-
-// Función helper para extraer solo el texto sin tags HTML
-const stripHtmlTags = (html: string): string => {
-  if (!html) return ''
-  // Crear un elemento temporal para extraer el texto
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = html
-  return tempDiv.textContent || tempDiv.innerText || ''
 }
 
 // Función para sanitizar HTML de forma segura
@@ -186,48 +186,6 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
 
 export default function QuestionBank({ theme }: QuestionBankProps) {
   const { notifySuccess, notifyError } = useNotification()
-  
-  // Función helper para extraer el texto real del usuario de matching/columnas
-  // Formato: MATCHING_COLUMNS_GROUP_ID|texto real o solo MATCHING_COLUMNS_GROUP_ID
-  const extractMatchingText = (informativeText: string | undefined | null): string => {
-    if (!informativeText) return ''
-    if (informativeText.includes('|')) {
-      const parts = informativeText.split('|')
-      return parts.slice(1).join('|') // En caso de que el texto tenga |, unir todo después del primer |
-    }
-    return '' // Si solo tiene el identificador sin texto, retornar vacío
-  }
-  
-  // Función helper para extraer el identificador de grupo de matching/columnas
-  const extractMatchingGroupId = (informativeText: string | undefined | null): string => {
-    if (!informativeText) return ''
-    if (informativeText.includes('|')) {
-      return informativeText.split('|')[0]
-    }
-    return informativeText // Si no tiene |, es solo el identificador
-  }
-  
-  // Función helper para ordenar preguntas por orden de creación (más antigua primero)
-  const sortQuestionsByCreationOrder = (a: Question, b: Question): number => {
-    // Primero, intentar ordenar por número de hueco si ambas son cloze test
-    const aMatch = a.questionText?.match(/hueco \[(\d+)\]/)
-    const bMatch = b.questionText?.match(/hueco \[(\d+)\]/)
-    if (aMatch && bMatch) {
-      // Ordenar por número de hueco ascendente (1, 2, 3...) para mantener el orden de inserción
-      return parseInt(aMatch[1]) - parseInt(bMatch[1])
-    }
-    
-    // Si no tienen número de hueco, ordenar por fecha de creación ascendente (más antigua primero)
-    // para mantener el orden de inserción
-    const dateA = new Date(a.createdAt).getTime()
-    const dateB = new Date(b.createdAt).getTime()
-    if (dateA !== dateB) {
-      return dateA - dateB // Más antigua primero (orden de inserción)
-    }
-    
-    // Si tienen la misma fecha, ordenar por código
-    return a.code.localeCompare(b.code)
-  }
   const { user: currentUser } = useAuthContext()
   const invalidateQuestions = useInvalidateQuestions()
 
@@ -244,6 +202,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [filterLevel, setFilterLevel] = useState<string>('all')
   const [filterAIInconsistency, setFilterAIInconsistency] = useState<boolean>(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 350)
 
   const serverFilters = useMemo(() => ({
     ...(filterSubject !== 'all' && { subjectCode: filterSubject }),
@@ -512,19 +471,21 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       })
     }
 
-    // Filtro por búsqueda de texto
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(q => 
-        q.questionText.toLowerCase().includes(term) ||
-        q.code.toLowerCase().includes(term) ||
-        q.subject.toLowerCase().includes(term) ||
-        q.topic.toLowerCase().includes(term)
+    // Filtro por búsqueda de texto (usa valor debounced para evitar re-renders en cada tecla)
+    if (debouncedSearchTerm) {
+      const term = debouncedSearchTerm.toLowerCase()
+      filtered = filtered.filter(q =>
+        (q.questionText || '').toLowerCase().includes(term) ||
+        (q.code || '').toLowerCase().includes(term) ||
+        (q.subject || '').toLowerCase().includes(term) ||
+        (q.topic || '').toLowerCase().includes(term)
       )
     }
 
     return filtered
-  }, [questions, filterAIInconsistency, searchTerm])
+  }, [questions, filterAIInconsistency, debouncedSearchTerm])
+
+  const combinedItems = useQuestionGrouping(filteredQuestions, questions)
 
   const handleSubjectChange = (subjectCode: string) => {
     const subject = getSubjectByCode(subjectCode)
@@ -5489,519 +5450,26 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[600px]">
-            {viewMode === 'tree' ? (
-              renderTreeView()
-            ) : (
-              <div className="space-y-4">
-                {filteredQuestions.length === 0 ? (
-                <div className="text-center py-12">
-                  <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <h3 className={cn('text-lg font-medium mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    No se encontraron preguntas
-                  </h3>
-                  <p className={cn('text-sm mb-4', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    {questions.length === 0 
-                      ? 'Comienza creando tu primera pregunta' 
-                      : 'Intenta cambiar los filtros de búsqueda'}
-                  </p>
-                  {questions.length === 0 && (
-                    <Button onClick={() => {
-                      resetForm()
-                      setIsCreateDialogOpen(true)
-                    }} className="bg-black text-white hover:bg-gray-800">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Crear Primera Pregunta
-                    </Button>
-                  )}
-                </div>
-              ) : (() => {
-                // Agrupar preguntas relacionadas (Cloze Test y Comprensión de Lectura)
-                const groupedQuestions: { [key: string]: Question[] } = {}
-                const ungroupedQuestions: Question[] = []
-                const processedIds = new Set<string>()
-                
-                filteredQuestions.forEach(question => {
-                  // Verificar si ya fue procesada en un grupo
-                  if (processedIds.has(question.id || '')) return
-                  
-                  // Detectar preguntas de matching/columnas (identificadas por informativeText que contiene "MATCHING_COLUMNS_")
-                  const isMatchingColumns = question.subjectCode === 'IN' && 
-                                          question.informativeText && 
-                                          typeof question.informativeText === 'string' &&
-                                          (question.informativeText.startsWith('MATCHING_COLUMNS_') || 
-                                           question.informativeText.includes('MATCHING_COLUMNS_'))
-                  
-                  // Detectar si es cloze test (solo para inglés)
-                  const isClozeTest = question.subjectCode === 'IN' && 
-                                     question.questionText?.includes('completar el hueco')
-                  
-                  // Detectar si es comprensión de lectura para inglés
-                  const isEnglishReadingComprehension = question.subjectCode === 'IN' && 
-                                                       question.informativeText && 
-                                                       !isMatchingColumns && 
-                                                       !isClozeTest
-                  
-                  // Detectar si es comprensión de lectura para otras materias
-                  // IMPORTANTE: Solo es comprensión de lectura si hay múltiples preguntas con el mismo informativeText
-                  // Si solo hay una pregunta con informativeText, es Opción Múltiple Estándar
-                  const hasMultipleWithSameInformativeText = questions.some(q => 
-                    q.informativeText === question.informativeText && 
-                    q.id !== question.id &&
-                    q.subjectCode === question.subjectCode &&
-                    q.topicCode === question.topicCode &&
-                    q.grade === question.grade &&
-                    q.levelCode === question.levelCode
-                  )
-                  
-                  const isOtherSubjectsReadingComprehension = question.subjectCode !== 'IN' && 
-                                                             question.informativeText && 
-                                                             typeof question.informativeText === 'string' &&
-                                                             question.informativeText.trim().length > 0 &&
-                                                             !question.informativeText.includes('MATCHING_COLUMNS_') &&
-                                                             !question.questionText?.includes('completar el hueco') &&
-                                                             hasMultipleWithSameInformativeText
-                  
-                  // Para preguntas con informativeText, buscar preguntas relacionadas
-                  // (Cloze Test, Comprensión de Lectura o Matching/Columnas)
-                  // IMPORTANTE: Para otras materias, solo agrupar si hay múltiples preguntas con el mismo informativeText
-                  if (question.informativeText && 
-                      (isMatchingColumns ||
-                       isClozeTest ||
-                       isEnglishReadingComprehension ||
-                       isOtherSubjectsReadingComprehension ||
-                       (question.subjectCode === 'IN' && questions.some(q => q.informativeText === question.informativeText && q.id !== question.id)))) {
-                    // Para matching/columnas, usar el identificador de grupo como parte del key
-                    const groupKey = isMatchingColumns
-                      ? `${extractMatchingGroupId(question.informativeText)}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
-                      : `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
-                    
-                    if (!groupedQuestions[groupKey]) {
-                      groupedQuestions[groupKey] = []
-                    }
-                    
-                    // Buscar todas las preguntas relacionadas
-                    const related = filteredQuestions.filter(q => {
-                      // Verificar que sea de la misma materia, tema, grado y nivel
-                      if (q.subjectCode !== question.subjectCode || 
-                          q.topicCode !== question.topicCode ||
-                          q.grade !== question.grade || 
-                          q.levelCode !== question.levelCode ||
-                          processedIds.has(q.id || '')) {
-                        return false
-                      }
-                      
-                      if (isMatchingColumns) {
-                        // Para matching/columnas (solo inglés), agrupar por identificador de grupo
-                        const qGroupId = extractMatchingGroupId(q.informativeText)
-                        const questionGroupId = extractMatchingGroupId(question.informativeText)
-                        return qGroupId && questionGroupId && qGroupId === questionGroupId
-                      } else if (isClozeTest) {
-                        // Para cloze test (solo inglés), agrupar por informativeText completo e imágenes
-                        return q.informativeText === question.informativeText &&
-                               JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
-                               q.questionText?.includes('completar el hueco')
-                      } else if (isEnglishReadingComprehension) {
-                        // Para comprensión de lectura de inglés, agrupar por informativeText completo e imágenes
-                        return q.subjectCode === 'IN' &&
-                               q.informativeText === question.informativeText &&
-                               JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
-                               !q.questionText?.includes('completar el hueco') &&
-                               !q.informativeText?.includes('MATCHING_COLUMNS_')
-                      } else if (isOtherSubjectsReadingComprehension) {
-                        // Para comprensión de lectura de otras materias, agrupar por informativeText completo e imágenes
-                        return q.subjectCode !== 'IN' &&
-                               q.informativeText === question.informativeText &&
-                               JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || []) &&
-                               !q.questionText?.includes('completar el hueco') &&
-                               !q.informativeText?.includes('MATCHING_COLUMNS_')
-                      } else {
-                        // Fallback: agrupar por informativeText completo e imágenes
-                        return q.informativeText === question.informativeText &&
-                               JSON.stringify(q.informativeImages || []) === JSON.stringify(question.informativeImages || [])
-                      }
-                    })
-                    
-                    related.forEach(q => {
-                      groupedQuestions[groupKey].push(q)
-                      processedIds.add(q.id || '')
-                    })
-                    
-                    // Ordenar las preguntas del grupo por orden de creación (más antigua primero)
-                    groupedQuestions[groupKey].sort(sortQuestionsByCreationOrder)
-                  } else {
-                    ungroupedQuestions.push(question)
-                    processedIds.add(question.id || '')
-                  }
-                })
-                
-                // Crear un array combinado de grupos y preguntas individuales para ordenarlos juntos
-                // Primero preparar los grupos con su fecha más reciente
-                const groupEntries = Object.entries(groupedQuestions).map(([groupKey, groupQuestions]) => ({
-                  type: 'group' as const,
-                  groupKey,
-                  groupQuestions,
-                  latestDate: Math.max(...groupQuestions.map(q => new Date(q.createdAt).getTime()))
-                }))
-                
-                // Preparar preguntas individuales con su fecha
-                const ungroupedWithDates = ungroupedQuestions.map(question => ({
-                  type: 'question' as const,
-                  question,
-                  latestDate: new Date(question.createdAt).getTime()
-                }))
-                
-                // Combinar y ordenar por fecha más reciente primero (independientemente de si es grupo o pregunta individual)
-                const combinedItems = [...groupEntries, ...ungroupedWithDates].sort((a, b) => {
-                  return b.latestDate - a.latestDate // Más reciente primero
-                })
-                
-                // Renderizar grupos y preguntas individuales mezclados, ordenados por fecha más reciente
-                return (
-                  <>
-                    {combinedItems.map((item) => {
-                      if (item.type === 'group') {
-                        const { groupKey, groupQuestions } = item
-                        const firstQuestion = groupQuestions[0]
-                        // Verificar SIEMPRE si es matching/columnas primero (prioridad más alta)
-                        // Verificar en TODAS las preguntas del grupo, no solo la primera
-                        const isMatchingColumns = groupQuestions.some(q => {
-                          const isMatch = q.subjectCode === 'IN' && 
-                                         q.informativeText && 
-                                         typeof q.informativeText === 'string' &&
-                                         (q.informativeText.startsWith('MATCHING_COLUMNS_') || 
-                                          q.informativeText.includes('MATCHING_COLUMNS_'))
-                          // Debug: Solo mostrar para debugging si es necesario
-                          if (isMatch) {
-                            console.log('🔍 Pregunta de matching/columnas detectada:', {
-                              code: q.code,
-                              informativeText: q.informativeText,
-                              subjectCode: q.subjectCode
-                            })
-                          }
-                          return isMatch
-                        })
-                        const isClozeTest = groupQuestions.some(q => q.questionText?.includes('completar el hueco'))
-                        
-                        // Detectar si es comprensión de lectura de otras materias
-                        // IMPORTANTE: Solo es comprensión de lectura si hay múltiples preguntas en el grupo
-                        // Si solo hay una pregunta, es Opción Múltiple Estándar con texto informativo
-                        const hasOtherSubjectsWithInformativeText = groupQuestions.some(q => 
-                          q.subjectCode !== 'IN' && 
-                          q.informativeText && 
-                          !q.questionText?.includes('completar el hueco') &&
-                          !q.informativeText?.includes('MATCHING_COLUMNS_')
-                        )
-                        
-                        const isOtherSubjectsReadingComprehension = hasOtherSubjectsWithInformativeText && 
-                          groupQuestions.length > 1
-                        
-                        // Si es una pregunta individual de otras materias con informativeText, mostrarla como Opción Múltiple Estándar
-                        const isSingleOtherSubjectQuestion = hasOtherSubjectsWithInformativeText && 
-                          groupQuestions.length === 1
-                        
-                        // Determinar el nombre del grupo
-                        // IMPORTANTE: Priorizar matching/columnas sobre otras modalidades
-                        let groupName: string
-                        if (isMatchingColumns) {
-                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
-                          // Ejemplo: "Inglés - matching / columnas - 2 preguntas - Sexto - Medio"
-                          groupName = `Inglés - matching / columnas - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
-                          console.log('✅ Grupo de matching/columnas detectado:', {
-                            groupName,
-                            questionsCount: groupQuestions.length,
-                            firstQuestionCode: firstQuestion.code,
-                            firstQuestionInformativeText: firstQuestion.informativeText
-                          })
-                        } else if (isClozeTest) {
-                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
-                          groupName = `Inglés - Cloze Test / Rellenar Huecos - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
-                        } else if (isSingleOtherSubjectQuestion) {
-                          // Pregunta individual de otras materias con texto informativo = Opción Múltiple Estándar
-                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
-                          groupName = `${firstQuestion.subject} - Opción Múltiple Estándar - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
-                        } else if (isOtherSubjectsReadingComprehension) {
-                          // Comprensión de Lectura Corta para otras materias
-                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
-                          groupName = `${firstQuestion.subject} - Comprensión de Lectura Corta - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
-                        } else {
-                          // Comprensión de Lectura Corta para Inglés
-                          // Formato: "materia - modalidad - # preguntas - grado - nivel"
-                          groupName = `Inglés - Comprensión de Lectura Corta - ${groupQuestions.length} pregunta${groupQuestions.length > 1 ? 's' : ''} - ${GRADE_CODE_TO_NAME[firstQuestion.grade]} - ${firstQuestion.level}`
-                        }
-                        
-                        return (
-                          <div 
-                            key={groupKey}
-                            className={cn(
-                              'rounded-lg border-2 overflow-hidden',
-                              theme === 'dark'
-                                ? 'border-purple-700 bg-purple-950/30'
-                                : 'border-purple-300 bg-purple-50/50'
-                            )}
-                          >
-                          {/* Header del grupo */}
-                          <div className={cn(
-                            'px-4 py-2 flex items-center justify-between',
-                            theme === 'dark' ? 'bg-purple-900/50' : 'bg-purple-100'
-                          )}>
-                            <div className="flex items-center gap-2">
-                              <BookOpen className={cn('h-4 w-4', theme === 'dark' ? 'text-purple-300' : 'text-purple-600')} />
-                              <span className={cn('font-semibold text-sm', theme === 'dark' ? 'text-purple-200' : 'text-purple-700')}>
-                                {groupName}
-                              </span>
-                              <Badge variant="outline" className="text-xs">
-                                {firstQuestion.topic} • {GRADE_CODE_TO_NAME[firstQuestion.grade]} • {firstQuestion.level}
-                              </Badge>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleViewQuestion(firstQuestion)}
-                              className="text-xs"
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              Ver todas
-                            </Button>
-                          </div>
-                          
-                          {/* Preguntas del grupo */}
-                          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {groupQuestions.sort(sortQuestionsByCreationOrder).map((question) => {
-                              const isSelected = question.id ? selectedQuestionIds.has(question.id) : false
-                              
-                              return (
-                                <div
-                                  key={question.id}
-                                  className={cn(
-                                    'p-4 cursor-pointer transition-colors',
-                                    theme === 'dark'
-                                      ? isSelected
-                                        ? 'bg-blue-950/20 hover:bg-blue-950/30 border-l-2 border-blue-500'
-                                        : 'hover:bg-zinc-800'
-                                      : isSelected
-                                        ? 'bg-blue-50 hover:bg-blue-100 border-l-2 border-blue-500'
-                                        : 'hover:bg-gray-50'
-                                  )}
-                                  onClick={() => handleViewQuestion(question)}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-3 flex-1">
-                                      <div 
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="mt-1"
-                                      >
-                                        <Checkbox
-                                          checked={isSelected}
-                                          onCheckedChange={() => question.id && toggleQuestionSelection(question.id)}
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      </div>
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <Badge variant="outline" className="font-mono text-xs">
-                                            {question.code}
-                                          </Badge>
-                                          {isClozeTest && question.questionText?.match(/hueco \[(\d+)\]/) && (
-                                            <Badge variant="secondary" className="text-xs">
-                                              Pregunta {question.questionText.match(/hueco \[(\d+)\]/)?.[1]}
-                                            </Badge>
-                                          )}
-                                          <Badge variant="secondary">
-                                            {question.options.length} opciones
-                                          </Badge>
-                                          <span className="text-xs text-gray-500">
-                                            {new Date(question.createdAt).toLocaleDateString('es-ES')}
-                                          </span>
-                                        </div>
-                                        <p className={cn('text-sm mb-1', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                          {stripHtmlTags(question.questionText || '').substring(0, 100)}
-                                          {stripHtmlTags(question.questionText || '').length > 100 && '...'}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                                      <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-                                          <Eye className="h-4 w-4" />
-                                        </Button>
-                                        {/* Símbolo de alarma si la justificación de IA tiene problemas */}
-                                        {(() => {
-                                          const hasIssues = question.aiJustification && (
-                                            (question.aiJustification.confidence < 0.7) ||
-                                            (!question.aiJustification.correctAnswerExplanation || question.aiJustification.correctAnswerExplanation.length < 50) ||
-                                            (!question.aiJustification.incorrectAnswersExplanation || question.aiJustification.incorrectAnswersExplanation.length === 0) ||
-                                            (!question.aiJustification.keyConcepts || question.aiJustification.keyConcepts.length < 2)
-                                          )
-                                          if (hasIssues) {
-                                            return (
-                                              <TooltipProvider>
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <div className={cn("flex items-center justify-center h-6 w-6 rounded-full", theme === 'dark' ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-600')}>
-                                                      <AlertCircle className="h-4 w-4" />
-                                                    </div>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent>
-                                                    <p>La justificación de IA tiene problemas de calidad</p>
-                                                  </TooltipContent>
-                                                </Tooltip>
-                                              </TooltipProvider>
-                                            )
-                                          }
-                                          return null
-                                        })()}
-                                      </div>
-                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
-                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                      } else {
-                        // Renderizar pregunta individual
-                        const { question } = item
-                        const isSelected = question.id ? selectedQuestionIds.has(question.id) : false
-                        
-                        return (
-                          <div 
-                            key={question.id} 
-                            className={cn(
-                              'p-4 rounded-lg border cursor-pointer transition-colors',
-                              theme === 'dark' 
-                                ? isSelected
-                                  ? 'border-blue-500 bg-blue-950/20 hover:bg-blue-950/30'
-                                  : 'border-zinc-700 hover:bg-zinc-800'
-                                : isSelected
-                                  ? 'border-blue-500 bg-blue-50 hover:bg-blue-100'
-                                  : 'border-gray-200 hover:bg-gray-50'
-                            )}
-                            onClick={() => handleViewQuestion(question)}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-start gap-3 flex-1">
-                                <div 
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="mt-1"
-                                >
-                                  <Checkbox
-                                    checked={isSelected}
-                                    onCheckedChange={() => question.id && toggleQuestionSelection(question.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Badge variant="outline" className="font-mono text-xs">
-                                      {question.code}
-                                    </Badge>
-                                    <Badge variant="secondary">
-                                      {question.subject}
-                                    </Badge>
-                                    <Badge variant="secondary">
-                                      {question.topic}
-                                    </Badge>
-                                    <Badge variant="secondary">
-                                      {GRADE_CODE_TO_NAME[question.grade]}
-                                    </Badge>
-                                    <Badge 
-                                      variant={
-                                        question.level === 'Fácil' ? 'default' : 
-                                        question.level === 'Medio' ? 'secondary' : 
-                                        'destructive'
-                                      }
-                                    >
-                                      {question.level}
-                                    </Badge>
-                                  </div>
-                                  <p className={cn('font-medium mb-1', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                    {stripHtmlTags(question.questionText).substring(0, 120)}
-                                    {stripHtmlTags(question.questionText).length > 120 && '...'}
-                                  </p>
-                                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                                    <span>{question.options.length} opciones</span>
-                                    {(question.questionImages && question.questionImages.length > 0) && (
-                                      <span className="flex items-center gap-1">
-                                        <ImageIcon className="h-3 w-3" />
-                                        {question.questionImages.length} imagen{question.questionImages.length > 1 ? 'es' : ''}
-                                      </span>
-                                    )}
-                                    {(question.informativeImages && question.informativeImages.length > 0) && (
-                                      <span className="flex items-center gap-1">
-                                        <ImageIcon className="h-3 w-3" />
-                                        {question.informativeImages.length} info
-                                      </span>
-                                    )}
-                                    {question.options.some(opt => opt.imageUrl) && (
-                                      <span className="flex items-center gap-1">
-                                        <ImageIcon className="h-3 w-3" />
-                                        opciones con imagen
-                                      </span>
-                                    )}
-                                    <span>
-                                      {new Date(question.createdAt).toLocaleDateString('es-ES')}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center gap-1">
-                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewQuestion(question); }}>
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  {/* Símbolo de alarma si la justificación de IA tiene problemas */}
-                                  {(() => {
-                                    const hasIssues = question.aiJustification && (
-                                      (question.aiJustification.confidence < 0.7) ||
-                                      (!question.aiJustification.correctAnswerExplanation || question.aiJustification.correctAnswerExplanation.length < 50) ||
-                                      (!question.aiJustification.incorrectAnswersExplanation || question.aiJustification.incorrectAnswersExplanation.length === 0) ||
-                                      (!question.aiJustification.keyConcepts || question.aiJustification.keyConcepts.length < 2)
-                                    )
-                                    if (hasIssues) {
-                                      return (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <div className={cn("flex items-center justify-center h-6 w-6 rounded-full", theme === 'dark' ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-600')}>
-                                                <AlertCircle className="h-4 w-4" />
-                                              </div>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                              <p>La justificación de IA tiene problemas de calidad</p>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )
-                                    }
-                                    return null
-                                  })()}
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEditQuestion(question); }}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(question); }}>
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      }
-                    })}
-                  </>
-                )
-              })()}
-              </div>
-            )}
-          </ScrollArea>
+          {viewMode === 'tree' ? (
+            <ScrollArea className="h-[600px]">
+              {renderTreeView()}
+            </ScrollArea>
+          ) : (
+            <QuestionBankList
+              combinedItems={combinedItems}
+              theme={theme}
+              selectedQuestionIds={selectedQuestionIds}
+              onView={handleViewQuestion}
+              onCreateFirst={() => {
+                resetForm()
+                setIsCreateDialogOpen(true)
+              }}
+              onEdit={handleEditQuestion}
+              onDelete={handleDeleteQuestion}
+              onToggleSelect={toggleQuestionSelection}
+              hasQuestions={questions.length > 0}
+            />
+          )}
         </CardContent>
       </Card>
 

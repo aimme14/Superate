@@ -70,6 +70,8 @@ function parseSimulacroDoc(id: string, data: Record<string, unknown>): Simulacro
     createdAt,
     pdfSimulacroUrl: String(data.pdfSimulacroUrl ?? ''),
     pdfHojaRespuestasUrl: String(data.pdfHojaRespuestasUrl ?? ''),
+    pdfSimulacroSeccion2Url: data.pdfSimulacroSeccion2Url != null ? String(data.pdfSimulacroSeccion2Url) : undefined,
+    pdfHojaRespuestasSeccion2Url: data.pdfHojaRespuestasSeccion2Url != null ? String(data.pdfHojaRespuestasSeccion2Url) : undefined,
     icfes,
   }
 }
@@ -114,6 +116,68 @@ export async function uploadPdfSimulacro(
   } catch (e) {
     console.error('❌ Error al subir PDF del simulacro:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir PDF del simulacro')))
+  }
+}
+
+/**
+ * Sube el PDF del documento del simulacro sección 2 a Storage.
+ * Ruta: Simulacros/{simulacroId}/documento_seccion2.pdf
+ */
+export async function uploadPdfSimulacroSeccion2(
+  simulacroId: string,
+  file: File
+): Promise<Result<string>> {
+  if (!ALLOWED_PDF_TYPES.includes(file.type)) {
+    return failure(new ErrorAPI({ message: 'Solo se permiten archivos PDF.', statusCode: 400 }))
+  }
+  if (file.size > MAX_PDF_SIZE_BYTES) {
+    return failure(
+      new ErrorAPI({
+        message: `El PDF no debe superar ${MAX_PDF_SIZE_BYTES / 1024 / 1024} MB.`,
+        statusCode: 400,
+      })
+    )
+  }
+  try {
+    const path = `${STORAGE_SIMULACROS_PATH}/${simulacroId}/documento_seccion2.pdf`
+    const storageRef = ref(storage, path)
+    await uploadBytes(storageRef, file, { contentType: 'application/pdf' })
+    const downloadURL = await getDownloadURL(storageRef)
+    return success(downloadURL)
+  } catch (e) {
+    console.error('❌ Error al subir PDF simulacro sección 2:', e)
+    return failure(new ErrorAPI(normalizeError(e, 'subir PDF simulacro sección 2')))
+  }
+}
+
+/**
+ * Sube el PDF de la hoja de respuestas sección 2 a Storage.
+ * Ruta: Simulacros/{simulacroId}/hoja_respuestas_seccion2.pdf
+ */
+export async function uploadPdfHojaRespuestasSeccion2(
+  simulacroId: string,
+  file: File
+): Promise<Result<string>> {
+  if (!ALLOWED_PDF_TYPES.includes(file.type)) {
+    return failure(new ErrorAPI({ message: 'Solo se permiten archivos PDF.', statusCode: 400 }))
+  }
+  if (file.size > MAX_PDF_SIZE_BYTES) {
+    return failure(
+      new ErrorAPI({
+        message: `El PDF no debe superar ${MAX_PDF_SIZE_BYTES / 1024 / 1024} MB.`,
+        statusCode: 400,
+      })
+    )
+  }
+  try {
+    const path = `${STORAGE_SIMULACROS_PATH}/${simulacroId}/hoja_respuestas_seccion2.pdf`
+    const storageRef = ref(storage, path)
+    await uploadBytes(storageRef, file, { contentType: 'application/pdf' })
+    const downloadURL = await getDownloadURL(storageRef)
+    return success(downloadURL)
+  } catch (e) {
+    console.error('❌ Error al subir PDF hoja respuestas sección 2:', e)
+    return failure(new ErrorAPI(normalizeError(e, 'subir PDF hoja respuestas sección 2')))
   }
 }
 
@@ -376,6 +440,8 @@ class SimulacrosService {
     input: Omit<CreateSimulacroInput, 'pdfSimulacroUrl' | 'pdfHojaRespuestasUrl'> & {
       pdfSimulacroFile?: File
       pdfHojaRespuestasFile?: File
+      pdfSimulacroSeccion2File?: File
+      pdfHojaRespuestasSeccion2File?: File
       icfes?: {
         documentoSeccion1File?: File
         hojaSeccion1File?: File
@@ -419,28 +485,75 @@ class SimulacrosService {
         updatePayload.pdfHojaRespuestasUrl = pdfHojaRes.data
       }
 
-      if (input.icfes) {
-        const ic = input.icfes
-        if (ic.documentoSeccion1File) {
-          const r = await uploadIcfesPdf(id, 'documento_seccion1', ic.documentoSeccion1File)
-          if (r.success) updatePayload.icfesSeccion1DocumentoUrl = r.data
+      if (input.pdfSimulacroSeccion2File || input.pdfHojaRespuestasSeccion2File) {
+        if (input.pdfSimulacroSeccion2File) {
+          const r = await uploadPdfSimulacroSeccion2(id, input.pdfSimulacroSeccion2File)
+          if (!r.success) {
+            await deleteDoc(docRef)
+            return r
+          }
+          updatePayload.pdfSimulacroSeccion2Url = r.data
         }
-        if (ic.hojaSeccion1File) {
-          const r = await uploadIcfesPdf(id, 'hoja_respuestas_seccion1', ic.hojaSeccion1File)
-          if (r.success) updatePayload.icfesSeccion1HojaUrl = r.data
-        }
-        if (ic.documentoSeccion2File) {
-          const r = await uploadIcfesPdf(id, 'documento_seccion2', ic.documentoSeccion2File)
-          if (r.success) updatePayload.icfesSeccion2DocumentoUrl = r.data
-        }
-        if (ic.hojaSeccion2File) {
-          const r = await uploadIcfesPdf(id, 'hoja_respuestas_seccion2', ic.hojaSeccion2File)
-          if (r.success) updatePayload.icfesSeccion2HojaUrl = r.data
+        if (input.pdfHojaRespuestasSeccion2File) {
+          const r = await uploadPdfHojaRespuestasSeccion2(id, input.pdfHojaRespuestasSeccion2File)
+          if (!r.success) {
+            await deleteDoc(docRef)
+            return r
+          }
+          updatePayload.pdfHojaRespuestasSeccion2Url = r.data
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updateDoc(docRef, updatePayload as any)
+      if (input.icfes) {
+        const ic = input.icfes
+        const uploads: Promise<{ key: string; result: Awaited<ReturnType<typeof uploadIcfesPdf>> }>[] = []
+        if (ic.documentoSeccion1File) {
+          uploads.push(
+            uploadIcfesPdf(id, 'documento_seccion1', ic.documentoSeccion1File).then((r) => ({
+              key: 'icfesSeccion1DocumentoUrl',
+              result: r,
+            }))
+          )
+        }
+        if (ic.hojaSeccion1File) {
+          uploads.push(
+            uploadIcfesPdf(id, 'hoja_respuestas_seccion1', ic.hojaSeccion1File).then((r) => ({
+              key: 'icfesSeccion1HojaUrl',
+              result: r,
+            }))
+          )
+        }
+        if (ic.documentoSeccion2File) {
+          uploads.push(
+            uploadIcfesPdf(id, 'documento_seccion2', ic.documentoSeccion2File).then((r) => ({
+              key: 'icfesSeccion2DocumentoUrl',
+              result: r,
+            }))
+          )
+        }
+        if (ic.hojaSeccion2File) {
+          uploads.push(
+            uploadIcfesPdf(id, 'hoja_respuestas_seccion2', ic.hojaSeccion2File).then((r) => ({
+              key: 'icfesSeccion2HojaUrl',
+              result: r,
+            }))
+          )
+        }
+        const results = await Promise.all(uploads)
+        for (const { key, result } of results) {
+          if (result.success) {
+            ;(updatePayload as Record<string, string>)[key] = result.data
+          } else {
+            await deleteDoc(docRef)
+            return result
+          }
+        }
+      }
+
+      if (Object.keys(updatePayload).length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await updateDoc(docRef, updatePayload as any)
+      }
 
       const created = parseSimulacroDoc(id, {
         ...input,
@@ -473,6 +586,10 @@ class SimulacrosService {
       if (input.pdfSimulacroUrl !== undefined) payload.pdfSimulacroUrl = input.pdfSimulacroUrl
       if (input.pdfHojaRespuestasUrl !== undefined)
         payload.pdfHojaRespuestasUrl = input.pdfHojaRespuestasUrl
+      if (input.pdfSimulacroSeccion2Url !== undefined)
+        payload.pdfSimulacroSeccion2Url = input.pdfSimulacroSeccion2Url
+      if (input.pdfHojaRespuestasSeccion2Url !== undefined)
+        payload.pdfHojaRespuestasSeccion2Url = input.pdfHojaRespuestasSeccion2Url
       if (input.icfes !== undefined) {
         if (input.icfes.seccion1DocumentoUrl !== undefined)
           payload.icfesSeccion1DocumentoUrl = input.icfes.seccion1DocumentoUrl
@@ -515,10 +632,15 @@ class SimulacrosService {
             await deleteStorageFile(data.storagePath).catch(() => {})
           }
         }
-        const pdfSimPath = `${STORAGE_SIMULACROS_PATH}/${id}/documento.pdf`
-        const pdfHojaPath = `${STORAGE_SIMULACROS_PATH}/${id}/hoja_respuestas.pdf`
-        await deleteStorageFile(pdfSimPath).catch(() => {})
-        await deleteStorageFile(pdfHojaPath).catch(() => {})
+        const pdfPaths = [
+          `${STORAGE_SIMULACROS_PATH}/${id}/documento.pdf`,
+          `${STORAGE_SIMULACROS_PATH}/${id}/hoja_respuestas.pdf`,
+          `${STORAGE_SIMULACROS_PATH}/${id}/documento_seccion2.pdf`,
+          `${STORAGE_SIMULACROS_PATH}/${id}/hoja_respuestas_seccion2.pdf`,
+        ]
+        for (const p of pdfPaths) {
+          await deleteStorageFile(p).catch(() => {})
+        }
         const icfesPdfPaths = [
           `${STORAGE_SIMULACROS_PATH}/${id}/${STORAGE_ICFES_PATH}/documento_seccion1.pdf`,
           `${STORAGE_SIMULACROS_PATH}/${id}/${STORAGE_ICFES_PATH}/hoja_respuestas_seccion1.pdf`,
@@ -676,7 +798,9 @@ class SimulacrosService {
   async updatePdfs(
     id: string,
     pdfSimulacroFile?: File,
-    pdfHojaRespuestasFile?: File
+    pdfHojaRespuestasFile?: File,
+    pdfSimulacroSeccion2File?: File,
+    pdfHojaRespuestasSeccion2File?: File
   ): Promise<Result<Simulacro>> {
     try {
       const docRef = doc(db, SIMULACROS_COLLECTION, id)
@@ -684,7 +808,7 @@ class SimulacrosService {
       if (!snap.exists()) {
         return failure(new ErrorAPI({ message: 'Simulacro no encontrado.', statusCode: 404 }))
       }
-      const updates: { pdfSimulacroUrl?: string; pdfHojaRespuestasUrl?: string } = {}
+      const updates: Record<string, string> = {}
       if (pdfSimulacroFile) {
         const res = await uploadPdfSimulacro(id, pdfSimulacroFile)
         if (!res.success) return res
@@ -694,6 +818,16 @@ class SimulacrosService {
         const res = await uploadPdfHojaRespuestas(id, pdfHojaRespuestasFile)
         if (!res.success) return res
         updates.pdfHojaRespuestasUrl = res.data
+      }
+      if (pdfSimulacroSeccion2File) {
+        const res = await uploadPdfSimulacroSeccion2(id, pdfSimulacroSeccion2File)
+        if (!res.success) return res
+        updates.pdfSimulacroSeccion2Url = res.data
+      }
+      if (pdfHojaRespuestasSeccion2File) {
+        const res = await uploadPdfHojaRespuestasSeccion2(id, pdfHojaRespuestasSeccion2File)
+        if (!res.success) return res
+        updates.pdfHojaRespuestasSeccion2Url = res.data
       }
       if (Object.keys(updates).length > 0) {
         await updateDoc(docRef, updates)

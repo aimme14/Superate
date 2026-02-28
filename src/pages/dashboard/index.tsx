@@ -1,15 +1,17 @@
+import { lazy, Suspense } from 'react'
 import { useThemeContext } from '@/context/ThemeContext'
 import Skeleton from '#/common/skeletons/SkeletonLarge'
 import { useAuthContext } from '@/context/AuthContext'
 import { useRole } from '@/hooks/core/useRole'
-import AdminSection from './admin/AdminPage'
-import { Home as NewDashboard } from './NewDashboard'
-import TeacherDashboard from './teacher/TeacherDashboard'
-import PrincipalDashboard from './principal/PrincipalDashboard'
-import RectorDashboard from './rector/RectorDashboard'
-import AdminDashboard from './admin/AdminDashboard'
 import RoleBasedRedirect from '@/components/auth/RoleBasedRedirect'
-import { Suspense } from 'react'
+
+// Lazy load dashboards por rol: solo se descarga el dashboard que el usuario necesita
+const AdminSection = lazy(() => import('./admin/AdminPage'))
+const NewDashboard = lazy(() => import('./NewDashboard').then(m => ({ default: m.Home })))
+const TeacherDashboard = lazy(() => import('./teacher/TeacherDashboard'))
+const PrincipalDashboard = lazy(() => import('./principal/PrincipalDashboard'))
+const RectorDashboard = lazy(() => import('./rector/RectorDashboard'))
+const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
 
 const DashboardPage = () => {
   const { theme } = useThemeContext()
@@ -35,7 +37,7 @@ const DashboardPage = () => {
     )
   }
 
-  // Renderizar dashboard según el rol
+  // Renderizar dashboard según el rol (cada uno se carga bajo demanda)
   return (
     <Suspense fallback={<Skeleton theme={theme} />}>
       {isStudent && <NewDashboard />}

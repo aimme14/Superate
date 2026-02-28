@@ -15,20 +15,20 @@ import QuizPage from "@/pages/Quiz";
 import AboutPage from "@/sections/about/page";
 import InformacionPage from "@/pages/informacion";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import InnovativeHero from "@/pages/inovativeGero";
-import Prueba from "@/pages/prueba";
-import DemoImageOptionsPage from "@/pages/DemoImageOptions";
-import ViewerPdfPage from "@/pages/ViewerPdfPage";
-import RutaAcademicaAdaptativaPage from "@/pages/RutaAcademicaAdaptativaPage";
-import PlanEstudioIAPage from "@/pages/PlanEstudioIAPage";
-import SimulacrosIAPage from "@/pages/SimulacrosIAPage";
 
-// Páginas pesadas: lazy load para reducir el bundle inicial
+// Páginas: lazy load para reducir el bundle inicial
 const ResultadosPage = lazy(() => import("@/pages/resultados"));
 const PromedioPage = lazy(() => import("@/pages/promedio"));
 const Intento = lazy(() => import("@/pages/Intento"));
+const InnovativeHero = lazy(() => import("@/pages/inovativeGero"));
+const Prueba = lazy(() => import("@/pages/prueba"));
+const DemoImageOptionsPage = lazy(() => import("@/pages/DemoImageOptions"));
+const ViewerPdfPage = lazy(() => import("@/pages/ViewerPdfPage"));
+const RutaAcademicaAdaptativaPage = lazy(() => import("@/pages/RutaAcademicaAdaptativaPage"));
+const PlanEstudioIAPage = lazy(() => import("@/pages/PlanEstudioIAPage"));
+const SimulacrosIAPage = lazy(() => import("@/pages/SimulacrosIAPage"));
 
-// Dashboards específicos por rol (lazy para no cargarlos hasta que se necesiten)
+// Dashboards específicos por rol (lazy para rutas directas /dashboard/teacher, etc.)
 const TeacherDashboard = lazy(() => import("@/pages/dashboard/teacher/TeacherDashboard"));
 const PrincipalDashboard = lazy(() => import("@/pages/dashboard/principal/PrincipalDashboard"));
 const RectorDashboard = lazy(() => import("@/pages/dashboard/rector/RectorDashboard"));

@@ -3,8 +3,6 @@ import { useAuthContext } from '@/context/AuthContext'
 import UserMenu from '#/pages/dashboard/UserMenu'
 import { SidebarTrigger } from '#/ui/sidebar'
 import ThemeToggle from '#/layout/Theme'
-import { motion } from "framer-motion"
-
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { Link } from 'react-router-dom'
 import logoLight from '/assets/logo_tematica_blanca.png'
@@ -27,7 +25,7 @@ const Navbar = () => {
         <div className="flex items-center space-x-2">
           {isMobile && <SidebarTrigger className='mr-2' />}
           {!isMobile && (
-            <motion.div initial={{ rotate: -10, scale: 0.9 }} animate={{ rotate: 0, scale: 1 }} transition={{ duration: 0.5 }}>
+            <div className="animate-in zoom-in-95 duration-300">
               <span className={cn("flex h-12 mr-2 shrink-0 items-center justify-center", isAuth ? 'w-16' : 'w-20')}>
                 <img
                   src={theme === 'dark' ? logoDark : logoLight}
@@ -35,7 +33,7 @@ const Navbar = () => {
                   className="h-full w-auto max-h-12 object-contain"
                 />
               </span>
-            </motion.div>
+            </div>
           )}
           {isAuth
             ? (

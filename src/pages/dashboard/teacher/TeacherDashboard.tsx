@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -70,11 +69,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="rounded-full h-8 w-8 border-b-2 border-primary"
-        />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         <span className={cn('ml-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
           Cargando estadísticas...
         </span>
@@ -85,12 +80,10 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   return (
     <div className={cn('min-h-screen', theme === 'dark' ? 'bg-zinc-950' : 'bg-gray-100')}>
       <div className="flex flex-col gap-0.5">
-        {/* Header con logo y gradiente animado - mismo estilo que Principal/Rector */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        {/* Header con logo y gradiente */}
+        <div
           className={cn(
+            'animate-in fade-in slide-in-from-top-2 duration-300',
             'relative overflow-hidden rounded-none px-8 pt-8 pb-3 text-white shadow-2xl',
             theme === 'dark'
               ? 'bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900'
@@ -115,30 +108,15 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                   />
                 </div>
                 <div>
-                  <motion.h1
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-3xl font-bold mb-2"
-                  >
+                  <h1 className="text-3xl font-bold mb-2">
                     Bienvenido, {stats.teacherName}
-                  </motion.h1>
-                  <motion.p
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-lg opacity-90 mb-1"
-                  >
+                  </h1>
+                  <p className="text-lg opacity-90 mb-1">
                     Docencia - {stats.campusName} • {stats.gradeName}
-                  </motion.p>
-                  <motion.p
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="text-sm opacity-75"
-                  >
+                  </p>
+                  <p className="text-sm opacity-75">
                     {institutionName || stats.institutionName} • {stats.teacherEmail}
-                  </motion.p>
+                  </p>
                 </div>
               </div>
               <div className="hidden md:flex items-center">
@@ -148,34 +126,18 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
               </div>
             </div>
           </div>
-          <motion.div
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            className="absolute top-0 right-0 opacity-10"
-          >
-            <School className="h-64 w-64" />
-          </motion.div>
-        </motion.div>
+          <School className="absolute top-0 right-0 h-64 w-64 opacity-10" aria-hidden />
+        </div>
       </div>
 
-      {/* Botones de acción - mismo layout que Principal/Rector */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="grid grid-cols-2 md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5"
-      >
+      {/* Botones de acción */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
           { icon: Users, label: 'Mis Estudiantes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes', count: stats?.totalStudents ?? null },
           { icon: BarChart3, label: 'Análisis del curso', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'analisis-curso' },
-        ].map((btn, index) => (
-          <motion.div
-            key={btn.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 + index * 0.1 }}
-          >
+        ].map((btn) => (
+          <div key={btn.label}>
             <Button
               onClick={() => setActiveTab(btn.tab)}
               className={cn(
@@ -183,12 +145,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                 btn.color
               )}
             >
-              <motion.div
-                animate={{ y: [0, -5, 0] }}
-                transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
-              >
-                <btn.icon className="h-6 w-6" />
-              </motion.div>
+              <btn.icon className="h-6 w-6" />
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold text-sm">{btn.label}</span>
                 {'count' in btn && btn.count != null && (
@@ -198,9 +155,9 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                 )}
               </div>
             </Button>
-          </motion.div>
+          </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Contenido dinámico según tab activo - mismo patrón que Principal/Rector */}
       <div className="mx-4 md:mx-6 lg:mx-8 mt-3">
@@ -418,11 +375,8 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
         ) : rankingData && rankingData.length > 0 ? (
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {rankingData.map((item: any, index: number) => (
-              <motion.div
+              <div
                 key={item.student.id || item.student.uid}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
                 className={cn(
                   'flex items-center justify-between p-3 rounded-lg border',
                   theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50'
@@ -459,7 +413,7 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
                     </p>
                   )}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         ) : (
@@ -771,7 +725,7 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
   })
 
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.6 }}>
+    <div className="animate-in fade-in zoom-in-95 duration-300">
       <Card className={cn('relative overflow-hidden border-0 shadow-lg', theme === 'dark' ? 'bg-zinc-900' : 'bg-white')}>
         <div className={cn('absolute top-0 right-0 w-14 h-14 bg-gradient-to-br opacity-10 rounded-full -mr-7 -mt-7', 'from-emerald-500 to-emerald-600')} />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 py-1 px-3 pb-0 relative z-10">
@@ -802,7 +756,7 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
           )}
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }
 
@@ -810,15 +764,10 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
 function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters, evolutionFilters, setEvolutionFilters }: any) {
   return (
     <div>
-      {/* Estadísticas principales con animaciones */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-2 gap-4"
-      >
+      {/* Estadísticas principales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
         {/* Total Estudiantes */}
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.6 }}>
+        <div className="animate-in fade-in zoom-in-95 duration-300">
           <Card className={cn('relative overflow-hidden border-0 shadow-lg', theme === 'dark' ? 'bg-zinc-900' : 'bg-white')}>
             <div className={cn('absolute top-0 right-0 w-14 h-14 bg-gradient-to-br opacity-10 rounded-full -mr-7 -mt-7', 'from-green-500 to-green-600')} />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 py-1 px-3 pb-0 relative z-10">
@@ -829,11 +778,11 @@ function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters,
               <span className={cn('text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{stats.totalStudents.toLocaleString()}</span>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Promedio del Grado (con filtro de fase) */}
         <GradeAverageCard theme={theme} students={students} />
-      </motion.div>
+      </div>
 
       {/* Ranking de mejores estudiantes y logros */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-2">
@@ -906,16 +855,12 @@ function StudentsTab({ theme, students, stats }: any) {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                    {group.students.map((student: any, index: number) => (
-                      <motion.div
+                    {group.students.map((student: any) => (
+                      <div
                         key={student.id || student.uid}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.01 }}
-                        whileHover={{ scale: 1.02 }}
                         onClick={() => handleStudentClick(student)}
                         className={cn(
-                          'p-2 rounded-lg border cursor-pointer transition-all',
+                          'p-2 rounded-lg border cursor-pointer transition-transform duration-200 hover:scale-[1.02]',
                           theme === 'dark'
                             ? 'border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-600'
                             : 'border-gray-300 bg-gray-200 hover:bg-gray-300 hover:border-gray-400'
@@ -934,7 +879,7 @@ function StudentsTab({ theme, students, stats }: any) {
                             </p>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>

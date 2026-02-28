@@ -4,7 +4,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { ChevronDown } from 'lucide-react'
 import { links } from '@/utils/constants'
-import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useThemeContext } from '@/context/ThemeContext'
 import { useRegistrationConfig } from '@/hooks/query/useRegistrationConfig'
@@ -58,11 +57,7 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
       <CollapsibleTrigger asChild>
-        <motion.div
-          whileHover={{ scale: 1.02, x: 4 }}
-          whileTap={{ scale: 0.98 }}
-          transition={{ duration: 0.2 }}
-        >
+        <div className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]">
           <SidebarMenuButton 
             asChild 
             isActive={isActive}
@@ -86,15 +81,12 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
                 isActive && theme === 'light' && '!text-white'
               )}
             >
-              <motion.div
-                animate={isActive ? { rotate: [0, -10, 10, -10, 0] } : {}}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
+              <div>
                 <item.icon className={cn(
                   'w-5 h-5 transition-transform duration-300 group-hover:scale-110',
                   isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
                 )} />
-              </motion.div>
+              </div>
               <span className={cn(
                 'text-sm font-medium pointer-events-none',
                 isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
@@ -102,7 +94,7 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
               {item.subItems && (<IconChevron isOpen={isOpen} />)}
             </Link>
           </SidebarMenuButton>
-        </motion.div>
+        </div>
       </CollapsibleTrigger>
 
       {item.subItems && (
@@ -128,11 +120,7 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
     <SidebarMenuSubItem>
       <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
         <CollapsibleTrigger asChild>
-          <motion.div
-            whileHover={{ scale: 1.02, x: 4 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ duration: 0.2 }}
-          >
+          <div className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]">
             <SidebarMenuSubButton 
               asChild 
               isActive={isActive}
@@ -156,15 +144,12 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
                   isActive && theme === 'light' && '!text-white'
                 )}
               >
-                <motion.div
-                  animate={isActive ? { rotate: [0, -10, 10, -10, 0] } : {}}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                >
+                <div>
                   <item.icon className={cn(
                     'w-4 h-4 transition-transform duration-300 group-hover:scale-110',
                     isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
                   )} />
-                </motion.div>
+                </div>
                 <span className={cn(
                   'text-sm font-medium pointer-events-none',
                   isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
@@ -172,7 +157,7 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
                 {item.subItems && (<IconChevron isOpen={isOpen} />)}
               </Link>
             </SidebarMenuSubButton>
-          </motion.div>
+          </div>
         </CollapsibleTrigger>
 
         {item.subItems && (

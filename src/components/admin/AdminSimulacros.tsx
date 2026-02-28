@@ -23,10 +23,16 @@ import { useNotification } from '@/hooks/ui/useNotification'
 import {
   SIMULACRO_GRADOS,
   SIMULACRO_MATERIAS,
+  isMateriaCon4Secciones,
   type Simulacro,
   type SimulacroGrado,
   type SimulacroMateria,
 } from '@/interfaces/simulacro.interface'
+
+/** Simulacros de materia ICFES o Simulacros completos usan la estructura icfes (4 PDFs) */
+function usesIcfesStructure(simulacro: Simulacro): boolean {
+  return isMateriaCon4Secciones(simulacro.materia) && !!simulacro.icfes
+}
 import { cn } from '@/lib/utils'
 import {
   ClipboardList,
@@ -37,12 +43,14 @@ import {
   Video,
   ExternalLink,
   ChevronDown,
+  Pencil,
 } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { EditSimulacroDialog } from './EditSimulacroDialog'
 
 interface AdminSimulacrosProps {
   theme: 'light' | 'dark'
@@ -83,6 +91,8 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
   const [form, setForm] = useState(emptyForm)
   const [pdfSimulacroFile, setPdfSimulacroFile] = useState<File | null>(null)
   const [pdfHojaRespuestasFile, setPdfHojaRespuestasFile] = useState<File | null>(null)
+  const [pdfSimulacroSeccion2File, setPdfSimulacroSeccion2File] = useState<File | null>(null)
+  const [pdfHojaRespuestasSeccion2File, setPdfHojaRespuestasSeccion2File] = useState<File | null>(null)
   const [videoRows, setVideoRows] = useState<VideoRow[]>([])
   const [icfesDocumentoSeccion1, setIcfesDocumentoSeccion1] = useState<File | null>(null)
   const [icfesHojaSeccion1, setIcfesHojaSeccion1] = useState<File | null>(null)
@@ -91,8 +101,11 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
   const [icfesVideoRows, setIcfesVideoRows] = useState<VideoRow[]>([])
   const [deleteTarget, setDeleteTarget] = useState<Simulacro | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [editTarget, setEditTarget] = useState<Simulacro | null>(null)
   const pdfSimulacroRef = useRef<HTMLInputElement>(null)
   const pdfHojaRef = useRef<HTMLInputElement>(null)
+  const pdfSimulacroSeccion2Ref = useRef<HTMLInputElement>(null)
+  const pdfHojaSeccion2Ref = useRef<HTMLInputElement>(null)
   const icfesDoc1Ref = useRef<HTMLInputElement>(null)
   const icfesHoja1Ref = useRef<HTMLInputElement>(null)
   const icfesDoc2Ref = useRef<HTMLInputElement>(null)
@@ -106,6 +119,8 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
     setForm(emptyForm)
     setPdfSimulacroFile(null)
     setPdfHojaRespuestasFile(null)
+    setPdfSimulacroSeccion2File(null)
+    setPdfHojaRespuestasSeccion2File(null)
     setVideoRows([])
     setIcfesDocumentoSeccion1(null)
     setIcfesHojaSeccion1(null)
@@ -114,6 +129,8 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
     setIcfesVideoRows([])
     if (pdfSimulacroRef.current) pdfSimulacroRef.current.value = ''
     if (pdfHojaRef.current) pdfHojaRef.current.value = ''
+    if (pdfSimulacroSeccion2Ref.current) pdfSimulacroSeccion2Ref.current.value = ''
+    if (pdfHojaSeccion2Ref.current) pdfHojaSeccion2Ref.current.value = ''
     if (icfesDoc1Ref.current) icfesDoc1Ref.current.value = ''
     if (icfesHoja1Ref.current) icfesHoja1Ref.current.value = ''
     if (icfesDoc2Ref.current) icfesDoc2Ref.current.value = ''
@@ -125,17 +142,19 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
       notifyError({ message: 'El título del simulacro es obligatorio.' })
       return
     }
-    const isMateriaIcfes = form.materia === 'icfes'
-    if (!isMateriaIcfes) {
-      if (!pdfSimulacroFile) {
-        notifyError({ message: 'Debes subir el PDF del simulacro.' })
+    const isMateriaCon4 = isMateriaCon4Secciones(form.materia)
+    if (!isMateriaCon4) {
+      const hasDoc = pdfSimulacroFile || pdfSimulacroSeccion2File
+      const hasHoja = pdfHojaRespuestasFile || pdfHojaRespuestasSeccion2File
+      if (!hasDoc) {
+        notifyError({ message: 'Debes subir al menos un PDF de simulacro (sección 1 o 2).' })
         return
       }
-      if (!pdfHojaRespuestasFile) {
-        notifyError({ message: 'Debes subir el PDF de la hoja de respuestas.' })
+      if (!hasHoja) {
+        notifyError({ message: 'Debes subir al menos una hoja de respuestas (sección 1 o 2).' })
         return
       }
-    } else {
+    } else if (form.materia === 'icfes') {
       const hasIcfesFile =
         icfesDocumentoSeccion1 ||
         icfesHojaSeccion1 ||
@@ -148,15 +167,17 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
         return
       }
     }
+    // Simulacros completos: los 4 PDFs son opcionales, no se valida
 
     setSaving(true)
     try {
+      const hasIcfesFile =
+        icfesDocumentoSeccion1 ||
+        icfesHojaSeccion1 ||
+        icfesDocumentoSeccion2 ||
+        icfesHojaSeccion2
       const icfesInput =
-        form.materia === 'icfes' &&
-        (icfesDocumentoSeccion1 ||
-          icfesHojaSeccion1 ||
-          icfesDocumentoSeccion2 ||
-          icfesHojaSeccion2)
+        (form.materia === 'icfes' && hasIcfesFile) || form.materia === 'simulacros-completos'
           ? {
               documentoSeccion1File: icfesDocumentoSeccion1 ?? undefined,
               hojaSeccion1File: icfesHojaSeccion1 ?? undefined,
@@ -177,23 +198,27 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
         numeroOrden: nextOrden,
         comentario: form.comentario.trim(),
         isActive: form.isActive,
-        ...(isMateriaIcfes
+        ...(isMateriaCon4
           ? {}
           : {
-              pdfSimulacroFile: pdfSimulacroFile!,
-              pdfHojaRespuestasFile: pdfHojaRespuestasFile!,
+              ...(pdfSimulacroFile && { pdfSimulacroFile }),
+              ...(pdfHojaRespuestasFile && { pdfHojaRespuestasFile }),
+              ...(pdfSimulacroSeccion2File && { pdfSimulacroSeccion2File }),
+              ...(pdfHojaRespuestasSeccion2File && { pdfHojaRespuestasSeccion2File }),
             }),
         icfes: icfesInput,
       }
       const createRes = await simulacrosService.create(createPayload)
       if (!createRes.success) {
-        notifyError({ message: createRes.error.message })
+        notifyError({
+          message: createRes.error?.message ?? 'Error al crear el simulacro. Revisa la consola para más detalles.',
+        })
         setSaving(false)
         return
       }
       const simulacroId = createRes.data.id
 
-      if (!isMateriaIcfes) {
+      if (!isMateriaCon4) {
         for (let i = 0; i < videoRows.length; i++) {
           const row = videoRows[i]
           if (!row.url.trim() || !row.titulo.trim()) continue
@@ -208,7 +233,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
         }
       }
 
-      if (form.materia === 'icfes') {
+      if (isMateriaCon4) {
         for (let i = 0; i < icfesVideoRows.length; i++) {
           const row = icfesVideoRows[i]
           if (!row.url.trim() || !row.titulo.trim()) continue
@@ -227,13 +252,20 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
       resetForm()
       invalidateSimulacrosList()
     } catch (e) {
-      notifyError({ message: 'Error inesperado al crear el simulacro.' })
+      const err = e instanceof Error ? e : new Error(String(e))
+      const msg = err.message || 'Error inesperado al crear el simulacro.'
+      notifyError({ message: msg })
+      console.error('Error al crear simulacro:', e)
     }
     setSaving(false)
   }
 
-  const handleDelete = async (s: Simulacro) => {
+  const handleDelete = (s: Simulacro) => {
     setDeleteTarget(s)
+  }
+
+  const handleEdit = (s: Simulacro) => {
+    setEditTarget(s)
   }
 
   const confirmDelete = async () => {
@@ -414,17 +446,18 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
             </Label>
           </div>
 
-          {/* PDFs obligatorios: solo cuando la materia no es ICFES */}
-          {form.materia !== 'icfes' && (
-          <div className={cn('rounded-lg border p-4 space-y-4', theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50/50')}>
-            <h4 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              Archivos PDF obligatorios
+          {/* PDFs: materias normales - hasta 2 documentos + 2 hojas (como ICFES) */}
+          {!isMateriaCon4Secciones(form.materia) && (
+          <div className={cn('rounded-lg border p-4 space-y-4', theme === 'dark' ? 'border-teal-500/30 bg-teal-950/10' : 'border-teal-200 bg-teal-50/30')}>
+            <h4 className={cn('font-medium', theme === 'dark' ? 'text-teal-300' : 'text-teal-800')}>
+              Archivos PDF (mínimo 1 documento + 1 hoja; opcional 2 y 2)
             </h4>
+            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Sube hasta 2 documentos de simulacro y 2 hojas de respuestas, como en ICFES.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  Subir PDF del simulacro
-                </Label>
+                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Documento sección 1</Label>
                 <Input
                   ref={pdfSimulacroRef}
                   type="file"
@@ -440,9 +473,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
                 )}
               </div>
               <div className="space-y-2">
-                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  Subir PDF de hoja de respuestas asociada
-                </Label>
+                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Hoja de respuestas sección 1</Label>
                 <Input
                   ref={pdfHojaRef}
                   type="file"
@@ -457,12 +488,44 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
                   </p>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Documento sección 2 (opcional)</Label>
+                <Input
+                  ref={pdfSimulacroSeccion2Ref}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setPdfSimulacroSeccion2File(e.target.files?.[0] ?? null)}
+                  className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}
+                />
+                {pdfSimulacroSeccion2File && (
+                  <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
+                    {pdfSimulacroSeccion2File.name}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Hoja de respuestas sección 2 (opcional)</Label>
+                <Input
+                  ref={pdfHojaSeccion2Ref}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setPdfHojaRespuestasSeccion2File(e.target.files?.[0] ?? null)}
+                  className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}
+                />
+                {pdfHojaRespuestasSeccion2File && (
+                  <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
+                    {pdfHojaRespuestasSeccion2File.name}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
           )}
 
-          {/* Videos explicativos: solo para materias distintas de ICFES */}
-          {form.materia !== 'icfes' && (
+          {/* Videos explicativos: solo para materias normales (no ICFES ni Simulacros completos) */}
+          {!isMateriaCon4Secciones(form.materia) && (
           <div className={cn('rounded-lg border p-4 space-y-4', theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50/50')}>
             <div className="flex items-center justify-between">
               <h4 className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -536,19 +599,21 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
           </div>
           )}
 
-          {/* Solo cuando la materia es ICFES: dos secciones (2 documentos PDF + 2 hojas de respuesta), videos */}
-          {form.materia === 'icfes' && (
-          <div className={cn('rounded-lg border p-4 space-y-4', theme === 'dark' ? 'border-amber-700/50 bg-amber-950/20' : 'border-amber-200 bg-amber-50/50')}>
-            <h4 className={cn('font-medium', theme === 'dark' ? 'text-amber-200' : 'text-amber-900')}>
-              Materia ICFES – Dos secciones
+          {/* ICFES y Simulacros completos: dos secciones (2 documentos PDF + 2 hojas de respuesta), videos */}
+          {isMateriaCon4Secciones(form.materia) && (
+          <div className={cn('rounded-lg border p-4 space-y-4', form.materia === 'simulacros-completos' ? (theme === 'dark' ? 'border-teal-700/50 bg-teal-950/20' : 'border-teal-200 bg-teal-50/50') : (theme === 'dark' ? 'border-amber-700/50 bg-amber-950/20' : 'border-amber-200 bg-amber-50/50'))}>
+            <h4 className={cn('font-medium', form.materia === 'simulacros-completos' ? (theme === 'dark' ? 'text-teal-200' : 'text-teal-900') : (theme === 'dark' ? 'text-amber-200' : 'text-amber-900'))}>
+              {form.materia === 'simulacros-completos' ? 'Simulacros – Dos secciones (todo opcional)' : 'Materia ICFES – Dos secciones'}
             </h4>
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              Hasta 2 PDFs de documento y 2 PDFs de hoja de respuestas. Si subes solo uno no pasa nada; se validan hasta dos archivos por tipo.
+              {form.materia === 'simulacros-completos'
+                ? 'Hasta 2 PDFs de documento y 2 PDFs de hoja de respuestas. Todos opcionales.'
+                : 'Hasta 2 PDFs de documento y 2 PDFs de hoja de respuestas. Debes subir al menos uno.'}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  ICFES – Documento sección 1 (PDF)
+                  {form.materia === 'simulacros-completos' ? 'Documento sección 1 (PDF, opcional)' : 'ICFES – Documento sección 1 (PDF)'}
                 </Label>
                 <Input
                   ref={icfesDoc1Ref}
@@ -565,7 +630,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
               </div>
               <div className="space-y-2">
                 <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  ICFES – Hoja de respuestas sección 1 (PDF)
+                  {form.materia === 'simulacros-completos' ? 'Hoja de respuestas sección 1 (PDF, opcional)' : 'ICFES – Hoja de respuestas sección 1 (PDF)'}
                 </Label>
                 <Input
                   ref={icfesHoja1Ref}
@@ -582,7 +647,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
               </div>
               <div className="space-y-2">
                 <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  ICFES – Documento sección 2 (PDF)
+                  {form.materia === 'simulacros-completos' ? 'Documento sección 2 (PDF, opcional)' : 'ICFES – Documento sección 2 (PDF)'}
                 </Label>
                 <Input
                   ref={icfesDoc2Ref}
@@ -599,7 +664,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
               </div>
               <div className="space-y-2">
                 <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  ICFES – Hoja de respuestas sección 2 (PDF)
+                  {form.materia === 'simulacros-completos' ? 'Hoja de respuestas sección 2 (PDF, opcional)' : 'ICFES – Hoja de respuestas sección 2 (PDF)'}
                 </Label>
                 <Input
                   ref={icfesHoja2Ref}
@@ -618,11 +683,11 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
             <div className="pt-2">
               <div className="flex items-center justify-between mb-2">
                 <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                  Videos explicativos ICFES
+                  Videos explicativos {form.materia === 'simulacros-completos' ? '' : 'ICFES '}
                 </Label>
                 <Button type="button" variant="outline" size="sm" onClick={addIcfesVideoRow}>
                   <Plus className="h-4 w-4 mr-1" />
-                  Añadir video ICFES
+                  Añadir video
                 </Button>
               </div>
               {icfesVideoRows.length === 0 ? (
@@ -731,10 +796,19 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
               theme={theme}
               materiaLabel={materiaLabel}
               onDelete={handleDelete}
+              onEdit={handleEdit}
             />
           )}
         </CardContent>
       </Card>
+
+      <EditSimulacroDialog
+        simulacro={editTarget}
+        theme={theme}
+        open={!!editTarget}
+        onOpenChange={(open) => !open && setEditTarget(null)}
+        onSuccess={invalidateSimulacrosList}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -766,11 +840,13 @@ function SimulacrosListByMateria({
   theme,
   materiaLabel,
   onDelete,
+  onEdit,
 }: {
   simulacros: Simulacro[]
   theme: 'light' | 'dark'
   materiaLabel: (value: string) => string
   onDelete: (s: Simulacro) => void
+  onEdit: (s: Simulacro) => void
 }) {
   const materiasOrden = SIMULACRO_MATERIAS.map((m) => m.value)
   const porMateria = new Map<string, Simulacro[]>()
@@ -846,6 +922,7 @@ function SimulacrosListByMateria({
                       theme={theme}
                       materiaLabel={materiaLabel}
                       onDelete={() => onDelete(s)}
+                      onEdit={() => onEdit(s)}
                     />
                   ))}
                 </div>
@@ -863,11 +940,13 @@ function SimulacroCard({
   theme,
   materiaLabel,
   onDelete,
+  onEdit,
 }: {
   simulacro: Simulacro
   theme: 'light' | 'dark'
   materiaLabel: (value: string) => string
   onDelete: () => void
+  onEdit: () => void
 }) {
   const [shouldLoadVideos, setShouldLoadVideos] = useState(false)
   const { data: details, isLoading: loadingVideos } = useSimulacroDetails(simulacro.id, shouldLoadVideos)
@@ -910,15 +989,34 @@ function SimulacroCard({
             Creado: {created.toLocaleDateString('es-CO', { dateStyle: 'medium' })}
           </p>
         </div>
-        <Button variant="ghost" size="icon" onClick={onDelete} className="text-red-500 hover:text-red-600">
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onEdit}
+            className={cn(
+              theme === 'dark' ? 'text-gray-400 hover:text-teal-400' : 'text-gray-500 hover:text-primary'
+            )}
+            title="Editar simulacro"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            className="text-red-500 hover:text-red-600"
+            title="Eliminar simulacro"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
-      {/* 1. Simulacro: solo documento PDF */}
+      {/* 1. Simulacro: documentos PDF */}
         <div className="flex flex-wrap gap-2 mt-3">
-          {simulacro.materia === 'icfes' && simulacro.icfes ? (
+          {usesIcfesStructure(simulacro) ? (
             <>
-              {simulacro.icfes.seccion1DocumentoUrl && (
+              {simulacro.icfes?.seccion1DocumentoUrl && (
                 <a
                   href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=icfes1doc`}
                   target="_blank"
@@ -935,7 +1033,7 @@ function SimulacroCard({
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
-              {simulacro.icfes.seccion2DocumentoUrl && (
+              {simulacro.icfes?.seccion2DocumentoUrl && (
                 <a
                   href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=icfes2doc`}
                   target="_blank"
@@ -954,30 +1052,49 @@ function SimulacroCard({
               )}
             </>
           ) : (
-            simulacro.pdfSimulacroUrl && (
-              <a
-                href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=documento`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  'inline-flex items-center gap-1 text-sm px-2 py-1 rounded border',
-                  theme === 'dark'
-                    ? 'border-zinc-600 text-teal-400 hover:bg-zinc-700'
-                    : 'border-gray-300 text-primary hover:bg-gray-100'
-                )}
-              >
-                <FileText className="h-4 w-4" />
-                PDF simulacro
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )
+            <>
+              {simulacro.pdfSimulacroUrl && (
+                <a
+                  href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=documento`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    'inline-flex items-center gap-1 text-sm px-2 py-1 rounded border',
+                    theme === 'dark'
+                      ? 'border-zinc-600 text-teal-400 hover:bg-zinc-700'
+                      : 'border-gray-300 text-primary hover:bg-gray-100'
+                  )}
+                >
+                  <FileText className="h-4 w-4" />
+                  {simulacro.pdfSimulacroSeccion2Url ? 'Sección 1 - Documento' : 'PDF simulacro'}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {simulacro.pdfSimulacroSeccion2Url && (
+                <a
+                  href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=documento2`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    'inline-flex items-center gap-1 text-sm px-2 py-1 rounded border',
+                    theme === 'dark'
+                      ? 'border-zinc-600 text-teal-400 hover:bg-zinc-700'
+                      : 'border-gray-300 text-primary hover:bg-gray-100'
+                  )}
+                >
+                  <FileText className="h-4 w-4" />
+                  Sección 2 - Documento
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </>
           )}
         </div>
 
         {/* 2. Hoja de respuestas (sección propia) */}
-        {(simulacro.materia === 'icfes'
+        {(usesIcfesStructure(simulacro)
           ? (simulacro.icfes?.seccion1HojaUrl || simulacro.icfes?.seccion2HojaUrl)
-          : simulacro.pdfHojaRespuestasUrl) && (
+          : (simulacro.pdfHojaRespuestasUrl || simulacro.pdfHojaRespuestasSeccion2Url)) && (
           <div
             className={cn(
               'mt-4 pt-3 border-t',
@@ -988,9 +1105,9 @@ function SimulacroCard({
               Hoja de respuestas
             </p>
             <div className="flex flex-wrap gap-2">
-              {simulacro.materia === 'icfes' && simulacro.icfes ? (
+              {usesIcfesStructure(simulacro) ? (
                 <>
-                  {simulacro.icfes.seccion1HojaUrl && (
+                  {simulacro.icfes?.seccion1HojaUrl && (
                     <a
                       href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=icfes1hoja`}
                       target="_blank"
@@ -1007,7 +1124,7 @@ function SimulacroCard({
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
-                  {simulacro.icfes.seccion2HojaUrl && (
+                  {simulacro.icfes?.seccion2HojaUrl && (
                     <a
                       href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=icfes2hoja`}
                       target="_blank"
@@ -1026,23 +1143,42 @@ function SimulacroCard({
                   )}
                 </>
               ) : (
-                simulacro.pdfHojaRespuestasUrl && (
-                  <a
-                    href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=hoja`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={cn(
-                      'inline-flex items-center gap-1 text-sm px-2 py-1 rounded border',
-                      theme === 'dark'
-                        ? 'border-zinc-600 text-teal-400 hover:bg-zinc-700'
-                        : 'border-gray-300 text-primary hover:bg-gray-100'
-                    )}
-                  >
-                    <FileText className="h-4 w-4" />
-                    Hoja de respuestas
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )
+                <>
+                  {simulacro.pdfHojaRespuestasUrl && (
+                    <a
+                      href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=hoja`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        'inline-flex items-center gap-1 text-sm px-2 py-1 rounded border',
+                        theme === 'dark'
+                          ? 'border-zinc-600 text-teal-400 hover:bg-zinc-700'
+                          : 'border-gray-300 text-primary hover:bg-gray-100'
+                      )}
+                    >
+                      <FileText className="h-4 w-4" />
+                      {simulacro.pdfHojaRespuestasSeccion2Url ? 'Sección 1 - Hoja respuestas' : 'Hoja de respuestas'}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {simulacro.pdfHojaRespuestasSeccion2Url && (
+                    <a
+                      href={`/viewer/pdf?simulacroId=${encodeURIComponent(simulacro.id)}&tipo=hoja2`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        'inline-flex items-center gap-1 text-sm px-2 py-1 rounded border',
+                        theme === 'dark'
+                          ? 'border-zinc-600 text-teal-400 hover:bg-zinc-700'
+                          : 'border-gray-300 text-primary hover:bg-gray-100'
+                      )}
+                    >
+                      <FileText className="h-4 w-4" />
+                      Sección 2 - Hoja respuestas
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -1086,7 +1222,7 @@ function SimulacroCard({
                 ))}
             </ul>
         )}
-        {(simulacro.icfes || (videosLoaded && icfesVideos.length > 0)) && (
+        {(usesIcfesStructure(simulacro) || (videosLoaded && icfesVideos.length > 0)) && (
           <div className="mt-2 pt-2 border-t border-zinc-600/30">
             <button
               type="button"
@@ -1097,7 +1233,8 @@ function SimulacroCard({
               )}
             >
               <Video className="h-4 w-4" />
-              Videos ICFES{videosLoaded ? ` (${icfesVideos.length})` : ''}
+              {simulacro.materia === 'simulacros-completos' ? 'Videos' : 'Videos ICFES'}
+              {videosLoaded ? ` (${icfesVideos.length})` : ''}
             </button>
             {!loadingVideos && icfesVideos.length > 0 && (
               <ul className="mt-2 space-y-1">
