@@ -68,10 +68,10 @@
     "quill-katex": "^1.0.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
-    "react-pdf": "^9.2.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",
     "react-lazy-load-image-component": "^1.6.2",
+    "react-pdf": "^9.2.1",
     "react-quill": "^2.0.0",
     "react-rough-notation": "^1.0.5",
     "react-router-dom": "^7.5.2",
@@ -101,6 +101,7 @@
     "tailwindcss": "^3.4.7",
     "tsx": "^4.20.6",
     "typescript": "^5.6.2",
-    "vite": "^6.2.1"
+    "vite": "^6.2.1",
+    "vite-plugin-remove-console": "^2.2.0"
   }
 }

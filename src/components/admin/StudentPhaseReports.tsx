@@ -23,6 +23,7 @@ import {
   GraduationCap
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { logger } from '@/utils/logger'
 import { useFilteredStudents } from '@/hooks/query/useStudentQuery'
 import { useNotification } from '@/hooks/ui/useNotification'
 import { studentSummaryService } from '@/services/studentSummary/studentSummary.service'
@@ -336,7 +337,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
           })
         }
       } catch (error: any) {
-        console.warn(`⚠️ Error buscando en fase ${phaseName}:`, error.message)
+        logger.warn(`⚠️ Error buscando en fase ${phaseName}:`, error.message)
       }
     }
 
@@ -389,7 +390,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
                 isComplete: hasAllRequiredSubjects && completedSubjectsSet.size >= 7
               }
             } catch (error) {
-              console.error(`Error verificando ${phase}:`, error)
+              logger.error(`Error verificando ${phase}:`, error)
               return { phase, isComplete: false }
             }
           })
@@ -408,7 +409,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
         setAvailablePhases(phases)
         setPhaseStatus(status)
       } catch (error) {
-        console.error('Error verificando fases:', error)
+        logger.error('Error verificando fases:', error)
       } finally {
         setIsCheckingPhases(false)
       }
@@ -659,7 +660,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
 
       return Math.round(globalScore * 100) / 100
     } catch (error) {
-      console.error('Error calculando puntaje del estudiante para fase:', error)
+      logger.error('Error calculando puntaje del estudiante para fase:', error)
       return 0
     }
   }
@@ -856,7 +857,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
             }
           }
         } catch (error) {
-          console.error('Error calculando posiciones por materia:', error)
+          logger.error('Error calculando posiciones por materia:', error)
         }
       }
 
@@ -973,7 +974,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
           }
         }
       } catch (error) {
-        console.error('Error calculando puesto para PDF:', error)
+        logger.error('Error calculando puesto para PDF:', error)
       }
 
       // Para Fase III, obtener datos de fases anteriores
@@ -1059,7 +1060,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
         })
       }
     } catch (error: any) {
-      console.error('Error generando PDF:', error)
+      logger.error('Error generando PDF:', error)
       if (!isBulkDownload) {
         notifyError({
           title: 'Error',
@@ -1138,7 +1139,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
         message: `Se descargaron ${selectedPhases.length} fase(s): ${phaseNames}`
       })
     } catch (error: any) {
-      console.error('Error descargando fases seleccionadas:', error)
+      logger.error('Error descargando fases seleccionadas:', error)
       notifyError({
         title: 'Error',
         message: 'Hubo un error al descargar algunas fases. Intenta descargarlas nuevamente.'
@@ -1257,7 +1258,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
                 }
               })
             } catch (error) {
-              console.error(`Error generando PDF para ${studentName} - ${task.phase}:`, error)
+              logger.error(`Error generando PDF para ${studentName} - ${task.phase}:`, error)
               errorCount++
               completedPDFs++
               
@@ -1327,7 +1328,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
         })
       }
     } catch (error: any) {
-      console.error('Error en descarga masiva:', error)
+      logger.error('Error en descarga masiva:', error)
       notifyError({
         title: 'Error',
         message: 'Hubo un error durante la descarga masiva. Algunos PDFs pueden haberse generado correctamente.'

@@ -9,6 +9,7 @@ import { dbService } from "@/services/firebase/db.service";
 import { phaseAuthorizationService } from "@/services/phase/phaseAuthorization.service";
 import { getPhaseName } from "@/utils/firestoreHelpers";
 import type { PhaseType } from "@/interfaces/phase.interface";
+import { logger } from "@/utils/logger";
 
 const db = getFirestore(firebaseApp);
 
@@ -88,9 +89,7 @@ async function getPhaseResultsDocs(
         }
       });
     } catch (e) {
-      if (import.meta.env.DEV) {
-        console.warn(`[phaseStatusData] Error leyendo ${colName}:`, e);
-      }
+      logger.warn(`[phaseStatusData] Error leyendo ${colName}:`, e);
     }
   }
 

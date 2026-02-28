@@ -23,6 +23,7 @@ import {
   PhaseStatus 
 } from '@/interfaces/phase.interface';
 import { getPhaseName } from '@/utils/firestoreHelpers';
+import { logger } from '@/utils/logger';
 
 /**
  * Servicio para gestionar la autorización de fases evaluativas por grado
@@ -84,10 +85,10 @@ class PhaseAuthorizationService {
         updatedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Fase ${phase} autorizada para grado ${gradeName}`);
+      logger.log(`✅ Fase ${phase} autorizada para grado ${gradeName}`);
       return success(authorization);
     } catch (e) {
-      console.error('❌ Error autorizando fase:', e);
+      logger.error('❌ Error autorizando fase:', e);
       return failure(new ErrorAPI(normalizeError(e, 'autorizar fase')));
     }
   }
@@ -108,10 +109,10 @@ class PhaseAuthorizationService {
         updatedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Autorización de fase ${phase} revocada para grado ${gradeId}`);
+      logger.log(`✅ Autorización de fase ${phase} revocada para grado ${gradeId}`);
       return success(undefined);
     } catch (e) {
-      console.error('❌ Error revocando autorización:', e);
+      logger.error('❌ Error revocando autorización:', e);
       return failure(new ErrorAPI(normalizeError(e, 'revocar autorización')));
     }
   }
@@ -135,7 +136,7 @@ class PhaseAuthorizationService {
       const data = authSnap.data();
       return success(data?.authorized === true);
     } catch (e) {
-      console.error('❌ Error verificando autorización:', e);
+      logger.error('❌ Error verificando autorización:', e);
       return failure(new ErrorAPI(normalizeError(e, 'verificar autorización')));
     }
   }
@@ -172,7 +173,7 @@ class PhaseAuthorizationService {
 
       return success(authorizations);
     } catch (e) {
-      console.error('❌ Error obteniendo autorizaciones:', e);
+      logger.error('❌ Error obteniendo autorizaciones:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener autorizaciones')));
     }
   }
@@ -188,7 +189,7 @@ class PhaseAuthorizationService {
     completed: boolean
   ): Promise<Result<StudentPhaseProgress>> {
     try {
-      console.log(`💾 Actualizando progreso:`, {
+      logger.log(`💾 Actualizando progreso:`, {
         studentId,
         gradeId: `"${gradeId}"`,
         phase,
@@ -209,7 +210,7 @@ class PhaseAuthorizationService {
 
         // Normalizar el subject antes de agregarlo (convertir códigos a nombres)
         const normalizedSubject = this.normalizeSubjectCode(subject);
-        console.log(`   🔄 Normalizando subject: "${subject}" -> "${normalizedSubject}"`);
+        logger.log(`   🔄 Normalizando subject: "${subject}" -> "${normalizedSubject}"`);
 
         if (completed) {
           subjectsCompleted.add(normalizedSubject);
@@ -241,7 +242,7 @@ class PhaseAuthorizationService {
           updatedAt: new Date().toISOString(),
         };
 
-        console.log(`📝 Progreso actualizado (existente):`, {
+        logger.log(`📝 Progreso actualizado (existente):`, {
           studentId,
           gradeId: `"${progress.gradeId}"`,
           completadas: progress.subjectsCompleted.length,
@@ -251,7 +252,7 @@ class PhaseAuthorizationService {
       } else {
         // Normalizar el subject antes de crear el registro
         const normalizedSubject = this.normalizeSubjectCode(subject);
-        console.log(`   🔄 Normalizando subject (nuevo): "${subject}" -> "${normalizedSubject}"`);
+        logger.log(`   🔄 Normalizando subject (nuevo): "${subject}" -> "${normalizedSubject}"`);
 
         progress = {
           studentId,
@@ -265,7 +266,7 @@ class PhaseAuthorizationService {
           updatedAt: new Date().toISOString(),
         };
 
-        console.log(`📝 Progreso creado (nuevo):`, {
+        logger.log(`📝 Progreso creado (nuevo):`, {
           studentId,
           gradeId: `"${progress.gradeId}"`,
           phase,
@@ -280,11 +281,11 @@ class PhaseAuthorizationService {
         updatedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Progreso guardado exitosamente en Firebase`);
+      logger.log(`✅ Progreso guardado exitosamente en Firebase`);
 
       return success(progress);
     } catch (e) {
-      console.error('❌ Error actualizando progreso:', e);
+      logger.error('❌ Error actualizando progreso:', e);
       return failure(new ErrorAPI(normalizeError(e, 'actualizar progreso')));
     }
   }
@@ -321,7 +322,7 @@ class PhaseAuthorizationService {
 
       return success(progress);
     } catch (e) {
-      console.error('❌ Error obteniendo progreso:', e);
+      logger.error('❌ Error obteniendo progreso:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener progreso')));
     }
   }
@@ -336,7 +337,7 @@ class PhaseAuthorizationService {
     totalStudents: number
   ): Promise<Result<GradePhaseCompletion>> {
     try {
-      console.log(`🔍 Verificando completitud para gradeId: "${gradeId}", phase: "${phase}"`);
+      logger.log(`🔍 Verificando completitud para gradeId: "${gradeId}", phase: "${phase}"`);
       
       // 1. Obtener todos los estudiantes del grado
       const studentsResult = await dbService.getFilteredStudents({
@@ -345,19 +346,19 @@ class PhaseAuthorizationService {
       });
 
       if (!studentsResult.success) {
-        console.error('❌ Error obteniendo estudiantes:', studentsResult.error);
+        logger.error('❌ Error obteniendo estudiantes:', studentsResult.error);
         return failure(new ErrorAPI(normalizeError(new Error('Error al obtener estudiantes'), 'verificar completitud')));
       }
 
       const students = studentsResult.data || [];
-      console.log(`👥 Estudiantes encontrados en el grado: ${students.length}`);
+      logger.log(`👥 Estudiantes encontrados en el grado: ${students.length}`);
 
       // 2. Lista canónica de las 7 materias requeridas
       const ALL_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés'];
       
       // 3. Obtener el nombre de la fase para la ruta de Firestore
       const phaseName = getPhaseName(phase);
-      console.log(`📂 Verificando exámenes en: results/{studentId}/${phaseName}`);
+      logger.log(`📂 Verificando exámenes en: results/{studentId}/${phaseName}`);
 
       let completedStudents = 0;
       let inProgressStudents = 0;
@@ -366,7 +367,7 @@ class PhaseAuthorizationService {
       for (const student of students) {
         const studentId = student.id || student.uid;
         if (!studentId) {
-          console.warn(`⚠️ Estudiante sin ID válido:`, student);
+          logger.warn(`⚠️ Estudiante sin ID válido:`, student);
           continue;
         }
 
@@ -407,7 +408,7 @@ class PhaseAuthorizationService {
               return isCompleted && hasSubject;
             });
 
-          console.log(`👤 Estudiante ${studentId}:`, {
+          logger.log(`👤 Estudiante ${studentId}:`, {
             totalExamenes: resultsSnapshot.size,
             examenesCompletados: completedExams.length,
             materias: completedExams.map((e: any) => e.subject)
@@ -433,20 +434,20 @@ class PhaseAuthorizationService {
 
           if (hasAllRequiredSubjects && completedSubjectsSet.size >= 7) {
             completedStudents++;
-            console.log(`   ✅ COMPLETADO: ${studentId} - Tiene ${completedSubjectsSet.size}/7 materias`);
+            logger.log(`   ✅ COMPLETADO: ${studentId} - Tiene ${completedSubjectsSet.size}/7 materias`);
           } else if (completedSubjectsSet.size > 0) {
             inProgressStudents++;
             const missingSubjects = ALL_SUBJECTS.filter(s => 
               !completedSubjectsSet.has(s.trim().toLowerCase())
             );
-            console.log(`   ⏱️ EN PROGRESO: ${studentId} - Tiene ${completedSubjectsSet.size}/7 materias`);
-            console.log(`      Faltantes: ${missingSubjects.join(', ')}`);
+            logger.log(`   ⏱️ EN PROGRESO: ${studentId} - Tiene ${completedSubjectsSet.size}/7 materias`);
+            logger.log(`      Faltantes: ${missingSubjects.join(', ')}`);
           } else {
             inProgressStudents++; // Si tiene exámenes pero no completados, considerar en progreso
-            console.log(`   ⏱️ EN PROGRESO: ${studentId} - Sin exámenes completados aún`);
+            logger.log(`   ⏱️ EN PROGRESO: ${studentId} - Sin exámenes completados aún`);
           }
         } catch (studentError) {
-          console.error(`❌ Error verificando exámenes del estudiante ${studentId}:`, studentError);
+          logger.error(`❌ Error verificando exámenes del estudiante ${studentId}:`, studentError);
           // Si hay error al consultar, considerar como pendiente (no en progreso)
         }
       }
@@ -471,7 +472,7 @@ class PhaseAuthorizationService {
         lastUpdated: new Date().toISOString(),
       };
 
-      console.log(`📊 RESUMEN FINAL - Grado ${gradeId}, Fase ${phase}:`, {
+      logger.log(`📊 RESUMEN FINAL - Grado ${gradeId}, Fase ${phase}:`, {
         totalEstudiantes: totalStudents,
         completados: completedStudents,
         enProgreso: inProgressStudents,
@@ -481,7 +482,7 @@ class PhaseAuthorizationService {
 
       return success(completion);
     } catch (e) {
-      console.error('❌ Error verificando completitud:', e);
+      logger.error('❌ Error verificando completitud:', e);
       return failure(new ErrorAPI(normalizeError(e, 'verificar completitud')));
     }
   }
@@ -535,7 +536,7 @@ class PhaseAuthorizationService {
 
       return success({ canAccess: true });
     } catch (e) {
-      console.error('❌ Error verificando acceso:', e);
+      logger.error('❌ Error verificando acceso:', e);
       return failure(new ErrorAPI(normalizeError(e, 'verificar acceso')));
     }
   }
@@ -608,7 +609,7 @@ class PhaseAuthorizationService {
     }
 
     // Si no se encuentra, retornar el valor original (puede ser un nombre válido ya normalizado)
-    console.log(`⚠️ No se pudo normalizar código: "${codeOrName}"`);
+    logger.log(`⚠️ No se pudo normalizar código: "${codeOrName}"`);
     return originalCode;
   }
 
@@ -641,11 +642,11 @@ class PhaseAuthorizationService {
       const progressRef = doc(this.getCollection('studentPhaseProgress'), progressId);
       const progressSnap = await getDoc(progressRef);
 
-      console.log(`🔍 DIAGNÓSTICO - Estudiante: ${studentId}, Fase: ${phase}`);
+      logger.log(`🔍 DIAGNÓSTICO - Estudiante: ${studentId}, Fase: ${phase}`);
       
       if (progressSnap.exists()) {
         const data = progressSnap.data();
-        console.log(`📋 Datos encontrados:`, {
+        logger.log(`📋 Datos encontrados:`, {
           studentId: data.studentId,
           gradeId: `"${data.gradeId}"`,
           phase: data.phase,
@@ -657,10 +658,10 @@ class PhaseAuthorizationService {
           updatedAt: data.updatedAt
         });
       } else {
-        console.log(`⚠️ No se encontró registro de progreso`);
+        logger.log(`⚠️ No se encontró registro de progreso`);
       }
     } catch (e) {
-      console.error('❌ Error en diagnóstico:', e);
+      logger.error('❌ Error en diagnóstico:', e);
     }
   }
 }

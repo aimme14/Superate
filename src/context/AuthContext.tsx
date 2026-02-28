@@ -7,7 +7,8 @@ import { txt } from "@/utils/format"
 import { AuthContext, User } from "@/interfaces/context.interface"
 
 import { authService as authFB } from "@/services/firebase/auth.service"
-import { createContext, useContext, useEffect, useState, } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
+import { logger } from "@/utils/logger"
 import { Result } from "@/interfaces/db.interface"
 import { LoginFormProps, RegisterFormProps } from "@/schemas/auth.schema"
 
@@ -45,14 +46,14 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
         
         // Si no se pueden obtener los datos del usuario (no existe o está inactivo), cerrar sesión
         if (!userData) {
-          console.log('⚠️ Usuario no encontrado o inactivo en Firestore, cerrando sesión...')
+          logger.log('⚠️ Usuario no encontrado o inactivo en Firestore, cerrando sesión...')
           setUser(undefined)
           setIsAuth(false)
           // Cerrar sesión en Firebase Auth
           try {
             await authFB.logout()
           } catch (error) {
-            console.error('Error al cerrar sesión:', error)
+            logger.error('Error al cerrar sesión:', error)
           }
           setLoading(false)
           return
@@ -107,7 +108,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       try {
         const user = await register(data)
         if (!user.success) throw user.error
-      } catch (e) { console.log(e) }
+      } catch (e) { logger.log(e) }
       finally { setLoadingStatus() }
     })
   }
@@ -122,7 +123,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
         const result = await logoutFB()
         if (!result.success) throw result.error
         result.success && setAuthStatus()
-      } catch (e) { console.log(e) }
+      } catch (e) { logger.log(e) }
       finally { setLoadingStatus() }
     })
   }
@@ -138,7 +139,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       const response = await getUsers()
       if (!response.success) throw response.error
       return response.data
-    } catch (e) { console.log(e) }
+    } catch (e) { logger.log(e) }
   }
   /**
    * Obtiene un usuario específico por su ID
@@ -230,7 +231,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
         const isActive = userData.isActive === true
         
         if (!isActive) {
-          console.log('⚠️ Usuario inactivo, no se puede cargar')
+          logger.log('⚠️ Usuario inactivo, no se puede cargar')
           return undefined
         }
         
@@ -244,7 +245,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
             const institutionIsActive = institutionResult.data.isActive === true
             
             if (!institutionIsActive) {
-              console.log('⚠️ Institución inactiva, no se puede cargar el usuario')
+              logger.log('⚠️ Institución inactiva, no se puede cargar el usuario')
               return undefined
             }
           }
@@ -264,7 +265,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       
       return undefined
     } catch (error) {
-      console.error('Error fetching user data:', error)
+      logger.error('Error fetching user data:', error)
       return undefined
     }
   }
