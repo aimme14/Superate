@@ -7,6 +7,7 @@ import {
   getDoc, 
   getDocFromServer,
   getDocs, 
+  getCountFromServer,
   query, 
   where, 
   limit,
@@ -26,6 +27,7 @@ import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
 import { shuffleArray } from '@/utils/arrayUtils';
+import { SUBJECTS_CONFIG, DIFFICULTY_LEVELS } from '@/utils/subjects.config';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -1092,6 +1094,74 @@ class QuestionService {
       return success(stats);
     } catch (e) {
       console.error('❌ Error al obtener estadísticas:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'obtener estadísticas')));
+    }
+  }
+
+  /**
+   * Obtiene estadísticas del banco usando getCountFromServer (sin descargar documentos).
+   * Mucho más eficiente que getQuestionStats para colecciones grandes.
+   */
+  async getQuestionStatsOptimized(): Promise<Result<{
+    total: number;
+    bySubject: Record<string, number>;
+    byLevel: Record<string, number>;
+    byGrade: Record<string, number>;
+  }>> {
+    try {
+      const questionsRef = collection(db, 'superate', 'auth', 'questions');
+
+      const countPromises: Promise<number>[] = [
+        getCountFromServer(questionsRef).then(s => s.data().count),
+      ];
+
+      const subjectKeys: { code: string; name: string }[] = SUBJECTS_CONFIG.map(s => ({ code: s.code, name: s.name }));
+      const levelNames = DIFFICULTY_LEVELS.map(l => l.name);
+      const gradeCodes = ['6', '7', '8', '9', '0', '1'];
+
+      subjectKeys.forEach(({ code }) => {
+        countPromises.push(
+          getCountFromServer(query(questionsRef, where('subjectCode', '==', code))).then(s => s.data().count)
+        );
+      });
+      levelNames.forEach((level) => {
+        countPromises.push(
+          getCountFromServer(query(questionsRef, where('level', '==', level))).then(s => s.data().count)
+        );
+      });
+      gradeCodes.forEach((grade) => {
+        countPromises.push(
+          getCountFromServer(query(questionsRef, where('grade', '==', grade))).then(s => s.data().count)
+        );
+      });
+
+      const results = await Promise.all(countPromises);
+      const [total, ...rest] = results;
+
+      const stats = {
+        total,
+        bySubject: {} as Record<string, number>,
+        byLevel: {} as Record<string, number>,
+        byGrade: {} as Record<string, number>,
+      };
+
+      let idx = 0;
+      subjectKeys.forEach(({ name }) => {
+        const c = rest[idx++];
+        if (c > 0) stats.bySubject[name] = c;
+      });
+      levelNames.forEach((level) => {
+        const c = rest[idx++];
+        if (c > 0) stats.byLevel[level] = c;
+      });
+      gradeCodes.forEach((grade) => {
+        const c = rest[idx++];
+        if (c > 0) stats.byGrade[grade] = c;
+      });
+
+      return success(stats);
+    } catch (e) {
+      console.error('❌ Error al obtener estadísticas optimizadas:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener estadísticas')));
     }
   }

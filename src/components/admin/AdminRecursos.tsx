@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,13 +21,12 @@ import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
 import { SUBJECTS_CONFIG, getSubjectByCode, GRADE_CODE_TO_NAME } from '@/utils/subjects.config'
 import {
-  resourcesService,
   type ResourceType,
   type WebLink,
   type YoutubeLink,
-  type ResourceFilters,
   type ResourcePath,
 } from '@/services/firebase/resources.service'
+import { useResources, useResourcesMutations } from '@/hooks/query/useResources'
 
 const GRADES = Object.entries(GRADE_CODE_TO_NAME).map(([, name]) => ({ value: name, label: name }))
 
@@ -43,9 +42,6 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
   const [topicCode, setTopicCode] = useState<string>('')
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
-  const [webLinks, setWebLinks] = useState<WebLink[]>([])
-  const [youtubeLinks, setYoutubeLinks] = useState<YoutubeLink[]>([])
-  const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
   const [filterGrado, setFilterGrado] = useState<string>('all')
   const [filterMateria, setFilterMateria] = useState<string>('all')
@@ -60,24 +56,22 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
   const selectedSubject = getSubjectByCode(materiaCode)
   const topicOptions = selectedSubject?.topics ?? []
 
-  const loadResources = useCallback(async () => {
-    setLoading(true)
-    const filters: ResourceFilters = {}
-    if (filterGrado !== 'all') filters.grado = filterGrado
-    if (filterMateria !== 'all') filters.materiaCode = filterMateria
-    if (filterTopic !== 'all') filters.topicCode = filterTopic
-    const [webRes, ytRes] = await Promise.all([
-      resourcesService.getWebLinks(filters),
-      resourcesService.getYoutubeLinks(filters),
-    ])
-    if (webRes.success) setWebLinks(webRes.data)
-    if (ytRes.success) setYoutubeLinks(ytRes.data)
-    setLoading(false)
-  }, [filterGrado, filterMateria, filterTopic])
-
-  useEffect(() => {
-    loadResources()
-  }, [loadResources])
+  const filters = {
+    ...(filterGrado !== 'all' && { grado: filterGrado }),
+    ...(filterMateria !== 'all' && { materiaCode: filterMateria }),
+    ...(filterTopic !== 'all' && { topicCode: filterTopic }),
+  }
+  const { data: resourcesData, isLoading: loading } = useResources(filters)
+  const webLinks = resourcesData?.webLinks ?? []
+  const youtubeLinks = resourcesData?.youtubeLinks ?? []
+  const {
+    createWebLink: createWebLinkMutation,
+    createYoutubeLink: createYoutubeLinkMutation,
+    deleteWebLink: deleteWebLinkMutation,
+    deleteYoutubeLink: deleteYoutubeLinkMutation,
+    updateWebLink: updateWebLinkMutation,
+    updateYoutubeLink: updateYoutubeLinkMutation,
+  } = useResourcesMutations()
 
   const handleMateriaChange = (code: string) => {
     setMateriaCode(code)
@@ -105,7 +99,7 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
     setAdding(true)
     try {
       if (tipo === 'web') {
-        const res = await resourcesService.createWebLink({
+        await createWebLinkMutation.mutateAsync({
           grado,
           materia: subject.name,
           materiaCode: subject.code,
@@ -114,16 +108,11 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
           url: url.trim(),
           title: title.trim() || undefined,
         })
-        if (res.success) {
-          loadResources()
-          notifySuccess({ message: 'Enlace web agregado.' })
-          setUrl('')
-          setTitle('')
-        } else {
-          notifyError({ message: res.error.message })
-        }
+        notifySuccess({ message: 'Enlace web agregado.' })
+        setUrl('')
+        setTitle('')
       } else {
-        const res = await resourcesService.createYoutubeLink({
+        await createYoutubeLinkMutation.mutateAsync({
           grado,
           materia: subject.name,
           materiaCode: subject.code,
@@ -132,15 +121,12 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
           url: url.trim(),
           title: title.trim() || undefined,
         })
-        if (res.success) {
-          loadResources()
-          notifySuccess({ message: 'Video de YouTube agregado.' })
-          setUrl('')
-          setTitle('')
-        } else {
-          notifyError({ message: res.error.message })
-        }
+        notifySuccess({ message: 'Video de YouTube agregado.' })
+        setUrl('')
+        setTitle('')
       }
+    } catch (e) {
+      notifyError({ message: e instanceof Error ? e.message : 'Error al agregar recurso.' })
     } finally {
       setAdding(false)
     }
@@ -150,17 +136,15 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      const res =
-        deleteTarget.type === 'web'
-          ? await resourcesService.deleteWebLink(deleteTarget.path)
-          : await resourcesService.deleteYoutubeLink(deleteTarget.path)
-      if (res.success) {
-        notifySuccess({ message: deleteTarget.type === 'web' ? 'Enlace web eliminado.' : 'Video eliminado.' })
-        loadResources()
-        setDeleteTarget(null)
+      if (deleteTarget.type === 'web') {
+        await deleteWebLinkMutation.mutateAsync(deleteTarget.path)
       } else {
-        notifyError({ message: res.error.message })
+        await deleteYoutubeLinkMutation.mutateAsync(deleteTarget.path)
       }
+      notifySuccess({ message: deleteTarget.type === 'web' ? 'Enlace web eliminado.' : 'Video eliminado.' })
+      setDeleteTarget(null)
+    } catch (e) {
+      notifyError({ message: e instanceof Error ? e.message : 'Error al eliminar.' })
     } finally {
       setDeleting(false)
     }
@@ -198,19 +182,17 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
     const data = { url: editUrl.trim(), title: editTitle.trim() }
     setSavingEdit(true)
     try {
-      const res =
-        editTarget.tipo === 'web'
-          ? await resourcesService.updateWebLink(path, data)
-          : await resourcesService.updateYoutubeLink(path, data)
-      if (res.success) {
-        notifySuccess({
-          message: editTarget.tipo === 'web' ? 'Enlace web actualizado.' : 'Video de YouTube actualizado.',
-        })
-        loadResources()
-        setEditTarget(null)
+      if (editTarget.tipo === 'web') {
+        await updateWebLinkMutation.mutateAsync({ path, data })
       } else {
-        notifyError({ message: res.error.message })
+        await updateYoutubeLinkMutation.mutateAsync({ path, data })
       }
+      notifySuccess({
+        message: editTarget.tipo === 'web' ? 'Enlace web actualizado.' : 'Video de YouTube actualizado.',
+      })
+      setEditTarget(null)
+    } catch (e) {
+      notifyError({ message: e instanceof Error ? e.message : 'Error al actualizar.' })
     } finally {
       setSavingEdit(false)
     }

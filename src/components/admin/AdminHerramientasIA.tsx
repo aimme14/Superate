@@ -26,6 +26,7 @@ import {
   type Nivel,
 } from '@/services/firebase/aiTools.service'
 import { useNotification } from '@/hooks/ui/useNotification'
+import { useAITools, useInvalidateAITools } from '@/hooks/query/useAITools'
 import { cn } from '@/lib/utils'
 import {
   Sparkles,
@@ -60,9 +61,8 @@ const ICON_UPLOAD_TIMEOUT_MS = 25_000
 
 export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps) {
   const { notifySuccess, notifyError } = useNotification()
-  const [tools, setTools] = useState<AIToolData[]>([])
-  const [loading, setLoading] = useState(false)
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  const { data: tools = [], isLoading: loading, refetch } = useAITools()
+  const invalidateAITools = useInvalidateAITools()
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
@@ -76,16 +76,6 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
   const iconInputRef = useRef<HTMLInputElement>(null)
   /** Ref del archivo de icono para no perderlo al enviar (el estado puede ir por detrás) */
   const iconFileRef = useRef<File | null>(null)
-
-  const loadTools = useCallback(async () => {
-    setLoading(true)
-    const res = await aiToolsService.getAll()
-    if (res.success) {
-      setTools(res.data)
-      setHasLoadedOnce(true)
-    } else notifyError({ message: res.error.message })
-    setLoading(false)
-  }, [notifyError])
 
   const resetForm = useCallback(() => {
     setForm(emptyForm)
@@ -236,7 +226,7 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
         if (updateRes.success) {
           notifySuccess({ message: 'Herramienta IA actualizada.' })
           resetForm()
-          void loadTools()
+          invalidateAITools()
         } else {
           notifyError({ message: updateRes.error.message })
         }
@@ -284,7 +274,7 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
         }
         notifySuccess({ message: 'Herramienta IA creada.' })
         resetForm()
-        void loadTools()
+        invalidateAITools()
       }
     } finally {
       setSaving(false)
@@ -299,7 +289,7 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
       if (res.success) {
         notifySuccess({ message: 'Herramienta IA eliminada.' })
         setDeleteTarget(null)
-        void loadTools()
+        invalidateAITools()
         if (editingId === deleteTarget.id) resetForm()
       } else {
         notifyError({ message: res.error.message })
@@ -525,7 +515,7 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => loadTools()}
+                onClick={() => void refetch()}
                 disabled={loading}
                 className={cn(isDark ? 'border-zinc-600 bg-zinc-800 hover:bg-zinc-700' : '')}
               >
@@ -563,11 +553,9 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
             )
             return filtered.length === 0 ? (
               <p className={cn('text-sm', isDark ? 'text-gray-500' : 'text-gray-500')}>
-                {!hasLoadedOnce
-                  ? 'Presiona «Actualizar listado» para cargar las herramientas desde la base de datos.'
-                  : tools.length === 0
-                    ? 'No hay herramientas IA registradas. Use el formulario de arriba para agregar una.'
-                    : 'No hay herramientas que coincidan con el filtro.'}
+                {tools.length === 0
+                  ? 'No hay herramientas IA registradas. Use el formulario de arriba para agregar una.'
+                  : 'No hay herramientas que coincidan con el filtro.'}
               </p>
             ) : (
             <ul className="space-y-3">

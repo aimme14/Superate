@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Checkbox } from '@/components/ui/checkbox'
 import { 
   Plus, 
-  Search, 
   FileText, 
   Edit,
   Trash2,
@@ -23,7 +22,6 @@ import {
   AlertCircle,
   BookOpen,
   BarChart3,
-  Filter,
   RefreshCw,
   ChevronRight,
   ChevronDown,
@@ -39,6 +37,9 @@ import { useNotification } from '@/hooks/ui/useNotification'
 // import { useAutoResizeTextarea } from '@/hooks/ui/useAutoResizeTextarea'
 import RichTextEditor, { RichTextEditorRef } from '@/components/common/RichTextEditor'
 import { questionService, Question, QuestionOption } from '@/services/firebase/question.service'
+import { useQuestions, useQuestionStats, useInvalidateQuestions } from '@/hooks/query/useQuestions'
+import QuestionBankStats from '@/components/admin/QuestionBankStats'
+import QuestionBankFilters from '@/components/admin/QuestionBankFilters'
 import ImageGallery from '@/components/common/ImageGallery'
 import { 
   SUBJECTS_CONFIG, 
@@ -228,15 +229,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     return a.code.localeCompare(b.code)
   }
   const { user: currentUser } = useAuthContext()
+  const invalidateQuestions = useInvalidateQuestions()
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
   const [relatedQuestions, setRelatedQuestions] = useState<Question[]>([]) // Para agrupar preguntas de comprensión de lectura
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [stats, setStats] = useState<any>(null)
 
   // Filtros
   const [filterSubject, setFilterSubject] = useState<string>('all')
@@ -245,6 +244,16 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [filterLevel, setFilterLevel] = useState<string>('all')
   const [filterAIInconsistency, setFilterAIInconsistency] = useState<boolean>(false)
   const [searchTerm, setSearchTerm] = useState('')
+
+  const serverFilters = useMemo(() => ({
+    ...(filterSubject !== 'all' && { subjectCode: filterSubject }),
+    ...(filterTopic !== 'all' && { topicCode: filterTopic }),
+    ...(filterGrade !== 'all' && { grade: filterGrade }),
+    ...(filterLevel !== 'all' && { levelCode: filterLevel }),
+  }), [filterSubject, filterTopic, filterGrade, filterLevel])
+
+  const { data: questions = [], isLoading } = useQuestions(serverFilters)
+  const { data: stats } = useQuestionStats()
   
   // Vista de organización
   const [viewMode, setViewMode] = useState<'list' | 'tree'>('list')
@@ -252,6 +261,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   
   // Selección múltiple
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set())
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Estado del formulario
   const [formData, setFormData] = useState({
@@ -430,17 +440,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     })
   }, [currentUser])
 
-  // Cargar preguntas al montar
-  useEffect(() => {
-    loadQuestions()
-    loadStats()
-  }, [])
-
-  // Aplicar filtros
-  useEffect(() => {
-    applyFilters()
-  }, [questions, filterSubject, filterTopic, filterGrade, filterLevel, filterAIInconsistency, searchTerm])
-
   // Cerrar dropdowns de matching al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -471,60 +470,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setSelectedQuestionIds(new Set())
   }, [filterSubject, filterTopic, filterGrade, filterLevel, filterAIInconsistency, searchTerm])
 
-  const loadQuestions = async () => {
-    setIsLoading(true)
-    try {
-      const result = await questionService.getFilteredQuestions({})
-      if (result.success) {
-        setQuestions(result.data)
-      } else {
-        notifyError({ 
-          title: 'Error', 
-          message: 'No se pudieron cargar las preguntas' 
-        })
-      }
-    } catch (error) {
-      console.error('Error cargando preguntas:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const loadStats = async () => {
-    try {
-      const result = await questionService.getQuestionStats()
-      if (result.success) {
-        setStats(result.data)
-      }
-    } catch (error) {
-      console.error('Error cargando estadísticas:', error)
-    }
-  }
-
-  const applyFilters = () => {
+  const filteredQuestions = useMemo(() => {
     let filtered = [...questions]
 
-    // Filtro por materia
-    if (filterSubject !== 'all') {
-      filtered = filtered.filter(q => q.subjectCode === filterSubject)
-    }
-
-    // Filtro por tema
-    if (filterTopic !== 'all') {
-      filtered = filtered.filter(q => q.topicCode === filterTopic)
-    }
-
-    // Filtro por grado
-    if (filterGrade !== 'all') {
-      filtered = filtered.filter(q => q.grade === filterGrade)
-    }
-
-    // Filtro por nivel
-    if (filterLevel !== 'all') {
-      filtered = filtered.filter(q => q.levelCode === filterLevel)
-    }
-
-    // Filtro por inconsistencias con IA
+    // Filtros cliente: searchTerm y filterAIInconsistency (los de servidor ya están aplicados)
     if (filterAIInconsistency) {
       filtered = filtered.filter(q => {
         if (!q.aiJustification) return false
@@ -574,8 +523,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       )
     }
 
-    setFilteredQuestions(filtered)
-  }
+    return filtered
+  }, [questions, filterAIInconsistency, searchTerm])
 
   const handleSubjectChange = (subjectCode: string) => {
     const subject = getSubjectByCode(subjectCode)
@@ -1452,7 +1401,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       }
 
-      setIsLoading(true)
+      setIsSubmitting(true)
       console.log('🚀 Iniciando proceso de creación de pregunta...')
       console.log('📋 Modalidad actual:', formData.subjectCode === 'IN' ? `Inglés - ${inglesModality}` : formData.subject)
 
@@ -1753,8 +1702,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -1762,8 +1710,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -1875,8 +1822,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -1884,8 +1830,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -2063,8 +2008,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -2072,8 +2016,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -2251,8 +2194,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -2260,8 +2202,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -2341,8 +2282,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             })
             resetForm()
             setIsCreateDialogOpen(false)
-            loadQuestions()
-            loadStats()
+            invalidateQuestions()
+            invalidateQuestions()
           } else {
             const errorMsg = result?.error || result?.message || 'No se pudo crear la pregunta'
             console.error('❌ Error en createQuestion:', errorMsg)
@@ -2394,12 +2335,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     } finally {
       // Asegurar que siempre se restaure el estado de loading
       try {
-        setIsLoading(false)
+        setIsSubmitting(false)
         console.log('🏁 Proceso de creación finalizado')
       } catch (finallyError) {
         console.error('❌ Error en finally block:', finallyError)
         // Si todo falla, al menos intentar restaurar el estado manualmente
-        setTimeout(() => setIsLoading(false), 100)
+        setTimeout(() => setIsSubmitting(false), 100)
       }
     }
   }
@@ -2952,19 +2893,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       userRole: currentUser.role
     })
 
-    // Guardar el estado original para poder restaurarlo si falla
-    const originalQuestions = [...questions]
-    const originalFilteredQuestions = [...filteredQuestions]
-    
-    // Actualización optimista: eliminar del estado local inmediatamente
-    const updatedQuestions = questions.filter(q => q.id !== question.id)
-    setQuestions(updatedQuestions)
-    
-    // Actualizar también las preguntas filtradas
-    const updatedFilteredQuestions = filteredQuestions.filter(q => q.id !== question.id)
-    setFilteredQuestions(updatedFilteredQuestions)
-
-    setIsLoading(true)
+    setIsSubmitting(true)
     try {
       console.log('🔄 Llamando a questionService.deleteQuestion con ID:', question.id)
       const result = await questionService.deleteQuestion(question.id)
@@ -2973,8 +2902,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         console.log('✅ Eliminación exitosa en la base de datos')
         
         // Recargar las preguntas desde la base de datos para asegurar consistencia
-        await loadQuestions()
-        await loadStats()
+        invalidateQuestions()
         
         notifySuccess({
           title: 'Éxito',
@@ -2988,10 +2916,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           code: result.error?.code
         })
         
-        // Restaurar el estado original si falló la eliminación
-        setQuestions(originalQuestions)
-        setFilteredQuestions(originalFilteredQuestions)
-        
         notifyError({
           title: 'Error al eliminar',
           message: result.error?.message || 'No se pudo eliminar la pregunta de la base de datos. Verifica las reglas de seguridad de Firestore.'
@@ -3004,17 +2928,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         code: error?.code,
         stack: error?.stack
       })
-      
-      // Restaurar el estado original si falló la eliminación
-      setQuestions(originalQuestions)
-      setFilteredQuestions(originalFilteredQuestions)
-      
+
       notifyError({
         title: 'Error',
         message: `Error al eliminar la pregunta: ${error?.message || 'Error desconocido'}. La pregunta no se eliminó de la base de datos.`
       })
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -3062,20 +2982,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     }
 
     const idsToDelete = Array.from(selectedQuestionIds)
-    const originalQuestions = [...questions]
-    const originalFilteredQuestions = [...filteredQuestions]
-    
-    // Actualización optimista: eliminar del estado local inmediatamente
-    const updatedQuestions = questions.filter(q => q.id && !idsToDelete.includes(q.id))
-    setQuestions(updatedQuestions)
-    
-    const updatedFilteredQuestions = filteredQuestions.filter(q => q.id && !idsToDelete.includes(q.id))
-    setFilteredQuestions(updatedFilteredQuestions)
-    
+
     // Limpiar selección
     setSelectedQuestionIds(new Set())
     
-    setIsLoading(true)
+    setIsSubmitting(true)
     let successCount = 0
     let errorCount = 0
 
@@ -3097,8 +3008,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
 
       // Recargar las preguntas desde la base de datos para asegurar consistencia
-      await loadQuestions()
-      await loadStats()
+      invalidateQuestions()
 
       if (errorCount === 0) {
         notifySuccess({
@@ -3108,24 +3018,18 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       } else {
         notifyError({
           title: 'Eliminación parcial',
-          message: `${successCount} pregunta(s) eliminada(s), ${errorCount} fallaron. Se restauraron las preguntas en el estado local.`
+          message: `${successCount} pregunta(s) eliminada(s), ${errorCount} fallaron.`
         })
-        // Restaurar el estado original si hubo errores
-        setQuestions(originalQuestions)
-        setFilteredQuestions(originalFilteredQuestions)
       }
     } catch (error: any) {
       console.error('Error general al eliminar preguntas:', error)
-      // Restaurar el estado original
-      setQuestions(originalQuestions)
-      setFilteredQuestions(originalFilteredQuestions)
-      
+
       notifyError({
         title: 'Error',
         message: `Error al eliminar las preguntas: ${error?.message || 'Error desconocido'}`
       })
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -3413,7 +3317,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         return
       }
 
-      setIsLoading(true)
+      setIsSubmitting(true)
       notifySuccess({
         title: 'Actualizando',
         message: 'Guardando cambios...'
@@ -3608,7 +3512,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Error',
             message: codeResult.error?.message || 'No se pudo generar el nuevo código'
           })
-          setIsLoading(false)
+          setIsSubmitting(false)
           return
         }
 
@@ -3636,7 +3540,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Error', 
             message: 'No se encontraron huecos en el texto. Usa [1], [2], etc. para marcar los huecos.' 
           })
-          setIsLoading(false)
+          setIsSubmitting(false)
           return
         }
         
@@ -3721,7 +3625,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             }
           }, 100)
           
-          setIsLoading(false)
+          setIsSubmitting(false)
           return
         }
         
@@ -3856,15 +3760,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           setEditClozeText('')
           setEditClozeGaps({})
           setEditClozeRelatedQuestions([])
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else if (successCount > 0) {
           notifyError({
             title: 'Advertencia',
             message: `Se actualizaron ${successCount} pregunta(s) de ${sortedGaps.length}. ${errorCount} fallaron.`
           })
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else {
           notifyError({
             title: 'Error',
@@ -3879,7 +3781,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Error', 
             message: 'El texto de lectura es obligatorio' 
           })
-          setIsLoading(false)
+          setIsSubmitting(false)
           return
         }
         
@@ -3888,7 +3790,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Error', 
             message: 'Debe agregar al menos una pregunta' 
           })
-          setIsLoading(false)
+          setIsSubmitting(false)
           return
         }
         
@@ -4213,15 +4115,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           setEditReadingExistingImageUrl(null)
           setEditReadingQuestions([])
           setEditReadingRelatedQuestions([])
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else if (successCount > 0) {
           notifyError({
             title: 'Advertencia',
             message: `Se actualizaron ${successCount} pregunta(s) de ${editReadingQuestions.length}. ${errorCount} fallaron.`
           })
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
             } else {
               notifyError({
                 title: 'Error',
@@ -4235,7 +4135,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 title: 'Error', 
                 message: 'El texto de lectura es obligatorio' 
               })
-              setIsLoading(false)
+              setIsSubmitting(false)
               return
             }
             
@@ -4244,7 +4144,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 title: 'Error', 
                 message: 'Debe agregar al menos una pregunta' 
               })
-              setIsLoading(false)
+              setIsSubmitting(false)
               return
             }
             
@@ -4576,15 +4476,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               setEditOtherSubjectsReadingExistingImageUrl(null)
               setEditOtherSubjectsReadingQuestions([])
               setEditOtherSubjectsReadingRelatedQuestions([])
-              loadQuestions()
-              loadStats()
+              invalidateQuestions()
+              invalidateQuestions()
             } else if (successCount > 0) {
               notifyError({
                 title: 'Advertencia',
                 message: `Se actualizaron ${successCount} pregunta(s) de ${editOtherSubjectsReadingQuestions.length}. ${errorCount} fallaron.`
               })
-              loadQuestions()
-              loadStats()
+              invalidateQuestions()
+              invalidateQuestions()
             } else {
               notifyError({
                 title: 'Error',
@@ -4603,7 +4503,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Error', 
             message: 'Debe agregar al menos una pregunta de matching/columnas' 
           })
-          setIsLoading(false)
+          setIsSubmitting(false)
           return
         }
         
@@ -4629,7 +4529,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             title: 'Error',
             message: 'Complete todos los campos de las preguntas de matching/columnas'
           })
-          setIsLoading(false)
+          setIsSubmitting(false)
           return
         }
         
@@ -4884,15 +4784,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           setSelectedQuestion(null)
           setMatchingQuestions([])
           setInglesModality('standard_mc')
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else if (successCount > 0) {
           notifyError({
             title: 'Advertencia',
             message: `Se actualizaron ${successCount} pregunta(s) de ${matchingQuestions.length}. ${errorCount} fallaron.`
           })
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else {
           notifyError({
             title: 'Error',
@@ -5042,8 +4940,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           resetForm()
           setIsEditDialogOpen(false)
           setSelectedQuestion(null)
-          loadQuestions()
-          loadStats()
+          invalidateQuestions()
         } else {
           notifyError({
             title: 'Error',
@@ -5058,7 +4955,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         message: 'Error al actualizar la pregunta'
       })
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -5487,208 +5384,28 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       </div>
 
       {/* Estadísticas */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Total Preguntas
-              </CardTitle>
-              <FileText className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                {stats.total}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Por Materia
-              </CardTitle>
-              <BarChart3 className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                {Object.entries(stats.bySubject).slice(0, 3).map(([subject, count]) => (
-                  <div key={subject} className="flex justify-between text-sm">
-                    <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>{subject}</span>
-                    <span className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{count as number}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Por Nivel
-              </CardTitle>
-              <AlertCircle className="h-4 w-4 text-amber-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                {Object.entries(stats.byLevel).map(([level, count]) => (
-                  <div key={level} className="flex justify-between text-sm">
-                    <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>{level}</span>
-                    <span className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{count as number}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={cn('text-sm font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Por Grado
-              </CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                {Object.entries(stats.byGrade).slice(0, 3).map(([grade, count]) => (
-                  <div key={grade} className="flex justify-between text-sm">
-                    <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                      {GRADE_CODE_TO_NAME[grade] || grade}
-                    </span>
-                    <span className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{count as number}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {stats && <QuestionBankStats stats={stats} theme={theme} />}
 
       {/* Filtros */}
-      <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-        <CardHeader>
-          <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-            <Filter className="h-4 w-4" />
-            Filtros
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Buscar preguntas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className={cn("pl-10", theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-              />
-            </div>
-
-            <Select value={filterSubject} onValueChange={setFilterSubject}>
-              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                <SelectValue placeholder="Todas las materias" />
-              </SelectTrigger>
-              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                <SelectItem value="all">Todas las materias</SelectItem>
-                {SUBJECTS_CONFIG.map(subject => (
-                  <SelectItem key={subject.code} value={subject.code}>
-                    {subject.icon} {subject.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={filterTopic} onValueChange={setFilterTopic} disabled={filterSubject === 'all'}>
-              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                <SelectValue placeholder="Todos los temas" />
-              </SelectTrigger>
-              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                <SelectItem value="all">Todos los temas</SelectItem>
-                {filterAvailableTopics.map(topic => (
-                  <SelectItem key={topic.code} value={topic.code}>
-                    {topic.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={filterGrade} onValueChange={setFilterGrade}>
-              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                <SelectValue placeholder="Todos los grados" />
-              </SelectTrigger>
-              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                <SelectItem value="all">Todos los grados</SelectItem>
-                {Object.entries(GRADE_CODE_TO_NAME).map(([code, name]) => (
-                  <SelectItem key={code} value={code}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={filterLevel} onValueChange={setFilterLevel}>
-              <SelectTrigger className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}>
-                <SelectValue placeholder="Todos los niveles" />
-              </SelectTrigger>
-              <SelectContent className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                <SelectItem value="all">Todos los niveles</SelectItem>
-                {DIFFICULTY_LEVELS.map(level => (
-                  <SelectItem key={level.code} value={level.code}>
-                    {level.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Filtro de inconsistencias con IA */}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="filter-ai-inconsistency"
-                checked={filterAIInconsistency}
-                onCheckedChange={(checked) => setFilterAIInconsistency(checked === true)}
-                className={cn(theme === 'dark' ? 'border-zinc-600' : '')}
-              />
-              <Label 
-                htmlFor="filter-ai-inconsistency" 
-                className={cn("text-sm cursor-pointer flex items-center gap-2", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
-              >
-                <AlertCircle className={cn("h-4 w-4", filterAIInconsistency ? 'text-orange-500' : 'text-gray-400')} />
-                Inconsistencias con IA
-              </Label>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setFilterSubject('all')
-                setFilterTopic('all')
-                setFilterGrade('all')
-                setFilterLevel('all')
-                setFilterAIInconsistency(false)
-                setSearchTerm('')
-              }}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Limpiar filtros
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadQuestions}
-              disabled={isLoading}
-            >
-              <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
-              Actualizar
-            </Button>
-            <span className={cn('text-sm ml-auto', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              {filteredQuestions.length} pregunta{filteredQuestions.length !== 1 ? 's' : ''} encontrada{filteredQuestions.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      <QuestionBankFilters
+        theme={theme}
+        filterSubject={filterSubject}
+        setFilterSubject={setFilterSubject}
+        filterTopic={filterTopic}
+        setFilterTopic={setFilterTopic}
+        filterGrade={filterGrade}
+        setFilterGrade={setFilterGrade}
+        filterLevel={filterLevel}
+        setFilterLevel={setFilterLevel}
+        filterAIInconsistency={filterAIInconsistency}
+        setFilterAIInconsistency={setFilterAIInconsistency}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        filterAvailableTopics={filterAvailableTopics}
+        onRefresh={() => invalidateQuestions()}
+        isLoading={isLoading}
+        filteredCount={filteredQuestions.length}
+      />
 
       {/* Lista de preguntas */}
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
@@ -5711,7 +5428,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     variant="destructive"
                     size="sm"
                     onClick={handleDeleteSelectedQuestions}
-                    disabled={isLoading}
+                    disabled={isLoading || isSubmitting}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Borrar seleccionadas ({selectedQuestionIds.size})

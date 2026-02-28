@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { simulacrosService } from '@/services/firebase/simulacros.service'
+import { useSimulacrosList, SIMULACROS_LIST_QUERY_KEY, useSimulacroDetails } from '@/hooks/query/useSimulacros'
 import { useNotification } from '@/hooks/ui/useNotification'
 import {
   SIMULACRO_GRADOS,
@@ -24,7 +26,6 @@ import {
   type Simulacro,
   type SimulacroGrado,
   type SimulacroMateria,
-  type SimulacroVideo,
 } from '@/interfaces/simulacro.interface'
 import { cn } from '@/lib/utils'
 import {
@@ -35,7 +36,13 @@ import {
   FileText,
   Video,
   ExternalLink,
+  ChevronDown,
 } from 'lucide-react'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 
 interface AdminSimulacrosProps {
   theme: 'light' | 'dark'
@@ -70,9 +77,8 @@ function generateVideoRowId(): string {
 
 export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
   const { notifySuccess, notifyError } = useNotification()
-  const [simulacros, setSimulacros] = useState<Simulacro[]>([])
-  const [loading, setLoading] = useState(false)
-  const [listLoadedOnce, setListLoadedOnce] = useState(false)
+  const queryClient = useQueryClient()
+  const { data: simulacros = [], isLoading: loading, refetch } = useSimulacrosList()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [pdfSimulacroFile, setPdfSimulacroFile] = useState<File | null>(null)
@@ -92,17 +98,9 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
   const icfesDoc2Ref = useRef<HTMLInputElement>(null)
   const icfesHoja2Ref = useRef<HTMLInputElement>(null)
 
-  const loadSimulacros = useCallback(async () => {
-    setLoading(true)
-    const res = await simulacrosService.getAll()
-    if (res.success) {
-      setSimulacros(res.data)
-      setListLoadedOnce(true)
-    } else {
-      notifyError({ message: res.error.message })
-    }
-    setLoading(false)
-  }, [notifyError])
+  const invalidateSimulacrosList = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: SIMULACROS_LIST_QUERY_KEY })
+  }, [queryClient])
 
   const resetForm = useCallback(() => {
     setForm(emptyForm)
@@ -227,7 +225,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
 
       notifySuccess({ message: 'Simulacro creado correctamente.' })
       resetForm()
-      void loadSimulacros()
+      invalidateSimulacrosList()
     } catch (e) {
       notifyError({ message: 'Error inesperado al crear el simulacro.' })
     }
@@ -244,7 +242,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
     const res = await simulacrosService.delete(deleteTarget.id, true)
     if (res.success) {
       notifySuccess({ message: 'Simulacro eliminado.' })
-      setSimulacros((prev) => prev.filter((x) => x.id !== deleteTarget.id))
+      invalidateSimulacrosList()
       setDeleteTarget(null)
     } else {
       notifyError({ message: res.error.message })
@@ -710,10 +708,10 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
                 Listado de simulacros
               </CardTitle>
               <CardDescription>
-                El más reciente primero. Fecha de creación asignada automáticamente.
+                Organizado por materias. Haz clic en cada materia para expandir o colapsar sus simulacros.
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={loadSimulacros} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar'}
             </Button>
           </div>
@@ -723,35 +721,17 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : !listLoadedOnce ? (
-            <div className={cn('text-center py-8', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              <p className="mb-3">Haz clic en &quot;Actualizar&quot; para cargar el listado de simulacros.</p>
-              <Button variant="outline" onClick={loadSimulacros} disabled={loading}>
-                Actualizar listado
-              </Button>
-            </div>
           ) : simulacros.length === 0 ? (
             <p className={cn('text-center py-8', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
               No hay simulacros. Crea uno con el formulario de arriba.
             </p>
           ) : (
-            <div className="space-y-4">
-              {[...simulacros]
-                .sort((a, b) => {
-                  const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt as string).getTime()
-                  const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt as string).getTime()
-                  return tb - ta
-                })
-                .map((s) => (
-                <SimulacroCard
-                  key={s.id}
-                  simulacro={s}
-                  theme={theme}
-                  materiaLabel={materiaLabel}
-                  onDelete={() => handleDelete(s)}
-                />
-              ))}
-            </div>
+            <SimulacrosListByMateria
+              simulacros={simulacros}
+              theme={theme}
+              materiaLabel={materiaLabel}
+              onDelete={handleDelete}
+            />
           )}
         </CardContent>
       </Card>
@@ -780,6 +760,104 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
   )
 }
 
+/** Agrupa simulacros por materia y los muestra en secciones expandibles/colapsables */
+function SimulacrosListByMateria({
+  simulacros,
+  theme,
+  materiaLabel,
+  onDelete,
+}: {
+  simulacros: Simulacro[]
+  theme: 'light' | 'dark'
+  materiaLabel: (value: string) => string
+  onDelete: (s: Simulacro) => void
+}) {
+  const materiasOrden = SIMULACRO_MATERIAS.map((m) => m.value)
+  const porMateria = new Map<string, Simulacro[]>()
+
+  for (const s of simulacros) {
+    const key = s.materia || 'otros'
+    if (!porMateria.has(key)) porMateria.set(key, [])
+    porMateria.get(key)!.push(s)
+  }
+
+  // Ordenar simulacros dentro de cada materia (más reciente primero)
+  for (const list of porMateria.values()) {
+    list.sort((a, b) => {
+      const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt as string).getTime()
+      const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt as string).getTime()
+      return tb - ta
+    })
+  }
+
+  // Orden de materias: primero las de SIMULACRO_MATERIAS, luego las que no estén (ej. "otros")
+  const materiasOrdenSet = new Set(materiasOrden as readonly string[])
+  const materiasConDatos: string[] = [
+    ...materiasOrden.filter((m) => porMateria.has(m)),
+    ...Array.from(porMateria.keys()).filter((m) => !materiasOrdenSet.has(m)),
+  ]
+
+  return (
+    <div className="space-y-3">
+      {materiasConDatos.map((materiaKey) => {
+        const items = porMateria.get(materiaKey) ?? []
+        const label = materiaLabel(materiaKey)
+        return (
+          <Collapsible key={materiaKey} defaultOpen={false} className="group/collapse">
+            <div
+              className={cn(
+                'rounded-lg border overflow-hidden',
+                theme === 'dark' ? 'border-zinc-700 bg-zinc-800/30' : 'border-gray-200 bg-gray-50/50'
+              )}
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'w-full flex items-center gap-2 px-4 py-3 text-left font-medium transition-colors',
+                    theme === 'dark'
+                      ? 'hover:bg-zinc-700/50 text-white'
+                      : 'hover:bg-gray-100 text-gray-900'
+                  )}
+                >
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=closed]/collapse:-rotate-90" />
+                  <span>{label}</span>
+                  <span
+                    className={cn(
+                      'text-sm font-normal ml-1',
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                    )}
+                  >
+                    ({items.length} {items.length === 1 ? 'simulacro' : 'simulacros'})
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div
+                  className={cn(
+                    'border-t px-4 py-3 space-y-4',
+                    theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+                  )}
+                >
+                  {items.map((s) => (
+                    <SimulacroCard
+                      key={s.id}
+                      simulacro={s}
+                      theme={theme}
+                      materiaLabel={materiaLabel}
+                      onDelete={() => onDelete(s)}
+                    />
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        )
+      })}
+    </div>
+  )
+}
+
 function SimulacroCard({
   simulacro,
   theme,
@@ -791,22 +869,11 @@ function SimulacroCard({
   materiaLabel: (value: string) => string
   onDelete: () => void
 }) {
-  const [videos, setVideos] = useState<SimulacroVideo[]>([])
-  const [icfesVideos, setIcfesVideos] = useState<SimulacroVideo[]>([])
-  const [loadingVideos, setLoadingVideos] = useState(false)
-  const [videosLoaded, setVideosLoaded] = useState(false)
-
-  const loadVideos = useCallback(async () => {
-    if (videosLoaded) return
-    setLoadingVideos(true)
-    const res = await simulacrosService.getById(simulacro.id)
-    if (res.success && res.data) {
-      if (res.data.videos) setVideos(res.data.videos)
-      if (res.data.icfesVideos) setIcfesVideos(res.data.icfesVideos)
-    }
-    setVideosLoaded(true)
-    setLoadingVideos(false)
-  }, [simulacro.id, videosLoaded])
+  const [shouldLoadVideos, setShouldLoadVideos] = useState(false)
+  const { data: details, isLoading: loadingVideos } = useSimulacroDetails(simulacro.id, shouldLoadVideos)
+  const videos = details?.videos ?? []
+  const icfesVideos = details?.icfesVideos ?? []
+  const videosLoaded = !!details
 
   const created = simulacro.createdAt instanceof Date
     ? simulacro.createdAt
@@ -988,7 +1055,7 @@ function SimulacroCard({
         </p>
         <button
           type="button"
-          onClick={loadVideos}
+          onClick={() => !videosLoaded && setShouldLoadVideos(true)}
           className={cn(
             'text-sm font-medium flex items-center gap-1',
             theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
@@ -1023,7 +1090,7 @@ function SimulacroCard({
           <div className="mt-2 pt-2 border-t border-zinc-600/30">
             <button
               type="button"
-              onClick={loadVideos}
+              onClick={() => !videosLoaded && setShouldLoadVideos(true)}
               className={cn(
                 'text-sm font-medium flex items-center gap-1',
                 theme === 'dark' ? 'text-amber-300/90' : 'text-amber-700'

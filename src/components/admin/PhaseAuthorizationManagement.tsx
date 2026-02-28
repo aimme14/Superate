@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,27 +25,15 @@ import { cn } from '@/lib/utils';
 import { useNotification } from '@/hooks/ui/useNotification';
 import { useInstitutionOptions, useCampusOptions, useAllGradeOptions } from '@/hooks/query/useInstitutionQuery';
 import { useAuthContext } from '@/context/AuthContext';
-import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
-import { PhaseAuthorization, GradePhaseCompletion, PhaseType } from '@/interfaces/phase.interface';
-import { dbService } from '@/services/firebase/db.service';
+import {
+  usePhaseAuthorizations,
+  usePhaseAuthorizationMutations,
+  type GradePhaseStatus,
+} from '@/hooks/query/usePhaseAuthorizations';
+import type { PhaseType } from '@/interfaces/phase.interface';
 
 interface PhaseAuthorizationManagementProps {
   theme: 'light' | 'dark';
-}
-
-interface GradePhaseStatus {
-  gradeId: string;
-  gradeName: string;
-  institutionId: string;
-  institutionName: string;
-  campusId: string;
-  campusName: string;
-  totalStudents: number;
-  phases: {
-    first: { authorized: boolean; completion?: GradePhaseCompletion };
-    second: { authorized: boolean; completion?: GradePhaseCompletion };
-    third: { authorized: boolean; completion?: GradePhaseCompletion };
-  };
 }
 
 const PHASE_NAMES: Record<PhaseType, string> = {
@@ -68,16 +56,13 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
   
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
   const [selectedCampus, setSelectedCampus] = useState<string>('all');
-  const [gradesStatus, setGradesStatus] = useState<GradePhaseStatus[]>([]);
   const [expandedGrades, setExpandedGrades] = useState<Set<string>>(new Set());
   const [expandedInstitutions, setExpandedInstitutions] = useState<Set<string>>(new Set());
   const [expandedCampuses, setExpandedCampuses] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false);
   const [isAuthorizeDialogOpen, setIsAuthorizeDialogOpen] = useState(false);
   const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PhaseType | null>(null);
   const [selectedGradeInfo, setSelectedGradeInfo] = useState<{ id: string; name: string; institutionId?: string; campusId?: string } | null>(null);
-  const isLoadingRef = useRef(false);
 
   const { options: campuses = [] } = useCampusOptions(selectedInstitution !== 'all' ? selectedInstitution : '');
 
@@ -90,159 +75,50 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
     });
   }, [allGrades, selectedInstitution, selectedCampus]);
 
-  const loadAllGradesStatus = useCallback(async () => {
-    if (filteredGrades.length === 0 || isLoadingRef.current) return;
-    
-    isLoadingRef.current = true;
-    setIsLoading(true);
-    
-    try {
-      const statusPromises = filteredGrades.map(async (grade) => {
-        // Obtener autorizaciones del grado
-        const authResult = await phaseAuthorizationService.getGradeAuthorizations(grade.value);
-        const authorizations: PhaseAuthorization[] = authResult.success ? authResult.data : [];
-
-        // Obtener número total de estudiantes del grado
-        const studentsResult = await dbService.getFilteredStudents({
-          gradeId: grade.value,
-          isActive: true,
-        });
-
-        const totalStudents = studentsResult.success ? studentsResult.data.length : 0;
-
-        // Verificar completitud para cada fase
-        const phases: PhaseType[] = ['first', 'second', 'third'];
-        const phaseStatus: GradePhaseStatus['phases'] = {
-          first: { authorized: false },
-          second: { authorized: false },
-          third: { authorized: false },
-        };
-
-        for (const phase of phases) {
-          const auth = authorizations.find(a => a.phase === phase && a.authorized);
-          phaseStatus[phase].authorized = !!auth;
-
-          if (totalStudents > 0) {
-            const completionResult = await phaseAuthorizationService.checkGradePhaseCompletion(
-              grade.value,
-              phase,
-              totalStudents
-            );
-
-            if (completionResult.success) {
-              phaseStatus[phase].completion = completionResult.data;
-            }
-          }
-        }
-
-        return {
-          gradeId: grade.value,
-          gradeName: grade.label,
-          institutionId: grade.institutionId,
-          institutionName: grade.institutionName,
-          campusId: grade.campusId,
-          campusName: grade.campusName,
-          totalStudents,
-          phases: phaseStatus,
-        } as GradePhaseStatus;
-      });
-
-      const statuses = await Promise.all(statusPromises);
-      setGradesStatus(statuses);
-    } catch (error) {
-      console.error('Error al cargar estados de grados:', error);
-      notifyError({ 
-        title: 'Error',
-        message: 'Error al cargar estados de fases'
-      });
-    } finally {
-      setIsLoading(false);
-      isLoadingRef.current = false;
-    }
-  }, [filteredGrades, notifyError]);
-
-  // Cargar estados de fases para todos los grados filtrados
-  useEffect(() => {
-    if (filteredGrades.length > 0) {
-      loadAllGradesStatus();
-    } else {
-      setGradesStatus([]);
-    }
-    // Solo se ejecuta cuando cambian los filtros, NO cuando cambia loadAllGradesStatus
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredGrades.length, selectedInstitution, selectedCampus]);
+  const { data: gradesStatus = [], isLoading, refetch } = usePhaseAuthorizations(filteredGrades);
+  const { authorize: authorizeMutation, revoke: revokeMutation } = usePhaseAuthorizationMutations();
 
   const handleAuthorize = async () => {
     if (!selectedPhase || !selectedGradeInfo || !user?.uid) return;
 
-    setIsLoading(true);
     try {
-      const result = await phaseAuthorizationService.authorizePhase(
-        selectedGradeInfo.id,
-        selectedGradeInfo.name,
-        selectedPhase,
-        user.uid,
-        selectedGradeInfo.institutionId,
-        selectedGradeInfo.campusId
-      );
-
-      if (result.success) {
-        notifySuccess({ 
-          title: 'Fase autorizada',
-          message: `Fase ${PHASE_NAMES[selectedPhase]} autorizada para ${selectedGradeInfo.name}`
-        });
-        setIsAuthorizeDialogOpen(false);
-        setSelectedPhase(null);
-        setSelectedGradeInfo(null);
-        await loadAllGradesStatus();
-      } else {
-        notifyError({ 
-          title: 'Error',
-          message: 'Error al autorizar fase'
-        });
-      }
-    } catch (error) {
-      notifyError({ 
-        title: 'Error',
-        message: 'Error al autorizar fase'
+      await authorizeMutation.mutateAsync({
+        gradeId: selectedGradeInfo.id,
+        gradeName: selectedGradeInfo.name,
+        phase: selectedPhase,
+        userId: user.uid,
+        institutionId: selectedGradeInfo.institutionId,
+        campusId: selectedGradeInfo.campusId,
       });
-    } finally {
-      setIsLoading(false);
+      notifySuccess({
+        title: 'Fase autorizada',
+        message: `Fase ${PHASE_NAMES[selectedPhase]} autorizada para ${selectedGradeInfo.name}`,
+      });
+      setIsAuthorizeDialogOpen(false);
+      setSelectedPhase(null);
+      setSelectedGradeInfo(null);
+    } catch {
+      notifyError({ title: 'Error', message: 'Error al autorizar fase' });
     }
   };
 
   const handleRevoke = async () => {
     if (!selectedPhase || !selectedGradeInfo) return;
 
-    setIsLoading(true);
     try {
-      const result = await phaseAuthorizationService.revokePhaseAuthorization(
-        selectedGradeInfo.id,
-        selectedPhase
-      );
-
-      if (result.success) {
-        notifySuccess({ 
-          title: 'Autorización revocada',
-          message: `Autorización de ${PHASE_NAMES[selectedPhase]} revocada para ${selectedGradeInfo.name}`
-        });
-        setIsRevokeDialogOpen(false);
-        setSelectedPhase(null);
-        setSelectedGradeInfo(null);
-        await loadAllGradesStatus();
-      } else {
-        notifyError({ 
-          title: 'Error',
-          message: 'Error al revocar autorización'
-        });
-      }
-    } catch (error) {
-      notifyError({ 
-        title: 'Error',
-        message: 'Error al revocar autorización'
+      await revokeMutation.mutateAsync({
+        gradeId: selectedGradeInfo.id,
+        phase: selectedPhase,
       });
-    } finally {
-      setIsLoading(false);
+      notifySuccess({
+        title: 'Autorización revocada',
+        message: `Autorización de ${PHASE_NAMES[selectedPhase]} revocada para ${selectedGradeInfo.name}`,
+      });
+      setIsRevokeDialogOpen(false);
+      setSelectedPhase(null);
+      setSelectedGradeInfo(null);
+    } catch {
+      notifyError({ title: 'Error', message: 'Error al revocar autorización' });
     }
   };
 
@@ -404,7 +280,7 @@ export default function PhaseAuthorizationManagement({ theme }: PhaseAuthorizati
             <Button
               variant="outline"
               size="sm"
-              onClick={() => loadAllGradesStatus()}
+              onClick={() => void refetch()}
               disabled={isLoading}
               className={cn(
                 'flex items-center gap-2',

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, lazy, Suspense } from 'react'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -33,9 +33,6 @@ import {
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
 import InstitutionManagement from '@/components/admin/InstitutionManagement'
-import QuestionBank from '@/components/admin/QuestionBank'
-import PhaseAuthorizationManagement from '@/components/admin/PhaseAuthorizationManagement'
-import StudyPlanAuthorizationManagement from '@/components/admin/StudyPlanAuthorizationManagement'
 import { useAdminStats } from '@/hooks/query/useAdminStats'
 import DailyUsageChart from '@/components/admin/DailyUsageChart'
 import MonthlyRevenueChart from '@/components/admin/MonthlyRevenueChart'
@@ -46,9 +43,14 @@ import { useGradeAnalysis } from '@/hooks/query/useGradeAnalysis'
 import { useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import RegistrationSettings from '@/components/admin/RegistrationSettings'
 import StudentPhaseReports from '@/components/admin/StudentPhaseReports'
-import AdminRecursos from '@/components/admin/AdminRecursos'
-import AdminHerramientasIA from '@/components/admin/AdminHerramientasIA'
-import AdminSimulacros from '@/components/admin/AdminSimulacros'
+
+// Lazy: cargar solo al abrir cada tab de Estudio
+const QuestionBank = lazy(() => import('@/components/admin/QuestionBank'))
+const PhaseAuthorizationManagement = lazy(() => import('@/components/admin/PhaseAuthorizationManagement'))
+const StudyPlanAuthorizationManagement = lazy(() => import('@/components/admin/StudyPlanAuthorizationManagement'))
+const AdminRecursos = lazy(() => import('@/components/admin/AdminRecursos'))
+const AdminHerramientasIA = lazy(() => import('@/components/admin/AdminHerramientasIA'))
+const AdminSimulacros = lazy(() => import('@/components/admin/AdminSimulacros'))
 
 interface AdminDashboardProps extends ThemeContextProps {}
 
@@ -825,27 +827,63 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
         </TabsContent>
 
         <TabsContent value="questions">
-          <QuestionBank theme={theme} />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <QuestionBank theme={theme} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="phases">
-          <PhaseAuthorizationManagement theme={theme} />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <PhaseAuthorizationManagement theme={theme} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="study-plans">
-          <StudyPlanAuthorizationManagement theme={theme} />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <StudyPlanAuthorizationManagement theme={theme} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="recursos" className="space-y-6">
-          <AdminRecursos theme={theme} />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <AdminRecursos theme={theme} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="herramientas-ia" className="space-y-6">
-          <AdminHerramientasIA theme={theme} />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <AdminHerramientasIA theme={theme} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="simulacros" className="space-y-6">
-          <AdminSimulacros theme={theme} />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <AdminSimulacros theme={theme} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="analytics">
