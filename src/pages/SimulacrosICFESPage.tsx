@@ -558,66 +558,30 @@ export default function SimulacrosICFESPage() {
             )}
           >
             <CardContent className="pt-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-lg",
-                      themeSafe === "dark"
-                        ? "bg-amber-900/30 text-amber-300"
-                        : "bg-amber-100 text-amber-800"
-                    )}
-                  >
-                    <Clock className="h-4 w-4" aria-hidden />
-                    <span className="font-mono font-semibold">
-                      {formatTime(timeRemaining)}
-                    </span>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-sm font-medium",
-                      themeSafe === "dark"
-                        ? "text-gray-400"
-                        : "text-gray-600"
-                    )}
-                  >
-                    Pregunta {currentIndex + 1} de {questions.length}
+              <div className="flex flex-wrap items-center gap-3 mb-6">
+                <div
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg",
+                    themeSafe === "dark"
+                      ? "bg-amber-900/30 text-amber-300"
+                      : "bg-amber-100 text-amber-800"
+                  )}
+                >
+                  <Clock className="h-4 w-4" aria-hidden />
+                  <span className="font-mono font-semibold">
+                    {formatTime(timeRemaining)}
                   </span>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-                    disabled={currentIndex === 0}
-                    className={themeSafe === "dark" ? "border-zinc-600" : ""}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Anterior
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setCurrentIndex((i) =>
-                        i >= questions.length - 1 ? i : i + 1
-                      )
-                    }
-                    disabled={currentIndex >= questions.length - 1}
-                    className={themeSafe === "dark" ? "border-zinc-600" : ""}
-                  >
-                    Siguiente
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleFinish}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    <Flag className="h-4 w-4 mr-1" />
-                    Finalizar simulacro
-                  </Button>
-                </div>
+                <span
+                  className={cn(
+                    "text-sm font-medium",
+                    themeSafe === "dark"
+                      ? "text-gray-400"
+                      : "text-gray-600"
+                  )}
+                >
+                  Pregunta {currentIndex + 1} de {questions.length}
+                </span>
               </div>
 
               <div className="space-y-4">
@@ -822,6 +786,48 @@ export default function SimulacrosICFESPage() {
                     );
                   })}
                 </div>
+
+                <div
+                  className={cn(
+                    "flex flex-wrap gap-2 pt-4 border-t mt-6",
+                    themeSafe === "dark"
+                      ? "border-zinc-600"
+                      : "border-gray-200"
+                  )}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                    disabled={currentIndex === 0}
+                    className={themeSafe === "dark" ? "border-zinc-600" : ""}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentIndex((i) =>
+                        i >= questions.length - 1 ? i : i + 1
+                      )
+                    }
+                    disabled={currentIndex >= questions.length - 1}
+                    className={themeSafe === "dark" ? "border-zinc-600" : ""}
+                  >
+                    Siguiente
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleFinish}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <Flag className="h-4 w-4 mr-1" />
+                    Finalizar simulacro
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -937,10 +943,20 @@ export default function SimulacrosICFESPage() {
                               )}
                             >
                               Tu respuesta:{" "}
-                              {selectedOption
-                                ? selectedOption.text ||
-                                  `Opción ${selectedOption.id}`
-                                : selectedId}
+                              {selectedOption?.text ? (
+                                <span
+                                  className="[&_.katex]:text-inherit"
+                                  dangerouslySetInnerHTML={{
+                                    __html: sanitizeMathHtml(
+                                      renderMathInHtml(selectedOption.text)
+                                    ),
+                                  }}
+                                />
+                              ) : (
+                                selectedOption
+                                  ? `Opción ${selectedOption.id}`
+                                  : selectedId
+                              )}
                             </p>
                           ) : (
                             <p
@@ -964,8 +980,18 @@ export default function SimulacrosICFESPage() {
                               )}
                             >
                               Respuesta correcta:{" "}
-                              {correctOption.text ||
-                                `Opción ${correctOption.id}`}
+                              {correctOption.text ? (
+                                <span
+                                  className="[&_.katex]:text-inherit"
+                                  dangerouslySetInnerHTML={{
+                                    __html: sanitizeMathHtml(
+                                      renderMathInHtml(correctOption.text)
+                                    ),
+                                  }}
+                                />
+                              ) : (
+                                `Opción ${correctOption.id}`
+                              )}
                             </p>
                           )}
                           {justification && (
