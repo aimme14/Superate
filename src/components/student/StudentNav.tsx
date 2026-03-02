@@ -74,7 +74,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
 
   const isActive = (href: string, isRutaArea?: boolean) => {
     if (isRutaArea) {
-      return pathname === RUTA_ACADEMICA_PATH || pathname === PLAN_ESTUDIO_PATH || pathname === "/simulacros-ia";
+      return pathname === RUTA_ACADEMICA_PATH || pathname === PLAN_ESTUDIO_PATH || pathname === "/simulacros-ia" || pathname === "/simulacros-icfes";
     }
     if (href.includes("#")) {
       const [base] = href.split("#");

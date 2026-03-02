@@ -10,6 +10,7 @@ import {
   getCountFromServer,
   query, 
   where, 
+  orderBy,
   limit,
   runTransaction,
   Timestamp,
@@ -717,64 +718,134 @@ class QuestionService {
   }
 
   /**
-   * Obtiene preguntas aleatorias según filtros
-   * Utiliza el campo 'rand' para muestreo eficiente
-   * 
-   * @param filters - Filtros de búsqueda
-   * @param count - Número de preguntas a obtener
-   * @returns Lista de preguntas aleatorias
+   * Mapea un documento de Firestore a Question
+   */
+  private mapDocToQuestion(docSnap: { id: string; data: () => Record<string, unknown> }): Question {
+    const data = docSnap.data();
+    let aiJustification = data.aiJustification as Record<string, unknown> | undefined;
+    if (aiJustification && aiJustification.generatedAt) {
+      const genAt = aiJustification.generatedAt as { toDate?: () => Date };
+      if (typeof genAt?.toDate === 'function') {
+        aiJustification = {
+          ...aiJustification,
+          generatedAt: genAt.toDate()
+        };
+      }
+    }
+    return {
+      ...data,
+      id: docSnap.id,
+      createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.() || new Date(),
+      aiJustification
+    } as Question;
+  }
+
+  /**
+   * Intenta obtener preguntas usando el campo rand para muestreo eficiente.
+   * Solo trae las preguntas necesarias desde Firestore (sin descargar todo el banco).
+   */
+  private async getRandomQuestionsWithRand(
+    filters: QuestionFilters,
+    count: number
+  ): Promise<Result<Question[]>> {
+    const questionsRef = collection(db, 'superate', 'auth', 'questions');
+    const conditions: ReturnType<typeof where>[] = [];
+
+    if (filters.grade) {
+      conditions.push(where('grade', '==', filters.grade));
+    }
+    if (filters.subjectCode) {
+      conditions.push(where('subjectCode', '==', filters.subjectCode));
+    }
+    if (filters.subject) {
+      conditions.push(where('subject', '==', filters.subject));
+    }
+
+    const fetchLimit = Math.max(count * 3, 30);
+    const randomThreshold = Math.random();
+
+    try {
+      const q = query(
+        questionsRef,
+        ...conditions,
+        where('rand', '>=', randomThreshold),
+        orderBy('rand', 'asc'),
+        limit(fetchLimit)
+      );
+      const snapshot = await getDocs(q);
+      let questions: Question[] = snapshot.docs.map((d) =>
+        this.mapDocToQuestion({ id: d.id, data: () => d.data() })
+      );
+
+      if (questions.length < count) {
+        const q2 = query(
+          questionsRef,
+          ...conditions,
+          where('rand', '<', randomThreshold),
+          orderBy('rand', 'desc'),
+          limit(fetchLimit - questions.length)
+        );
+        const snapshot2 = await getDocs(q2);
+        const more = snapshot2.docs.map((d) =>
+          this.mapDocToQuestion({ id: d.id, data: () => d.data() })
+        );
+        questions = shuffleArray([...questions, ...more]);
+      } else {
+        questions = shuffleArray(questions);
+      }
+
+      return success(questions.slice(0, count));
+    } catch {
+      return failure(new ErrorAPI({ message: 'Rand query falló, usando fallback' }));
+    }
+  }
+
+  /**
+   * Obtiene preguntas aleatorias según filtros.
+   * 1) Intenta muestreo eficiente con campo rand (solo trae ~30-50 docs).
+   * 2) Si falla, usa getFilteredQuestions con limit (máx 50-100 docs).
+   * Nunca descarga todo el banco.
    */
   async getRandomQuestions(
-    filters: QuestionFilters, 
+    filters: QuestionFilters,
     count: number
   ): Promise<Result<Question[]>> {
     try {
       console.log('🎲 Obteniendo preguntas aleatorias:', { filters, count });
 
-      // Crear un timeout extendido de 60 segundos para consultas complejas
+      const timeoutMs = 15000;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout: La consulta tardó demasiado tiempo')), 60000);
+        setTimeout(() => reject(new Error('Timeout')), timeoutMs);
       });
 
-      // Obtener todas las preguntas que cumplen los filtros con timeout
-      const allQuestionsResult = await Promise.race([
-        this.getFilteredQuestions({
+      const fetchLimit = Math.max(count * 5, 50);
+
+      const run = async (): Promise<Result<Question[]>> => {
+        if (filters.grade) {
+          const randResult = await this.getRandomQuestionsWithRand(filters, count);
+          if (randResult.success && (randResult.data?.length ?? 0) >= count) {
+            console.log(`✅ Preguntas aleatorias (rand): ${randResult.data?.length}`);
+            return randResult;
+          }
+        }
+
+        const limitedResult = await this.getFilteredQuestions({
           ...filters,
-          limit: undefined, // No limitar inicialmente
-        }),
-        timeoutPromise
-      ]);
+          limit: fetchLimit
+        });
+        if (!limitedResult.success) return limitedResult;
+        const all = limitedResult.data ?? [];
+        if (all.length === 0) return success([]);
+        const shuffled = shuffleArray(all);
+        return success(shuffled.slice(0, count));
+      };
 
-      if (!allQuestionsResult.success) {
-        console.error('❌ Error en getFilteredQuestions:', allQuestionsResult.error);
-        return failure(allQuestionsResult.error);
-      }
-
-      const allQuestions = allQuestionsResult.data;
-      console.log(`📊 Preguntas encontradas: ${allQuestions.length} de ${count} solicitadas`);
-
-      if (allQuestions.length === 0) {
-        console.warn('⚠️ No se encontraron preguntas con los filtros especificados');
-        return success([]);
-      }
-
-      // Si hay menos preguntas de las solicitadas, devolver todas
-      if (allQuestions.length <= count) {
-        console.log(`📝 Devolviendo todas las ${allQuestions.length} preguntas encontradas`);
-        return success(shuffleArray(allQuestions));
-      }
-
-      // Mezclar y tomar el número solicitado
-      const shuffled = shuffleArray(allQuestions);
-      const randomQuestions = shuffled.slice(0, count);
-
-      console.log(`✅ ${randomQuestions.length} preguntas aleatorias obtenidas`);
-      return success(randomQuestions);
+      const result = await Promise.race([run(), timeoutPromise]);
+      return result;
     } catch (e) {
-      console.error('❌ Error al obtener preguntas aleatorias:', e);
-      if (e instanceof Error && e.message.includes('Timeout')) {
-        return failure(new ErrorAPI({ 
-          message: 'La consulta tardó demasiado tiempo. Verifica tu conexión a internet.' 
+      if (e instanceof Error && e.message === 'Timeout') {
+        return failure(new ErrorAPI({
+          message: 'La consulta tardó demasiado. Intenta de nuevo.'
         }));
       }
       return failure(new ErrorAPI(normalizeError(e, 'obtener preguntas aleatorias')));

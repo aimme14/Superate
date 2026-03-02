@@ -28,6 +28,11 @@ import {
 import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 import { getRandomEjercicios, type EjercicioIA } from "@/services/firebase/ejerciciosIA.service";
+import {
+  prefetchSimulacrosIA,
+  consumePrefetchedSimulacrosIA,
+  clearPrefetchedSimulacrosIA,
+} from "@/utils/simulacrosIAPrefetch";
 import { dbService } from "@/services/firebase/db.service";
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
 import { MathText } from "@/utils/renderMath";
@@ -97,13 +102,43 @@ export default function SimulacrosIAPage() {
     });
   }, [user?.uid]);
 
+  /** Prefetch al entrar: inicia de inmediato con grado por defecto, sin esperar getUserById */
+  useEffect(() => {
+    if (mode !== "setup") return;
+    const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : "all";
+    prefetchSimulacrosIA(DEFAULT_GRADE, subject);
+  }, [mode, subjectFilter]);
+
+  /** Actualiza prefetch cuando carga el grado real del usuario (puede diferir del default) */
+  useEffect(() => {
+    if (mode !== "setup" || !studentGrade || studentGrade === DEFAULT_GRADE) return;
+    const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : "all";
+    prefetchSimulacrosIA(studentGrade, subject);
+  }, [mode, studentGrade, subjectFilter]);
+
+  useEffect(() => {
+    return () => clearPrefetchedSimulacrosIA();
+  }, []);
+
   const fetchExercises = useCallback(async () => {
+    const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : "all";
+    const prefetched = consumePrefetchedSimulacrosIA(studentGrade, subject);
+
+    if (prefetched && prefetched.length > 0) {
+      setExercises(prefetched);
+      setCurrentIndex(0);
+      setSelectedAnswers({});
+      setTimeRemaining(SECONDS_PER_QUESTION);
+      setMode("running");
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : undefined;
+    const subjectParam = subject !== "all" ? subject : undefined;
     const result = await getRandomEjercicios({
       grade: studentGrade,
-      subject,
+      subject: subjectParam,
       limit: EXERCISES_LIMIT,
     });
     setLoading(false);

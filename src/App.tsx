@@ -27,6 +27,7 @@ const ViewerPdfPage = lazy(() => import("@/pages/ViewerPdfPage"));
 const RutaAcademicaAdaptativaPage = lazy(() => import("@/pages/RutaAcademicaAdaptativaPage"));
 const PlanEstudioIAPage = lazy(() => import("@/pages/PlanEstudioIAPage"));
 const SimulacrosIAPage = lazy(() => import("@/pages/SimulacrosIAPage"));
+const SimulacrosICFESPage = lazy(() => import("@/pages/SimulacrosICFESPage"));
 
 // Dashboards específicos por rol (lazy para rutas directas /dashboard/teacher, etc.)
 const TeacherDashboard = lazy(() => import("@/pages/dashboard/teacher/TeacherDashboard"));
@@ -99,6 +100,7 @@ function App() {
               <Route path="/ruta-academica-adaptativa" element={<RutaAcademicaAdaptativaPage />} />
               <Route path="/plan-estudio-ia" element={<ErrorBoundary><PlanEstudioIAPage /></ErrorBoundary>} />
               <Route path="/simulacros-ia" element={<ErrorBoundary><SimulacrosIAPage /></ErrorBoundary>} />
+              <Route path="/simulacros-icfes" element={<ErrorBoundary><SimulacrosICFESPage /></ErrorBoundary>} />
               <Route path="/innovative-hero" element={<InnovativeHero />} />
               <Route path="/prueba" element={<Prueba />} />
               <Route path="/Intento" element={<Intento />} />
