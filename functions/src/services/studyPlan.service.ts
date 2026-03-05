@@ -448,6 +448,18 @@ class StudyPlanService {
   }
 
   /**
+   * Descripción del tema para enviar a Gemini al pedir keywords de búsqueda.
+   * Para Inglés usa la lista completa de ENGLISH_FALLBACK_KEYWORDS (por Parte) para que Gemini
+   * reciba todo el contexto y devuelva searchKeywords más afinadas.
+   */
+  private getTopicDescriptionForGemini(subject: string, canonicalTopic: string): string {
+    if (this.isEnglishSubject(subject) && StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic]) {
+      return StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic].join(', ');
+    }
+    return this.getDescriptiveSearchTopic(subject, canonicalTopic);
+  }
+
+  /**
    * Para Inglés se usan solo los nombres canónicos "Parte 1".."Parte 7" (sin nombres alternativos)
    * para que el contenido (videos, enlaces) cargue correctamente por tema.
    */
@@ -1862,8 +1874,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
     const videosNeeded = MAX_VIDEOS_PER_TOPIC - cached.length;
     console.log(`   ⚠️ Faltan videos en caché. Buscando hasta ${videosNeeded} más en YouTube...`);
-    const searchTopic = this.getDescriptiveSearchTopic(subject, topic);
-    const semanticInfo = await this.getYouTubeSearchSemanticInfo(searchTopic, subject, 'first', keywords);
+    const topicForGemini = this.getTopicDescriptionForGemini(subject, topic);
+    const semanticInfo = await this.getYouTubeSearchSemanticInfo(topicForGemini, subject, 'first', keywords);
     const searchKeywords = semanticInfo?.searchKeywords || keywords;
     const videosToSearch = Math.min(Math.max(videosNeeded + 5, 10), 25);
     const newVideos = await this.searchYouTubeVideos(searchKeywords, videosToSearch, subject, topic);
