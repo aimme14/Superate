@@ -1091,7 +1091,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               <Shield className="h-4 w-4 text-orange-600" />
               <AlertTitle className={cn(theme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>Antitrampa</AlertTitle>
               <AlertDescription className={cn(theme === 'dark' ? 'text-orange-200' : 'text-orange-700')}>
-                Al intentar hacer trampa (cambiar de pestaña, salir de pantalla completa, etc.), la acción quedará registrada, el examen se finalizará automáticamente y ese intento de trampa será notificado al acudiente.
+                Responde de manera sincera para que puedas tener una mejora Real y puedas mejorar tu puntaje.
               </AlertDescription>
             </Alert>
 
@@ -1236,7 +1236,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
             ) : (
               <>
                 <p className={cn("mb-4 font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                  El examen debe realizarse en pantalla completa. Cambiar de pestaña durante el examen se considera intento de fraude, quedará registrado y será notificado al acudiente. Por favor, vuelve a poner pantalla completa.
+                  El examen solo se realiza en pantalla completa, vuelve al modo de pantalla completa o se registrará como intento de fraude.
                 </p>
                 <Alert className={cn(theme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
                   <AlertCircle className="h-4 w-4 text-amber-600" />
