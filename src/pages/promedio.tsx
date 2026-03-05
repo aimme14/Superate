@@ -78,7 +78,8 @@ import {
   ExternalLink,
   Lightbulb,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Dumbbell
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -1650,7 +1651,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       : selectedPhase === 'phase3' && phase3Data
         ? phase3Data.overall.score
         : undefined;
-  const { rank: studentRank, totalInPhase: totalStudents, isLoading: isLoadingRank, isFetching: isRankRefetching } = useStudentRanking({
+  const { rank: studentRank, totalInPhase: totalStudents } = useStudentRanking({
     userId: user?.uid,
     phase: selectedPhase,
     currentStudentScore,
@@ -3555,52 +3556,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                           <Award className="h-8 w-8 text-yellow-500" />
                         </div>
                   {selectedPhase !== 'all' && (
-                    <div className="mt-3">
-                      {isLoadingRank ? (
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-700/50">
-                          <div className={cn("animate-spin rounded-full h-4 w-4 border-b-2", theme === 'dark' ? 'border-yellow-400' : 'border-yellow-600')}></div>
-                          <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Calculando puesto...</span>
-                        </div>
-                      ) : studentRank !== null && totalStudents !== null ? (
-                        <div className={cn(
-                          "flex items-center gap-2 p-2 rounded-lg",
-                          studentRank === 1 
-                            ? theme === 'dark' ? 'bg-yellow-900/30 border border-yellow-700' : 'bg-yellow-50 border border-yellow-200'
-                            : studentRank <= 3
-                            ? theme === 'dark' ? 'bg-orange-900/30 border border-orange-700' : 'bg-orange-50 border border-orange-200'
-                            : theme === 'dark' ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'
-                        )}>
-                          <Trophy className={cn(
-                            "h-5 w-5 flex-shrink-0",
-                            studentRank === 1 ? 'text-yellow-500' : studentRank <= 3 ? 'text-orange-500' : 'text-blue-500'
-                          )} />
-                          <div className="flex-1 min-w-0">
-                            <div className={cn(
-                              "flex items-baseline gap-1 flex-wrap",
-                              studentRank === 1 
-                                ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-                                : studentRank <= 3
-                                ? theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-                                : theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
-                            )}>
-                              <span className="text-lg font-bold">{studentRank}°</span>
-                              <span className="text-xs">de {totalStudents} estudiantes</span>
-                              {isRankRefetching && (
-                                <span className={cn("text-xs ml-1", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
-                                  · Actualizando…
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className={cn("flex items-center gap-2 p-2 rounded-lg", theme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-100')}>
-                          <Trophy className="h-5 w-5 text-gray-400" />
-                          <span className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                            Puesto no disponible
-                          </span>
-                        </div>
-                      )}
+                    <div className={cn("flex items-center gap-2 p-2 rounded-lg mt-3", theme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-100')}>
+                      <Dumbbell className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
+                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                        Sigue mejorando
+                      </span>
                     </div>
                   )}
                 </CardContent>
