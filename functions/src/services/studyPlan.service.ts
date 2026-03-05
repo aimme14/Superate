@@ -413,7 +413,7 @@ class StudyPlanService {
    * Parte 1 = avisos públicos / mensajes funcionales (ICFES), no publicitarios.
    */
   private static readonly ENGLISH_SEARCH_TOPIC_NAMES: Record<string, string> = {
-    'Parte 1': 'Avisos y mensajes en inglés, vocabulario cotidiano',
+    'Parte 1': 'Avisos y mensajes en inglés, vocabulario',
     'Parte 2': 'Vocabulario inglés, asociación de palabras',
     'Parte 3': 'Diálogos inglés, expresiones cotidianas',
     'Parte 4': 'Comprensión lectora y gramática en contexto inglés',
@@ -427,13 +427,13 @@ class StudyPlanService {
    * Términos genéricos por tema para encontrar videos útiles de CUALQUIER canal (no solo los recomendados).
    */
   private static readonly ENGLISH_FALLBACK_KEYWORDS: Record<string, string[]> = {
-    'Parte 1': ['avisos públicos inglés', 'mensajes cortos inglés', 'vocabulario cotidiano', 'aprender inglés español', 'ICFES inglés'],
-    'Parte 2': ['vocabulario inglés', 'asociación de palabras', 'comprensión léxica', 'aprender inglés español', 'ICFES inglés'],
-    'Parte 3': ['diálogos inglés', 'expresiones cotidianas', 'conversación inglés', 'aprender inglés español', 'ICFES inglés'],
-    'Parte 4': ['comprensión lectora inglés', 'gramática en contexto', 'lectura inglés', 'aprender inglés español', 'ICFES inglés'],
-    'Parte 5': ['ideas principales texto', 'vocabulario en contexto inglés', 'comprensión de lectura', 'aprender inglés español', 'ICFES inglés'],
-    'Parte 6': ['comprensión lectora crítica', 'propósito del autor', 'interpretación textos inglés', 'aprender inglés español', 'ICFES inglés'],
-    'Parte 7': ['gramática inglés', 'preposiciones conectores', 'ejercicios gramática inglés', 'aprender inglés español', 'ICFES inglés'],
+    'Parte 1': ['avisos públicos en inglés', 'mensajes cortos en inglés', 'vocabulario', 'aprender inglés', 'ICFES inglés'],
+    'Parte 2': ['vocabulario en inglés', 'asociación de palabras en inglés', 'comprensión léxica de textos en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
+    'Parte 3': ['diálogos en inglés', 'expresiones cotidianas en inglés', 'conversación en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
+    'Parte 4': ['comprensión lectora en inglés', 'gramática en contexto en inglés', 'pasado, presente y futuro en inglés', 'tiempos verbales en inglés', 'lectura en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
+    'Parte 5': ['ideas principales en texto en inglés', 'vocabulario en contexto inglés', 'comprensión de lectura en inglés', 'inferencias simples en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
+    'Parte 6': ['comprensión lectora de textos en inglés', 'propósito del autor en inglés', 'interpretación de textos en inglés', 'pronombres relativos en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
+    'Parte 7': ['gramática aplicada en inglés', 'uso del lenguaje en contexto en inglés', 'preposiciones y conectores en inglés', 'cuantificadores en inglés', 'tiempos verbales en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
   };
 
   /**
@@ -448,21 +448,11 @@ class StudyPlanService {
   }
 
   /**
-   * Transforma los nombres técnicos de temas de inglés a nombres descriptivos
-   * para que aparezcan de forma más amigable en el prompt
+   * Para Inglés se usan solo los nombres canónicos "Parte 1".."Parte 7" (sin nombres alternativos)
+   * para que el contenido (videos, enlaces) cargue correctamente por tema.
    */
   private transformEnglishTopicName(topicName: string): string {
-    const topicMap: Record<string, string> = {
-      'Parte 1': 'Comprensión de avisos públicos, Interpretación de mensajes funcionales, Vocabulario cotidiano, Nombre recomendado: Comprensión de avisos públicos, Vocabulario cotidiano:',
-      'Parte 2': 'Vocabulario, Asociación semántica, Comprensión léxica, Nombre recomendado: Vocabulario, Asociación semántica, Comprensión léxica, Nombre técnico alternativo: Reconocimiento léxico-semántico',
-      'Parte 3': 'Competencia comunicativa, Pragmática del idioma, Uso natural de expresiones, Nombre recomendado: Uso funcional del idioma en diálogos, Nombre técnico alternativo: Competencia pragmática y conversacional',
-      'Parte 4': 'Comprensión lectora, Gramática en contexto, Cohesión textual, Nombre recomendado: Comprensión lectora y gramática contextual. Nombre técnico alternativo: Procesamiento gramatical en textos continuos y segmentados',
-      'Parte 5': 'Comprensión global del texto, Identificación de ideas principales, Información específica, Inferencias simples, Vocabulario en contexto',
-      'Parte 6': 'Comprensión lectora avanzada, Propósito del autor, Opiniones y actitudes, Conclusiones a partir del texto, Relación de ideas, Nombre recomendado: Comprensión lectora crítica, Nombre técnico alternativo: Interpretación de textos, Análisis del propósito del autor, Lectura inferencial y crítica',
-      'Parte 7': 'Preposiciones, conectores, cuantificadores, tiempos verbales, pronombres relativos, Gramática aplicada al contexto, Vocabulario funcional, 🎯 Nombre recomendado, Uso del lenguaje en contexto',
-    };
-
-    return topicMap[topicName] || topicName;
+    return topicName;
   }
 
   /**
@@ -1369,7 +1359,9 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
               console.warn(`   ⚠️ No se encontraron videos para topic "${canonicalTopic}"`);
             }
 
-            const displayName = formatDisplayName(canonicalToDisplayNames.get(canonicalTopic) ?? [canonicalTopic]);
+            const displayName = this.isEnglishSubject(input.subject)
+              ? canonicalTopic
+              : formatDisplayName(canonicalToDisplayNames.get(canonicalTopic) ?? [canonicalTopic]);
             return videos.map((video) => ({
               ...video,
               topic: canonicalTopic,
@@ -1395,13 +1387,15 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
           const rescueKeywords = ['inglés explicado en español', 'gramática inglés bachillerato', 'ICFES inglés'];
           const rescueVideos = await this.searchYouTubeVideos(rescueKeywords, 7, 'Inglés', canonicalTopics[0]);
           if (rescueVideos.length > 0) {
-            const displayName = (() => {
-              const names: string[] = [];
-              for (const t of parsed.topics || []) {
-                if (mapToCanonicalTopic(input.subject, t.name) === canonicalTopics[0] && !names.includes(t.name)) names.push(t.name);
-              }
-              return names.length > 0 ? names.join(' · ') : canonicalTopics[0];
-            })();
+            const displayName = this.isEnglishSubject(input.subject)
+              ? canonicalTopics[0]
+              : (() => {
+                  const names: string[] = [];
+                  for (const t of parsed.topics || []) {
+                    if (mapToCanonicalTopic(input.subject, t.name) === canonicalTopics[0] && !names.includes(t.name)) names.push(t.name);
+                  }
+                  return names.length > 0 ? names.join(' · ') : canonicalTopics[0];
+                })();
             parsed.video_resources = rescueVideos.map((v) => ({
               ...v,
               topic: canonicalTopics[0],
@@ -1695,39 +1689,23 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
               console.log(`   ✅ study_links desde WebLinks: ${data.study_links.length} enlace(s) para ${allTopicNamesForSubject.length} tema(s)`);
             }
 
-            // video_resources: fuente de verdad YoutubeLinks; siempre se construyen al leer (no se persisten en AnswerIA)
+            // video_resources: siempre se cargan TODOS los temas de la materia (con o sin debilidades)
+            // Fuente: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos
             const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
-            const weaknessTopics = (data.student_info?.weaknesses || []).map((w: { topic: string }) => w.topic);
-            const canonicalTopics = weaknessTopics.length > 0
-              ? getCanonicalTopicsWithWeakness(subject, weaknessTopics)
-              : [...new Set((data.topics || []).map((t: { name: string }) => mapToCanonicalTopic(subject, t.name)).filter(Boolean) as string[])];
-
-            // Varios topics del plan pueden mapear al mismo canónico: unir nombres para UI (ej. "Ecuaciones · Polinomios")
-            const canonicalToDisplayNames = new Map<string, string[]>();
-            for (const t of data.topics || []) {
-              const canonical = mapToCanonicalTopic(subject, t.name);
-              if (canonical) {
-                const list = canonicalToDisplayNames.get(canonical) ?? [];
-                if (!list.includes(t.name)) list.push(t.name);
-                canonicalToDisplayNames.set(canonical, list);
-              }
-            }
-            const formatDisplayName = (names: string[]) => names.join(' · ');
-
-            if (canonicalTopics.length > 0) {
-              console.log(`   📹 Construyendo video_resources desde YoutubeLinks (${canonicalTopics.length} topic(s) canónico(s))...`);
+            const allTopicsForVideos = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
+            if (allTopicsForVideos.length > 0) {
+              console.log(`   📹 Construyendo video_resources desde YoutubeLinks (${allTopicsForVideos.length} tema(s) de la materia)...`);
               const videosByTopic = await Promise.all(
-                canonicalTopics.map(async (canonicalTopic) => {
+                allTopicsForVideos.map(async (topicName) => {
                   try {
-                    const videos = await this.getCachedVideos(grade, studentId, phase, subject, canonicalTopic);
-                    const displayName = formatDisplayName(canonicalToDisplayNames.get(canonicalTopic) ?? [canonicalTopic]);
+                    const videos = await this.getCachedVideos(grade, studentId, phase, subject, topicName);
                     return videos.map((video) => ({
                       ...video,
-                      topic: canonicalTopic,
-                      topicDisplayName: displayName,
+                      topic: topicName,
+                      topicDisplayName: topicName,
                     }));
                   } catch (error: any) {
-                    console.warn(`   ⚠️ Error obteniendo videos para topic "${canonicalTopic}":`, error?.message);
+                    console.warn(`   ⚠️ Error obteniendo videos para topic "${topicName}":`, error?.message);
                     return [];
                   }
                 })

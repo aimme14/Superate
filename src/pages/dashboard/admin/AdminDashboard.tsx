@@ -220,7 +220,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
                 type="button"
                 className={cn(
                   "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  ['questions', 'phases', 'study-plans', 'recursos', 'herramientas-ia', 'simulacros'].includes(activeTab)
+                  ['questions', 'phases', 'study-plans', 'recursos', 'herramientas-ia', 'simulacros', 'temas-estudio'].includes(activeTab)
                     ? theme === 'dark'
                       ? 'bg-teal-600/80 text-white'
                       : 'bg-primary text-primary-foreground'
@@ -300,6 +300,16 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               >
                 <ClipboardList className="mr-2 h-4 w-4" />
                 Simulacros
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setActiveTab('temas-estudio')}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2",
+                  activeTab === 'temas-estudio' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
+                )}
+              >
+                <BookOpen className="mr-2 h-4 w-4" />
+                Temas de estudio
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -884,6 +894,15 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           }>
             <AdminSimulacros theme={theme} />
           </Suspense>
+        </TabsContent>
+
+        <TabsContent value="temas-estudio" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Temas de estudio</CardTitle>
+              <CardDescription>Contenido próximamente.</CardDescription>
+            </CardHeader>
+          </Card>
         </TabsContent>
 
         <TabsContent value="analytics">

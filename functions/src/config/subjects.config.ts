@@ -302,6 +302,20 @@ export function mapToCanonicalTopic(
       'part 5': 'Parte 5',
       'part 6': 'Parte 6',
       'part 7': 'Parte 7',
+      // Palabras sueltas del diagnóstico (dominio nulo en todas las áreas)
+      'vocabulario': 'Parte 2',
+      'gramática': 'Parte 7',
+      'gramatica': 'Parte 7',
+      'comprensión de lectura': 'Parte 4',
+      'comprension de lectura': 'Parte 4',
+      'comprensión de textos cortos': 'Parte 1',
+      'comprension de textos cortos': 'Parte 1',
+      'interpretación de señales': 'Parte 1',
+      'interpretacion de señales': 'Parte 1',
+      'interpretación': 'Parte 6',
+      'interpretacion': 'Parte 6',
+      'textos cortos': 'Parte 1',
+      'señales': 'Parte 1',
     },
   };
 
