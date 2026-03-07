@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense } from 'react'
 import { ThemeContextProps } from '@/interfaces/context.interface'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import {
