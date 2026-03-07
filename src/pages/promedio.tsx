@@ -79,7 +79,6 @@ import {
   Lightbulb,
   RefreshCw,
   Sparkles,
-  Dumbbell,
   KeyRound,
 } from "lucide-react"
 
