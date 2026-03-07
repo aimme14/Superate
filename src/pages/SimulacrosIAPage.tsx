@@ -7,7 +7,6 @@ import {
   X,
   Flag,
   Clock,
-  Loader2,
   Bot,
   ClipboardList,
 } from "lucide-react";
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
+import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 import { getRandomEjercicios, type EjercicioIA } from "@/services/firebase/ejerciciosIA.service";
 import {
   prefetchSimulacrosIA,
@@ -257,6 +257,9 @@ export default function SimulacrosIAPage() {
         </div>
 
         {mode === "setup" && (
+          loading ? (
+            <RutaPreparacionPageSkeleton theme={themeSafe} variant="simulacros-setup" />
+          ) : (
           <div className="flex flex-col items-center -mt-1 pb-12">
             <Card
               className={cn(
@@ -290,32 +293,32 @@ export default function SimulacrosIAPage() {
                       "block text-sm font-medium mb-2",
                       themeSafe === "dark" ? "text-gray-300" : "text-gray-700"
                     )}
-                >
-                  Filtrar por materia
-                </label>
-                <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-                  <SelectTrigger
-                    className={cn(
-                      themeSafe === "dark"
-                        ? "bg-zinc-700 border-zinc-600 text-white"
-                        : "bg-white border-gray-300"
-                    )}
                   >
-                    <SelectValue placeholder="Selecciona una materia" />
-                  </SelectTrigger>
-                  <SelectContent
-                    className={cn(
-                      themeSafe === "dark" ? "bg-zinc-800 border-zinc-600" : "bg-white"
-                    )}
-                  >
-                    <SelectItem value="all">Al azar</SelectItem>
-                    {SUBJECTS_CONFIG.map((s) => (
-                      <SelectItem key={s.code} value={s.code}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    Filtrar por materia
+                  </label>
+                  <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+                    <SelectTrigger
+                      className={cn(
+                        themeSafe === "dark"
+                          ? "bg-zinc-700 border-zinc-600 text-white"
+                          : "bg-white border-gray-300"
+                      )}
+                    >
+                      <SelectValue placeholder="Selecciona una materia" />
+                    </SelectTrigger>
+                    <SelectContent
+                      className={cn(
+                        themeSafe === "dark" ? "bg-zinc-800 border-zinc-600" : "bg-white"
+                      )}
+                    >
+                      <SelectItem value="all">Al azar</SelectItem>
+                      {SUBJECTS_CONFIG.map((s) => (
+                        <SelectItem key={s.code} value={s.code}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
               </div>
 
               {error && (
@@ -329,21 +332,13 @@ export default function SimulacrosIAPage() {
                 disabled={loading}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Cargando ejercicios...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Iniciar mini simulacro
-                  </>
-                )}
+                <Play className="h-4 w-4 mr-2" />
+                Iniciar mini simulacro
               </Button>
             </CardContent>
           </Card>
           </div>
+          )
         )}
 
         {mode === "running" && currentExercise && (

@@ -4,7 +4,8 @@ import UserMenu from '#/pages/dashboard/UserMenu'
 import { SidebarTrigger } from '#/ui/sidebar'
 import ThemeToggle from '#/layout/Theme'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { hasStudentNav } from '@/constants/routes'
 import logoLight from '/assets/logo_tematica_blanca.png'
 import logoDark from '/assets/logo_tematica_negra.png'
 import letraModoClaro from '/assets/letra_modo_claro.png'
@@ -15,6 +16,8 @@ const Navbar = () => {
   const { user, isAuth } = useAuthContext()
   const { theme } = useThemeContext()
   const isMobile = useIsMobile()
+  const { pathname } = useLocation()
+  const showSidebarTrigger = isMobile && !hasStudentNav(pathname)
   return (
     <header className={cn(
       'sticky top-0 z-20 bg-gradient-to-r',
@@ -23,7 +26,7 @@ const Navbar = () => {
     )}>
       <div className="container flex h-16 p-4 items-center justify-between">
         <div className="flex items-center space-x-2">
-          {isMobile && <SidebarTrigger className='mr-2' />}
+          {showSidebarTrigger && <SidebarTrigger className='mr-2' />}
           {!isMobile && (
             <div className="animate-in zoom-in-95 duration-300">
               <span className={cn("flex h-12 mr-2 shrink-0 items-center justify-center", isAuth ? 'w-16' : 'w-20')}>

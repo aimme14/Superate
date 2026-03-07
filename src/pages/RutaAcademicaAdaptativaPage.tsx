@@ -4,7 +4,6 @@ import {
   BookOpen,
   FileText,
   FileCheck,
-  Loader2,
   BookOpen as BookOpenIcon,
   Video,
   Calculator,
@@ -24,6 +23,7 @@ import type { Simulacro } from "@/interfaces/simulacro.interface";
 import { SIMULACRO_MATERIAS, isMateriaCon4Secciones } from "@/interfaces/simulacro.interface";
 import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
+import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 
 function buildViewerUrl(simulacroId: string, tipo: string): string {
   return `/viewer/pdf?simulacroId=${encodeURIComponent(simulacroId)}&tipo=${tipo}`;
@@ -141,27 +141,7 @@ export default function RutaAcademicaAdaptativaPage() {
         </div>
 
         {loading ? (
-          <Card
-            className={cn(
-              theme === "dark" ? "bg-zinc-800 border-zinc-700" : ""
-            )}
-          >
-            <CardContent className="flex items-center justify-center gap-3 py-12">
-              <Loader2
-                className={cn(
-                  "h-8 w-8 animate-spin",
-                  theme === "dark" ? "text-purple-400" : "text-purple-600"
-                )}
-              />
-              <span
-                className={cn(
-                  theme === "dark" ? "text-gray-400" : "text-gray-600"
-                )}
-              >
-                Cargando simulacros...
-              </span>
-            </CardContent>
-          </Card>
+          <RutaPreparacionPageSkeleton theme={theme} variant="ruta" />
         ) : isError ? (
           <Card
             className={cn(

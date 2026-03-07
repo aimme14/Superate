@@ -1,10 +1,12 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 
-import { Home as NewDasboard } from "@/pages/dashboard/NewDashboard";
+import { Home as NewDashboard } from "@/pages/dashboard/NewDashboard";
 import ProtectedRoute from "@/layouts/ProtectedRoute";
+import { useAuthContext } from "@/context/AuthContext";
+import { STUDENT_HOME } from "@/constants/routes";
 import RoleProtectedRoute from "@/layouts/RoleProtectedRoute";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/dashboard";
@@ -35,6 +37,13 @@ const PrincipalDashboard = lazy(() => import("@/pages/dashboard/principal/Princi
 const RectorDashboard = lazy(() => import("@/pages/dashboard/rector/RectorDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/dashboard/admin/AdminDashboard"));
 
+/** Redirige a la ruta home única si el usuario está autenticado; si no, muestra el dashboard público. */
+function NewDashboardOrRedirect() {
+  const { user } = useAuthContext();
+  if (user) return <Navigate to={STUDENT_HOME} replace />;
+  return <NewDashboard />;
+}
+
 function App() {
   return (
     <ThemeProvider>
@@ -50,7 +59,7 @@ function App() {
               <Route path="/" index element={<HomePage />} />
               <Route path="/auth/login" element={<LoginPage />} />
               <Route path="/auth/register" element={<RegisterPage />} />
-              <Route path="/new-dashboard" element={<NewDasboard />} />
+              <Route path="/new-dashboard" element={<NewDashboardOrRedirect />} />
               <Route path="/about" element={<AboutPage />} />
 
               {/* rutas protegidas */}

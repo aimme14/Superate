@@ -79,7 +79,8 @@ import {
   Lightbulb,
   RefreshCw,
   Sparkles,
-  Dumbbell
+  Dumbbell,
+  KeyRound,
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -3395,102 +3396,109 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
         </div>
       </header>
 
-      <div className="container mx-auto py-6 px-4">
+      <div className="container mx-auto py-6 px-4 max-w-6xl">
         {planOnly && <RutaPreparacionSubNav theme={theme} />}
-        {/* Header */}
+
+        {/* Título de sección */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg">
-              <Brain className="h-6 w-6 text-white" />
+            <div className="p-2 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg flex-shrink-0">
+              <Brain className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : '')}>
+              <h1 className={cn("text-xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 {planOnly ? 'Plan de estudio IA' : 'Análisis Inteligente'}
               </h1>
-              <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 {planOnly ? 'Plan personalizado con inteligencia artificial' : 'Reporte de rendimiento académico'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Selector de Fase - oculto en Plan de estudio IA */}
+        {/* Selector de Fase - responsivo (scroll horizontal en móvil) */}
         {!planOnly && (
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm mb-6')}>
+        <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm mb-8')}>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className={cn("text-lg font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  Seleccionar Fase
-                </h3>
-              </div>
-              <div className="flex gap-2">
+            <h3 className={cn("text-base font-semibold mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              Seleccionar Fase
+            </h3>
+            <div className="overflow-x-auto pb-2 -mx-1 md:mx-0 md:overflow-visible">
+              <div className="flex gap-2 flex-nowrap min-w-0 md:flex-wrap">
                 <Button
                   onClick={() => setSelectedPhase('phase1')}
                   variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
+                  size="sm"
                   className={cn(
+                    "flex-shrink-0",
                     selectedPhase === 'phase1'
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
                   disabled={!phase1Data}
                 >
-                  <Target className="h-4 w-4 mr-2" />
+                  <Target className="h-4 w-4 mr-1.5" />
                   Fase I
                   {phase1Data && (
-                    <Badge className={cn("ml-2", selectedPhase === 'phase1' ? 'bg-blue-500' : 'bg-gray-500')}>
-                      {phase1Data.subjects.length} materias
+                    <Badge className={cn("ml-1.5 text-xs", selectedPhase === 'phase1' ? 'bg-blue-500' : 'bg-gray-500')}>
+                      {phase1Data.subjects.length}
                     </Badge>
                   )}
                 </Button>
                 <Button
                   onClick={() => setSelectedPhase('phase2')}
                   variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
+                  size="sm"
                   className={cn(
+                    "flex-shrink-0",
                     selectedPhase === 'phase2'
                       ? 'bg-green-600 hover:bg-green-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
                   disabled={!phase2Data || activeTab === 'study-plan'}
                 >
-                  <Target className="h-4 w-4 mr-2" />
+                  <Target className="h-4 w-4 mr-1.5" />
                   Fase II
                   {phase2Data && (
-                    <Badge className={cn("ml-2", selectedPhase === 'phase2' ? 'bg-green-500' : 'bg-gray-500')}>
-                      {phase2Data.subjects.length} materias
+                    <Badge className={cn("ml-1.5 text-xs", selectedPhase === 'phase2' ? 'bg-green-500' : 'bg-gray-500')}>
+                      {phase2Data.subjects.length}
                     </Badge>
                   )}
                 </Button>
                 <Button
                   onClick={() => setSelectedPhase('phase3')}
                   variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
+                  size="sm"
                   className={cn(
+                    "flex-shrink-0",
                     selectedPhase === 'phase3'
                       ? 'bg-orange-600 hover:bg-orange-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
                   disabled={!phase3Data || activeTab === 'study-plan'}
                 >
-                  <Target className="h-4 w-4 mr-2" />
+                  <Target className="h-4 w-4 mr-1.5" />
                   Fase III
                   {phase3Data && (
-                    <Badge className={cn("ml-2", selectedPhase === 'phase3' ? 'bg-orange-500' : 'bg-gray-500')}>
-                      {phase3Data.subjects.length} materias
+                    <Badge className={cn("ml-1.5 text-xs", selectedPhase === 'phase3' ? 'bg-orange-500' : 'bg-gray-500')}>
+                      {phase3Data.subjects.length}
                     </Badge>
                   )}
                 </Button>
                 <Button
                   onClick={() => setSelectedPhase('all')}
                   variant={selectedPhase === 'all' ? 'default' : 'outline'}
+                  size="sm"
                   className={cn(
+                    "flex-shrink-0",
                     selectedPhase === 'all'
                       ? 'bg-purple-600 hover:bg-purple-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
                   )}
                   disabled={activeTab === 'study-plan' || planOnly}
                 >
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Todas las Fases
+                  <BarChart3 className="h-4 w-4 mr-1.5" />
+                  Todas
                 </Button>
               </div>
             </div>
@@ -3505,7 +3513,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
             if (!planOnly) setActiveTab(value);
             if (value === 'study-plan') setSelectedPhase('phase1');
           }}
-          className="space-y-6"
+          className="space-y-8"
         >
           {!planOnly && (
           <TabsList className={cn("grid w-full grid-cols-2", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
@@ -3542,9 +3550,13 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 );
               }
               return (
-                <div className="space-y-6" key="overview-content">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md')}>
+                <div className="space-y-8" key="overview-content">
+                  <section aria-label="Resumen de métricas">
+                    <h2 className={cn("text-sm font-semibold uppercase tracking-wide mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      Resumen de métricas
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <Card className={cn("md:col-span-2 lg:col-span-1", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md')}>
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
@@ -3556,9 +3568,9 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                           <Award className="h-8 w-8 text-yellow-500" />
                         </div>
                   {selectedPhase !== 'all' && (
-                    <div className={cn("flex items-center gap-2 p-2 rounded-lg mt-3", theme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-100')}>
-                      <Dumbbell className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                    <div className={cn("flex items-center gap-2 p-2.5 rounded-lg mt-3 border-l-4", theme === 'dark' ? 'bg-amber-500/10 border-amber-400/50' : 'bg-amber-50 border-amber-500/60')}>
+                      <KeyRound className={cn("h-4 w-4 flex-shrink-0", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
+                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-amber-200' : 'text-amber-900')}>
                         Sigue mejorando
                       </span>
                     </div>
@@ -3800,13 +3812,14 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 </CardContent>
               </Card>
             </div>
+                  </section>
 
-            {/* Mostrar tarjetas ORIGINALES para fases individuales (Fase I, II, III) */}
+            {/* Rendimiento por materia y Fortalezas/Debilidades */}
             {selectedPhase !== 'all' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 space-y-6 lg:space-y-0">
                 <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
                   <CardHeader>
-                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                    <CardTitle className={cn("flex items-center gap-2 text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                       <PieChart className="h-5 w-5" />
                       Rendimiento académico por materia
                     </CardTitle>
@@ -3817,14 +3830,22 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     ) : currentData.subjects.length > 0 ? (
                       <PerformanceChart data={currentData.subjects} theme={theme} />
                     ) : (
-                      <p className={cn("text-center py-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Sin datos de materias disponibles</p>
+                      <div className={cn("flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-dashed", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-300 bg-gray-50')}>
+                        <PieChart className={cn("h-10 w-10 mb-3", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                        <p className={cn("text-sm font-medium text-center", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                          Sin datos de materias disponibles
+                        </p>
+                        <p className={cn("text-xs text-center mt-1", theme === 'dark' ? 'text-gray-500' : 'text-gray-500')}>
+                          Presenta evaluaciones para ver tu rendimiento por materia
+                        </p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
 
                 <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
                   <CardHeader>
-                    <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                    <CardTitle className={cn("flex items-center gap-2 text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                       <Zap className="h-5 w-5" />
                       Fortalezas y Debilidades
                     </CardTitle>
@@ -3918,7 +3939,19 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   );
                 }
               }
-              return null;
+              return (
+                <Card className={cn(theme === 'dark' ? 'bg-zinc-800/50 border-zinc-700 border-dashed' : 'bg-gray-50 border-gray-200 border-dashed')}>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <TrendingUp className={cn("h-12 w-12 mb-3", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                    <p className={cn("text-sm font-medium text-center", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      Completa al menos 2 fases para ver tu evolución por materia
+                    </p>
+                    <p className={cn("text-xs text-center mt-1", theme === 'dark' ? 'text-gray-500' : 'text-gray-500')}>
+                      Selecciona una fase individual arriba para ver el detalle
+                    </p>
+                  </CardContent>
+                </Card>
+              );
             })()}
                 </div>
               );
@@ -3926,7 +3959,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
           </TabsContent>
 
           {/* Diagnosis Tab */}
-          <TabsContent value="diagnosis" className="space-y-6">
+          <TabsContent value="diagnosis" className="space-y-8">
             {(() => {
               const currentData = getCurrentPhaseData();
               if (!currentData) {

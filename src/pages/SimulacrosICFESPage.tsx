@@ -7,7 +7,6 @@ import {
   X,
   Flag,
   Clock,
-  Loader2,
   FileCheck,
   ClipboardList,
   ZoomIn,
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
+import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 import {
   questionService,
   type Question,
@@ -444,6 +444,9 @@ export default function SimulacrosICFESPage() {
         </div>
 
         {mode === "setup" && (
+          loading ? (
+            <RutaPreparacionPageSkeleton theme={themeSafe} variant="simulacros-setup" />
+          ) : (
           <div className="flex flex-col items-center -mt-1 pb-12">
             <Card
               className={cn(
@@ -532,21 +535,13 @@ export default function SimulacrosICFESPage() {
                   disabled={loading}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {loading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Cargando preguntas...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4 mr-2" />
-                      Iniciar mini simulacro
-                    </>
-                  )}
+                  <Play className="h-4 w-4 mr-2" />
+                  Iniciar mini simulacro
                 </Button>
               </CardContent>
             </Card>
           </div>
+          )
         )}
 
         {mode === "running" && currentQuestion && (
