@@ -468,20 +468,20 @@ class SimulacrosService {
 
       const updatePayload: Record<string, unknown> = {}
 
-      if (input.pdfSimulacroFile && input.pdfHojaRespuestasFile) {
-        const [pdfSimRes, pdfHojaRes] = await Promise.all([
-          uploadPdfSimulacro(id, input.pdfSimulacroFile),
-          uploadPdfHojaRespuestas(id, input.pdfHojaRespuestasFile),
-        ])
+      if (input.pdfSimulacroFile) {
+        const pdfSimRes = await uploadPdfSimulacro(id, input.pdfSimulacroFile)
         if (!pdfSimRes.success) {
           await deleteDoc(docRef)
           return pdfSimRes
         }
+        updatePayload.pdfSimulacroUrl = pdfSimRes.data
+      }
+      if (input.pdfHojaRespuestasFile) {
+        const pdfHojaRes = await uploadPdfHojaRespuestas(id, input.pdfHojaRespuestasFile)
         if (!pdfHojaRes.success) {
           await deleteDoc(docRef)
           return pdfHojaRes
         }
-        updatePayload.pdfSimulacroUrl = pdfSimRes.data
         updatePayload.pdfHojaRespuestasUrl = pdfHojaRes.data
       }
 

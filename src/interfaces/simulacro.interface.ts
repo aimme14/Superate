@@ -16,6 +16,7 @@ export const SIMULACRO_MATERIAS = [
   { value: 'ingles', label: 'Inglés' },
   { value: 'icfes', label: 'ICFES' },
   { value: 'simulacros-completos', label: 'Simulacros' },
+  { value: 'simulacros-explicados', label: 'Simulacros explicados' },
 ] as const
 
 /** Materias que usan la estructura ICFES (4 PDFs opcionales en secciones) */
@@ -62,9 +63,9 @@ export interface Simulacro {
   comentario: string
   isActive: boolean
   createdAt: Date
-  /** URL del PDF del simulacro sección 1 (obligatorio tras creación si no hay sección 2) */
+  /** URL del PDF del simulacro sección 1 (obligatorio: al menos un documento) */
   pdfSimulacroUrl: string
-  /** URL del PDF de la hoja de respuestas sección 1 */
+  /** URL del PDF de la hoja de respuestas sección 1 (opcional; puede ser '') */
   pdfHojaRespuestasUrl: string
   /** URL del PDF del simulacro sección 2 (opcional; permite 2 documentos + 2 hojas como ICFES) */
   pdfSimulacroSeccion2Url?: string
@@ -86,7 +87,8 @@ export interface CreateSimulacroInput {
   comentario: string
   isActive?: boolean
   pdfSimulacroUrl: string
-  pdfHojaRespuestasUrl: string
+  /** Opcional; el servicio acepta creación solo con documento. */
+  pdfHojaRespuestasUrl?: string
 }
 
 export interface UpdateSimulacroInput {

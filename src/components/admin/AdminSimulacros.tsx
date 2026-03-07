@@ -145,13 +145,8 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
     const isMateriaCon4 = isMateriaCon4Secciones(form.materia)
     if (!isMateriaCon4) {
       const hasDoc = pdfSimulacroFile || pdfSimulacroSeccion2File
-      const hasHoja = pdfHojaRespuestasFile || pdfHojaRespuestasSeccion2File
       if (!hasDoc) {
-        notifyError({ message: 'Debes subir al menos un PDF de simulacro (sección 1 o 2).' })
-        return
-      }
-      if (!hasHoja) {
-        notifyError({ message: 'Debes subir al menos una hoja de respuestas (sección 1 o 2).' })
+        notifyError({ message: 'Debes subir al menos un PDF de simulacro (documento sección 1 o 2).' })
         return
       }
     } else if (form.materia === 'icfes') {
@@ -364,7 +359,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
             Crear simulacro
           </CardTitle>
           <CardDescription>
-            Completa los datos y sube el PDF del simulacro y el PDF de la hoja de respuestas (obligatorios). Opcionalmente añade videos explicativos.
+            Completa los datos y sube al menos un PDF del simulacro (documento). Las hojas de respuestas y los videos son opcionales.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -450,10 +445,10 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
           {!isMateriaCon4Secciones(form.materia) && (
           <div className={cn('rounded-lg border p-4 space-y-4', theme === 'dark' ? 'border-teal-500/30 bg-teal-950/10' : 'border-teal-200 bg-teal-50/30')}>
             <h4 className={cn('font-medium', theme === 'dark' ? 'text-teal-300' : 'text-teal-800')}>
-              Archivos PDF (mínimo 1 documento + 1 hoja; opcional 2 y 2)
+              Archivos PDF (obligatorio: al menos 1 documento; opcionales: hojas de respuestas)
             </h4>
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              Sube hasta 2 documentos de simulacro y 2 hojas de respuestas, como en ICFES.
+              Sube al menos un documento de simulacro. Puedes añadir hasta 2 documentos y 2 hojas de respuestas (opcionales).
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -473,7 +468,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
                 )}
               </div>
               <div className="space-y-2">
-                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Hoja de respuestas sección 1</Label>
+                <Label className={cn(theme === 'dark' ? 'text-gray-300' : '')}>Hoja de respuestas sección 1 (opcional)</Label>
                 <Input
                   ref={pdfHojaRef}
                   type="file"
