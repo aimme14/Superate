@@ -23,7 +23,7 @@ import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { dbService } from "@/services/firebase/db.service";
 import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
-import { examRegistryService } from "@/services/firebase/examRegistry.service";
+import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 
 const db = getFirestore(firebaseApp);
 
@@ -69,90 +69,13 @@ const checkExamStatus = async (userId: string, examId: string, phase?: 'first' |
   return null;
 };
 
-// Guarda los resultados del examen
+// Guarda los resultados del examen y los registra en el contador del admin (servicio unificado)
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
-  // DEBUG: Información completa antes de guardar
-  console.log(`[saveExamResults] 🔍 DEBUG - Información completa:`, {
-    userId,
-    examId,
-    examDataPhase: examData.phase,
-    examDataPhaseType: typeof examData.phase,
-    examDataPhaseValue: JSON.stringify(examData.phase),
-    isSecond: examData.phase === 'second',
-    isSecondString: examData.phase === 'second' || examData.phase === 'Second' || examData.phase === 'SECOND'
-  });
-  
-  // Determinar la fase y obtener el nombre de la subcolección
-  const phaseName = getPhaseName(examData.phase);
-  
-  console.log(`[saveExamResults] 🔍 DEBUG - Resultado de getPhaseName:`, {
-    inputPhase: examData.phase,
-    outputPhaseName: phaseName,
-    expectedForSecond: 'Fase II',
-    matches: phaseName === 'Fase II'
-  });
-  
-  // Verificar que las respuestas de fase 2 se guarden en "Fase II"
-  if (examData.phase === 'second' || examData.phase === 'Second' || examData.phase === 'SECOND') {
-    console.log(`[saveExamResults] ✅ Guardando respuestas de Fase 2 en carpeta: results/${userId}/${phaseName}/${examId}`);
-    if (phaseName !== 'Fase II') {
-      console.error(`[saveExamResults] ❌ ERROR: La fase 2 debería guardarse en "Fase II" pero se está usando: ${phaseName}`);
-      console.error(`[saveExamResults] ❌ Valores recibidos:`, {
-        examDataPhase: examData.phase,
-        phaseName,
-        getPhaseNameResult: getPhaseName(examData.phase)
-      });
-    } else {
-      console.log(`[saveExamResults] ✅ Confirmado: Se guardará en "Fase II"`);
-    }
+  const result = await saveExamResultsAndRegister(userId, examId, examData);
+  if (!result.success) {
+    throw result.error;
   }
-  
-  // Guardar en la subcolección correspondiente a la fase
-  const docRef = doc(db, "results", userId, phaseName, examId);
-  console.log(`[saveExamResults] 📝 Guardando en ruta: results/${userId}/${phaseName}/${examId}`);
-  
-  // Para Fase II, asegurarse de que la carpeta existe
-  // Si no existe, se creará automáticamente al guardar el primer documento
-  if (examData.phase === 'second' && phaseName === 'Fase II') {
-    console.log(`[saveExamResults] 🔍 Verificando/creando carpeta "Fase II" para el primer examen de Fase 2`);
-  }
-  
-  await setDoc(
-    docRef,
-    {
-      ...examData,
-      timestamp: Date.now(),
-    }
-  );
-  
-  console.log(`[saveExamResults] ✅ Examen guardado exitosamente en: results/${userId}/${phaseName}/${examId}`);
-  console.log(`[saveExamResults] 📁 La carpeta "${phaseName}" ahora existe en Firestore`);
-  
-  // Registrar la prueba en el sistema de registro centralizado
-  try {
-    // Obtener el subject del examData o usar un valor por defecto
-    const subject = examData.subject || examData.examTitle || 'Sin materia';
-    // Obtener la fase del examData o usar la fase del componente
-    const examPhase = examData.phase || phaseName;
-    
-    const registryResult = await examRegistryService.registerExam(
-      subject,
-      examPhase,
-      userId,
-      examId
-    );
-    
-    if (registryResult.success) {
-      console.log(`[saveExamResults] ✅ Prueba registrada en el sistema: #${registryResult.data.number} - ${subject} - ${phaseName}`);
-    } else {
-      console.warn(`[saveExamResults] ⚠️ No se pudo registrar la prueba:`, registryResult.error);
-    }
-  } catch (error) {
-    // No fallar la operación principal si el registro falla
-    console.error(`[saveExamResults] ❌ Error al registrar prueba:`, error);
-  }
-  
-  return { success: true, id: `${userId}_${examId}` };
+  return { success: true as const, id: result.data.id };
 };
 
 interface DynamicQuizFormProps {

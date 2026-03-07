@@ -7,11 +7,12 @@ import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
+import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -156,31 +157,11 @@ const checkExamStatus = async (userId: string, examId: string, phase?: 'first' |
   return null;
 };
 
-// Guarda los resultados del examen
+// Guarda los resultados del examen y los registra en el contador del admin (servicio unificado)
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
-  // Determinar la fase y obtener el nombre de la subcolección
-  const phaseName = getPhaseName(examData.phase);
-  
-  // Verificar que las respuestas de fase 2 se guarden en "Fase II"
-  if (examData.phase === 'second') {
-    console.log(`✅ Guardando respuestas de Fase 2 en carpeta: results/${userId}/${phaseName}/${examId}`);
-    if (phaseName !== 'Fase II') {
-      console.error(`❌ ERROR: La fase 2 debería guardarse en "Fase II" pero se está usando: ${phaseName}`);
-    }
-  }
-  
-  // Guardar en la subcolección correspondiente a la fase
-  const docRef = doc(db, "results", userId, phaseName, examId);
-  await setDoc(
-    docRef,
-    {
-      ...examData,
-      timestamp: Date.now(),
-    }
-  );
-  
-  console.log(`✅ Examen guardado exitosamente en: results/${userId}/${phaseName}/${examId}`);
-  return { success: true, id: `${userId}_${examId}` };
+  const result = await saveExamResultsAndRegister(userId, examId, examData);
+  if (!result.success) throw result.error;
+  return { success: true as const, id: result.data.id };
 };
 
 // Función para mapear el grado del usuario al código que usa el banco de preguntas

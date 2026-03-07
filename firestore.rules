@@ -266,7 +266,12 @@ service cloud.firestore {
       }
     }
 
-    // Regla por defecto: denegar acceso a todo lo demás
+    // Colecci?n results: resultados de ex?menes por estudiante (results/{userId}/{phaseName}/{examId}).
+    // Colecci?n examRegistry: contador de pruebas para el dashboard admin (examRegistry/examCounter).
+    // Si el dashboard de administrador usa el SDK de cliente (no Admin SDK), debe haber reglas que
+    // permitan a usuarios admin leer estas colecciones. Ver docs/FIRESTORE_RESULTS.md.
+
+    // Regla por defecto: denegar acceso a todo lo dem?s
     match /{document=**} {
       allow read, write: if false;
     }

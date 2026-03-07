@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { dbService } from '@/services/firebase/db.service'
+import { PRECIO_POR_ESTUDIANTE } from '@/utils/constants'
 
 interface MonthlyRevenueData {
   month: string
@@ -11,7 +12,7 @@ interface MonthlyRevenueData {
 
 /**
  * Hook para obtener ingresos mensuales basados en estudiantes registrados
- * Cada estudiante representa $120.000 de ingreso
+ * Cada estudiante representa el valor de PRECIO_POR_ESTUDIANTE (COP)
  */
 export const useMonthlyRevenue = (year?: number) => {
   return useQuery({
@@ -93,7 +94,7 @@ export const useMonthlyRevenue = (year?: number) => {
           monthNumber: data.month,
           year: data.year,
           students: data.students,
-          revenue: data.students * 120000
+          revenue: data.students * PRECIO_POR_ESTUDIANTE
         }))
         .sort((a, b) => {
           if (a.year !== b.year) return a.year - b.year

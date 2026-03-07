@@ -79,3 +79,6 @@ export const tableTranslations = {// to spanish
   toggleFullScreen: 'Alternar pantalla completa',
   selectedCountOfRowCountRowsSelected: '{selectedCount} de {rowCount} fila(s) seleccionada(s)',
 }
+
+/** Precio por estudiante (COP) usado en presupuesto e ingresos del admin */
+export const PRECIO_POR_ESTUDIANTE = 60000

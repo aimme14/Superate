@@ -184,19 +184,20 @@ export const recalculateStudentCounts = async (): Promise<Result<void>> => {
 }
 
 /**
- * Cuenta el total de pruebas presentadas en el sistema
- * 
+ * Cuenta el total de pruebas presentadas en el sistema.
+ *
  * Estructura de datos en Firestore:
  * - results (colección principal)
  *   - IDestudiantes (documento por cada estudiante)
  *     - fase I (subcolección con exámenes)
  *     - Fase II (subcolección con exámenes)
  *     - fase III (subcolección con exámenes)
- * 
+ *
  * Cuenta todas las pruebas de todas las fases de todos los estudiantes.
- * Ejemplo: Si un estudiante tiene 7 exámenes en fase I y 3 en Fase II,
- * ese estudiante tiene 10 exámenes en total.
- * 
+ * Requiere permisos de LECTURA en la colección `results` y en sus subcolecciones
+ * (results/{userId}/{phaseName}) para el contexto que ejecuta esta función (backend o cliente admin).
+ * Ver docs/FIRESTORE_RESULTS.md y reglas en firestore.rules si el conteo falla.
+ *
  * @returns {Promise<Result<number>>} - Total de pruebas completadas
  */
 export const getTotalCompletedExams = async (): Promise<Result<number>> => {
@@ -349,9 +350,10 @@ export const getAdminStats = async (): Promise<Result<{
     const diffTime = Math.abs(now.getTime() - systemStartDate.getTime())
     const systemUptimeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
 
-    // Obtener total de pruebas completadas
+    // Obtener total de pruebas completadas (si falla, no devolver 0 silencioso; fallar para que el dashboard muestre error)
     const examsResult = await getTotalCompletedExams()
-    const totalCompletedExams = examsResult.success ? examsResult.data : 0
+    if (!examsResult.success) throw examsResult.error
+    const totalCompletedExams = examsResult.data
 
     return success({
       totalUsers,
