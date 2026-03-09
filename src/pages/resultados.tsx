@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 import { useStudentEvaluations, type ExamResult } from "@/hooks/query/useStudentEvaluations";
 import { questionService, Question } from "@/services/firebase/question.service";
 import ImageGallery from "@/components/common/ImageGallery";
@@ -15,7 +14,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useThemeContext } from "@/context/ThemeContext";
-import { StudentNav } from "@/components/student/StudentNav";
 import { getPhaseType } from "@/utils/firestoreHelpers";
 
 // Función para eliminar etiquetas HTML y obtener solo el texto
@@ -145,7 +143,6 @@ export default function EvaluationsTab() {
     'Fase II': true,
     'fase III': true,
   });
-  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
 
   const formatDate = (timestamp: number) => {
@@ -188,13 +185,16 @@ export default function EvaluationsTab() {
   const getSecurityBadge = (evaluation: ExamResult) => {
     if (!isFraudAttempt(evaluation)) return null;
     const tabCount = evaluation.tabChangeCount ?? 0;
+    const fullLabel = `Intento de fraude ${tabCount > 0 ? `(${tabCount})` : ''} · Revisión recomendada`;
+    const shortLabel = tabCount > 0 ? `Fraude (${tabCount}) · Revisar` : 'Fraude · Revisar';
     return (
       <Badge variant="outline" className={cn(
-        "border-orange-300",
+        "border-orange-300 shrink-0 w-full md:w-auto md:max-w-none",
         theme === 'dark' ? 'text-orange-400 bg-orange-900/30' : 'text-orange-700 bg-orange-50'
       )} title="Revisión de datos recomendada: se detectó cambio de pestaña durante el examen">
-        <Shield className="h-3 w-3 mr-1 inline" />
-        Intento de fraude {tabCount > 0 ? `(${tabCount})` : ''} · Revisión recomendada
+        <Shield className="h-3 w-3 mr-1 inline flex-shrink-0" />
+        <span className="md:hidden">{shortLabel}</span>
+        <span className="hidden md:inline">{fullLabel}</span>
       </Badge>
     );
   };
@@ -408,7 +408,7 @@ export default function EvaluationsTab() {
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Pregunta {index + 1}</span>
+                              <span className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>Pregunta</span>
                               {question.answered ? (
                                 question.isCorrect ? (
                                   <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -467,49 +467,26 @@ export default function EvaluationsTab() {
 
   return (
     <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
-      {/* Header */}
-      <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center">
-            <img 
-              src={institutionLogo} 
-              width="80" 
-              height="80" 
-              alt={`Logo de ${institutionName}`} 
-              className="mr-2"
-              onError={(e) => {
-                e.currentTarget.src = '/assets/agustina.png'
-              }}
-            />
-            <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-              {isLoadingInstitution ? 'Cargando...' : institutionName}
-            </span>
-          </div>
-          <StudentNav theme={theme || "light"} />
-        </div>
-      </header>
-
-      {/* Contenido principal */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className={cn("text-3xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Mis Resultados</h1>
-          <p className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Revisa tu desempeño en las evaluaciones presentadas</p>
+      <div className="container mx-auto px-4 py-5 md:py-8">
+        <div className="mb-5 md:mb-8">
+          <h1 className={cn("text-2xl md:text-3xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Mis Resultados</h1>
+          <p className={cn("text-sm md:text-base", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Revisa tu desempeño en las evaluaciones presentadas</p>
         </div>
 
         <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-          <CardHeader>
-            <CardTitle className={cn("flex items-center gap-2", theme === 'dark' ? 'text-white' : '')}>
-              <User className="h-5 w-5" />
-              Historial de Evaluaciones
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className={cn("flex items-center gap-2 text-lg md:text-xl", theme === 'dark' ? 'text-white' : '')}>
+              <User className="h-5 w-5 flex-shrink-0" />
+              <span className="break-words">Historial de Evaluaciones</span>
             </CardTitle>
-            <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+            <CardDescription className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : '')}>
               {evaluations.length > 0
                 ? `Has presentado ${evaluations.length} evaluación${evaluations.length > 1 ? 'es' : ''}`
                 : "Aún no has presentado ninguna evaluación"
               }
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <div className={cn("animate-spin rounded-full h-8 w-8 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
@@ -542,24 +519,25 @@ export default function EvaluationsTab() {
 
                     return (
                       <div key={phaseKey} className={cn("border rounded-lg overflow-hidden", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-white')}>
-                        {/* Header de la fase */}
+                        {/* Header de la fase: en móvil wrap y menos padding para que no se comprima */}
                         <button
                           onClick={() => togglePhase(phaseKey)}
                           className={cn(
-                            "w-full p-4 flex items-center justify-between transition-colors",
+                            "w-full p-3 md:p-4 flex flex-wrap items-center justify-between gap-2 transition-colors text-left",
                             theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-50'
                           )}
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-2 md:gap-3 min-w-0">
                             {isExpanded ? (
-                              <ChevronUp className={cn("h-5 w-5", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')} />
+                              <ChevronUp className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')} />
                             ) : (
-                              <ChevronDown className={cn("h-5 w-5", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')} />
+                              <ChevronDown className={cn("h-5 w-5 flex-shrink-0", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')} />
                             )}
-                            <h2 className={cn("text-xl font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                            <h2 className={cn("text-base md:text-xl font-semibold break-words", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                               {getPhaseDisplayName(phaseKey)}
                             </h2>
                             <Badge variant="outline" className={cn(
+                              "shrink-0",
                               phaseKey === 'fase I' ? (theme === 'dark' ? 'bg-blue-900/30 border-blue-700 text-blue-300' : 'bg-blue-50 border-blue-200 text-blue-700') :
                               phaseKey === 'Fase II' ? (theme === 'dark' ? 'bg-purple-900/30 border-purple-700 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-700') :
                               phaseKey === 'fase III' ? (theme === 'dark' ? 'bg-green-900/30 border-green-700 text-green-300' : 'bg-green-50 border-green-200 text-green-700') :
@@ -568,7 +546,7 @@ export default function EvaluationsTab() {
                               {phaseEvaluations.length} {phaseEvaluations.length === 1 ? 'examen' : 'exámenes'}
                             </Badge>
                           </div>
-                          <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                          <span className={cn("text-xs md:text-sm shrink-0", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                             {isExpanded ? 'Ocultar' : 'Mostrar'}
                           </span>
                         </button>
@@ -576,52 +554,57 @@ export default function EvaluationsTab() {
                         {/* Contenido de la fase (colapsable) */}
                         {isExpanded && (
                           <div className={cn("border-t", theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
-                            <div className="p-4 space-y-4">
+                            <div className="p-3 md:p-4 space-y-4">
                               {phaseEvaluations.map((evaluation) => (
-                                <div key={evaluation.examId} className={cn("border rounded-lg p-6 transition-shadow", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-200 hover:shadow-md')}>
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-3 mb-2">
-                                        <h3 className={cn("text-lg font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                <div key={evaluation.examId} className={cn("border rounded-lg p-4 md:p-6 transition-shadow", theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-200 hover:shadow-md')}>
+                                  {/* En móvil: columna (título + meta arriba, score + botón abajo). En PC: fila igual que antes */}
+                                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                                        <h3 className={cn("text-base md:text-lg font-semibold break-words pr-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                                           {evaluation.examTitle}
                                         </h3>
-                                        <Badge className={getScoreBadgeColor(evaluation.score.overallPercentage)}>
+                                        <Badge className={cn(getScoreBadgeColor(evaluation.score.overallPercentage), "shrink-0")}>
                                           {evaluation.score.overallPercentage}%
                                         </Badge>
-                                        {getSecurityBadge(evaluation)}
                                       </div>
-                                      <div className={cn("grid grid-cols-1 md:grid-cols-3 gap-4 text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                                        <div className="flex items-center gap-2">
-                                          <Clock className="h-4 w-4" />
-                                          <span>Fecha: {formatDate(evaluation.timestamp)}</span>
+                                      {/* Badge de fraude en su propia línea en móvil para evitar superposición */}
+                                      {(() => {
+                                        const securityBadge = getSecurityBadge(evaluation);
+                                        return securityBadge ? <div className="mb-3 md:mb-0 md:inline-block md:ml-0">{securityBadge}</div> : null;
+                                      })()}
+                                      <div className={cn("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <Clock className="h-4 w-4 flex-shrink-0" />
+                                          <span className="truncate">Fecha: {formatDate(evaluation.timestamp)}</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                          <BookOpen className="h-4 w-4" />
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <BookOpen className="h-4 w-4 flex-shrink-0" />
                                           <span>
                                             {evaluation.score.correctAnswers}/{evaluation.score.totalQuestions} correctas
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                          <TrendingUp className="h-4 w-4" />
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <TrendingUp className="h-4 w-4 flex-shrink-0" />
                                           <span>Tiempo: {formatDuration(evaluation.timeSpent)}</span>
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                      <div className="text-right">
-                                        <div className={`text-3xl font-bold ${getScoreColor(evaluation.score.overallPercentage)}`}>
+                                    <div className="flex flex-row items-center justify-between md:justify-end gap-3 md:gap-4 shrink-0 border-t md:border-t-0 pt-3 md:pt-0">
+                                      <div className="text-left md:text-right">
+                                        <div className={`text-2xl md:text-3xl font-bold ${getScoreColor(evaluation.score.overallPercentage)}`}>
                                           {evaluation.score.overallPercentage}%
                                         </div>
                                         <Progress
                                           value={evaluation.score.overallPercentage}
-                                          className="w-24 mt-1"
+                                          className="w-20 md:w-24 mt-1"
                                         />
                                       </div>
                                       <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() => showExamDetails(evaluation)}
-                                        className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
+                                        className={cn("min-h-[44px] md:min-h-0", theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
                                       >
                                         Ver Detalles
                                       </Button>

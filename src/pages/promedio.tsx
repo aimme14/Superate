@@ -30,8 +30,8 @@ import { useNotification } from "@/hooks/ui/useNotification"
 import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import { TipsICFESSection } from "@/components/studyPlan/TipsICFESSection"
 import { HerramientasIASection } from "@/components/studyPlan/HerramientasIASection"
-import { StudentNav } from "@/components/student/StudentNav"
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav"
+import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton"
 import type { TipICFES } from "@/interfaces/tipsICFES.interface"
 import { aiToolsService, type AIToolData } from "@/services/firebase/aiTools.service"
 import { generatePhase1And2PDFHTML } from './promedio/pdf/phase1And2'
@@ -79,7 +79,7 @@ import {
   Lightbulb,
   RefreshCw,
   Sparkles,
-  KeyRound,
+  Dumbbell,
 } from "lucide-react"
 
 const db = getFirestore(firebaseApp);
@@ -92,13 +92,13 @@ function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data:
       <Accordion type="multiple" className="w-full">
         {subjectsWithTopics.map((subject) => (
           <AccordionItem key={subject.name} value={subject.name} className={cn("border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
-            <AccordionTrigger className={cn("hover:no-underline", theme === 'dark' ? 'text-white' : '')}>
+            <AccordionTrigger className={cn("hover:no-underline py-3 md:py-2", theme === 'dark' ? 'text-white' : '')}>
               <div className="flex items-center justify-between w-full pr-4">
                 <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</span>
                 <span className={cn("text-sm font-semibold", theme === 'dark' ? 'text-green-400' : 'text-green-600')}>{subject.percentage}%</span>
               </div>
             </AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className="pb-3 md:pb-2 pt-0">
               <div className={cn("space-y-3 pt-2", theme === 'dark' ? 'bg-zinc-900/50 rounded-lg p-3' : 'bg-gray-50 rounded-lg p-3 border-gray-200')}>
                 {subject.topics.map((topic) => (
                   <div key={topic.name} className="space-y-2">
@@ -143,34 +143,34 @@ function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { sub
         
         return (
           <AccordionItem key={subject.name} value={subject.name} className={cn("border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
-            <AccordionTrigger className={cn("hover:no-underline", theme === 'dark' ? 'text-white' : '')}>
-              <div className="flex items-center justify-between w-full pr-4">
-                <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : '')}>{subject.name}</span>
-                <div className="flex items-center gap-3">
+            <AccordionTrigger className={cn("hover:no-underline py-3 md:py-[10px]", theme === 'dark' ? 'text-white' : '')}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-6 sm:pr-4 gap-2 sm:gap-0 text-left">
+                <span className={cn("text-sm font-medium shrink-0", theme === 'dark' ? 'text-white' : '')}>{subject.name}</span>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
                   {subject.strengths.length > 0 && (
-                    <Badge className={cn("text-xs", theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200")}>
+                    <Badge className={cn("text-xs shrink-0", theme === 'dark' ? "bg-green-900 text-green-300" : "bg-green-100 text-green-800 border-gray-200")}>
                       {subject.strengths.length} fortaleza{subject.strengths.length > 1 ? 's' : ''}
                     </Badge>
                   )}
                   {subject.neutrals.length > 0 && (
-                    <Badge className={cn("text-xs", theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200")}>
+                    <Badge className={cn("text-xs shrink-0", theme === 'dark' ? "bg-yellow-900 text-yellow-300" : "bg-yellow-100 text-yellow-800 border-gray-200")}>
                       {subject.neutrals.length} neutro{subject.neutrals.length > 1 ? 's' : ''}
                     </Badge>
                   )}
                   {subject.weaknesses.length > 0 && (
-                    <Badge className={cn("text-xs", theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200")}>
+                    <Badge className={cn("text-xs shrink-0", theme === 'dark' ? "bg-red-900 text-red-300" : "bg-red-100 text-red-800 border-gray-200")}>
                       {subject.weaknesses.length} debilidad{subject.weaknesses.length > 1 ? 'es' : ''}
                     </Badge>
                   )}
                   {!hasData && (
-                    <Badge variant="outline" className={cn("text-xs", theme === 'dark' ? 'border-zinc-600 text-gray-400' : 'border-gray-300')}>
+                    <Badge variant="outline" className={cn("text-xs shrink-0", theme === 'dark' ? 'border-zinc-600 text-gray-400' : 'border-gray-300')}>
                       Sin datos
                     </Badge>
                   )}
                 </div>
               </div>
             </AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className="pb-3 md:pb-2 pt-0">
               <div className={cn("space-y-4 pt-2", theme === 'dark' ? 'bg-zinc-900/50 rounded-lg p-3' : 'bg-gray-50 rounded-lg p-3 border-gray-200')}>
                 {/* Fortalezas - Siempre mostrar si hay */}
                 {subject.strengths.length > 0 ? (
@@ -1670,7 +1670,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
   const [loadingHerramientasIA, setLoadingHerramientasIA] = useState(false);
   const [herramientasIAError, setHerramientasIAError] = useState(false);
   const [shouldLoadSecondary, setShouldLoadSecondary] = useState(false);
-  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
+  const { institutionName } = useUserInstitution();
   const { theme } = useThemeContext();
   const { notifySuccess, notifyError } = useNotification();
 
@@ -3287,78 +3287,96 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
 
   // Funciones duplicadas eliminadas - las correctas están arriba
 
-  if (loading) {
+  if (loading && !planOnly) {
     return (
       <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
-        <header className={cn("shadow-sm backdrop-blur-sm", theme === 'dark' ? 'bg-zinc-800/90 border-b border-zinc-700/50' : 'bg-white/95 border-b border-gray-200')}>
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center">
-              <img 
-                src={institutionLogo} 
-                width="80" 
-                height="80" 
-                alt={`Logo de ${institutionName}`} 
-                className="mr-2"
-                onError={(e) => {
-                  e.currentTarget.src = '/assets/agustina.png'
-                }}
-              />
-              <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-                {isLoadingInstitution ? 'Cargando...' : institutionName}
-              </span>
+        <div className="container mx-auto px-4 pt-6">
+          <div className="flex items-center justify-center py-20">
+            <div className={cn("animate-spin rounded-full h-12 w-12 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
+            <span className={cn("ml-3 text-lg", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              Cargando análisis...
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && planOnly) {
+    return (
+      <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
+        <div className={cn("container mx-auto", "px-3 sm:px-4 py-4 sm:py-8")}>
+          <RutaPreparacionSubNav theme={theme} />
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3 md:gap-4">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+              <div className="p-1.5 md:p-2 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg flex-shrink-0">
+                <Brain className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h1 className={cn("text-lg md:text-xl font-bold truncate", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  Plan de estudio IA
+                </h1>
+                <p className={cn("hidden md:block text-xs md:text-sm truncate", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Plan personalizado con inteligencia artificial
+                </p>
+              </div>
             </div>
-            <StudentNav theme={theme || "light"} />
           </div>
-        </header>
-        {planOnly && (
-          <div className="container mx-auto px-4 pt-6">
-            <RutaPreparacionSubNav theme={theme} />
-          </div>
-        )}
-        <div className="flex items-center justify-center py-20">
-          <div className={cn("animate-spin rounded-full h-12 w-12 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
-          <span className={cn("ml-3 text-lg", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-            {planOnly ? 'Cargando plan de estudio...' : 'Cargando análisis...'}
-          </span>
+          <RutaPreparacionPageSkeleton theme={theme} variant="ruta" />
         </div>
       </div>
     );
   }
 
   if (!analysisData || evaluations.length === 0) {
+    if (planOnly) {
+      return (
+        <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
+          <div className={cn("container mx-auto", "px-3 sm:px-4 py-4 sm:py-8")}>
+            <RutaPreparacionSubNav theme={theme} />
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3 md:gap-4">
+              <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                <div className="p-1.5 md:p-2 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg flex-shrink-0">
+                  <Brain className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className={cn("text-lg md:text-xl font-bold truncate", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                    Plan de estudio IA
+                  </h1>
+                  <p className={cn("hidden md:block text-xs md:text-sm truncate", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                    Plan personalizado con inteligencia artificial
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="text-center py-12">
+              <Brain className={cn("h-16 w-16 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+              <h2 className={cn("text-2xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                Sin datos para el plan de estudio
+              </h2>
+              <p className={cn("mb-6", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                Necesitas presentar al menos una evaluación para generar tu plan de estudio personalizado con IA.
+              </p>
+              <Link to="/dashboard#evaluacion">
+                <Button className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg">
+                  Presentar Primera Evaluación
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
-        <header className={cn("shadow-sm backdrop-blur-sm", theme === 'dark' ? 'bg-zinc-800/90 border-b border-zinc-700/50' : 'bg-white/95 border-b border-gray-200')}>
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center">
-              <img 
-                src={institutionLogo} 
-                width="80" 
-                height="80" 
-                alt={`Logo de ${institutionName}`} 
-                className="mr-2"
-                onError={(e) => {
-                  e.currentTarget.src = '/assets/agustina.png'
-                }}
-              />
-              <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-                {isLoadingInstitution ? 'Cargando...' : institutionName}
-              </span>
-            </div>
-            <StudentNav theme={theme || "light"} />
-          </div>
-        </header>
         <div className="container mx-auto px-4 py-20">
-          {planOnly && <RutaPreparacionSubNav theme={theme} />}
           <div className="text-center">
             <Brain className={cn("h-16 w-16 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
             <h2 className={cn("text-2xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              {planOnly ? 'Sin datos para el plan de estudio' : 'Sin datos para analizar'}
+              Sin datos para analizar
             </h2>
             <p className={cn("mb-6", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-              {planOnly
-                ? 'Necesitas presentar al menos una evaluación para generar tu plan de estudio personalizado con IA.'
-                : 'Necesitas presentar al menos una evaluación para generar tu análisis inteligente.'}
+              Necesitas presentar al menos una evaluación para generar tu análisis inteligente.
             </p>
             <Link to="/dashboard#evaluacion">
               <Button className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg">
@@ -3373,63 +3391,44 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
 
   return (
     <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
-      {/* Header */}
-      <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center">
-            <img 
-              src={institutionLogo} 
-              width="80" 
-              height="80" 
-              alt={`Logo de ${institutionName}`} 
-              className="mr-2"
-              onError={(e) => {
-                e.currentTarget.src = '/assets/agustina.png'
-              }}
-            />
-            <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-              {isLoadingInstitution ? 'Cargando...' : institutionName}
-            </span>
-          </div>
-          <StudentNav theme={theme || "light"} />
-        </div>
-      </header>
-
-      <div className="container mx-auto py-6 px-4 max-w-6xl">
+      <div
+        className={cn(
+          "container mx-auto",
+          planOnly ? "px-3 sm:px-4 py-4 sm:py-8" : "py-4 md:py-6 px-3 md:px-4 max-w-6xl"
+        )}
+      >
         {planOnly && <RutaPreparacionSubNav theme={theme} />}
-
-        {/* Título de sección */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg flex-shrink-0">
-              <Brain className="h-5 w-5 text-white" />
+        {/* Título de sección: más compacto en móvil */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <div className="p-1.5 md:p-2 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg flex-shrink-0">
+              <Brain className="h-4 w-4 md:h-5 md:w-5 text-white" />
             </div>
-            <div>
-              <h1 className={cn("text-xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <div className="min-w-0">
+              <h1 className={cn("text-lg md:text-xl font-bold truncate", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 {planOnly ? 'Plan de estudio IA' : 'Análisis Inteligente'}
               </h1>
-              <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+              <p className={cn("hidden md:block text-xs md:text-sm truncate", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 {planOnly ? 'Plan personalizado con inteligencia artificial' : 'Reporte de rendimiento académico'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Selector de Fase - responsivo (scroll horizontal en móvil) */}
+        {/* Selector de Fase: en móvil los botones hacen wrap (sin scroll horizontal) */}
         {!planOnly && (
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm mb-8')}>
-          <CardContent className="pt-6">
-            <h3 className={cn("text-base font-semibold mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+        <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm mb-4 md:mb-8')}>
+          <CardContent className="pt-4 md:pt-6 px-4 md:px-6">
+            <h3 className={cn("text-sm md:text-base font-semibold mb-3 md:mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               Seleccionar Fase
             </h3>
-            <div className="overflow-x-auto pb-2 -mx-1 md:mx-0 md:overflow-visible">
-              <div className="flex gap-2 flex-nowrap min-w-0 md:flex-wrap">
+            <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => setSelectedPhase('phase1')}
                   variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
                   size="sm"
                   className={cn(
-                    "flex-shrink-0",
+                    "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'phase1'
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
@@ -3449,7 +3448,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
                   size="sm"
                   className={cn(
-                    "flex-shrink-0",
+                    "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'phase2'
                       ? 'bg-green-600 hover:bg-green-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
@@ -3469,7 +3468,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
                   size="sm"
                   className={cn(
-                    "flex-shrink-0",
+                    "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'phase3'
                       ? 'bg-orange-600 hover:bg-orange-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
@@ -3489,7 +3488,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   variant={selectedPhase === 'all' ? 'default' : 'outline'}
                   size="sm"
                   className={cn(
-                    "flex-shrink-0",
+                    "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'all'
                       ? 'bg-purple-600 hover:bg-purple-700 text-white'
                       : theme === 'dark' ? 'border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-transparent border-gray-300'
@@ -3500,7 +3499,6 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   Todas
                 </Button>
               </div>
-            </div>
           </CardContent>
         </Card>
         )}
@@ -3512,23 +3510,23 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
             if (!planOnly) setActiveTab(value);
             if (value === 'study-plan') setSelectedPhase('phase1');
           }}
-          className="space-y-8"
+          className="space-y-3 md:space-y-5"
         >
           {!planOnly && (
-          <TabsList className={cn("grid w-full grid-cols-2", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
-            <TabsTrigger value="overview" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700 border-gray-200')}>
-              <BarChart3 className="h-4 w-4" />
+          <TabsList className={cn("grid w-full grid-cols-2 h-auto min-h-[44px] py-2 md:py-0", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
+            <TabsTrigger value="overview" className={cn("flex items-center justify-center gap-2 min-h-[44px] py-2.5 md:py-0 text-sm", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700 border-gray-200')}>
+              <BarChart3 className="h-4 w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Resumen</span>
             </TabsTrigger>
-            <TabsTrigger value="diagnosis" className={cn("flex items-center gap-2", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700 border-gray-200')}>
-              <Target className="h-4 w-4" />
+            <TabsTrigger value="diagnosis" className={cn("flex items-center justify-center gap-2 min-h-[44px] py-2.5 md:py-0 text-sm", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700 border-gray-200')}>
+              <Target className="h-4 w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Diagnóstico</span>
             </TabsTrigger>
           </TabsList>
           )}
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
+          {/* Overview Tab: tarjetas pegadas a Resumen/Diagnóstico */}
+          <TabsContent value="overview" className="space-y-4 md:space-y-5 mt-0 md:mt-0">
             {(() => {
               const currentData = getCurrentPhaseData();
               if (!currentData) {
@@ -3549,27 +3547,24 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 );
               }
               return (
-                <div className="space-y-8" key="overview-content">
+                <div className="space-y-4 md:space-y-5" key="overview-content">
                   <section aria-label="Resumen de métricas">
-                    <h2 className={cn("text-sm font-semibold uppercase tracking-wide mb-4", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                      Resumen de métricas
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 md:gap-3 lg:gap-3">
                     <Card className={cn("md:col-span-2 lg:col-span-1", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md')}>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{currentData.overall.score}</p>
-                            <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      <CardContent className="p-3 md:py-5 md:px-5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className={cn("text-xl md:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{currentData.overall.score}</p>
+                            <p className={cn("text-xs md:text-sm truncate", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                               {selectedPhase === 'all' ? 'Puntaje Global' : `Puntaje de Fase ${currentData.overall.currentPhase}`}
                             </p>
                           </div>
-                          <Award className="h-8 w-8 text-yellow-500" />
+                          <Award className="h-6 w-6 md:h-8 md:w-8 text-yellow-500 flex-shrink-0" />
                         </div>
                   {selectedPhase !== 'all' && (
-                    <div className={cn("flex items-center gap-2 p-2.5 rounded-lg mt-3 border-l-4", theme === 'dark' ? 'bg-amber-500/10 border-amber-400/50' : 'bg-amber-50 border-amber-500/60')}>
-                      <KeyRound className={cn("h-4 w-4 flex-shrink-0", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
-                      <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-amber-200' : 'text-amber-900')}>
+                    <div className={cn("flex items-center gap-2 p-2 md:p-2.5 rounded-lg mt-2 md:mt-3 border-l-4", theme === 'dark' ? 'bg-amber-500/10 border-amber-400/50' : 'bg-amber-50 border-amber-500/60')}>
+                      <Dumbbell className={cn("h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0", theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
+                      <span className={cn("text-xs md:text-sm font-medium", theme === 'dark' ? 'text-amber-200' : 'text-amber-900')}>
                         Sigue mejorando
                       </span>
                     </div>
@@ -3578,10 +3573,10 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
               </Card>
 
               <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200 shadow-md')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
+                <CardContent className="p-3 md:py-5 md:px-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className={cn("text-xl md:text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
                         {selectedPhase === 'all' 
                           ? (() => {
                               // Para "Todas las Fases", calcular el porcentaje real basándose en materias completadas vs materias esperadas
@@ -3610,14 +3605,14 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                           : `${currentData.overall.phasePercentage}%`
                         }
                       </p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      <p className={cn("text-xs md:text-sm truncate", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                         {selectedPhase === 'all' 
                           ? 'Completitud General'
                           : `Porcentaje de Fase ${currentData.overall.currentPhase}`
                         }
                       </p>
                     </div>
-                    <TrendingUp className="h-8 w-8 text-green-500" />
+                    <TrendingUp className="h-6 w-6 md:h-8 md:w-8 text-green-500 flex-shrink-0" />
                   </div>
                   <div className="mt-2">
                     <Progress 
@@ -3676,17 +3671,17 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
               </Card>
 
               <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-gray-200 shadow-md')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                <CardContent className="p-3 md:py-5 md:px-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className={cn("text-xl md:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                         {currentData.overall.timeSpent.toFixed(1)}m
                       </p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                      <p className={cn("text-xs md:text-sm line-clamp-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                         {selectedPhase === 'all' ? 'Tiempo Promedio por Pregunta' : `Tiempo Promedio por Pregunta - Fase ${currentData.overall.currentPhase}`}
                       </p>
                     </div>
-                    <Clock className="h-8 w-8 text-blue-500" />
+                    <Clock className="h-6 w-6 md:h-8 md:w-8 text-blue-500 flex-shrink-0" />
                   </div>
                   <div className="mt-2">
                     <Badge variant="outline" className={cn(theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-300 bg-white/50')}>
@@ -3708,11 +3703,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md'
                     : 'bg-gradient-to-br from-red-50 to-rose-50 border-gray-200 shadow-md'
               )}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <CardContent className="p-3 md:py-5 md:px-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
                       <p className={cn(
-                        "text-2xl font-bold",
+                        "text-xl md:text-2xl font-bold",
                         currentData.patterns.securityIssues === 0 
                           ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
                           : currentData.patterns.securityIssues <= 2
@@ -3721,10 +3716,10 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                       )}>
                         {currentData.patterns.securityIssues}
                       </p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Intento de fraude</p>
+                      <p className={cn("text-xs md:text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Intento de fraude</p>
                     </div>
                     <Shield className={cn(
-                      "h-8 w-8",
+                      "h-6 w-6 md:h-8 md:w-8 flex-shrink-0",
                       currentData.patterns.securityIssues === 0 
                         ? 'text-green-500'
                         : currentData.patterns.securityIssues <= 2
@@ -3764,11 +3759,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md'
                     : 'bg-gradient-to-br from-orange-50 to-red-50 border-gray-200 shadow-md'
               )}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <CardContent className="p-3 md:py-5 md:px-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
                       <p className={cn(
-                        "text-2xl font-bold",
+                        "text-xl md:text-2xl font-bold",
                         currentData.patterns.luckPercentage < 20
                           ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
                           : currentData.patterns.luckPercentage <= 40
@@ -3777,10 +3772,10 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                       )}>
                         {currentData.patterns.luckPercentage}%
                       </p>
-                      <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Porcentaje de Suerte</p>
+                      <p className={cn("text-xs md:text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Porcentaje de Suerte</p>
                     </div>
                     <Zap className={cn(
-                      "h-8 w-8",
+                      "h-6 w-6 md:h-8 md:w-8 flex-shrink-0",
                       currentData.patterns.luckPercentage < 20
                         ? 'text-green-500'
                         : currentData.patterns.luckPercentage <= 40
@@ -3815,22 +3810,22 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
 
             {/* Rendimiento por materia y Fortalezas/Debilidades */}
             {selectedPhase !== 'all' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 space-y-6 lg:space-y-0">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5 space-y-4 md:space-y-5 lg:space-y-0">
                 <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                  <CardHeader>
-                    <CardTitle className={cn("flex items-center gap-2 text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                      <PieChart className="h-5 w-5" />
+                  <CardHeader className="p-4 md:p-6 pb-2 md:pb-2">
+                    <CardTitle className={cn("flex items-center gap-2 text-sm md:text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <PieChart className="h-4 w-4 md:h-5 md:w-5 flex-shrink-0" />
                       Rendimiento académico por materia
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="px-4 md:px-6 pb-4 md:pb-6 pt-0">
                     {currentData.subjectsWithTopics.length > 0 ? (
                       <PerformanceChart data={currentData.subjects} subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
                     ) : currentData.subjects.length > 0 ? (
                       <PerformanceChart data={currentData.subjects} theme={theme} />
                     ) : (
-                      <div className={cn("flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-dashed", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-300 bg-gray-50')}>
-                        <PieChart className={cn("h-10 w-10 mb-3", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                      <div className={cn("flex flex-col items-center justify-center py-6 md:py-12 px-4 rounded-lg border border-dashed", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-300 bg-gray-50')}>
+                        <PieChart className={cn("h-8 w-8 md:h-10 md:w-10 mb-2 md:mb-3", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
                         <p className={cn("text-sm font-medium text-center", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                           Sin datos de materias disponibles
                         </p>
@@ -3843,13 +3838,13 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 </Card>
 
                 <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                  <CardHeader>
-                    <CardTitle className={cn("flex items-center gap-2 text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                      <Zap className="h-5 w-5" />
+                  <CardHeader className="p-4 md:p-6 pb-2 md:pb-2">
+                    <CardTitle className={cn("flex items-center gap-2 text-sm md:text-base", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                      <Zap className="h-4 w-4 md:h-5 md:w-5 flex-shrink-0" />
                       Fortalezas y Debilidades
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="px-4 md:px-6 pb-4 md:pb-6 pt-0">
                     {currentData.subjectsWithTopics.length > 0 ? (
                       <StrengthsWeaknessesChart subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
                     ) : (
@@ -3958,7 +3953,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
           </TabsContent>
 
           {/* Diagnosis Tab */}
-          <TabsContent value="diagnosis" className="space-y-8">
+          <TabsContent value="diagnosis" className="space-y-4 md:space-y-8 mt-1 md:mt-2">
             {(() => {
               const currentData = getCurrentPhaseData();
               if (!currentData) {

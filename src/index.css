@@ -7,6 +7,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Utilidades móviles: safe-area y touch */
+@layer utilities {
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

@@ -62,7 +62,7 @@ const RootLayout = () => {
             <SidebarInset>
               <AnimatedBG>
                 <Navbar />
-                <main className="z-10 flex flex-col" style={{ minHeight: 'calc(100vh - 64px)' }}>
+                <main className="z-10 flex flex-col min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100vh-64px)]">
                   <div className="flex-1 flex flex-col">
                     <Outlet />
                   </div>

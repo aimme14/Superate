@@ -1,14 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { simulacrosService } from "@/services/firebase/simulacros.service";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
+import {
+  RUTA_PREPARACION_CACHE,
+  RUTA_ACADEMICA_SIMULACROS_CACHE,
+} from "@/config/rutaPreparacionCache";
 
 export const SIMULACROS_QUERY_KEY = ["simulacros", "with-videos"] as const;
 export const SIMULACROS_LIST_QUERY_KEY = ["simulacros", "list"] as const;
 export const simulacroDetailKey = (id: string) => ["simulacros", "detail", id] as const;
 
 /**
- * Hook para obtener simulacros con videos.
- * Usa React Query para caché: al navegar entre secciones, los datos se sirven desde caché.
+ * Hook para obtener la lista de simulacros con videos (Ruta académica simulacros).
+ * Caché "hasta refresh": primera entrada hace la petición; al navegar se usa solo caché;
+ * solo al refrescar la página (F5) se vuelve a consultar.
  */
 export function useSimulacros() {
   return useQuery({
@@ -20,14 +25,13 @@ export function useSimulacros() {
       }
       throw new Error(res.error?.message ?? "Error al cargar simulacros");
     },
-    staleTime: 5 * 60 * 1000, // 5 min
-    gcTime: 10 * 60 * 1000, // 10 min
+    ...RUTA_ACADEMICA_SIMULACROS_CACHE,
   });
 }
 
 /**
- * Hook para obtener lista de simulacros (sin videos) para el admin.
- * Usa React Query con caché de 2 minutos.
+ * Hook para obtener lista de simulacros (sin videos).
+ * Misma configuración de caché que la Ruta de preparación.
  */
 export function useSimulacrosList() {
   return useQuery({
@@ -39,14 +43,14 @@ export function useSimulacrosList() {
       }
       throw new Error(res.error?.message ?? "Error al cargar simulacros");
     },
-    staleTime: 2 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
+    gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
   });
 }
 
 /**
  * Hook para obtener detalles de un simulacro (con videos) al expandir.
- * Usa caché para evitar peticiones repetidas.
+ * Misma configuración de caché que la Ruta de preparación.
  */
 export function useSimulacroDetails(id: string | null, enabled: boolean) {
   return useQuery({
@@ -58,7 +62,7 @@ export function useSimulacroDetails(id: string | null, enabled: boolean) {
       throw new Error(res.error?.message ?? "Error al cargar simulacro");
     },
     enabled: enabled && !!id,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
+    gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
   });
 }

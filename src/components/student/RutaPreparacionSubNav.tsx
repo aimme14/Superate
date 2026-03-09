@@ -79,21 +79,22 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
   return (
     <div
       className={cn(
-        "flex gap-2 mb-6 p-1 rounded-lg",
+        "flex flex-col sm:flex-row flex-wrap gap-2 mb-4 sm:mb-6 p-2 sm:p-1 rounded-lg",
         theme === "dark" ? "bg-zinc-800/50" : "bg-gray-100"
       )}
     >
       <Link
         to={RUTA_ACADEMICA_PATH}
-        className={buttonClass(isRutaAcademicaActive)}
+        className={cn(buttonClass(isRutaAcademicaActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isRutaAcademicaActive ? "page" : undefined}
       >
         <Pencil className="w-5 h-5 flex-shrink-0" aria-hidden />
-        Ruta Académica Simulacros
+        <span className="hidden sm:inline">Ruta Académica Simulacros</span>
+        <span className="inline sm:hidden">Ruta Académica</span>
       </Link>
       <Link
         to={PLAN_ESTUDIO_IA_PATH}
-        className={buttonClass(isPlanEstudioActive)}
+        className={cn(buttonClass(isPlanEstudioActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isPlanEstudioActive ? "page" : undefined}
       >
         <BookOpen className="w-5 h-5 flex-shrink-0" aria-hidden />
@@ -101,7 +102,7 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
       </Link>
       <Link
         to={SIMULACROS_IA_PATH}
-        className={buttonClass(isSimulacrosIAActive)}
+        className={cn(buttonClass(isSimulacrosIAActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isSimulacrosIAActive ? "page" : undefined}
         onMouseEnter={handleSimulacrosIAHover}
       >
@@ -110,7 +111,7 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
       </Link>
       <Link
         to={SIMULACROS_ICFES_PATH}
-        className={buttonClass(isSimulacrosICFESActive)}
+        className={cn(buttonClass(isSimulacrosICFESActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isSimulacrosICFESActive ? "page" : undefined}
       >
         <FileCheck className="w-5 h-5 flex-shrink-0" aria-hidden />

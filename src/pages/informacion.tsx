@@ -3,10 +3,8 @@ import { useAuthContext } from "@/context/AuthContext"
 import { useQueryUser } from "@/hooks/query/useAuthQuery"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
-import { StudentNav } from "@/components/student/StudentNav"
 
 export default function InfoTab() {
   const { user } = useAuthContext()
@@ -14,32 +12,10 @@ export default function InfoTab() {
   const userId = user?.uid
   const queryUser = useQueryUser()
   const { data: userData } = queryUser.fetchUserById<any>(userId as string, !!userId)
-  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution()
 
   return (
     <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
-      {/* Sección 1: Encabezado y Navegación */}
-      <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center">
-            <img 
-              src={institutionLogo} 
-              width="80" 
-              height="80" 
-              alt={`Logo de ${institutionName}`} 
-              className="mr-2"
-              onError={(e) => {
-                e.currentTarget.src = '/assets/agustina.png'
-              }}
-            />
-            <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-              {isLoadingInstitution ? 'Cargando...' : institutionName}
-            </span>
-          </div>
-
-          <StudentNav theme={theme || "light"} />
-        </div>
-      </header>
+      <div className="container mx-auto px-4 py-5 md:py-8">
     <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
       <CardHeader>
         <CardTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Información Personal</CardTitle>
@@ -81,6 +57,7 @@ export default function InfoTab() {
         </div>
       </CardContent>
     </Card>
+      </div>
     </div>
   )
 }

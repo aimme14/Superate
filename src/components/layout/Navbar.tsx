@@ -24,9 +24,9 @@ const Navbar = () => {
       'backdrop-blur-sm transition-colors duration-500',
       theme === 'dark' ? 'from-zinc-800 to-zinc-800/30 text-zinc-100' : 'from-gray-200 to-gray-200/30 text-gray-900'
     )}>
-      <div className="container flex h-16 p-4 items-center justify-between">
-        <div className="flex items-center space-x-2">
-          {showSidebarTrigger && <SidebarTrigger className='mr-2' />}
+      <div className="container flex h-14 min-h-[44px] sm:h-16 p-3 sm:p-4 items-center justify-between gap-2">
+        <div className="flex items-center min-w-0 flex-1 space-x-2">
+          {showSidebarTrigger && <SidebarTrigger className="mr-1 shrink-0 sm:mr-2" />}
           {!isMobile && (
             <div className="animate-in zoom-in-95 duration-300">
               <span className={cn("flex h-12 mr-2 shrink-0 items-center justify-center", isAuth ? 'w-16' : 'w-20')}>
@@ -40,11 +40,11 @@ const Navbar = () => {
           )}
           {isAuth
             ? (
-                <Link to="/" className="flex items-center shrink-0">
+                <Link to="/" className="flex items-center shrink-0 min-h-[44px] min-w-0">
                   <img
                     src={theme === 'dark' ? letraModoNegro : letraModoClaro}
                     alt="SUPERATE.IA"
-                    className="h-8 w-auto max-h-10 object-contain"
+                    className="h-7 w-auto max-h-9 sm:h-8 sm:max-h-10 object-contain"
                   />
                 </Link>
               )
@@ -52,12 +52,12 @@ const Navbar = () => {
                 <img
                   src={theme === 'dark' ? letraModoNegro : letraModoClaro}
                   alt="SUPERATE.IA"
-                  className="h-8 w-auto max-h-10 object-contain"
+                  className="h-7 w-auto max-h-9 sm:h-8 sm:max-h-10 object-contain"
                 />
               )}
         </div>
 
-        <div className="flex items-center gap-x-2 md:gap-x-4">
+        <div className="flex items-center shrink-0 gap-x-2 md:gap-x-4 [&_button]:min-h-[44px] [&_button]:min-w-[44px]">
           <ThemeToggle />
           {isAuth && user && (
             <>

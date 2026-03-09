@@ -2251,7 +2251,7 @@ const ExamWithFirebase = () => {
                 onClick={handleSkipQuestion}
                 disabled={isEnglishWithGroups ? currentGroupIndex === questionGroups.length - 1 : currentQuestion === quizData.questions.length - 1}
                 variant="outline"
-                className={cn("flex items-center gap-2", appTheme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50')}
+                className={cn("flex items-center gap-2 focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit", appTheme === 'dark' ? 'border-gray-600 text-gray-300 dark:hover:bg-transparent dark:hover:border-gray-600 dark:hover:text-gray-300' : 'border-gray-300 text-gray-700 hover:border-gray-300 hover:text-gray-700')}
               >
                 <HelpCircle className="h-4 w-4" />
                 No sé
@@ -2271,7 +2271,15 @@ const ExamWithFirebase = () => {
                     ? !currentGroupQuestions.some(q => answers[q.id || q.code])
                     : !answers[quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code])
                 }
-                className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
+                variant="outline"
+                className={cn("flex items-center gap-2 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit", appTheme === 'dark' ? 'border-gray-600 text-gray-300 dark:hover:bg-transparent dark:hover:border-gray-600 dark:hover:text-gray-300' : 'border-gray-300 text-gray-700 hover:border-gray-300 hover:text-gray-700')}
+                style={{ transition: 'none' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transition = 'background-color 150ms ease-in-out';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transition = 'none';
+                }}
               >
                 {(isEnglishWithGroups ? currentGroupIndex === questionGroups.length - 1 : currentQuestion === quizData.questions.length - 1) ? (
                   isSubmitting ? (

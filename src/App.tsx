@@ -12,6 +12,7 @@ import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/dashboard";
 import LoginPage from "@/pages/LoginPage";
 import RootLayout from "@/layouts/Root";
+import StudentLayout from "@/layouts/StudentLayout";
 import HomePage from "@/pages/HomePage";
 import QuizPage from "@/pages/Quiz";
 import AboutPage from "@/sections/about/page";
@@ -102,14 +103,16 @@ function App() {
                 } />
               </Route>
 
-              {/* rutas publicas */}
-              <Route path="/informacionPage" element={<InformacionPage />} />
-              <Route path="/resultados" element={<ResultadosPage />} />
-              <Route path="/promedio" element={<ErrorBoundary><PromedioPage /></ErrorBoundary>} />
-              <Route path="/ruta-academica-adaptativa" element={<RutaAcademicaAdaptativaPage />} />
-              <Route path="/plan-estudio-ia" element={<ErrorBoundary><PlanEstudioIAPage /></ErrorBoundary>} />
-              <Route path="/simulacros-ia" element={<ErrorBoundary><SimulacrosIAPage /></ErrorBoundary>} />
-              <Route path="/simulacros-icfes" element={<ErrorBoundary><SimulacrosICFESPage /></ErrorBoundary>} />
+              {/* Rutas con layout de estudiante (header persistente, sin recarga al navegar) */}
+              <Route element={<StudentLayout />}>
+                <Route path="/informacionPage" element={<InformacionPage />} />
+                <Route path="/resultados" element={<ResultadosPage />} />
+                <Route path="/promedio" element={<ErrorBoundary><PromedioPage /></ErrorBoundary>} />
+                <Route path="/ruta-academica-adaptativa" element={<RutaAcademicaAdaptativaPage />} />
+                <Route path="/plan-estudio-ia" element={<ErrorBoundary><PlanEstudioIAPage /></ErrorBoundary>} />
+                <Route path="/simulacros-ia" element={<ErrorBoundary><SimulacrosIAPage /></ErrorBoundary>} />
+                <Route path="/simulacros-icfes" element={<ErrorBoundary><SimulacrosICFESPage /></ErrorBoundary>} />
+              </Route>
               <Route path="/innovative-hero" element={<InnovativeHero />} />
               <Route path="/prueba" element={<Prueba />} />
               <Route path="/Intento" element={<Intento />} />

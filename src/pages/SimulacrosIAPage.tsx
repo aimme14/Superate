@@ -10,7 +10,6 @@ import {
   Bot,
   ClipboardList,
 } from "lucide-react";
-import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 import { useThemeContext } from "@/context/ThemeContext";
 import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -24,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 import { getRandomEjercicios, type EjercicioIA } from "@/services/firebase/ejerciciosIA.service";
@@ -71,7 +69,6 @@ function isAnswerCorrect(
  * Ejercicios desde EjerciciosIA, 1.5 min por pregunta, filtro por materia.
  */
 export default function SimulacrosIAPage() {
-  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
   const { user } = useAuthContext();
 
@@ -207,37 +204,6 @@ export default function SimulacrosIAPage() {
 
   return (
     <div className={cn("min-h-screen", themeSafe === "dark" ? "bg-zinc-900" : "bg-gray-50")}>
-      <header
-        className={cn(
-          "shadow-sm",
-          themeSafe === "dark" ? "bg-zinc-800 border-b border-zinc-700" : "bg-white"
-        )}
-      >
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center">
-            <img
-              src={institutionLogo}
-              width="80"
-              height="80"
-              alt={`Logo de ${institutionName}`}
-              className="mr-2"
-              onError={(e) => {
-                e.currentTarget.src = "/assets/agustina.png";
-              }}
-            />
-            <span
-              className={cn(
-                "font-bold text-2xl",
-                themeSafe === "dark" ? "text-red-400" : "text-red-600"
-              )}
-            >
-              {isLoadingInstitution ? "Cargando..." : institutionName}
-            </span>
-          </div>
-          <StudentNav theme={themeSafe} />
-        </div>
-      </header>
-
       <div className="container mx-auto px-4 py-8">
         <RutaPreparacionSubNav theme={themeSafe} />
 
@@ -374,7 +340,12 @@ export default function SimulacrosIAPage() {
                     size="sm"
                     onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
                     disabled={currentIndex === 0}
-                    className={themeSafe === "dark" ? "border-zinc-600" : ""}
+                    className={cn(
+                      themeSafe === "dark" ? "border-zinc-600 text-gray-300" : "",
+                      "focus-visible:ring-0 focus-visible:ring-offset-0",
+                      "hover:bg-transparent hover:border-inherit hover:text-inherit",
+                      "dark:hover:bg-transparent dark:hover:border-zinc-600 dark:hover:text-gray-300"
+                    )}
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Anterior
@@ -388,7 +359,12 @@ export default function SimulacrosIAPage() {
                       )
                     }
                     disabled={currentIndex >= exercises.length - 1}
-                    className={themeSafe === "dark" ? "border-zinc-600" : ""}
+                    className={cn(
+                      themeSafe === "dark" ? "border-zinc-600 text-gray-300" : "",
+                      "focus-visible:ring-0 focus-visible:ring-offset-0",
+                      "hover:bg-transparent hover:border-inherit hover:text-inherit",
+                      "dark:hover:bg-transparent dark:hover:border-zinc-600 dark:hover:text-gray-300"
+                    )}
                   >
                     Siguiente
                     <ChevronRight className="h-4 w-4 ml-1" />

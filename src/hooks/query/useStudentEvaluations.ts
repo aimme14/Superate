@@ -3,6 +3,7 @@ import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firesto
 import { firebaseApp } from "@/services/firebase/db.service";
 import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
 import { useAuthContext } from "@/context/AuthContext";
+import { RUTA_PREPARACION_CACHE } from "@/config/rutaPreparacionCache";
 
 export interface ExamScore {
   correctAnswers: number;
@@ -144,7 +145,7 @@ export function useStudentEvaluations() {
     queryKey: [...EVALUATIONS_QUERY_KEY, userId],
     queryFn: () => fetchEvaluations(userId),
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000, // 2 min - los resultados pueden cambiar al terminar un examen
-    gcTime: 10 * 60 * 1000, // 10 min
+    staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
+    gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
   });
 }

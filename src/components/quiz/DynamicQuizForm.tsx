@@ -1548,7 +1548,18 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
                   }
                 }}
                 disabled={currentQuestion === quizData.questions.length - 1 ? isSubmitting : false}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
+                variant="outline"
+                className={cn(
+                  "flex items-center gap-2 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit",
+                  theme === 'dark' ? 'border-gray-600 text-gray-300 dark:hover:bg-transparent dark:hover:border-gray-600 dark:hover:text-gray-300' : 'border-gray-300 text-gray-700 hover:border-gray-300 hover:text-gray-700'
+                )}
+                style={{ transition: 'none' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transition = 'background-color 150ms ease-in-out';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transition = 'none';
+                }}
               >
                 {currentQuestion === quizData.questions.length - 1 ? (
                   isSubmitting ? (

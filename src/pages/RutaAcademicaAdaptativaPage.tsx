@@ -13,7 +13,6 @@ import {
   GraduationCap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 import { useSimulacros } from "@/hooks/query/useSimulacros";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -21,7 +20,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
 import { SIMULACRO_MATERIAS, isMateriaCon4Secciones } from "@/interfaces/simulacro.interface";
-import { StudentNav } from "@/components/student/StudentNav";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 
@@ -30,7 +28,6 @@ function buildViewerUrl(simulacroId: string, tipo: string): string {
 }
 
 export default function RutaAcademicaAdaptativaPage() {
-  const { institutionName, institutionLogo, isLoading: isLoadingInstitution } = useUserInstitution();
   const { theme } = useThemeContext();
   const { data: simulacros = [], isLoading: loading, isError, error } = useSimulacros();
   const [selectedMateria, setSelectedMateria] = useState<string | null>(null);
@@ -88,51 +85,21 @@ export default function RutaAcademicaAdaptativaPage() {
         theme === "dark" ? "bg-zinc-900" : "bg-gray-50"
       )}
     >
-      <header
-        className={cn(
-          "shadow-sm",
-          theme === "dark" ? "bg-zinc-800 border-b border-zinc-700" : "bg-white"
-        )}
-      >
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center">
-            <img
-              src={institutionLogo}
-              width="80"
-              height="80"
-              alt={`Logo de ${institutionName}`}
-              className="mr-2"
-              onError={(e) => {
-                e.currentTarget.src = "/assets/agustina.png";
-              }}
-            />
-            <span
-              className={cn(
-                "font-bold text-2xl",
-                theme === "dark" ? "text-red-400" : "text-red-600"
-              )}
-            >
-              {isLoadingInstitution ? "Cargando..." : institutionName}
-            </span>
-          </div>
-          <StudentNav theme={theme} />
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <RutaPreparacionSubNav theme={theme} />
-        <div className="mb-8">
+        <div className="mb-5 sm:mb-8">
           <h1
             className={cn(
-              "text-3xl font-bold mb-2 flex items-center gap-3",
+              "text-xl sm:text-3xl font-bold mb-2 flex flex-wrap items-center gap-2 sm:gap-3 break-words",
               theme === "dark" ? "text-white" : "text-gray-900"
             )}
           >
-            <BookOpen className="h-8 w-8 flex-shrink-0" />
+            <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0" />
             Ruta Académica Simulacros
           </h1>
           <p
             className={cn(
+              "text-sm sm:text-base break-words",
               theme === "dark" ? "text-gray-400" : "text-gray-600"
             )}
           >
@@ -191,7 +158,7 @@ export default function RutaAcademicaAdaptativaPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {/* Botones de materias en fila horizontal */}
+            {/* Botones de materias: en móvil más compactos y con wrap */}
             <div
               className={cn(
                 "flex flex-wrap gap-2 rounded-lg border p-2",
@@ -210,7 +177,7 @@ export default function RutaAcademicaAdaptativaPage() {
                     type="button"
                     onClick={() => setSelectedMateria(materiaKey)}
                     className={cn(
-                      "inline-flex items-center gap-2 px-4 py-2.5 rounded-md font-semibold text-sm whitespace-nowrap transition-colors",
+                      "inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-md font-semibold text-xs sm:text-sm whitespace-nowrap min-h-[44px] sm:min-h-0 transition-colors",
                       theme === "dark"
                         ? isSelected
                           ? "bg-zinc-600 text-white"
@@ -220,7 +187,7 @@ export default function RutaAcademicaAdaptativaPage() {
                           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                     )}
                   >
-                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                     {label}
                   </button>
                 );

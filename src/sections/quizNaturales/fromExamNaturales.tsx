@@ -1141,7 +1141,7 @@ const ExamWithFirebase = () => {
     // Usar useMemo para calcular el className una sola vez y evitar parpadeo
     // Sobrescribir todas las transiciones del Button para evitar parpadeo
     const skipButtonClassName = useMemo(() => {
-      return "flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50 !transition-none hover:transition-colors hover:duration-150";
+      return "flex items-center gap-2 border-gray-300 text-gray-700 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-gray-300 hover:text-gray-700";
     }, []);
 
     return (
@@ -1277,7 +1277,15 @@ const ExamWithFirebase = () => {
                   }
                 }}
                 disabled={!answers[currentQ.id] || isSubmitting}
-                className={`flex items-center gap-2 ${theme.buttonGradient} ${theme.buttonHover} text-white shadow-lg`}
+                variant="outline"
+                className={skipButtonClassName}
+                style={{ transition: 'none' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transition = 'background-color 150ms ease-in-out';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transition = 'none';
+                }}
               >
                 {currentQuestion === examData.questions.length - 1 ? (
                   isSubmitting ? (
