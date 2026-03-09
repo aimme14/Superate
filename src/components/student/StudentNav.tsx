@@ -294,7 +294,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
                 }}
               >
                 <Route className="w-5 h-5" />
-                <span>Ruta de preparación</span>
+                <span>Ruta de Preparación ICFES</span>
               </Link>
               <Link
                 to="/dashboard#evaluacion"

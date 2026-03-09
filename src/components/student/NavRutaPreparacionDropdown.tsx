@@ -42,7 +42,7 @@ export function NavRutaPreparacionDropdown({ theme = "light", onPrefetch }: NavR
       aria-current={isActive ? "page" : undefined}
     >
       <Route className="w-5 h-5 flex-shrink-0 mr-2" aria-hidden />
-      <span>Ruta de preparación</span>
+      <span>Ruta de Preparación ICFES</span>
     </Link>
   );
 }
