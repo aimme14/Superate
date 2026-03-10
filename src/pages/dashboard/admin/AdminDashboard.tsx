@@ -24,6 +24,7 @@ import {
   Settings,
   Sparkles,
   ClipboardList,
+  Construction,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
@@ -304,8 +305,24 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
           </DropdownMenu>
         </nav>
 
+        {/* Inicio: temporalmente en mantenimiento */}
         <TabsContent value="overview" className="space-y-6">
+          <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-muted/30 border-border/50')}>
+            <CardHeader className="text-center py-16">
+              <div className="flex justify-center mb-4">
+                <Construction className={cn('h-16 w-16', theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
+              </div>
+              <CardTitle className={cn('text-2xl', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                En mantenimiento
+              </CardTitle>
+              <CardDescription className="text-base mt-2">
+                Esta sección está temporalmente en mantenimiento. Pronto estará disponible nuevamente.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          {/* Contenido original comentado para restaurar después:
           <AdminOverviewTab theme={theme} />
+          */}
         </TabsContent>
 
         <TabsContent value="users">
