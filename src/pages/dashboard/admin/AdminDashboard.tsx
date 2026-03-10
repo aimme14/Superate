@@ -29,7 +29,8 @@ import {
 import { cn } from '@/lib/utils'
 import UserManagement from '@/components/admin/UserManagement'
 import InstitutionManagement from '@/components/admin/InstitutionManagement'
-import AdminOverviewTab from '@/components/admin/AdminOverviewTab'
+// AdminOverviewTab importado solo para restaurar después del mantenimiento
+// import AdminOverviewTab from '@/components/admin/AdminOverviewTab'
 import AdminAnalysis from '@/components/admin/AdminAnalysis'
 import RegistrationSettings from '@/components/admin/RegistrationSettings'
 import StudentPhaseReports from '@/components/admin/StudentPhaseReports'
