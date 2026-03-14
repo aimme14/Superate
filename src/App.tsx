@@ -18,6 +18,7 @@ import QuizPage from "@/pages/Quiz";
 import AboutPage from "@/sections/about/page";
 import InformacionPage from "@/pages/informacion";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PrefetchInstitutions } from "@/components/common/PrefetchInstitutions";
 
 // Páginas: lazy load para reducir el bundle inicial
 const ResultadosPage = lazy(() => import("@/pages/resultados"));
@@ -49,7 +50,7 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-
+        <PrefetchInstitutions />
         <BrowserRouter>
           <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>}>
           <Routes>

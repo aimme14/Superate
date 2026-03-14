@@ -3,11 +3,13 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { QueryOptions } from '@/interfaces/props.interface'
 import { RegisterFormProps } from '@/schemas/auth.schema'
 import { useAuthContext } from '@/context/AuthContext'
+import { currentUserQueryKey } from './useCurrentUser'
 
 // Keys constantes para mejor mantenimiento
 const QUERY_KEYS = {
   users: () => ['users'],
   user: (id: string) => ['user', id],
+  currentUser: (id: string) => currentUserQueryKey(id),
   search: (query: QueryOptions) => ['users', 'search', query]
 }
 /*---------------------------------------------------------------------------------------------------------*/
@@ -51,7 +53,7 @@ export const useQueryUser = (): QueryReact_User => {
 
   return {
     fetchAllUsers,
-    fetchUserById
+    fetchUserById: fetchUserById as QueryReact_User['fetchUserById']
   }
 }
 /*---------------------------------------------------------------------------------------------------------*/
@@ -82,6 +84,7 @@ export const useUserMutation = (): CustomMutation_User => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users() })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user(variables.id) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currentUser(variables.id) })
     }
   })
 

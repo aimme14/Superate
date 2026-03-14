@@ -3,7 +3,7 @@ import { normalizeError } from "@/errors/handler"
 import ErrorAPI, { NotFound } from "@/errors"
 import { firebaseApp } from "@/services/db"
 
-import { 
+import {
   CollectionReference,
   getFirestore,
   collection,
@@ -18,7 +18,8 @@ import {
   doc,
   writeBatch,
 } from "firebase/firestore"
-import { User } from "firebase/auth";
+import { User } from "firebase/auth"
+import { logger } from "@/utils/logger"
 
 export { firebaseApp };
 
@@ -1826,48 +1827,35 @@ class DatabaseService {
             })
           }
         } else {
-          // Si no hay institutionId, obtener todos los estudiantes de todas las instituciones
-          const allStudentsResult = await this.getAllUsersByRoleFromNewStructure('student')
-          if (allStudentsResult.success) {
-            allStudentsResult.data.forEach((student: any) => {
-              if (!studentIds.has(student.id)) {
-                // Aplicar filtros
+          // Sin institutionId: limitar carga para evitar exceso de lecturas y memoria (máx 500)
+          const MAX_STUDENTS_WITHOUT_INSTITUTION = 500
+          const institutionsResult = await this.getAllInstitutions()
+          if (institutionsResult.success) {
+            for (const inst of institutionsResult.data) {
+              if (allStudents.length >= MAX_STUDENTS_WITHOUT_INSTITUTION) break
+              const studentsResult = await this.getUsersByInstitutionFromNewStructure(inst.id, 'student')
+              if (!studentsResult.success) continue
+              for (const student of studentsResult.data) {
+                if (allStudents.length >= MAX_STUDENTS_WITHOUT_INSTITUTION) break
+                if (studentIds.has(student.id)) continue
                 let matches = true
-
-                if (filters.campusId) {
-                  const studentCampus = student.campus || student.campusId
-                  if (studentCampus !== filters.campusId) {
-                    matches = false
-                  }
-                }
-                if (filters.gradeId) {
-                  const studentGrade = student.grade || student.gradeId
-                  if (studentGrade !== filters.gradeId) {
-                    matches = false
-                  }
-                }
-                if (filters.jornada && student.jornada !== filters.jornada) {
-                  matches = false
-                }
-                if (filters.isActive !== undefined && student.isActive !== filters.isActive) {
-                  matches = false
-                }
+                if (filters.campusId && (student.campus || student.campusId) !== filters.campusId) matches = false
+                if (filters.gradeId && (student.grade || student.gradeId) !== filters.gradeId) matches = false
+                if (filters.jornada && student.jornada !== filters.jornada) matches = false
+                if (filters.isActive !== undefined && student.isActive !== filters.isActive) matches = false
                 if (filters.searchTerm) {
-                  const searchTerm = filters.searchTerm.toLowerCase()
-                  const matchesSearch = 
-                    student.name?.toLowerCase().includes(searchTerm) ||
-                    student.email?.toLowerCase().includes(searchTerm)
-                  if (!matchesSearch) {
-                    matches = false
-                  }
+                  const term = filters.searchTerm.toLowerCase()
+                  if (!student.name?.toLowerCase().includes(term) && !student.email?.toLowerCase().includes(term)) matches = false
                 }
-
                 if (matches) {
                   allStudents.push(student)
                   studentIds.add(student.id)
                 }
               }
-            })
+            }
+            if (allStudents.length >= MAX_STUDENTS_WITHOUT_INSTITUTION) {
+              logger.warn('getFilteredStudents: resultado limitado a', MAX_STUDENTS_WITHOUT_INSTITUTION, '(sin institutionId). Use institutionId para listados completos.')
+            }
           }
         }
       } catch (error) {
@@ -1965,87 +1953,50 @@ class DatabaseService {
   }
 
   /**
-   * Enriquece los datos de un usuario individual con nombres de institución, sede y grado
-   * @param {any} user - El usuario a enriquecer
-   * @returns {Promise<Result<any>>} Usuario enriquecido con nombres
+   * Enriquece los datos de un usuario con nombres de institución, sede y grado.
+   * Optimizado: una sola lectura del documento de institución para todo.
    */
   async enrichUserData(user: any): Promise<Result<any>> {
     try {
-      console.log('🔍 Enriqueciendo datos del usuario:', user.name, 'con IDs:', {
-        inst: user.inst,
-        campus: user.campus,
-        grade: user.grade
-      })
-      
-      // Obtener nombre de la institución
       let institutionName = user.inst || user.institutionId
-      const institutionId = user.inst || user.institutionId
-      if (institutionId) {
-        const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
-        if (institutionDoc.exists()) {
-          institutionName = institutionDoc.data().name || institutionId
-          console.log('✅ Institución encontrada:', institutionName)
-        } else {
-          console.log('❌ Institución no encontrada para ID:', institutionId)
-        }
-      }
-
-      // Obtener nombre de la sede y grado desde el documento completo de la institución
       let campusName = user.campus || user.campusId
       let gradeName = user.grade || user.gradeId
+      const institutionId = user.inst || user.institutionId
       const campusId = user.campus || user.campusId
       const gradeId = user.grade || user.gradeId
-      
-      if (institutionId && campusId) {
-        // Obtener el documento completo de la institución para buscar en sus arrays
-        const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
-        if (institutionDoc.exists()) {
-          const institutionData = institutionDoc.data()
-          console.log('📋 Datos de la institución:', institutionData)
-          
-          // Buscar la sede en el array de sedes
-          if (institutionData.campuses && Array.isArray(institutionData.campuses)) {
-            const campus = institutionData.campuses.find((c: any) => c.id === campusId)
-            if (campus) {
-              campusName = campus.name || campusId
-              console.log('✅ Sede encontrada:', campusName)
-              
-              // Buscar el grado en el array de grados de la sede
-              if (campus.grades && Array.isArray(campus.grades) && gradeId) {
-                const grade = campus.grades.find((g: any) => g.id === gradeId)
-                if (grade) {
-                  gradeName = grade.name || gradeId
-                  console.log('✅ Grado encontrado:', gradeName)
-                } else {
-                  console.log('❌ Grado no encontrado para ID:', gradeId)
-                }
-              }
-            } else {
-              console.log('❌ Sede no encontrada para ID:', campusId)
-            }
+
+      if (!institutionId) {
+        return success({ ...user, institutionName, campusName, gradeName })
+      }
+
+      // Una sola lectura del documento de institución
+      const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
+      if (!institutionDoc.exists()) {
+        return success({ ...user, institutionName, campusName, gradeName })
+      }
+
+      const institutionData = institutionDoc.data()
+      institutionName = institutionData.name || institutionId
+
+      if (campusId && institutionData.campuses && Array.isArray(institutionData.campuses)) {
+        const campus = institutionData.campuses.find((c: any) => c.id === campusId)
+        if (campus) {
+          campusName = campus.name || campusId
+          if (gradeId && campus.grades && Array.isArray(campus.grades)) {
+            const grade = campus.grades.find((g: any) => g.id === gradeId)
+            if (grade) gradeName = grade.name || gradeId
           }
-        } else {
-          console.log('❌ Institución no encontrada para obtener sedes/grados')
         }
       }
 
-      const enrichedUser = {
+      return success({
         ...user,
         institutionName,
         campusName,
-        gradeName
-      }
-      
-      console.log('🎉 Usuario enriquecido:', {
-        name: enrichedUser.name,
-        institutionName,
-        campusName,
-        gradeName
+        gradeName,
       })
-      
-      return success(enrichedUser)
     } catch (error) {
-      console.warn(`Error al enriquecer datos del usuario ${user.id}:`, error)
+      logger.warn('Error al enriquecer datos del usuario:', user?.id, error)
       return failure(new ErrorAPI(normalizeError(error, 'enriquecer datos del usuario')))
     }
   }
@@ -2057,7 +2008,7 @@ class DatabaseService {
    */
   async getStudentsByTeacher(teacherId: string): Promise<Result<any[]>> {
     try {
-      console.log('👨‍🏫 getStudentsByTeacher - Buscando estudiantes para teacherId:', teacherId)
+      logger.debug('getStudentsByTeacher:', teacherId)
       
       // Obtener información del docente para saber su institución, sede y grado
       // Usar getUserById para obtener desde la nueva estructura jerárquica (incluye jornada)
@@ -2756,6 +2707,48 @@ class DatabaseService {
     return roleMap[role] || 'users'
   }
 
+  /** Mapeo inverso: nombre de colección → rol (para userLookup y fallback) */
+  private getRoleFromCollectionName(roleCollection: string): string {
+    const map: Record<string, string> = {
+      'rectores': 'rector',
+      'coordinadores': 'principal',
+      'profesores': 'teacher',
+      'estudiantes': 'student'
+    }
+    return map[roleCollection] || 'student'
+  }
+
+  /**
+   * Escribe o actualiza la entrada en userLookup para acceso O(1) por uid.
+   * Ruta: superate/auth/userLookup/{uid} → { institutionId, role, updatedAt }
+   */
+  private async setUserLookup(uid: string, institutionId: string, role: string): Promise<void> {
+    try {
+      const lookupRef = doc(this.getCollection('userLookup'), uid)
+      await setDoc(lookupRef, {
+        institutionId,
+        role,
+        updatedAt: new Date().toISOString(),
+      })
+      logger.debug('userLookup actualizado:', uid, institutionId, role)
+    } catch (e) {
+      logger.warn('Error al escribir userLookup (no crítico):', e)
+    }
+  }
+
+  /**
+   * Elimina la entrada de userLookup al borrar un usuario.
+   */
+  private async deleteUserLookup(uid: string): Promise<void> {
+    try {
+      const lookupRef = doc(this.getCollection('userLookup'), uid)
+      await deleteDoc(lookupRef)
+      logger.debug('userLookup eliminado:', uid)
+    } catch (e) {
+      logger.warn('Error al eliminar userLookup (no crítico):', e)
+    }
+  }
+
   /**
    * Obtiene una referencia a la colección de usuarios según rol e institución
    * @param {string} institutionId - ID de la institución
@@ -2820,88 +2813,83 @@ class DatabaseService {
       const userCollection = this.getUserRoleCollection(finalInstitutionId, role)
       const userDocRef = doc(userCollection, auth.uid)
 
-      console.log(`📝 Creando ${role} en nueva estructura:`, userDocRef.path)
-      console.log('📊 Datos:', cleanUserData)
+      logger.debug('Creando usuario en nueva estructura:', userDocRef.path)
 
       await setDoc(userDocRef, cleanUserData)
-      console.log('✅ Usuario guardado exitosamente en nueva estructura')
+      await this.setUserLookup(auth.uid, finalInstitutionId, role)
 
       return success(cleanUserData)
     } catch (e) {
-      console.error('❌ Error al guardar usuario en nueva estructura:', e)
+      logger.error('Error al guardar usuario en nueva estructura:', e)
       return failure(new ErrorAPI(normalizeError(e, 'Registrar credenciales del usuario en nueva estructura')))
     }
   }
 
   /**
-   * Obtiene un usuario por ID desde la nueva estructura jerárquica
-   * Busca en todas las instituciones y roles hasta encontrar el usuario
+   * Obtiene un usuario por ID desde la nueva estructura jerárquica.
+   * Optimizado: primero consulta el índice userLookup (2 lecturas); si no existe, hace fallback
+   * y rellena el lookup para la próxima vez.
    * @param {string} id - ID del usuario (uid)
    * @returns {Promise<Result<any>>} Usuario encontrado
    */
   async getUserByIdFromNewStructure(id: string): Promise<Result<any>> {
     try {
-      console.log('🔍 Buscando usuario con UID en nueva estructura:', id)
+      // 1) Ruta rápida: índice userLookup (1 lectura + 1 lectura al documento)
+      const lookupRef = doc(this.getCollection('userLookup'), id)
+      const lookupSnap = await getDoc(lookupRef)
+      if (lookupSnap.exists()) {
+        const { institutionId, role } = lookupSnap.data() as { institutionId: string; role: string }
+        if (institutionId && role) {
+          const userDocRef = doc(this.getUserRoleCollection(institutionId, role), id)
+          const userSnap = await getDoc(userDocRef)
+          if (userSnap.exists()) {
+            const userData = { id: userSnap.id, ...userSnap.data() } as any
+            return success(userData)
+          }
+          // Documento movido/eliminado; borrar lookup y continuar al fallback
+          await this.deleteUserLookup(id)
+        }
+      }
 
-      // Obtener todas las instituciones
+      // 2) Fallback: buscar en todas las instituciones (retrocompatibilidad y migración gradual)
       const institutionsResult = await this.getAllInstitutions()
       if (!institutionsResult.success) {
-        console.error('❌ Error al obtener instituciones:', institutionsResult.error)
         return failure(institutionsResult.error)
       }
 
-      console.log(`📊 Buscando en ${institutionsResult.data.length} instituciones`)
-
-      // Buscar en cada institución y cada rol
       const roles = ['rectores', 'coordinadores', 'profesores', 'estudiantes']
-      
+
       for (const institution of institutionsResult.data) {
         const institutionId = institution.id
-        console.log(`🔍 Buscando en institución: ${institutionId}`)
-
         for (const roleCollection of roles) {
           try {
             const userCollection = collection(
-              this.db, 
-              'superate', 
-              'auth', 
-              'institutions', 
-              institutionId, 
+              this.db,
+              'superate',
+              'auth',
+              'institutions',
+              institutionId,
               roleCollection
             )
             const userDocRef = doc(userCollection, id)
             const docSnap = await getDoc(userDocRef)
 
             if (docSnap.exists()) {
-              const docData = docSnap.data()
-              const userData = { id: docSnap.id, ...docData } as any
-              console.log(`✅ Usuario encontrado en: ${userDocRef.path}`)
-              console.log('👤 Rol del usuario:', userData.role)
-              console.log('📋 Todos los campos del usuario:', Object.keys(userData))
-              console.log('📋 Datos completos del usuario:', userData)
-              // Verificar específicamente la jornada
-              if (userData.jornada !== undefined) {
-                console.log(`✅ Jornada encontrada en usuario: "${userData.jornada}"`)
-              } else {
-                console.warn(`⚠️ Jornada NO encontrada en usuario. Campos disponibles:`, Object.keys(userData))
-              }
+              const userData = { id: docSnap.id, ...docSnap.data() } as any
+              // Rellenar lookup para la próxima vez (migración gradual)
+              await this.setUserLookup(id, institutionId, this.getRoleFromCollectionName(roleCollection))
               return success(userData)
             }
           } catch (error: any) {
-            // Continuar buscando en otras colecciones, pero registrar el error
-            console.warn(`⚠️ Error al buscar en ${roleCollection} de institución ${institutionId}:`, error?.message || error)
+            logger.warn('Error al buscar usuario en fallback:', roleCollection, institutionId, error?.message)
             continue
           }
         }
       }
 
-      console.log('❌ Usuario no encontrado en nueva estructura después de buscar en todas las instituciones')
       return failure(new NotFound({ message: 'Usuario no encontrado en nueva estructura' }))
     } catch (e: any) {
-      console.error('❌ Error al obtener usuario de nueva estructura:', e)
-      console.error('❌ Tipo de error:', e?.constructor?.name)
-      console.error('❌ Código de error:', e?.code)
-      console.error('❌ Mensaje de error:', e?.message)
+      logger.error('Error al obtener usuario de nueva estructura:', e?.message)
       return failure(new ErrorAPI(normalizeError(e, 'obtener usuario de nueva estructura')))
     }
   }
@@ -2952,7 +2940,7 @@ class DatabaseService {
             })
           })
         } catch (error) {
-          console.warn(`⚠️ Error al obtener ${roleCollectionName} de institución ${institution.id}:`, error)
+          logger.warn('Error al obtener usuarios por institución:', institution.id, roleCollectionName, error)
           continue
         }
       }
@@ -3067,13 +3055,13 @@ class DatabaseService {
       // Verificar que el documento existe antes de intentar eliminarlo
       const docSnap = await getDoc(userDocRef)
       if (!docSnap.exists()) {
-        console.warn(`⚠️ Usuario ${userId} no encontrado en ${userDocRef.path}`)
-        // No retornar error, solo advertir - puede que el usuario ya haya sido eliminado
+        logger.warn('Usuario no encontrado al eliminar (puede estar ya eliminado):', userDocRef.path)
+        await this.deleteUserLookup(userId)
         return success(undefined)
       }
 
       await deleteDoc(userDocRef)
-      console.log(`✅ Usuario eliminado de nueva estructura: ${userDocRef.path}`)
+      await this.deleteUserLookup(userId)
 
       return success(undefined)
     } catch (e) {

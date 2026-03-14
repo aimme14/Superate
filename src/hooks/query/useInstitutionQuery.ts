@@ -40,7 +40,7 @@ export const useInstitutions = () => {
       }
       throw new Error(result.error.message)
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 15 * 60 * 1000, // 15 min (datos de referencia, persistidos; menos refetch)
   })
 }
 

@@ -1,15 +1,18 @@
 import { QueryClient } from "@tanstack/react-query";
 
+/** Mismo valor que persistOptions.maxAge para que la caché restaurada no se elimine por GC. */
+const PERSIST_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 h
+
 /**
- * QueryClient configurado con caché optimizado para la experiencia del estudiante.
- * - staleTime: 5 min → Los datos se consideran frescos, evita refetch al navegar entre secciones.
- * - gcTime: 10 min → Los datos permanecen en memoria para carga instantánea al volver.
+ * QueryClient con caché optimizado y compatible con persistencia en localStorage.
+ * - staleTime: 5 min por defecto (evita refetch al navegar).
+ * - gcTime: 24 h para que la caché restaurada desde persist no se borre de inmediato.
  */
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutos
-      gcTime: 10 * 60 * 1000, // 10 minutos (antes cacheTime)
+      staleTime: 5 * 60 * 1000, // 5 min
+      gcTime: PERSIST_MAX_AGE_MS, // 24 h (alineado con persist maxAge)
     },
   },
 });

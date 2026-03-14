@@ -2,8 +2,9 @@ import { installProductionErrorHandler } from '@/utils/productionErrorHandler'
 
 installProductionErrorHandler()
 
-import { QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import queryClient from '@/lib/queryClient'
+import { persistOptions } from '@/lib/queryPersist'
 import ReactDOM from 'react-dom/client'
 import React from 'react'
 import App from './App'
@@ -11,8 +12,8 @@ import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
       <App />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </React.StrictMode>
 )

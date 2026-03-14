@@ -8,6 +8,8 @@ import { AuthContext, User } from "@/interfaces/context.interface"
 
 import { authService as authFB } from "@/services/firebase/auth.service"
 import { createContext, useContext, useEffect, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { clearPersistedCache } from "@/lib/queryPersist"
 import { logger } from "@/utils/logger"
 import { Result } from "@/interfaces/db.interface"
 import { LoginFormProps, RegisterFormProps } from "@/schemas/auth.schema"
@@ -30,8 +32,11 @@ export const useAuthContext = () => {
  * @param {Props} props - Las propiedades del componente.
  * @returns {JSX.Element} Elemento JSX que envuelve a los hijos con el contexto de autenticación.
  */
+const CURRENT_USER_QUERY_KEY = ['currentUser'] as const
+
 export const AuthProvider = ({ children }: Props): JSX.Element => {
   const { notifySuccess, notifyError, notifyInfo } = useNotification()
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<User | undefined>()
   const [loading, setLoading] = useState(true)
   const [isAuth, setIsAuth] = useState(false)
@@ -40,36 +45,36 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
   /** Observa el estado de autenticación del negocio en sesión */
   useEffect(() => {
     return authFB.observeAuth(async (auth) => {
-      if (auth) {
-        // Cargar datos completos del usuario incluyendo el rol
-        const userData = await fetchUserData(auth.uid)
-        
-        // Si no se pueden obtener los datos del usuario (no existe o está inactivo), cerrar sesión
-        if (!userData) {
-          logger.log('⚠️ Usuario no encontrado o inactivo en Firestore, cerrando sesión...')
-          setUser(undefined)
-          setIsAuth(false)
-          // Cerrar sesión en Firebase Auth
-          try {
-            await authFB.logout()
-          } catch (error) {
-            logger.error('Error al cerrar sesión:', error)
-          }
-          setLoading(false)
-          return
-        }
-        
-        // Usuario válido y activo
-        setUser(userData)
-        setIsAuth(true)
-      } else {
+      if (!auth) {
+        queryClient.removeQueries({ queryKey: CURRENT_USER_QUERY_KEY })
+        clearPersistedCache()
         setUser(undefined)
         setIsAuth(false)
+        setLoading(false)
+        return
       }
-      
+
+      const userData = await fetchUserData(auth.uid, queryClient)
+      if (!userData) {
+        logger.log('⚠️ Usuario no encontrado o inactivo en Firestore, cerrando sesión...')
+        setUser(undefined)
+        setIsAuth(false)
+        queryClient.removeQueries({ queryKey: CURRENT_USER_QUERY_KEY })
+        clearPersistedCache()
+        try {
+          await authFB.logout()
+        } catch (error) {
+          logger.error('Error al cerrar sesión:', error)
+        }
+        setLoading(false)
+        return
+      }
+
+      setUser(userData)
+      setIsAuth(true)
       setLoading(false)
     })
-  }, [])
+  }, [queryClient])
   /*--------------------------------------------------authentication--------------------------------------------------*/
   /**
    * Inicia sesión con tu emprendimiento usando las credenciales de acceso
@@ -142,30 +147,28 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
     } catch (e) { logger.log(e) }
   }
   /**
-   * Obtiene un usuario específico por su ID
-   * @param {string} id - El ID del usuario.
-   * @param {boolean} enabled - Condicional incluida
-   * @returns {Promise<any | undefined>} Los datos del usuario o undefined.
+   * Obtiene un usuario por ID. Usa caché de React Query para evitar lecturas repetidas.
    */
   const getById = async (id: string, enabled?: boolean): Promise<any | undefined> => {
     try {
       if (!enabled) return undefined
+      const cached = queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, id])
+      if (cached) return cached as any
       const response = await getUserById(id)
       if (!response.success) throw response.error
+      queryClient.setQueryData([...CURRENT_USER_QUERY_KEY, id], response.data)
       return response.data
     } catch (e) { notifyError(txt('getUserById', e)); return undefined }
   }
   /**
-   * Actualiza un usuario existente
-   * @param {string} id - El ID del usuario.
-   * @param {any} data - Los datos del usuario.
-   * @returns {Promise<any>} Los datos del usuario actualizado o undefined.
+   * Actualiza un usuario existente. Invalida la caché del usuario actual para refrescar datos.
    */
   const update = async (id: string, data: any): Promise<any> => {
     return handler('Actualizando...', async () => {
       try {
         const response = await updateUser(id, data)
         if (!response.success) throw response.error
+        queryClient.invalidateQueries({ queryKey: [...CURRENT_USER_QUERY_KEY, id] })
         notifySuccess(txt('updateUser'))
         return response.data
       } catch (e) { notifyError(txt('updateUser', e)) }
@@ -219,51 +222,49 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
     setLoading(Boolean(status))
   }
   /**
-   * Obtiene los datos completos del usuario desde la base de datos
-   * @param {string} uid - El UID del usuario
-   * @returns {Promise<User | undefined>} - Los datos completos del usuario
+   * Obtiene los datos completos del usuario desde la base de datos.
+   * Usa caché de React Query para evitar lecturas repetidas (getUserById costoso).
    */
-  const fetchUserData = async (uid: string): Promise<User | undefined> => {
+  const fetchUserData = async (uid: string, qc: ReturnType<typeof useQueryClient>): Promise<User | undefined> => {
     try {
-      const userData = await getById(uid, true)
-      if (userData) {
-        // Verificar si el usuario está activo (debe ser explícitamente true)
-        const isActive = userData.isActive === true
-        
-        if (!isActive) {
-          logger.log('⚠️ Usuario inactivo, no se puede cargar')
-          return undefined
-        }
-        
-        // Verificar si la institución está activa (si tiene institución)
-        if (userData.institutionId || userData.inst) {
-          const { dbService } = await import('@/services/firebase/db.service')
-          const institutionId = userData.institutionId || userData.inst
-          const institutionResult = await dbService.getInstitutionById(institutionId)
-          
-          if (institutionResult.success && institutionResult.data) {
-            const institutionIsActive = institutionResult.data.isActive === true
-            
-            if (!institutionIsActive) {
-              logger.log('⚠️ Institución inactiva, no se puede cargar el usuario')
-              return undefined
-            }
+      let userData: any = qc.getQueryData([...CURRENT_USER_QUERY_KEY, uid])
+      if (!userData) {
+        const response = await getUserById(uid)
+        if (!response.success) return undefined
+        userData = response.data
+        qc.setQueryData([...CURRENT_USER_QUERY_KEY, uid], userData)
+      }
+
+      if (!userData) return undefined
+
+      const isActive = userData.isActive === true
+      if (!isActive) {
+        logger.log('⚠️ Usuario inactivo, no se puede cargar')
+        return undefined
+      }
+
+      if (userData.institutionId || userData.inst) {
+        const { dbService } = await import('@/services/firebase/db.service')
+        const institutionId = userData.institutionId || userData.inst
+        const institutionResult = await dbService.getInstitutionById(institutionId)
+        if (institutionResult.success && institutionResult.data) {
+          if (institutionResult.data.isActive !== true) {
+            logger.log('⚠️ Institución inactiva, no se puede cargar el usuario')
+            return undefined
           }
         }
-        
-        return {
-          uid: uid,
-          email: userData.email || '',
-          displayName: userData.name || '',
-          emailVerified: true, // Asumimos que si está en la DB, el email está verificado
-          role: userData.role,
-          grade: userData.gradeName || userData.grade, // Usar nombre del grado si está disponible
-          institution: userData.institutionName || userData.inst, // Usar nombre de la institución si está disponible
-          userdoc: userData.userdoc,
-        }
       }
-      
-      return undefined
+
+      return {
+        uid,
+        email: userData.email || '',
+        displayName: userData.name || '',
+        emailVerified: true,
+        role: userData.role,
+        grade: userData.gradeName || userData.grade,
+        institution: userData.institutionName || userData.inst,
+        userdoc: userData.userdoc,
+      }
     } catch (error) {
       logger.error('Error fetching user data:', error)
       return undefined
