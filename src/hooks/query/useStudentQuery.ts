@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { 
   createStudent, 
   getFilteredStudents, 
@@ -29,6 +29,7 @@ export const useFilteredStudents = (filters: StudentFilters) => {
       return result.success ? result.data : []
     },
     staleTime: 5 * 60 * 1000, // 5 min - evita refetch innecesario
+    placeholderData: keepPreviousData, // mantiene lista anterior al cambiar filtros (sin parpadeo)
   })
 
   return {
@@ -58,6 +59,7 @@ export const useStudentsByTeacher = (teacherId: string, enabled: boolean = true)
     },
     enabled: enabled && !!teacherId,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
     select: (data) => {
       const students = data.success ? data.data : []
       console.log('🔄 useStudentsByTeacher - Select - Estudiantes procesados:', students.length)
@@ -75,6 +77,7 @@ export const useStudentsByPrincipal = (principalId: string, enabled: boolean = t
     queryFn: () => getStudentsByPrincipal(principalId),
     enabled: enabled && !!principalId,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
     select: (data) => data.success ? data.data : []
   })
 }

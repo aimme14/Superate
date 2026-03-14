@@ -12,6 +12,8 @@ import { SidebarInset, SidebarProvider } from '#/ui/sidebar'
 import { LoadingScreen } from "#/ui/loading-screen"
 import { Sidebar } from '#/layout/Sidebar'
 import { Toaster } from '#/ui/toaster'
+import { GlobalQueryErrorToaster } from '@/components/common/GlobalQueryErrorToaster'
+import { OfflineBanner } from '@/components/common/OfflineBanner'
 import Footer from '#/layout/Footer'
 import Navbar from '#/layout/Navbar'
 
@@ -76,7 +78,9 @@ const RootLayout = () => {
       </LocalizationProvider>
 
       {/* Componentes UI globales */}
+      <OfflineBanner />
       <Toaster />
+      <GlobalQueryErrorToaster />
       <ScrollToTop />
       <LoadingScreen />
     </>

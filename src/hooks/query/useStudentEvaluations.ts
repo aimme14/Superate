@@ -46,7 +46,8 @@ interface UserResults {
 
 const db = getFirestore(firebaseApp);
 
-async function fetchEvaluations(userId: string): Promise<ExamResult[]> {
+/** Exportada para usarla en prefetch (rutaPreparacionPrefetch). */
+export async function fetchEvaluations(userId: string): Promise<ExamResult[]> {
   const phases = getAllPhases();
   const evaluationsArray: ExamResult[] = [];
 

@@ -41,6 +41,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, A
 import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
 import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
 import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
+import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRoleSkeleton'
 
 const db = getFirestore(firebaseApp)
 
@@ -106,14 +107,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
 
   // Mostrar loading si los datos están cargando
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        <span className={cn('ml-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-          Cargando estadísticas...
-        </span>
-      </div>
-    )
+    return <DashboardRoleSkeleton theme={theme} />
   }
 
   // Verificar que stats existe antes de renderizar

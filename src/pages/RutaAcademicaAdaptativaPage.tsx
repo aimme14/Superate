@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useQueries } from "@tanstack/react-query";
 import {
   BookOpen,
+  BookOpen as BookOpenIcon,
   FileText,
   FileCheck,
-  BookOpen as BookOpenIcon,
   Video,
   Calculator,
   FlaskConical,
@@ -13,7 +14,9 @@ import {
   GraduationCap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useSimulacros } from "@/hooks/query/useSimulacros";
+import { useSimulacros, simulacroDetailKey } from "@/hooks/query/useSimulacros";
+import { simulacrosService } from "@/services/firebase/simulacros.service";
+import { RUTA_PREPARACION_CACHE } from "@/config/rutaPreparacionCache";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +29,14 @@ import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacio
 function buildViewerUrl(simulacroId: string, tipo: string): string {
   return `/viewer/pdf?simulacroId=${encodeURIComponent(simulacroId)}&tipo=${tipo}`;
 }
+
+const videoLinkClass = (theme: "light" | "dark") =>
+  cn(
+    "inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+    theme === "dark"
+      ? "border border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
+      : "border border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"
+  );
 
 export default function RutaAcademicaAdaptativaPage() {
   const { theme } = useThemeContext();
@@ -77,6 +88,30 @@ export default function RutaAcademicaAdaptativaPage() {
   };
 
   const selectedList = selectedMateria ? (byMateria.get(selectedMateria) ?? []) : [];
+  const visibleIds = useMemo(() => selectedList.map((s) => s.id), [selectedList]);
+
+  const detailQueries = useQueries({
+    queries: visibleIds.map((id) => ({
+      queryKey: simulacroDetailKey(id),
+      queryFn: async (): Promise<Simulacro | null> => {
+        const res = await simulacrosService.getById(id);
+        if (res.success) return res.data;
+        throw new Error(res.error?.message ?? "Error al cargar simulacro");
+      },
+      enabled: id.length > 0,
+      staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
+      gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
+    })),
+  });
+
+  const detailsById = useMemo(() => {
+    const map = new Map<string, Simulacro>();
+    visibleIds.forEach((id, index) => {
+      const data = detailQueries[index]?.data;
+      if (data) map.set(id, data);
+    });
+    return map;
+  }, [visibleIds, detailQueries]);
 
   return (
     <div
@@ -426,60 +461,57 @@ export default function RutaAcademicaAdaptativaPage() {
                         </div>
                       )}
 
-                      {/* 3. Videos (YouTube u otros) */}
-                      {(sim.videos?.length ?? 0) + (sim.icfesVideos?.length ?? 0) > 0 && (
-                        <div
+                      {/* 3. Videos: cargados en segundo plano; sección solo si hay videos */}
+                      {(() => {
+                        const detail = detailsById.get(sim.id);
+                        const videos = detail?.videos ?? [];
+                        const icfesVideos = detail?.icfesVideos ?? [];
+                        const hasVideos = videos.length > 0 || icfesVideos.length > 0;
+                        if (!hasVideos) return null;
+                        return (
+                          <div
                             className={cn(
                               "mt-4 pt-3 border-t",
                               theme === "dark" ? "border-zinc-500/40" : "border-gray-200"
                             )}
                           >
-                          <p
-                            className={cn(
-                              "text-sm font-medium mb-2",
-                              theme === "dark" ? "text-gray-300" : "text-gray-600"
-                            )}
-                          >
-                            Videos
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {sim.videos?.map((v) => (
-                              <a
-                                key={v.id}
-                                href={v.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={cn(
-                                  "inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                                  theme === "dark"
-                                    ? "border border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
-                                    : "border border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"
-                                )}
-                              >
-                                <Video className="h-4 w-4 flex-shrink-0" />
-                                {v.titulo || "Ver video"}
-                              </a>
-                            ))}
-                            {sim.icfesVideos?.map((v) => (
-                              <a
-                                key={v.id}
-                                href={v.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={cn(
-                                  "inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                                  theme === "dark"
-                                    ? "border border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
-                                    : "border border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"
-                                )}
-                              >
-                                <Video className="h-4 w-4 flex-shrink-0" />
-                                {v.titulo || "Ver video"}
-                              </a>
-                            ))}
+                            <p
+                              className={cn(
+                                "text-sm font-medium mb-2",
+                                theme === "dark" ? "text-gray-300" : "text-gray-600"
+                              )}
+                            >
+                              Videos
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {videos.map((v) => (
+                                <a
+                                  key={v.id}
+                                  href={v.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={videoLinkClass(theme)}
+                                >
+                                  <Video className="h-4 w-4 flex-shrink-0" />
+                                  {v.titulo || "Ver video"}
+                                </a>
+                              ))}
+                              {icfesVideos.map((v) => (
+                                <a
+                                  key={v.id}
+                                  href={v.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={videoLinkClass(theme)}
+                                >
+                                  <Video className="h-4 w-4 flex-shrink-0" />
+                                  {v.titulo || "Ver video"}
+                                </a>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </li>
                   ))}
                 </ul>

@@ -6,7 +6,10 @@ import { ChevronDown } from 'lucide-react'
 import { links } from '@/utils/constants'
 import { cn } from '@/lib/utils'
 import { useThemeContext } from '@/context/ThemeContext'
+import { useAuthContext } from '@/context/AuthContext'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRegistrationConfig } from '@/hooks/query/useRegistrationConfig'
+import { getStudentsByTeacher, getStudentsByPrincipal } from '@/controllers/student.controller'
 import React from 'react'
 import {
   Sidebar as SidebarShadcn,
@@ -52,12 +55,35 @@ interface SidebarItemProps { item: NavItemProps, isMobile: boolean, toggle: () =
 const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
   const isActive = useLocation().pathname === item.href
   const { theme } = useThemeContext()
+  const { user } = useAuthContext()
+  const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = React.useState(false)
+
+  const isDashboard = item.href === '/dashboard'
+  const prefetchDashboardData = React.useCallback(() => {
+    if (!user?.uid) return
+    if (user.role === 'teacher') {
+      void queryClient.prefetchQuery({
+        queryKey: ['students', 'by-teacher', user.uid],
+        queryFn: () => getStudentsByTeacher(user.uid!),
+        staleTime: 5 * 60 * 1000,
+      })
+    } else if (user.role === 'principal') {
+      void queryClient.prefetchQuery({
+        queryKey: ['students', 'by-principal', user.uid],
+        queryFn: () => getStudentsByPrincipal(user.uid!),
+        staleTime: 5 * 60 * 1000,
+      })
+    }
+  }, [user?.uid, user?.role, queryClient])
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
       <CollapsibleTrigger asChild>
-        <div className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]">
+        <div
+          className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]"
+          onMouseEnter={isDashboard ? prefetchDashboardData : undefined}
+        >
           <SidebarMenuButton 
             asChild 
             isActive={isActive}

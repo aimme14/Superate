@@ -11,15 +11,15 @@ export const SIMULACROS_LIST_QUERY_KEY = ["simulacros", "list"] as const;
 export const simulacroDetailKey = (id: string) => ["simulacros", "detail", id] as const;
 
 /**
- * Hook para obtener la lista de simulacros con videos (Ruta académica simulacros).
- * Caché "hasta refresh": primera entrada hace la petición; al navegar se usa solo caché;
- * solo al refrescar la página (F5) se vuelve a consultar.
+ * Hook para obtener la lista de simulacros sin videos (Ruta académica simulacros).
+ * Los videos se cargan bajo demanda al expandir la sección de cada simulacro (useSimulacroDetails).
+ * Caché "hasta refresh": primera entrada hace la petición; al navegar se usa solo caché.
  */
 export function useSimulacros() {
   return useQuery({
     queryKey: SIMULACROS_QUERY_KEY,
     queryFn: async (): Promise<Simulacro[]> => {
-      const res = await simulacrosService.getAllWithVideos();
+      const res = await simulacrosService.getAll();
       if (res.success) {
         return res.data;
       }
