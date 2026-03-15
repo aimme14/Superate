@@ -22,7 +22,12 @@ import {
   Zap,
   PieChart as PieChartIcon,
   Info,
-  Wrench
+  Wrench,
+  RotateCw,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Check
 } from 'lucide-react'
 import { getWhatsAppUrl } from '@/components/WhatsAppFab'
 import { cn } from '@/lib/utils'
@@ -35,7 +40,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { DASHBOARD_COORDINATOR_CACHE } from '@/config/dashboardCoordinatorCache'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
 import { getFilteredStudents } from '@/controllers/student.controller'
@@ -45,8 +51,12 @@ import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
 import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
 import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
 import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRoleSkeleton'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 const db = getFirestore(firebaseApp)
+
+const RANKING_INITIAL_VISIBLE = 10
 
 interface PrincipalDashboardProps extends ThemeContextProps {}
 
@@ -58,12 +68,13 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
     jornada: 'mañana' | 'tarde' | 'única' | 'todas'
     phase: 'first' | 'second' | 'third'
     year: number
+    gradeId: string
   }>({
     jornada: 'todas',
-    phase: 'third',
-    year: new Date().getFullYear()
+    phase: 'first',
+    year: new Date().getFullYear(),
+    gradeId: 'todos'
   })
-
 
   if (isLoading) {
     return <DashboardRoleSkeleton theme={theme} />
@@ -92,7 +103,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
       <div
         className={cn(
           'animate-in fade-in slide-in-from-top-2 duration-300',
-          "relative overflow-hidden rounded-none px-8 pt-8 pb-3 text-white shadow-2xl",
+          "relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl",
           theme === 'dark' 
             ? "bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900" 
             : ""
@@ -103,45 +114,45 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
           <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 via-blue-800/90 to-blue-900/80" />
         )}
         <div className="relative z-10">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
               <div className="relative">
                 <img 
                   src={institutionLogo || '/assets/agustina.png'} 
                   alt={`Logo de ${institutionName}`}
-                  className="w-32 h-32 object-contain rounded-xl bg-white/20 backdrop-blur-sm p-3 shadow-lg border border-white/30"
+                  className="w-20 h-20 object-contain rounded-lg bg-white/20 backdrop-blur-sm p-2 shadow-lg border border-white/30"
                   onError={(e) => {
                     e.currentTarget.src = '/assets/agustina.png'
                   }}
                 />
               </div>
               <div>
-                <h1 className="text-3xl font-bold mb-2">
+                <h1 className="text-xl font-bold mb-1">
                   Bienvenido Coordinador de {stats.campusName || 'la Sede'}
                 </h1>
-                <p className="text-lg opacity-90 mb-1">
+                <p className="text-sm opacity-90 mb-0.5">
                   Coordinación - {stats.campusName}
                 </p>
-                <p className="text-sm opacity-75">
+                <p className="text-xs opacity-75">
                   {stats.institutionName} • {stats.coordinatorEmail}
                 </p>
               </div>
             </div>
-            <div className="hidden md:flex items-center gap-3">
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center border-2 border-white/40 shadow-lg">
-                <GraduationCap className="h-8 w-8 mx-auto mb-2 text-white" />
-                <div className="text-2xl font-bold text-white">{stats.totalTeachers}</div>
-                <div className="text-xs opacity-90 text-white font-medium">Docentes</div>
+            <div className="hidden md:flex items-center gap-2">
+              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center border-2 border-white/40 shadow-lg">
+                <GraduationCap className="h-6 w-6 mx-auto mb-1 text-white" />
+                <div className="text-lg font-bold text-white">{stats.totalTeachers}</div>
+                <div className="text-[10px] opacity-90 text-white font-medium">Docentes</div>
               </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center border-2 border-white/40 shadow-lg">
-                <Users className="h-8 w-8 mx-auto mb-2 text-white" />
-                <div className="text-2xl font-bold text-white">{stats.totalStudents}</div>
-                <div className="text-xs opacity-90 text-white font-medium">Estudiantes</div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center border-2 border-white/40 shadow-lg">
+                <Users className="h-6 w-6 mx-auto mb-1 text-white" />
+                <div className="text-lg font-bold text-white">{stats.totalStudents}</div>
+                <div className="text-[10px] opacity-90 text-white font-medium">Estudiantes</div>
               </div>
             </div>
           </div>
         </div>
-        <School className="absolute top-0 right-0 h-64 w-64 opacity-10" aria-hidden />
+        <School className="absolute top-0 right-0 h-40 w-40 opacity-10" aria-hidden />
       </div>
       </div>
 
@@ -236,12 +247,11 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
 
 // Componente de Promedio de la Sede con filtro por fase
 function CampusAverageCard({ theme, currentCoordinator }: any) {
-  const [selectedPhase, setSelectedPhase] = useState<'first' | 'second' | 'third'>('third')
+  const [selectedPhase, setSelectedPhase] = useState<'first' | 'second' | 'third'>('first')
   const [selectedGrade, setSelectedGrade] = useState<string>('todos')
   const [selectedJornada, setSelectedJornada] = useState<'mañana' | 'tarde' | 'única' | 'todas'>('todas')
   const campusId = currentCoordinator?.campusId
   const institutionId = currentCoordinator?.institutionId
-
   // Obtener grados disponibles de la sede
   const { options: gradeOptions } = useGradeOptions(institutionId || '', campusId || '')
 
@@ -254,10 +264,13 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
     isActive: true
   })
 
+  const averageQueryKey = ['coordinator-campus-average', campusId, institutionId, selectedPhase, selectedGrade, selectedJornada] as const
+
   // Calcular promedio de puntajes globales (0-500) por fase
-  const { data: phaseAverage, isLoading: averageLoading } = useQuery({
-    queryKey: ['coordinator-campus-average', campusId, institutionId, selectedPhase, selectedGrade, selectedJornada],
-    queryFn: async () => {
+  const { data: phaseAverage, isLoading: averageLoading, error: averageError, refetch: refetchAverage } = useQuery({
+    queryKey: averageQueryKey,
+    queryFn: async ({ queryKey }: { queryKey: readonly unknown[] }) => {
+      const phase = queryKey[3] as 'first' | 'second' | 'third'
       if (!campusId || !institutionId || !campusStudents || campusStudents.length === 0) {
         return 0
       }
@@ -276,7 +289,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
         'third': 'fase III'
       }
       
-      const phaseName = phaseMap[selectedPhase]
+      const phaseName = phaseMap[phase]
       
       const normalizeSubjectName = (subject: string): string => {
         const normalized = subject.trim().toLowerCase()
@@ -358,59 +371,64 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
       return Math.round(average * 100) / 100
     },
     enabled: !!campusId && !!institutionId && !!campusStudents && campusStudents.length > 0,
-    staleTime: 5 * 60 * 1000,
+    staleTime: DASHBOARD_COORDINATOR_CACHE.staleTimeMs,
+    gcTime: DASHBOARD_COORDINATOR_CACHE.gcTimeMs,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
   })
 
   return (
     <div className="space-y-1 flex-1 flex flex-col justify-between">
       <div className="flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
-          <div
-            className={cn('text-xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
-          >
-            {averageLoading ? (
-              <Loader2 className={cn("h-5 w-5 animate-spin inline", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-            ) : (
-              <span>
-                <span className={cn('text-lg font-normal mr-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>~</span>
-                {phaseAverage || 0}
-              </span>
-            )}
-          </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "flex items-center justify-center w-4 h-4 rounded-full hover:bg-opacity-80 transition-colors",
-                  theme === 'dark' ? "bg-blue-500/20 hover:bg-blue-500/30" : "bg-blue-500/10 hover:bg-blue-500/20"
-                )}
-              >
-                <Info className={cn("h-3 w-3", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className={cn("w-64 p-3 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
-              <div className="space-y-1">
-                <p className={cn("font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  Valor Aproximado
-                </p>
-                <p className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                  Este promedio es una aproximación calculada a partir de los puntajes globales (0-500) de los estudiantes que han completado todas las materias en la fase seleccionada.
-                </p>
+            {averageError ? (
+              <div className="flex items-center gap-2">
+                <span className={cn('text-sm', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error</span>
+                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => refetchAverage()}>
+                  <RotateCw className="h-3 w-3 mr-1" /> Reintentar
+                </Button>
               </div>
-            </PopoverContent>
-          </Popover>
+            ) : averageLoading ? (
+              <div className={cn('h-8 w-16 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} aria-busy="true" aria-label="Cargando promedio" />
+            ) : (
+              <div className={cn('text-xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                <span className={cn('text-lg font-normal mr-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>~</span>
+                {phaseAverage ?? 0}
+              </div>
+            )}
+            {!averageError && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex items-center justify-center w-4 h-4 rounded-full hover:bg-opacity-80 transition-colors",
+                      theme === 'dark' ? "bg-blue-500/20 hover:bg-blue-500/30" : "bg-blue-500/10 hover:bg-blue-500/20"
+                    )}
+                  >
+                    <Info className={cn("h-3 w-3", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className={cn("w-64 p-3 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                  <div className="space-y-1">
+                    <p className={cn("font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>Valor Aproximado</p>
+                    <p className={cn(theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                      Este promedio es una aproximación calculada a partir de los puntajes globales (0-500) de los estudiantes que han completado todas las materias en la fase seleccionada.
+                    </p>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
         </div>
         <div className="flex items-end gap-1.5">
           <div className="flex flex-col gap-0.5">
             <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Grado
             </label>
-            <Select
-              value={selectedGrade}
-              onValueChange={setSelectedGrade}
-            >
-              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+            <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
                 <SelectValue placeholder="Grado" />
               </SelectTrigger>
               <SelectContent>
@@ -431,7 +449,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
               value={selectedJornada}
               onValueChange={(value) => setSelectedJornada(value as 'mañana' | 'tarde' | 'única' | 'todas')}
             >
-              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
                 <SelectValue placeholder="Jornada" />
               </SelectTrigger>
               <SelectContent>
@@ -450,7 +468,7 @@ function CampusAverageCard({ theme, currentCoordinator }: any) {
               value={selectedPhase}
               onValueChange={(value) => setSelectedPhase(value as 'first' | 'second' | 'third')}
             >
-              <SelectTrigger className={cn("h-6 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+              <SelectTrigger className={cn("h-6 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -473,11 +491,13 @@ function WelcomeTab({ theme, stats, currentCoordinator, rankingFilters, setRanki
     subject: string
     jornada: string
     studentId: string
+    gradeId: string
   }>({
     year: new Date().getFullYear(),
     subject: 'todas',
     jornada: 'todas',
-    studentId: 'todos'
+    studentId: 'todos',
+    gradeId: 'todos'
   })
 
   return (
@@ -666,232 +686,197 @@ function StudentsTab({ theme, students }: any) {
   )
 }
 
+type CoordinatorRankingFilters = {
+  jornada: 'mañana' | 'tarde' | 'única' | 'todas'
+  phase: 'first' | 'second' | 'third'
+  year: number
+  gradeId: string
+}
+
+async function fetchCoordinatorRanking(
+  campusId: string,
+  institutionId: string,
+  filters: CoordinatorRankingFilters
+): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
+  try {
+    const apiFilters: any = { institutionId, campusId, isActive: true }
+    if (filters.jornada && filters.jornada !== 'todas' && filters.jornada !== '') apiFilters.jornada = filters.jornada
+    if (filters.gradeId && filters.gradeId !== 'todos') apiFilters.gradeId = filters.gradeId
+    const studentsResult = await getFilteredStudents(apiFilters)
+    if (!studentsResult.success || !studentsResult.data) return []
+
+    let students = studentsResult.data
+    if (filters.year) {
+      const getStudentYear = (s: any): number | null => {
+        if (s.academicYear) return s.academicYear
+        if (!s.createdAt) return null
+        if (typeof s.createdAt === 'string') return new Date(s.createdAt).getFullYear()
+        if (s.createdAt?.toDate) return s.createdAt.toDate().getFullYear()
+        if (s.createdAt?.seconds) return new Date(s.createdAt.seconds * 1000).getFullYear()
+        return null
+      }
+      students = students.filter((s: any) => {
+        const y = getStudentYear(s)
+        if (y === null) return false
+        return y === filters.year
+      })
+    }
+
+    const studentIds = students.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
+    if (studentIds.length === 0) return []
+
+    const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
+    const phaseMap: { [key: string]: string } = { 'first': 'fase I', 'second': 'Fase II', 'third': 'fase III' }
+    const phaseName = phaseMap[filters.phase] || filters.phase
+    const phaseResults: any[] = []
+
+    for (const studentId of studentIds) {
+      try {
+        const phaseRef = collection(db, 'results', studentId, phaseName)
+        const phaseSnap = await getDocs(phaseRef)
+        phaseSnap.docs.forEach(doc => {
+          const d = doc.data()
+          if (d.completed && d.score && d.subject) {
+            phaseResults.push({
+              userId: studentId,
+              examId: doc.id,
+              phase: filters.phase,
+              subject: d.subject.trim(),
+              score: { overallPercentage: d.score.overallPercentage || 0 },
+            })
+          }
+        })
+      } catch (_) {}
+    }
+
+    const resultsByStudent = new Map<string, { scores: number[]; subjects: Set<string> }>()
+    phaseResults.forEach(r => {
+      if (!resultsByStudent.has(r.userId)) resultsByStudent.set(r.userId, { scores: [], subjects: new Set() })
+      const data = resultsByStudent.get(r.userId)!
+      data.scores.push(r.score.overallPercentage)
+      if (r.subject) data.subjects.add(r.subject.trim())
+    })
+
+    const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
+    const POINTS_NAT = 100 / 3
+    const POINTS_REG = 100
+    const normalize = (subject: string): string => {
+      const n = subject.trim().toLowerCase()
+      const m: Record<string, string> = {
+        'biologia': 'Biologia', 'biología': 'Biologia', 'quimica': 'Quimica', 'química': 'Quimica',
+        'fisica': 'Física', 'física': 'Física', 'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas',
+        'lenguaje': 'Lenguaje', 'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
+        'ingles': 'Inglés', 'inglés': 'Inglés'
+      }
+      return m[n] || subject
+    }
+
+    const ranking: Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }> = []
+    students.forEach((student: any) => {
+      const sid = student.id || student.uid
+      const data = resultsByStudent.get(sid)
+      if (!data || data.subjects.size === 0) return
+      if (!REQUIRED_SUBJECTS.every(s => data.subjects.has(s))) return
+      const studentResults = phaseResults.filter(r => r.userId === sid)
+      const subjectScores: { [k: string]: number } = {}
+      studentResults.forEach(r => {
+        const sub = normalize(r.subject || '')
+        const pct = r.score?.overallPercentage || 0
+        if (!subjectScores[sub] || pct > subjectScores[sub]) subjectScores[sub] = pct
+      })
+      let globalScore = 0
+      Object.entries(subjectScores).forEach(([sub, pct]) => {
+        globalScore += NATURALES_SUBJECTS.includes(sub) ? (pct / 100) * POINTS_NAT : (pct / 100) * POINTS_REG
+      })
+      ranking.push({ student, globalScore: Math.round(globalScore * 100) / 100, totalExams: data.scores.length, completedSubjects: data.subjects.size })
+    })
+    ranking.sort((a, b) => (a.totalExams === 0 && b.totalExams > 0 ? 1 : a.totalExams > 0 && b.totalExams === 0 ? -1 : b.globalScore - a.globalScore))
+    return ranking
+  } catch (_) {
+    return []
+  }
+}
+
 // Componente de Ranking de Estudiantes (adaptado para coordinador - solo su sede)
 function StudentRankingCard({ theme, currentCoordinator, rankingFilters, setRankingFilters }: any) {
   const campusId = currentCoordinator?.campusId
   const institutionId = currentCoordinator?.institutionId
-  
-  const { data: campusStudents, isLoading: studentsLoading, error: rankingError } = useQuery({
+  const queryClient = useQueryClient()
+  const { options: gradeOptions } = useGradeOptions(institutionId || '', campusId || '')
+  const gradeLabel = rankingFilters.gradeId === 'todos' || !rankingFilters.gradeId
+    ? 'Todos'
+    : (gradeOptions.find((g: any) => g.value === rankingFilters.gradeId)?.label ?? 'Todos')
+
+  const { data: campusStudents, isLoading: studentsLoading, error: rankingError, refetch: refetchRanking } = useQuery({
     queryKey: ['coordinator-students-ranking', campusId, institutionId, rankingFilters],
-    queryFn: async () => {
-      try {
-        if (!campusId || !institutionId) {
-          return []
-        }
-
-        const filters: any = {
-          institutionId: institutionId,
-          campusId: campusId,
-          isActive: true,
-        }
-        
-        if (rankingFilters.jornada && rankingFilters.jornada !== 'todas' && rankingFilters.jornada !== '') {
-          filters.jornada = rankingFilters.jornada
-        }
-        
-        const studentsResult = await getFilteredStudents(filters)
-        if (!studentsResult.success || !studentsResult.data) {
-          return []
-        }
-
-        let students = studentsResult.data
-        
-        // Filtrar por año si se especifica
-        if (rankingFilters.year) {
-          const filteredByYear = students.filter((student: any) => {
-            const getStudentYear = (student: any): number | null => {
-              if (student.academicYear) return student.academicYear
-              if (!student.createdAt) return null
-              
-              let date: Date
-              if (typeof student.createdAt === 'string') {
-                date = new Date(student.createdAt)
-              } else if (student.createdAt?.toDate) {
-                date = student.createdAt.toDate()
-              } else if (student.createdAt?.seconds) {
-                date = new Date(student.createdAt.seconds * 1000)
-              } else {
-                return null
-              }
-              return date.getFullYear()
-            }
-            const studentYear = getStudentYear(student)
-            if (studentYear === null) return true
-            return studentYear === rankingFilters.year
-          })
-          
-          if (filteredByYear.length > 0) {
-            students = filteredByYear
-          }
-        }
-
-        const studentIds = students.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-        if (studentIds.length === 0) return []
-
-        const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-        
-        const phaseMap: { [key: string]: string } = {
-          'first': 'fase I',
-          'second': 'Fase II',
-          'third': 'fase III',
-        }
-        
-        const selectedPhaseName = phaseMap[rankingFilters.phase] || rankingFilters.phase
-        
-        const phaseResults: any[] = []
-
-        for (const studentId of studentIds) {
-          try {
-            const phaseRef = collection(db, 'results', studentId, selectedPhaseName)
-            const phaseSnap = await getDocs(phaseRef)
-            
-            phaseSnap.docs.forEach(doc => {
-              const examData = doc.data()
-              
-              if (examData.completed && examData.score && examData.subject) {
-                const subject = examData.subject.trim()
-                
-                phaseResults.push({
-                  userId: studentId,
-                  examId: doc.id,
-                  phase: rankingFilters.phase,
-                  subject: subject,
-                  score: {
-                    overallPercentage: examData.score.overallPercentage || 0,
-                  },
-                })
-              }
-            })
-          } catch (error) {
-            console.error(`Error obteniendo resultados para estudiante ${studentId}:`, error)
-          }
-        }
-
-        const resultsByStudent = new Map<string, { scores: number[], subjects: Set<string> }>()
-        
-        phaseResults.forEach(result => {
-          if (!resultsByStudent.has(result.userId)) {
-            resultsByStudent.set(result.userId, { scores: [], subjects: new Set() })
-          }
-          const studentData = resultsByStudent.get(result.userId)!
-          studentData.scores.push(result.score.overallPercentage)
-          if (result.subject) {
-            studentData.subjects.add(result.subject.trim())
-          }
-        })
-
-        const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
-        const POINTS_PER_NATURALES_SUBJECT = 100 / 3
-        const POINTS_PER_REGULAR_SUBJECT = 100
-
-        const normalizeSubjectName = (subject: string): string => {
-          const normalized = subject.trim().toLowerCase()
-          const subjectMap: Record<string, string> = {
-            'biologia': 'Biologia', 'biología': 'Biologia',
-            'quimica': 'Quimica', 'química': 'Quimica',
-            'fisica': 'Física', 'física': 'Física',
-            'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas',
-            'lenguaje': 'Lenguaje',
-            'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
-            'ingles': 'Inglés', 'inglés': 'Inglés'
-          }
-          return subjectMap[normalized] || subject
-        }
-
-        const ranking: Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }> = []
-        
-        students.forEach((student: any) => {
-          const studentId = student.id || student.uid
-          const studentData = resultsByStudent.get(studentId)
-          
-          if (!studentData || studentData.subjects.size === 0) {
-            return
-          }
-          
-          const hasAllSubjects = REQUIRED_SUBJECTS.every(subject => 
-            studentData.subjects.has(subject)
-          )
-          
-          if (!hasAllSubjects) {
-            return
-          }
-          
-          const studentResults = phaseResults.filter(r => r.userId === studentId)
-          
-          const subjectScores: { [subject: string]: number } = {}
-          
-          studentResults.forEach(result => {
-            const subject = normalizeSubjectName(result.subject || '')
-            const percentage = result.score?.overallPercentage || 0
-            
-            if (!subjectScores[subject] || percentage > subjectScores[subject]) {
-              subjectScores[subject] = percentage
-            }
-          })
-          
-          let globalScore = 0
-          Object.entries(subjectScores).forEach(([subject, percentage]) => {
-            let pointsForSubject: number
-            if (NATURALES_SUBJECTS.includes(subject)) {
-              pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
-            } else {
-              pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
-            }
-            globalScore += pointsForSubject
-          })
-          
-          globalScore = Math.round(globalScore * 100) / 100
-          
-          ranking.push({
-            student,
-            globalScore,
-            totalExams: studentData.scores.length,
-            completedSubjects: studentData.subjects.size
-          })
-        })
-
-        ranking.sort((a, b) => {
-          if (a.totalExams === 0 && b.totalExams > 0) return 1
-          if (a.totalExams > 0 && b.totalExams === 0) return -1
-          return b.globalScore - a.globalScore
-        })
-        
-        return ranking
-      } catch (error) {
-        console.error('Error al obtener ranking de estudiantes:', error)
-        return []
-      }
-    },
+    queryFn: () => fetchCoordinatorRanking(campusId!, institutionId!, rankingFilters),
     enabled: !!campusId && !!institutionId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: DASHBOARD_COORDINATOR_CACHE.staleTimeMs,
+    gcTime: DASHBOARD_COORDINATOR_CACHE.gcTimeMs,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
     retry: 1,
   })
+  const [showAllRanking, setShowAllRanking] = useState(false)
+  useEffect(() => setShowAllRanking(false), [rankingFilters])
+  useEffect(() => {
+    if (!campusId || !institutionId) return
+    const gradeId = rankingFilters.gradeId || 'todos'
+    const base: CoordinatorRankingFilters = { jornada: 'todas', phase: 'first', year: new Date().getFullYear(), gradeId }
+    ;[
+      { ...base, phase: 'second' },
+      { ...base, phase: 'third' },
+      { ...base, jornada: 'mañana' },
+      { ...base, jornada: 'tarde' },
+      { ...base, jornada: 'única' },
+    ].forEach((f) => {
+      queryClient.prefetchQuery({
+        queryKey: ['coordinator-students-ranking', campusId, institutionId, f],
+        queryFn: () => fetchCoordinatorRanking(campusId, institutionId, f),
+        staleTime: DASHBOARD_COORDINATOR_CACHE.staleTimeMs,
+        gcTime: DASHBOARD_COORDINATOR_CACHE.gcTimeMs,
+      })
+    })
+  }, [campusId, institutionId, rankingFilters.gradeId, queryClient])
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   return (
     <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               <Trophy className={cn("h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
               Ranking de Mejores Estudiantes
             </CardTitle>
             <CardDescription>Top estudiantes de la sede ordenados por rendimiento</CardDescription>
+            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
+              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year} · {gradeLabel} · {rankingFilters.jornada === 'todas' ? 'Todas las jornadas' : rankingFilters.jornada}
+            </p>
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
             <div className="flex items-center gap-2">
               <div className="flex flex-col items-center gap-0.5">
-                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  Jornada
-                </label>
-                <Select
-                  value={rankingFilters.jornada || 'todas'}
-                  onValueChange={(value) => setRankingFilters({ ...rankingFilters, jornada: value === 'todas' ? 'todas' : (value as 'mañana' | 'tarde' | 'única') })}
-                >
-                  <SelectTrigger className={cn("h-8 w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Grado</label>
+                <Select value={rankingFilters.gradeId || 'todos'} onValueChange={(v) => setRankingFilters({ ...rankingFilters, gradeId: v })}>
+                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
+                    <SelectValue placeholder="Grado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {gradeOptions.map((g: any) => (
+                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Jornada</label>
+                <Select value={rankingFilters.jornada || 'todas'} onValueChange={(v) => setRankingFilters({ ...rankingFilters, jornada: v === 'todas' ? 'todas' : (v as 'mañana' | 'tarde' | 'única') })}>
+                  <SelectTrigger className={cn("h-8 w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
                     <SelectValue placeholder="Jornada" />
                   </SelectTrigger>
                   <SelectContent>
@@ -903,14 +888,9 @@ function StudentRankingCard({ theme, currentCoordinator, rankingFilters, setRank
                 </Select>
               </div>
               <div className="flex flex-col items-center gap-0.5">
-                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  Fase
-                </label>
-                <Select
-                  value={rankingFilters.phase}
-                  onValueChange={(value) => setRankingFilters({ ...rankingFilters, phase: value as any })}
-                >
-                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Fase</label>
+                <Select value={rankingFilters.phase} onValueChange={(v) => setRankingFilters({ ...rankingFilters, phase: v as any })}>
+                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -921,20 +901,13 @@ function StudentRankingCard({ theme, currentCoordinator, rankingFilters, setRank
                 </Select>
               </div>
               <div className="flex flex-col items-center gap-0.5">
-                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  Año
-                </label>
-                <Select
-                  value={rankingFilters.year.toString()}
-                  onValueChange={(value) => setRankingFilters({ ...rankingFilters, year: parseInt(value) })}
-                >
-                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+                <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Año</label>
+                <Select value={rankingFilters.year.toString()} onValueChange={(v) => setRankingFilters({ ...rankingFilters, year: parseInt(v) })}>
+                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año académico">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {years.map(year => (
-                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                    ))}
+                    {years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
@@ -944,67 +917,73 @@ function StudentRankingCard({ theme, currentCoordinator, rankingFilters, setRank
       </CardHeader>
       <CardContent>
         {rankingError ? (
-          <p className={cn('text-sm text-center py-8 text-red-500', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-            Error al cargar el ranking. Por favor, intenta nuevamente.
-          </p>
-        ) : studentsLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+          <div className="flex flex-col items-center justify-center py-8 gap-4">
+            <p className={cn('text-sm text-center text-red-500', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error al cargar el ranking. Por favor, intenta nuevamente.</p>
+            <Button variant="outline" size="sm" onClick={() => refetchRanking()} className={cn(theme === 'dark' ? 'border-zinc-600 hover:bg-zinc-800' : 'border-gray-300 hover:bg-gray-100')}>
+              <RotateCw className="h-4 w-4 mr-2" /> Reintentar
+            </Button>
           </div>
-        ) : campusStudents && campusStudents.length > 0 ? (
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {campusStudents.map((item: any, index: number) => (
-              <div
-                key={item.student.id || item.student.uid}
-                className={cn(
-                  "flex items-center justify-between p-3 rounded-lg border",
-                  theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-300 bg-gray-100 hover:bg-gray-200'
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
-                    index === 0 
-                      ? (theme === 'dark' ? 'bg-yellow-600 text-white' : 'bg-yellow-500 text-white')
-                      : index === 1
-                      ? (theme === 'dark' ? 'bg-gray-400 text-white' : 'bg-gray-300 text-gray-900')
-                      : index === 2
-                      ? (theme === 'dark' ? 'bg-orange-700 text-white' : 'bg-orange-500 text-white')
-                      : (theme === 'dark' ? 'bg-zinc-700 text-gray-300' : 'bg-gray-200 text-gray-600')
-                  )}>
-                    {index + 1}
-                  </div>
-                  <div>
-                    <p className={cn('font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                      {item.student.name}
-                    </p>
-                    {item.student.gradeName && (
-                      <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                        {item.student.gradeName}
-                      </p>
-                    )}
+        ) : studentsLoading ? (
+          <div className="space-y-2" aria-busy="true" aria-label="Cargando ranking">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className={cn('flex items-center justify-between py-1.5 px-2 rounded-md border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-300 bg-gray-100')}>
+                <div className="flex items-center gap-2">
+                  <div className={cn('w-6 h-6 rounded-full animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} />
+                  <div className="space-y-0.5">
+                    <div className={cn('h-3 w-20 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} />
+                    <div className={cn('h-2.5 w-14 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} />
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className={cn('font-bold text-lg', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    {item.globalScore.toFixed(1)}
-                  </p>
-                  <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    {item.student.jornada ? item.student.jornada.charAt(0).toUpperCase() + item.student.jornada.slice(1) : 'N/A'}
-                  </p>
-                </div>
+                <div className={cn('h-5 w-10 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} />
               </div>
             ))}
           </div>
+        ) : campusStudents && campusStudents.length > 0 ? (
+          <>
+            <TooltipProvider>
+              <div className="space-y-1 max-h-96 overflow-y-auto" role="list" aria-label="Ranking de estudiantes">
+                {(showAllRanking ? campusStudents : campusStudents.slice(0, RANKING_INITIAL_VISIBLE)).map((item: any, index: number) => (
+                  <div key={item.student.id || item.student.uid} role="listitem" className={cn('flex items-center justify-between py-1.5 px-2 rounded-md border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-300 bg-gray-100 hover:bg-gray-200')}>
+                    <div className="flex items-center gap-2">
+                      <div className={cn('w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0', index === 0 ? (theme === 'dark' ? 'bg-yellow-600 text-white' : 'bg-yellow-500 text-white') : index === 1 ? (theme === 'dark' ? 'bg-gray-400 text-white' : 'bg-gray-300 text-gray-900') : index === 2 ? (theme === 'dark' ? 'bg-orange-700 text-white' : 'bg-orange-500 text-white') : (theme === 'dark' ? 'bg-zinc-700 text-gray-300' : 'bg-gray-200 text-gray-600'))}>
+                        {index + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <p className={cn('font-medium text-sm truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{item.student.name}</p>
+                        {item.student.gradeName && <p className={cn('text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{item.student.gradeName}</p>}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex flex-col items-end gap-0 cursor-help">
+                            <p className={cn('text-[10px] font-medium leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Puntaje (0-500)</p>
+                            <p className={cn('font-bold text-base leading-tight', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{item.globalScore.toFixed(1)}</p>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-xs">
+                          <p>Puntaje global de la fase (escala 0-500). Solo incluye estudiantes que completaron las 7 materias.</p>
+                        </TooltipContent>
+                      </UITooltip>
+                      <p className={cn('text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{item.student.jornada ? item.student.jornada.charAt(0).toUpperCase() + item.student.jornada.slice(1) : 'N/A'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </TooltipProvider>
+            {campusStudents.length > RANKING_INITIAL_VISIBLE && (
+              <div className="flex justify-center pt-3">
+                <Button variant="ghost" size="sm" onClick={() => setShowAllRanking((v) => !v)} className={cn('text-xs', theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900')}>
+                  {showAllRanking ? <><ChevronUp className="h-4 w-4 mr-1" /> Ver menos</> : <><ChevronDown className="h-4 w-4 mr-1" /> Ver más ({campusStudents.length - RANKING_INITIAL_VISIBLE} más)</>}
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-8 space-y-2">
-            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              No hay estudiantes con resultados para los filtros seleccionados
-            </p>
+            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay estudiantes con resultados para los filtros seleccionados</p>
             <p className={cn('text-xs', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
-              Fase: {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} | 
-              Año: {rankingFilters.year} | 
-              Jornada: {rankingFilters.jornada === 'todas' ? 'Todas' : rankingFilters.jornada}
+              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year} · {gradeLabel} · {rankingFilters.jornada === 'todas' ? 'Todas las jornadas' : rankingFilters.jornada}
             </p>
           </div>
         )}
@@ -1019,332 +998,277 @@ function EvolutionBySubjectChart({ theme, currentCoordinator, filters, setFilter
   const institutionId = currentCoordinator?.institutionId
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
-  
-  const subjects = [
-    'todas',
-    'Matemáticas',
-    'Lenguaje',
-    'Ciencias Sociales',
-    'Biologia',
-    'Quimica',
-    'Física',
-    'Inglés'
-  ]
-
+  const subjects = ['todas', 'Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
   const jornadas = ['todas', 'mañana', 'tarde', 'única']
+  const [studentPopoverOpen, setStudentPopoverOpen] = useState(false)
+  const { options: gradeOptions } = useGradeOptions(institutionId || '', campusId || '')
+  const gradeLabel = filters.gradeId === 'todos' || !filters.gradeId
+    ? 'Todos'
+    : (gradeOptions.find((g: any) => g.value === filters.gradeId)?.label ?? 'Todos')
 
   const { data: allStudents, isLoading: studentsLoading } = useQuery({
     queryKey: ['coordinator-evolution-students', campusId, institutionId],
     queryFn: async () => {
       if (!campusId || !institutionId) return []
-      const filters: any = {
-        institutionId: institutionId,
-        campusId: campusId,
-        isActive: true,
-      }
-      const studentsResult = await getFilteredStudents(filters)
-      if (!studentsResult.success || !studentsResult.data) return []
-      return studentsResult.data
+      const res = await getFilteredStudents({ institutionId, campusId, isActive: true })
+      return res.success && res.data ? res.data : []
     },
     enabled: !!campusId && !!institutionId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: DASHBOARD_COORDINATOR_CACHE.staleTimeMs,
+    gcTime: DASHBOARD_COORDINATOR_CACHE.gcTimeMs,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
-  const { data: evolutionData, isLoading: evolutionLoading } = useQuery({
-    queryKey: ['coordinator-evolution-data', campusId, institutionId, filters],
-    queryFn: async () => {
-      if (!campusId || !institutionId || !allStudents || allStudents.length === 0) return { chartData: [], subjects: [] }
+  const evolutionDataKey = { year: filters.year, jornada: filters.jornada, studentId: filters.studentId || 'todos', gradeId: filters.gradeId || 'todos' }
 
-      let filteredStudents = allStudents
-
-      if (filters.year) {
-        filteredStudents = filteredStudents.filter((student: any) => {
-          const getStudentYear = (student: any): number | null => {
-            if (student.academicYear) return student.academicYear
-            if (!student.createdAt) return null
-            let date: Date
-            if (typeof student.createdAt === 'string') {
-              date = new Date(student.createdAt)
-            } else if (student.createdAt?.toDate) {
-              date = student.createdAt.toDate()
-            } else if (student.createdAt?.seconds) {
-              date = new Date(student.createdAt.seconds * 1000)
-            } else {
-              return null
-            }
-            return date.getFullYear()
-          }
-          const studentYear = getStudentYear(student)
-          if (studentYear === null) return true
-          return studentYear === filters.year
-        })
+  const { data: evolutionData, isLoading: evolutionLoading, error: evolutionError, refetch: refetchEvolution } = useQuery({
+    queryKey: ['coordinator-evolution-data', campusId, institutionId, evolutionDataKey],
+    queryFn: async ({ queryKey }: { queryKey: unknown[] }) => {
+      const key = queryKey[3] as { year: number; jornada: string; studentId: string; gradeId: string }
+      if (!campusId || !institutionId || !allStudents?.length) return { chartData: [], subjects: [] }
+      let filtered = allStudents
+      if (key.year) {
+        const getYear = (s: any) => (s.academicYear ?? (s.createdAt ? (typeof s.createdAt === 'string' ? new Date(s.createdAt) : s.createdAt?.toDate?.() ?? (s.createdAt?.seconds ? new Date(s.createdAt.seconds * 1000) : null))?.getFullYear() : null))
+        filtered = filtered.filter((s: any) => { const y = getYear(s); return y !== null && y === key.year })
       }
-
-      if (filters.jornada && filters.jornada !== 'todas') {
-        filteredStudents = filteredStudents.filter((student: any) => 
-          student.jornada === filters.jornada
-        )
-      }
-
-      if (filters.studentId && filters.studentId !== 'todos') {
-        filteredStudents = filteredStudents.filter((student: any) => 
-          (student.id || student.uid) === filters.studentId
-        )
-      }
-
-      const studentIds = filteredStudents.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
+      if (key.jornada && key.jornada !== 'todas') filtered = filtered.filter((s: any) => s.jornada === key.jornada)
+      if (key.gradeId && key.gradeId !== 'todos') filtered = filtered.filter((s: any) => (s.grade || s.gradeId) === key.gradeId)
+      if (key.studentId && key.studentId !== 'todos') filtered = filtered.filter((s: any) => (s.id || s.uid) === key.studentId)
+      const studentIds = filtered.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
       if (studentIds.length === 0) return { chartData: [], subjects: [] }
 
-      const normalizeSubject = (subject: string): string => {
-        const normalized = subject.trim()
-        const subjectMap: { [key: string]: string } = {
-          'Matemáticas': 'Matemáticas',
-          'Matematicas': 'Matemáticas',
-          'Lenguaje': 'Lenguaje',
-          'Ciencias Sociales': 'Ciencias Sociales',
-          'Sociales': 'Ciencias Sociales',
-          'Biologia': 'Biologia',
-          'Biología': 'Biologia',
-          'Quimica': 'Quimica',
-          'Química': 'Quimica',
-          'Física': 'Física',
-          'Fisica': 'Física',
-          'Inglés': 'Inglés',
-          'Ingles': 'Inglés'
-        }
-        return subjectMap[normalized] || normalized
-      }
+      const normalize = (sub: string) => ({ 'Matematicas': 'Matemáticas', 'Sociales': 'Ciencias Sociales', 'Biología': 'Biologia', 'Química': 'Quimica', 'Fisica': 'Física', 'Ingles': 'Inglés' }[sub.trim()] || sub.trim())
+      const allPossible = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
+      const phases = [{ key: 'first', name: 'fase I' }, { key: 'second', name: 'Fase II' }, { key: 'third', name: 'fase III' }]
+      const resultsByPhase = new Map<string, Map<string, number[]>>()
 
-      const allPossibleSubjects = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-      const subjectsToEvaluate = filters.subject === 'todas' 
-        ? allPossibleSubjects
-        : [normalizeSubject(filters.subject)]
-
-      const phases = [
-        { key: 'first', name: 'fase I' },
-        { key: 'second', name: 'Fase II' },
-        { key: 'third', name: 'fase III' }
-      ]
-
-      const resultsByPhaseAndSubject = new Map<string, Map<string, number[]>>()
-
-      for (const studentId of studentIds) {
+      for (const sid of studentIds) {
         for (const phase of phases) {
           try {
-            const phaseRef = collection(db, 'results', studentId, phase.name)
-            const phaseSnap = await getDocs(phaseRef)
-            
-            phaseSnap.docs.forEach(doc => {
-              const examData = doc.data()
-              
-              if (examData.completed && examData.score && examData.subject) {
-                const subject = normalizeSubject(examData.subject)
-                
-                if (subjectsToEvaluate.includes(subject)) {
-                  const score = examData.score.overallPercentage || 0
-                  
-                  if (!resultsByPhaseAndSubject.has(phase.key)) {
-                    resultsByPhaseAndSubject.set(phase.key, new Map())
-                  }
-                  
-                  const phaseMap = resultsByPhaseAndSubject.get(phase.key)!
-                  if (!phaseMap.has(subject)) {
-                    phaseMap.set(subject, [])
-                  }
-                  
-                  phaseMap.get(subject)!.push(score)
-                }
+            const snap = await getDocs(collection(db, 'results', sid, phase.name))
+            snap.docs.forEach(doc => {
+              const d = doc.data()
+              if (d.completed && d.score && d.subject && allPossible.includes(normalize(d.subject))) {
+                const sub = normalize(d.subject)
+                if (!resultsByPhase.has(phase.key)) resultsByPhase.set(phase.key, new Map())
+                const m = resultsByPhase.get(phase.key)!
+                if (!m.has(sub)) m.set(sub, [])
+                m.get(sub)!.push(d.score.overallPercentage || 0)
               }
             })
-          } catch (error) {
-            console.error(`Error obteniendo resultados para estudiante ${studentId} en ${phase.name}:`, error)
-          }
+          } catch (_) {}
         }
       }
-
       const allSubjectsSet = new Set<string>()
-
-      resultsByPhaseAndSubject.forEach((phaseMap) => {
-        phaseMap.forEach((_, subject) => {
-          allSubjectsSet.add(subject)
-        })
-      })
-
-      let allSubjects = Array.from(allSubjectsSet).sort()
-      if (filters.subject !== 'todas' && allSubjects.length > 0) {
-        const normalizedFilterSubject = normalizeSubject(filters.subject)
-        allSubjects = allSubjects.filter(subject => subject === normalizedFilterSubject)
-      }
-
+      resultsByPhase.forEach(m => m.forEach((_, sub) => allSubjectsSet.add(sub)))
+      const allSubjects = Array.from(allSubjectsSet).sort()
       const chartData: any[] = []
-      
       phases.forEach(phase => {
-        const dataPoint: any = { fase: phase.key === 'first' ? 'Fase I' : phase.key === 'second' ? 'Fase II' : 'Fase III' }
-        
-        allSubjects.forEach(subject => {
-          const phaseMap = resultsByPhaseAndSubject.get(phase.key)
-          const scores = phaseMap?.get(subject) || []
-          
-          if (scores.length > 0) {
-            const average = scores.reduce((sum, score) => sum + score, 0) / scores.length
-            dataPoint[subject] = Math.round(average * 100) / 100
-          } else {
-            dataPoint[subject] = null
-          }
+        const point: any = { fase: phase.key === 'first' ? 'Fase I' : phase.key === 'second' ? 'Fase II' : 'Fase III' }
+        allSubjects.forEach(sub => {
+          const scores = resultsByPhase.get(phase.key)?.get(sub) || []
+          point[sub] = scores.length ? Math.round((scores.reduce((a: number, b: number) => a + b, 0) / scores.length) * 100) / 100 : null
         })
-        
-        chartData.push(dataPoint)
+        chartData.push(point)
       })
-
       return { chartData, subjects: allSubjects }
     },
     enabled: !!campusId && !!institutionId && !!allStudents && allStudents.length > 0,
-    staleTime: 5 * 60 * 1000,
+    staleTime: DASHBOARD_COORDINATOR_CACHE.staleTimeMs,
+    gcTime: DASHBOARD_COORDINATOR_CACHE.gcTimeMs,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
+
+  const displaySubjects = evolutionData?.subjects?.length
+    ? filters.subject === 'todas'
+      ? evolutionData.subjects
+      : evolutionData.subjects.includes(filters.subject)
+        ? [filters.subject]
+        : []
+    : []
+  const hasChartData = evolutionData?.chartData?.length > 0
+
+  const selectedStudentLabel =
+    filters.studentId === 'todos' || !filters.studentId
+      ? 'Todos'
+      : (() => {
+          const s = allStudents?.find((st: any) => (st.id || st.uid) === filters.studentId)
+          return (s as any)?.name || (s as any)?.displayName || 'Seleccionar...'
+        })()
+
+  const sortedStudentsForSelector = useMemo(() => {
+    if (!allStudents?.length) return []
+    return [...allStudents].sort((a: any, b: any) => {
+      const na = (a.name || a.displayName || '').trim().toLowerCase()
+      const nb = (b.name || b.displayName || '').trim().toLowerCase()
+      return na.localeCompare(nb, 'es')
+    })
+  }, [allStudents])
 
   return (
     <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex-1">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex-1 min-w-0">
             <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <BarChart3 className={cn("h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+              <BarChart3 className={cn("h-5 w-5 shrink-0", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
               Evolución por Materia
             </CardTitle>
-            <CardDescription className="mt-1">
-              {evolutionData && 'subjects' in evolutionData && evolutionData.subjects && evolutionData.subjects.length > 0 
-                ? `${evolutionData.subjects.length} ${evolutionData.subjects.length === 1 ? 'materia evaluada' : 'materias evaluadas'}`
-                : 'Promedio de puntuación por materia en las 3 fases'
-              }
+            <CardDescription className="mt-0.5">
+              {evolutionData?.subjects?.length ? (filters.subject === 'todas' ? `${evolutionData.subjects.length} materias evaluadas` : displaySubjects.length === 1 ? '1 materia evaluada' : 'Promedio por materia') : 'Promedio de puntuación por materia en las 3 fases'}
             </CardDescription>
+            <p className={cn('text-[10px] mt-0.5', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
+              {filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject} · {filters.jornada === 'todas' ? 'Todas' : filters.jornada} · {gradeLabel} · {filters.studentId === 'todos' || !filters.studentId ? 'Todos' : 'Estudiante'}
+            </p>
           </div>
-          <div className="flex items-end gap-3 flex-wrap">
-            <div className="flex flex-col gap-1">
-              <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Año
-              </label>
-              <Select
-                value={filters.year.toString()}
-                onValueChange={(value) => setFilters({ ...filters, year: parseInt(value) })}
-              >
-                <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+          <div className="flex items-end gap-2 flex-wrap">
+            <div className="flex flex-col gap-0.5">
+              <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Año</label>
+              <Select value={filters.year.toString()} onValueChange={(v) => setFilters({ ...filters, year: parseInt(v) })}>
+                <SelectTrigger className={cn("h-7 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  {years.map(year => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Materia
-              </label>
-              <Select
-                value={filters.subject}
-                onValueChange={(value) => setFilters({ ...filters, subject: value })}
-              >
-                <SelectTrigger className={cn("h-8 w-28 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
+            <div className="flex flex-col gap-0.5">
+              <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Materia</label>
+              <Select value={filters.subject} onValueChange={(v) => setFilters({ ...filters, subject: v })}>
+                <SelectTrigger className={cn("h-7 w-28 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por materia">
                   <SelectValue placeholder="Materia" />
                 </SelectTrigger>
+                <SelectContent>{subjects.map(s => (<SelectItem key={s} value={s}>{s === 'todas' ? 'Todas' : s}</SelectItem>))}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Jornada</label>
+              <Select value={filters.jornada} onValueChange={(v) => setFilters({ ...filters, jornada: v })}>
+                <SelectTrigger className={cn("h-7 w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
+                  <SelectValue placeholder="Jornada" />
+                </SelectTrigger>
+                <SelectContent>{jornadas.map(j => (<SelectItem key={j} value={j}>{j === 'todas' ? 'Todas' : j.charAt(0).toUpperCase() + j.slice(1)}</SelectItem>))}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Grado</label>
+              <Select value={filters.gradeId || 'todos'} onValueChange={(v) => setFilters({ ...filters, gradeId: v })}>
+                <SelectTrigger className={cn("h-7 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
+                  <SelectValue placeholder="Grado" />
+                </SelectTrigger>
                 <SelectContent>
-                  {subjects.map(subject => (
-                    <SelectItem key={subject} value={subject}>
-                      {subject === 'todas' ? 'Todas' : subject}
-                    </SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {gradeOptions.map((g: any) => (
+                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                Jornada
-              </label>
-              <Select
-                value={filters.jornada}
-                onValueChange={(value) => setFilters({ ...filters, jornada: value })}
-              >
-                <SelectTrigger className={cn("h-8 w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')}>
-                  <SelectValue placeholder="Jornada" />
-                </SelectTrigger>
-                <SelectContent>
-                  {jornadas.map(jornada => (
-                    <SelectItem key={jornada} value={jornada}>
-                      {jornada === 'todas' ? 'Todas' : jornada.charAt(0).toUpperCase() + jornada.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col gap-0.5">
+              <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Estudiante</label>
+              <Popover open={studentPopoverOpen} onOpenChange={setStudentPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={studentPopoverOpen}
+                    aria-label="Filtrar por estudiante"
+                    title={selectedStudentLabel !== 'Todos' ? selectedStudentLabel : undefined}
+                    className={cn(
+                      "h-7 min-w-[5rem] max-w-32 justify-between gap-1.5 text-xs overflow-hidden",
+                      theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700' : 'bg-white border-gray-300 hover:bg-gray-50'
+                    )}
+                  >
+                    <span className="truncate min-w-0 text-left">
+                      {selectedStudentLabel}
+                    </span>
+                    <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50 flex-shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className={cn("w-80 p-0", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')} align="end">
+                  <Command className={theme === 'dark' ? 'bg-zinc-900' : 'bg-white'}>
+                    <CommandInput placeholder="Buscar estudiante..." className={cn("h-9", theme === 'dark' ? 'text-white' : 'text-gray-900')} />
+                    <CommandList>
+                      <CommandEmpty>No se encontraron estudiantes.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="todos"
+                          onSelect={() => {
+                            setFilters({ ...filters, studentId: 'todos' })
+                            setStudentPopoverOpen(false)
+                          }}
+                          className={cn("cursor-pointer", theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-100')}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", filters.studentId === 'todos' || !filters.studentId ? "opacity-100" : "opacity-0")} />
+                          Todos
+                        </CommandItem>
+                        {sortedStudentsForSelector.map((student: any) => {
+                          const studentName = student.name || student.displayName || 'Sin nombre'
+                          return (
+                            <CommandItem
+                              key={student.id || student.uid}
+                              value={studentName}
+                              onSelect={() => {
+                                setFilters({ ...filters, studentId: student.id || student.uid })
+                                setStudentPopoverOpen(false)
+                              }}
+                              className={cn("cursor-pointer", theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-gray-100')}
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", filters.studentId === (student.id || student.uid) ? "opacity-100" : "opacity-0")} />
+                              {studentName}
+                            </CommandItem>
+                          )
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {evolutionLoading || studentsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className={cn("h-6 w-6 animate-spin", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+      <CardContent className="pt-0">
+        {evolutionError ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <p className={cn('text-sm text-center', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error al cargar la evolución. Por favor, intenta nuevamente.</p>
+            <Button variant="outline" size="sm" onClick={() => refetchEvolution()} className={cn(theme === 'dark' ? 'border-zinc-600 hover:bg-zinc-800' : 'border-gray-300 hover:bg-gray-100')}>
+              <RotateCw className="h-4 w-4 mr-2" /> Reintentar
+            </Button>
           </div>
-        ) : evolutionData && 'chartData' in evolutionData && evolutionData.chartData && evolutionData.chartData.length > 0 && 'subjects' in evolutionData && evolutionData.subjects && evolutionData.subjects.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={evolutionData.chartData}>
+        ) : evolutionLoading || studentsLoading ? (
+          <div className="space-y-2 py-2" aria-busy="true" aria-label="Cargando evolución por materia">
+            <div className={cn('h-48 rounded-md animate-pulse', theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-200')} />
+            <div className="flex flex-wrap gap-2 justify-center">
+              {Array.from({ length: 7 }).map((_, i) => (<div key={i} className={cn('h-4 w-20 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} />))}
+            </div>
+          </div>
+        ) : hasChartData && displaySubjects.length > 0 ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={evolutionData!.chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#3f3f46' : '#d1d5db'} />
-              <XAxis 
-                dataKey="fase" 
-                stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'}
-                tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 12 }}
-              />
-              <YAxis 
-                domain={[0, 100]}
-                stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'}
-                tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 12 }}
-              />
-              <Tooltip 
-                contentStyle={{
-                  backgroundColor: theme === 'dark' ? '#18181b' : '#ffffff',
-                  border: theme === 'dark' ? '1px solid #3f3f46' : '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-                labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-              />
-              <Legend 
-                wrapperStyle={{ paddingTop: '20px' }}
-                iconType="line"
-              />
-              {evolutionData.subjects.map((subject: string) => {
-                const colors: { [key: string]: string } = {
-                  'Matemáticas': '#3b82f6',
-                  'Lenguaje': '#a855f7',
-                  'Ciencias Sociales': '#10b981',
-                  'Biologia': '#f59e0b',
-                  'Quimica': '#ef4444',
-                  'Física': '#f97316',
-                  'Inglés': '#06b6d4'
-                }
-                return (
-                  <Line 
-                    key={subject}
-                    type="monotone" 
-                    dataKey={subject} 
-                    name={subject} 
-                    stroke={colors[subject] || '#6b7280'} 
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    connectNulls={false}
-                  />
-                )
+              <XAxis dataKey="fase" stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 11 }} />
+              <YAxis domain={[0, 100]} stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 11 }} />
+              <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#18181b' : '#ffffff', border: theme === 'dark' ? '1px solid #3f3f46' : '1px solid #e5e7eb', borderRadius: '8px' }} labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#111827' }} />
+              <Legend wrapperStyle={{ paddingTop: '8px' }} iconType="line" iconSize={8} formatter={(value) => <span style={{ fontSize: 11 }}>{value}</span>} />
+              {displaySubjects.map((subject: string) => {
+                const colors: { [key: string]: string } = { 'Matemáticas': '#3b82f6', 'Lenguaje': '#a855f7', 'Ciencias Sociales': '#10b981', 'Biologia': '#f59e0b', 'Quimica': '#ef4444', 'Física': '#f97316', 'Inglés': '#06b6d4' }
+                return <Line key={subject} type="monotone" dataKey={subject} name={subject} stroke={colors[subject] || '#6b7280'} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
               })}
             </LineChart>
           </ResponsiveContainer>
+        ) : hasChartData && filters.subject !== 'todas' && displaySubjects.length === 0 ? (
+          <div className="text-center py-8 space-y-1">
+            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos para {filters.subject} con los filtros seleccionados</p>
+            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year} · {filters.jornada === 'todas' ? 'Todas' : filters.jornada} · {gradeLabel}</p>
+          </div>
         ) : (
-          <div className="text-center py-12 space-y-2">
-            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-              No hay datos disponibles para los filtros seleccionados
-            </p>
-            <p className={cn('text-xs', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
-              Año: {filters.year} | Materia: {filters.subject === 'todas' ? 'Todas' : filters.subject} | 
-              Jornada: {filters.jornada === 'todas' ? 'Todas' : filters.jornada}
-            </p>
+          <div className="text-center py-8 space-y-1">
+            <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos disponibles para los filtros seleccionados</p>
+            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject} · {filters.jornada === 'todas' ? 'Todas' : filters.jornada} · {gradeLabel}</p>
           </div>
         )}
       </CardContent>
@@ -1687,7 +1611,11 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
       return { subjects, subjectsWithTopics }
     },
     enabled: isOpen && !!studentId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: DASHBOARD_COORDINATOR_CACHE.staleTimeMs,
+    gcTime: DASHBOARD_COORDINATOR_CACHE.gcTimeMs,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
   const { data: phasesData, isLoading: phasesLoading } = useQuery({
@@ -1744,7 +1672,11 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
       }
     },
     enabled: isOpen && !!studentId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: DASHBOARD_COORDINATOR_CACHE.staleTimeMs,
+    gcTime: DASHBOARD_COORDINATOR_CACHE.gcTimeMs,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
   if (!student) return null
