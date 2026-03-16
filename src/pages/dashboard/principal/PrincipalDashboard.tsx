@@ -700,7 +700,7 @@ async function fetchCoordinatorRanking(
 ): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
   try {
     const apiFilters: any = { institutionId, campusId, isActive: true }
-    if (filters.jornada && filters.jornada !== 'todas' && filters.jornada !== '') apiFilters.jornada = filters.jornada
+    if (filters.jornada && filters.jornada !== 'todas') apiFilters.jornada = filters.jornada
     if (filters.gradeId && filters.gradeId !== 'todos') apiFilters.gradeId = filters.gradeId
     const studentsResult = await getFilteredStudents(apiFilters)
     if (!studentsResult.success || !studentsResult.data) return []
@@ -824,13 +824,14 @@ function StudentRankingCard({ theme, currentCoordinator, rankingFilters, setRank
     if (!campusId || !institutionId) return
     const gradeId = rankingFilters.gradeId || 'todos'
     const base: CoordinatorRankingFilters = { jornada: 'todas', phase: 'first', year: new Date().getFullYear(), gradeId }
-    ;[
+    const prefetches: CoordinatorRankingFilters[] = [
       { ...base, phase: 'second' },
       { ...base, phase: 'third' },
       { ...base, jornada: 'mañana' },
       { ...base, jornada: 'tarde' },
       { ...base, jornada: 'única' },
-    ].forEach((f) => {
+    ]
+    prefetches.forEach((f) => {
       queryClient.prefetchQuery({
         queryKey: ['coordinator-students-ranking', campusId, institutionId, f],
         queryFn: () => fetchCoordinatorRanking(campusId, institutionId, f),
@@ -1090,7 +1091,7 @@ function EvolutionBySubjectChart({ theme, currentCoordinator, filters, setFilter
         ? [filters.subject]
         : []
     : []
-  const hasChartData = evolutionData?.chartData?.length > 0
+  const hasChartData = (evolutionData?.chartData?.length ?? 0) > 0
 
   const selectedStudentLabel =
     filters.studentId === 'todos' || !filters.studentId

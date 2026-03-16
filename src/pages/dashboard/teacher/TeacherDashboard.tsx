@@ -538,7 +538,7 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
         ? [filters.subject]
         : []
     : []
-  const hasChartData = evolutionData?.chartData?.length > 0
+  const hasChartData = (evolutionData?.chartData?.length ?? 0) > 0
 
   const SUBJECT_COLORS: Record<string, string> = {
     'Matemáticas': '#3b82f6', 'Lenguaje': '#a855f7', 'Ciencias Sociales': '#10b981',

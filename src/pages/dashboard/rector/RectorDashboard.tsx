@@ -1224,7 +1224,7 @@ async function fetchStudentsRanking(
 ): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
   try {
     const apiFilters: any = { institutionId, isActive: true }
-    if (filters.jornada && filters.jornada !== 'todas' && filters.jornada !== '') {
+    if (filters.jornada && filters.jornada !== 'todas') {
       apiFilters.jornada = filters.jornada
     }
     if (filters.gradeId && filters.gradeId !== 'todos') {
