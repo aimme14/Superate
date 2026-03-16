@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom"
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
 import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
 import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { shuffleArray } from "@/utils/arrayUtils";
@@ -139,6 +141,7 @@ const examDataBase = {
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
   const [examData, setExamData] = useState(examDataBase); // Estado para almacenar datos del examen aleatorizados
@@ -350,6 +353,7 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, examData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
+      if (result) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)

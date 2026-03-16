@@ -3,7 +3,7 @@ import { dbService } from "@/services/firebase/db.service";
 import { studyPlanAuthorizationService } from "@/services/studyPlan/studyPlanAuthorization.service";
 import type { SubjectName, StudyPlanPhase } from "@/interfaces/studyPlan.interface";
 import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
-import { RUTA_PREPARACION_CACHE } from "@/config/rutaPreparacionCache";
+import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 
 export interface StudyPlanData {
   student_info: {
@@ -202,8 +202,7 @@ export function useStudyPlanData(
     enabled:
       !!studentId &&
       subjectsWithTopics.length > 0,
-    staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
-    gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
+    ...ESTUDIANTE_SESSION_CACHE,
   });
 
   const invalidate = () => {

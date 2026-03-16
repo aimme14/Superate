@@ -16,7 +16,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useSimulacros, simulacroDetailKey } from "@/hooks/query/useSimulacros";
 import { simulacrosService } from "@/services/firebase/simulacros.service";
-import { RUTA_PREPARACION_CACHE } from "@/config/rutaPreparacionCache";
+import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,8 +99,7 @@ export default function RutaAcademicaAdaptativaPage() {
         throw new Error(res.error?.message ?? "Error al cargar simulacro");
       },
       enabled: id.length > 0,
-      staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
-      gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
+      ...ESTUDIANTE_SESSION_CACHE,
     })),
   });
 

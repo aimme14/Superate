@@ -11,6 +11,8 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { getFirestore, doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
 import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
@@ -124,6 +126,7 @@ const examConfig = {
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams] = useSearchParams();
   const { user } = useAuthContext();
   const { theme: appTheme } = useThemeContext();
@@ -702,7 +705,8 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      
+      if (result) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
+
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
       if (result && quizData.phase) {
         try {

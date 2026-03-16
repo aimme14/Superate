@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { simulacrosService } from "@/services/firebase/simulacros.service";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
 import {
-  RUTA_PREPARACION_CACHE,
   RUTA_ACADEMICA_SIMULACROS_CACHE,
+  ESTUDIANTE_SESSION_CACHE,
 } from "@/config/rutaPreparacionCache";
 
 export const SIMULACROS_QUERY_KEY = ["simulacros", "with-videos"] as const;
@@ -31,7 +31,7 @@ export function useSimulacros() {
 
 /**
  * Hook para obtener lista de simulacros (sin videos).
- * Misma configuración de caché que la Ruta de preparación.
+ * Caché de sesión: una carga, resto desde memoria hasta F5.
  */
 export function useSimulacrosList() {
   return useQuery({
@@ -43,14 +43,13 @@ export function useSimulacrosList() {
       }
       throw new Error(res.error?.message ?? "Error al cargar simulacros");
     },
-    staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
-    gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
+    ...ESTUDIANTE_SESSION_CACHE,
   });
 }
 
 /**
  * Hook para obtener detalles de un simulacro (con videos) al expandir.
- * Misma configuración de caché que la Ruta de preparación.
+ * Caché de sesión: una carga, resto desde memoria hasta F5.
  */
 export function useSimulacroDetails(id: string | null, enabled: boolean) {
   return useQuery({
@@ -62,7 +61,6 @@ export function useSimulacroDetails(id: string | null, enabled: boolean) {
       throw new Error(res.error?.message ?? "Error al cargar simulacro");
     },
     enabled: enabled && !!id,
-    staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
-    gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
+    ...ESTUDIANTE_SESSION_CACHE,
   });
 }

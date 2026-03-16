@@ -12,6 +12,8 @@ import { useNavigate } from "react-router-dom"
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import ImageGallery from "@/components/common/ImageGallery";
 import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
@@ -87,6 +89,7 @@ interface DynamicQuizFormProps {
 const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const navigate = useNavigate()
   const { user } = useAuthContext();
+  const queryClient = useQueryClient();
   const { theme } = useThemeContext();
   const { notifySuccess, notifyError } = useNotification();
   const userId = user?.uid;
@@ -532,6 +535,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
+      if (result?.success) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
 
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
       if (result.success && quizData.phase) {

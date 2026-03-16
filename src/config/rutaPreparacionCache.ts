@@ -31,3 +31,19 @@ export const RUTA_ACADEMICA_SIMULACROS_CACHE = {
   /** No refetch al reconectar red. */
   refetchOnReconnect: false,
 } as const;
+
+/**
+ * Caché de sesión para todo el rol estudiante (excepto preguntas de simulacros y tests).
+ * Una carga inicial y el resto desde memoria; reduce lecturas a la base de datos.
+ * Invalidar explícitamente (ej. evaluaciones al enviar un examen) cuando el dato cambie.
+ */
+export const ESTUDIANTE_SESSION_CACHE = {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  refetchOnWindowFocus: false,
+  refetchOnMount: false,
+  refetchOnReconnect: false,
+} as const;
+
+/** Preguntas Simulacros IA/ICFES: refresco cada 30 min para rotar preguntas. */
+export const SIMULACRO_QUESTIONS_CACHE_MS = 30 * 60 * 1000;

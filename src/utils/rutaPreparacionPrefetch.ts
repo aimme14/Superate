@@ -8,11 +8,12 @@ import type { QueryClient } from "@tanstack/react-query";
 import { SIMULACROS_QUERY_KEY } from "@/hooks/query/useSimulacros";
 import {
   RUTA_ACADEMICA_SIMULACROS_CACHE,
-  RUTA_PREPARACION_CACHE,
+  ESTUDIANTE_SESSION_CACHE,
 } from "@/config/rutaPreparacionCache";
 import { simulacrosService } from "@/services/firebase/simulacros.service";
 import { fetchEvaluations } from "@/hooks/query/useStudentEvaluations";
 import { prefetchSimulacrosIA } from "@/utils/simulacrosIAPrefetch";
+import { prefetchSimulacrosICFES } from "@/utils/simulacrosICFESPrefetch";
 
 /** Grado por defecto cuando aún no se conoce el del usuario (no bloquea la UI). */
 export const DEFAULT_GRADE_RUTA_PREPARACION = "11";
@@ -53,13 +54,13 @@ export function runRutaPreparacionPrefetch(
     ...RUTA_ACADEMICA_SIMULACROS_CACHE,
   });
   prefetchSimulacrosIA(grade, "all");
+  prefetchSimulacrosICFES(grade);
 
   if (options.userId) {
     void queryClient.prefetchQuery({
       queryKey: ["student-evaluations", options.userId],
       queryFn: () => fetchEvaluations(options.userId!),
-      staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
-      gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
+      ...ESTUDIANTE_SESSION_CACHE,
     });
   }
 }

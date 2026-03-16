@@ -37,6 +37,8 @@ import {
 } from "@/services/firebase/ejerciciosIA.service";
 import { dbService } from "@/services/firebase/db.service";
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
+import { SIMULACRO_QUESTIONS_CACHE_MS } from "@/config/rutaPreparacionCache";
+import { consumePrefetchedSimulacrosICFES } from "@/utils/simulacrosICFESPrefetch";
 import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 import { renderMathInHtml } from "@/utils/renderMathInHtml";
 import { MathText } from "@/utils/renderMath";
@@ -169,6 +171,7 @@ export default function SimulacrosICFESPage() {
     questions: Question[];
     grade: string;
     subject: string;
+    fetchedAt: number;
   } | null>(null);
 
   useEffect(() => {
@@ -220,6 +223,7 @@ export default function SimulacrosICFESPage() {
               ),
               grade: studentGrade,
               subject: subjectFilter,
+              fetchedAt: Date.now(),
             };
           }
         })
@@ -236,6 +240,7 @@ export default function SimulacrosICFESPage() {
               questions: result.data ?? [],
               grade: studentGrade,
               subject: subjectFilter,
+              fetchedAt: Date.now(),
             };
           }
         })
@@ -244,9 +249,27 @@ export default function SimulacrosICFESPage() {
   }, [mode, studentGrade, subjectFilter]);
 
   const fetchQuestions = useCallback(async () => {
+    // 1) Consumir prefetch global (tanda "all" cargada al dashboard)
+    const globalPrefetched = consumePrefetchedSimulacrosICFES(
+      studentGrade,
+      subjectFilter
+    );
+    if (globalPrefetched && globalPrefetched.length > 0) {
+      setQuestions(globalPrefetched);
+      setCurrentIndex(0);
+      setSelectedAnswers({});
+      setTimeRemaining(SECONDS_PER_QUESTION);
+      setMode("running");
+      return;
+    }
+
+    // 2) Consumir prefetch local de la página (por materia, al estar en setup)
     const prefetched = prefetchedRef.current;
-    const filtersMatch =
+    const notExpired =
       prefetched &&
+      Date.now() - prefetched.fetchedAt < SIMULACRO_QUESTIONS_CACHE_MS;
+    const filtersMatch =
+      notExpired &&
       prefetched.grade === studentGrade &&
       prefetched.subject === subjectFilter &&
       prefetched.questions.length > 0;
@@ -260,6 +283,7 @@ export default function SimulacrosICFESPage() {
       prefetchedRef.current = null;
       return;
     }
+    if (prefetched && !notExpired) prefetchedRef.current = null;
 
     setLoading(true);
     setError(null);

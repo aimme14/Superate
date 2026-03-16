@@ -20,7 +20,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/AuthContext";
 import { fetchEvaluations } from "@/hooks/query/useStudentEvaluations";
-import { RUTA_PREPARACION_CACHE } from "@/config/rutaPreparacionCache";
+import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 import { STUDENT_HOME, isStudentHomePath } from "@/constants/routes";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,8 +136,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
           void queryClient.prefetchQuery({
             queryKey: ["student-evaluations", user.uid],
             queryFn: () => fetchEvaluations(user.uid!),
-            staleTime: RUTA_PREPARACION_CACHE.staleTimeMs,
-            gcTime: RUTA_PREPARACION_CACHE.gcTimeMs,
+            ...ESTUDIANTE_SESSION_CACHE,
           });
         }
       },
