@@ -330,6 +330,61 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
   }
 }
 
+/**
+ * Obtiene el rector actual por uid (para dashboard rector).
+ * Una sola lectura: getAllInstitutions(); el rector viene embebido en el doc de institución.
+ * No usa getAllUsers() (~689 lecturas).
+ */
+export const getRectorByUserId = async (userId: string): Promise<Result<any>> => {
+  try {
+    if (!userId) return failure(new ErrorAPI({ message: 'userId es requerido', statusCode: 400 }))
+    const institutionsResult = await dbService.getAllInstitutions()
+    if (!institutionsResult.success) return failure(institutionsResult.error)
+
+    for (const institution of institutionsResult.data) {
+      const rector = institution.rector
+      if (!rector) continue
+      const rectorId = rector.uid || rector.id
+      if (rectorId !== userId) continue
+
+      let campusCount = 0
+      let principalCount = 0
+      let teacherCount = 0
+      let studentCount = 0
+      if (institution.campuses && Array.isArray(institution.campuses)) {
+        campusCount = institution.campuses.length
+        institution.campuses.forEach((campus: any) => {
+          if (campus.principal) principalCount++
+          if (campus.grades && Array.isArray(campus.grades)) {
+            campus.grades.forEach((grade: any) => {
+              if (grade.teachers?.length) teacherCount += grade.teachers.length
+              if (grade.students?.length) studentCount += grade.students.length
+            })
+          }
+        })
+      }
+
+      const rectorData = {
+        ...rector,
+        id: rectorId,
+        uid: rectorId,
+        institutionId: institution.id,
+        institutionName: institution.name,
+        campusCount,
+        principalCount,
+        teacherCount,
+        studentCount: rector.studentCount ?? studentCount,
+      }
+      return success(rectorData)
+    }
+
+    return failure(new ErrorAPI({ message: 'Rector no encontrado para el usuario', statusCode: 404 }))
+  } catch (error) {
+    console.error('❌ Error en getRectorByUserId:', error)
+    return failure(new ErrorAPI({ message: 'Error al obtener rector por usuario', statusCode: 500 }))
+  }
+}
+
 export const updateRector = async (institutionId: string, rectorId: string, data: UpdateRectorData, oldInstitutionId?: string): Promise<Result<any>> => {
   try {
     // Verificar si se está moviendo el rector a otra institución

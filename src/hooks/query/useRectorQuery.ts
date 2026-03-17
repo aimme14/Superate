@@ -1,13 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { 
   getAllRectors, 
+  getRectorByUserId,
   createRector, 
   updateRector, 
   deleteRector,
   CreateRectorData,
   UpdateRectorData
 } from '@/controllers/rector.controller'
+import { useAuthContext } from '@/context/AuthContext'
 import { useNotification } from '@/hooks/ui/useNotification'
+import { DASHBOARD_RECTOR_CACHE } from '@/config/dashboardRectorCache'
 
 // Query Keys
 export const rectorKeys = {
@@ -18,7 +21,7 @@ export const rectorKeys = {
   detail: (id: string) => [...rectorKeys.details(), id] as const,
 }
 
-// Hook para obtener todos los rectores
+// Hook para obtener todos los rectores (admin / listados)
 export const useRectors = () => {
   return useQuery({
     queryKey: rectorKeys.lists(),
@@ -30,6 +33,28 @@ export const useRectors = () => {
       throw new Error(result.error.message)
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
+  })
+}
+
+/**
+ * Obtiene solo el rector actual por uid (dashboard rector).
+ * 1 lectura (getAllInstitutions) en lugar de ~690 (getAllRectors → getAllUsers).
+ */
+export const useCurrentRector = () => {
+  const { user } = useAuthContext()
+  return useQuery({
+    queryKey: [...rectorKeys.details(), 'current', user?.uid ?? ''],
+    queryFn: async () => {
+      if (!user?.uid) return null
+      const result = await getRectorByUserId(user.uid)
+      if (result.success) return result.data
+      if (result.error?.statusCode === 404) return null
+      throw new Error(result.error?.message)
+    },
+    enabled: !!user?.uid,
+    staleTime: DASHBOARD_RECTOR_CACHE.staleTimeMs,
+    gcTime: DASHBOARD_RECTOR_CACHE.gcTimeMs,
+    refetchOnWindowFocus: false,
   })
 }
 

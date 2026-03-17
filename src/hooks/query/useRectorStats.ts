@@ -1,18 +1,16 @@
 import { useAuthContext } from '@/context/AuthContext'
-import { useRectors } from './useRectorQuery'
+import { useCurrentRector } from './useRectorQuery'
 import { useFilteredPrincipals } from './usePrincipalQuery'
 import { useFilteredTeachers } from './useTeacherQuery'
 import { useFilteredStudents } from './useStudentQuery'
 
 export const useRectorStats = () => {
   const { user } = useAuthContext()
-  
-  // Obtener datos del rector actual
-  const { data: rectors, isLoading: rectorsLoading } = useRectors()
-  const currentRector = rectors?.find(rector => rector.email === user?.email)
-  
+
+  // Rector actual por uid: 1 lectura (getAllInstitutions) en lugar de ~690 (getAllRectors)
+  const { data: currentRector, isLoading: rectorsLoading } = useCurrentRector()
+
   // Obtener el institutionId del rector - validar que exista
-  // Verificar tanto institutionId como inst para compatibilidad
   const rectorInstitutionId = currentRector?.institutionId || currentRector?.inst
   
   // Validar que el rector tenga una institución asignada

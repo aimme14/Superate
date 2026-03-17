@@ -240,6 +240,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               currentRector={currentRector}
               rankingFilters={rankingFilters}
               setRankingFilters={setRankingFilters}
+              institutionStudents={students ?? []}
             />
           </div>
         )}
@@ -295,27 +296,28 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
 }
 
 
-// Componente de Promedio Institucional con filtro por fase
-function InstitutionAverageCard({ theme, currentRector }: any) {
+// Componente de Promedio Institucional con filtro por fase (usa institutionStudents de la única fuente)
+function InstitutionAverageCard({ theme, currentRector, institutionStudents: institutionStudentsProp = [] }: any) {
   const [selectedPhase, setSelectedPhase] = useState<'first' | 'second' | 'third'>('first')
   const [selectedGrade, setSelectedGrade] = useState<string>('todos')
   const [selectedJornada, setSelectedJornada] = useState<'mañana' | 'tarde' | 'única' | 'todas'>('todas')
   const institutionId = currentRector?.institutionId
   const queryClient = useQueryClient()
 
-  // Obtener todos los grados de la institución
   const { options: gradeOptions } = useAllGradeOptions()
-
-  // Filtrar grados solo de esta institución
   const institutionGrades = gradeOptions.filter((grade: any) => grade.institutionId === institutionId)
 
-  // Obtener todos los estudiantes de la institución (filtrados por grado y jornada si se seleccionan)
-  const { students: institutionStudents } = useFilteredStudents({
-    institutionId: institutionId,
-    gradeId: selectedGrade !== 'todos' ? selectedGrade : undefined,
-    jornada: selectedJornada !== 'todas' ? (selectedJornada as 'mañana' | 'tarde' | 'única') : undefined,
-    isActive: true
-  })
+  // Filtrar en memoria la única fuente de estudiantes (grado y jornada)
+  const institutionStudents = useMemo(() => {
+    let list = institutionStudentsProp || []
+    if (selectedGrade !== 'todos') {
+      list = list.filter((s: any) => (s.gradeId || s.grade) === selectedGrade)
+    }
+    if (selectedJornada !== 'todas') {
+      list = list.filter((s: any) => s.jornada === selectedJornada)
+    }
+    return list
+  }, [institutionStudentsProp, selectedGrade, selectedJornada])
 
   const averageQueryKey = ['rector-institution-average', institutionId, selectedPhase, selectedGrade, selectedJornada] as const
 
@@ -617,8 +619,8 @@ function InstitutionAverageCard({ theme, currentRector }: any) {
   )
 }
 
-// Componente de Bienvenida
-function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFilters }: any) {
+// Componente de Bienvenida (institutionStudents = única fuente de estudiantes para el tab)
+function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFilters, institutionStudents = [] }: any) {
   const [evolutionFilters, setEvolutionFilters] = useState<{
     year: number
     subject: string
@@ -656,7 +658,7 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
             color: 'blue',
             gradient: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800',
             isCustom: true,
-            customComponent: <InstitutionAverageCard theme={theme} currentRector={currentRector} />
+            customComponent: <InstitutionAverageCard theme={theme} currentRector={currentRector} institutionStudents={institutionStudents} />
           },
         ].map((stat) => (
           <div
@@ -714,6 +716,7 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
           currentRector={currentRector}
           rankingFilters={rankingFilters}
           setRankingFilters={setRankingFilters}
+          institutionStudents={institutionStudents}
         />
 
         <EvolutionBySubjectChart 
@@ -721,19 +724,21 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
           currentRector={currentRector}
           filters={evolutionFilters}
           setFilters={setEvolutionFilters}
+          institutionStudents={institutionStudents}
         />
       </div>
     </div>
   )
 }
 
-// Componente de Evolución por Materia
-function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: any) {
+// Componente de Evolución por Materia (usa institutionStudents de la única fuente)
+function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, institutionStudents: allStudentsProp = [] }: any) {
   const institutionId = currentRector?.institutionId
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
   const [studentPopoverOpen, setStudentPopoverOpen] = useState(false)
-  
+  const allStudents = allStudentsProp ?? []
+
   const subjects = [
     'todas',
     'Matemáticas',
@@ -755,27 +760,6 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: 
     ? 'Todos'
     : (institutionGrades.find((g: any) => g.value === filters.gradeId)?.label ?? 'Todos')
 
-  // Obtener estudiantes
-  const { data: allStudents, isLoading: studentsLoading } = useQuery({
-    queryKey: ['rector-evolution-students', institutionId],
-    queryFn: async () => {
-      if (!institutionId) return []
-      const filters: any = {
-        institutionId: institutionId,
-        isActive: true,
-      }
-      const studentsResult = await getFilteredStudents(filters)
-      if (!studentsResult.success || !studentsResult.data) return []
-      return studentsResult.data
-    },
-    enabled: !!institutionId,
-    staleTime: DASHBOARD_RECTOR_CACHE.staleTimeMs,
-    gcTime: DASHBOARD_RECTOR_CACHE.gcTimeMs,
-    placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  })
-
   // Clave estable sin materia: una sola carga por año/jornada/estudiante/grado; el filtro de materia se aplica en cliente
   const evolutionDataKey = {
     year: filters.year,
@@ -784,9 +768,9 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: 
     gradeId: filters.gradeId || 'todos',
   }
 
-  // Obtener datos de evolución (siempre todas las materias; filtro por materia en el cliente)
+  // Obtener datos de evolución (allStudents = única fuente desde props)
   const { data: evolutionData, isLoading: evolutionLoading, error: evolutionError, refetch: refetchEvolution } = useQuery({
-    queryKey: ['rector-evolution-data', institutionId, evolutionDataKey],
+    queryKey: ['rector-evolution-data', institutionId, evolutionDataKey, allStudents?.length ?? 0],
     queryFn: async ({ queryKey }: { queryKey: unknown[] }) => {
       const key = queryKey[2] as { year: number; jornada: string; studentId: string; gradeId: string }
       if (!institutionId || !allStudents || allStudents.length === 0) return { chartData: [], subjects: [] }
@@ -1123,7 +1107,7 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters }: 
               Reintentar
             </Button>
           </div>
-        ) : evolutionLoading || studentsLoading ? (
+        ) : evolutionLoading ? (
           <div className="space-y-2 py-2" aria-busy="true" aria-label="Cargando evolución por materia">
             <div className={cn('h-48 rounded-md animate-pulse', theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-200')} />
             <div className="flex flex-wrap gap-2 justify-center">
@@ -1217,149 +1201,149 @@ type RankingFilters = {
   gradeId: string
 }
 
-/** Obtiene el ranking de estudiantes para una institución y filtros dados. Usado por la query principal y por prefetch. */
+function getStudentYear(student: any): number | null {
+  if (student.academicYear) return student.academicYear
+  if (!student.createdAt) return null
+  let date: Date
+  if (typeof student.createdAt === 'string') date = new Date(student.createdAt)
+  else if (student.createdAt?.toDate) date = student.createdAt.toDate()
+  else if (student.createdAt?.seconds) date = new Date(student.createdAt.seconds * 1000)
+  else return null
+  return date.getFullYear()
+}
+
+/** Ranking usando lista de estudiantes ya cargada (sin nueva lectura a Firestore para la lista). */
+async function fetchStudentsRankingWithStudents(
+  students: any[],
+  filters: RankingFilters
+): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
+  try {
+    if (!students?.length) return []
+    let list = [...students]
+    if (filters.jornada && filters.jornada !== 'todas') {
+      list = list.filter((s: any) => s.jornada === filters.jornada)
+    }
+    if (filters.gradeId && filters.gradeId !== 'todos') {
+      list = list.filter((s: any) => (s.gradeId || s.grade) === filters.gradeId)
+    }
+    if (filters.year) {
+      list = list.filter((s: any) => getStudentYear(s) === filters.year)
+    }
+    return buildRankingFromStudents(list, filters)
+  } catch (error) {
+    console.error('Error en fetchStudentsRankingWithStudents:', error)
+    return []
+  }
+}
+
+/** Construye el ranking a partir de una lista de estudiantes y lee solo results en Firestore. */
+async function buildRankingFromStudents(
+  students: any[],
+  filters: RankingFilters
+): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
+  const studentIds = students.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
+  if (studentIds.length === 0) return []
+  const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
+  const phaseMap: { [key: string]: string } = {
+    'first': 'fase I', 'second': 'Fase II', 'third': 'fase III',
+    'Fase I': 'fase I', 'Fase II': 'Fase II', 'Fase III': 'fase III'
+  }
+  const selectedPhaseName = phaseMap[filters.phase] || filters.phase
+  const phaseResults: any[] = []
+  for (const studentId of studentIds) {
+    try {
+      const phaseRef = collection(db, 'results', studentId, selectedPhaseName)
+      const phaseSnap = await getDocs(phaseRef)
+      phaseSnap.docs.forEach(doc => {
+        const examData = doc.data()
+        if (examData.completed && examData.score && examData.subject) {
+          phaseResults.push({
+            userId: studentId,
+            examId: doc.id,
+            phase: filters.phase,
+            subject: examData.subject.trim(),
+            score: { overallPercentage: examData.score.overallPercentage || 0 },
+          })
+        }
+      })
+    } catch (error) {
+      console.error(`Error obteniendo resultados para estudiante ${studentId}:`, error)
+    }
+  }
+  const resultsByStudent = new Map<string, { scores: number[]; subjects: Set<string> }>()
+  phaseResults.forEach(result => {
+    if (!resultsByStudent.has(result.userId)) resultsByStudent.set(result.userId, { scores: [], subjects: new Set() })
+    const studentData = resultsByStudent.get(result.userId)!
+    studentData.scores.push(result.score.overallPercentage)
+    if (result.subject) studentData.subjects.add(result.subject.trim())
+  })
+  const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
+  const POINTS_PER_NATURALES_SUBJECT = 100 / 3
+  const POINTS_PER_REGULAR_SUBJECT = 100
+  const normalizeSubjectName = (subject: string): string => {
+    const normalized = subject.trim().toLowerCase()
+    const subjectMap: Record<string, string> = {
+      'biologia': 'Biologia', 'biología': 'Biologia', 'quimica': 'Quimica', 'química': 'Quimica',
+      'fisica': 'Física', 'física': 'Física', 'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas',
+      'lenguaje': 'Lenguaje', 'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
+      'ingles': 'Inglés', 'inglés': 'Inglés'
+    }
+    return subjectMap[normalized] || subject
+  }
+  const ranking: Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }> = []
+  students.forEach((student: any) => {
+    const studentId = student.id || student.uid
+    const studentData = resultsByStudent.get(studentId)
+    if (!studentData || studentData.subjects.size === 0) return
+    if (!REQUIRED_SUBJECTS.every(s => studentData.subjects.has(s))) return
+    const studentResults = phaseResults.filter(r => r.userId === studentId)
+    const subjectScores: { [subject: string]: number } = {}
+    studentResults.forEach(result => {
+      const subject = normalizeSubjectName(result.subject || '')
+      const pct = result.score?.overallPercentage || 0
+      if (!subjectScores[subject] || pct > subjectScores[subject]) subjectScores[subject] = pct
+    })
+    let globalScore = 0
+    Object.entries(subjectScores).forEach(([subject, percentage]) => {
+      globalScore += NATURALES_SUBJECTS.includes(subject)
+        ? (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
+        : (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
+    })
+    globalScore = Math.round(globalScore * 100) / 100
+    ranking.push({ student, globalScore, totalExams: studentData.scores.length, completedSubjects: studentData.subjects.size })
+  })
+  ranking.sort((a, b) => {
+    if (a.totalExams === 0 && b.totalExams > 0) return 1
+    if (a.totalExams > 0 && b.totalExams === 0) return -1
+    return b.globalScore - a.globalScore
+  })
+  return ranking
+}
+
+/** Obtiene el ranking de estudiantes (usa getFilteredStudents; para admin/otros). */
 async function fetchStudentsRanking(
   institutionId: string,
   filters: RankingFilters
 ): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
   try {
     const apiFilters: any = { institutionId, isActive: true }
-    if (filters.jornada && filters.jornada !== 'todas') {
-      apiFilters.jornada = filters.jornada
-    }
-    if (filters.gradeId && filters.gradeId !== 'todos') {
-      apiFilters.gradeId = filters.gradeId
-    }
+    if (filters.jornada && filters.jornada !== 'todas') apiFilters.jornada = filters.jornada
+    if (filters.gradeId && filters.gradeId !== 'todos') apiFilters.gradeId = filters.gradeId
     const studentsResult = await getFilteredStudents(apiFilters)
     if (!studentsResult.success || !studentsResult.data) return []
-
     let students = studentsResult.data
     if (filters.year) {
-      const getStudentYear = (student: any): number | null => {
-        if (student.academicYear) return student.academicYear
-        if (!student.createdAt) return null
-        let date: Date
-        if (typeof student.createdAt === 'string') date = new Date(student.createdAt)
-        else if (student.createdAt?.toDate) date = student.createdAt.toDate()
-        else if (student.createdAt?.seconds) date = new Date(student.createdAt.seconds * 1000)
-        else return null
-        return date.getFullYear()
-      }
-      // Filtro estricto por año: solo estudiantes con año definido que coincidan; sin fallback
-      students = students.filter((student: any) => {
-        const studentYear = getStudentYear(student)
-        if (studentYear === null) return false
-        return studentYear === filters.year
-      })
+      students = students.filter((s: any) => getStudentYear(s) === filters.year)
     }
-
-    const studentIds = students.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-    if (studentIds.length === 0) return []
-
-    const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-    const phaseMap: { [key: string]: string } = {
-      'first': 'fase I', 'second': 'Fase II', 'third': 'fase III',
-      'Fase I': 'fase I', 'Fase II': 'Fase II', 'Fase III': 'fase III'
-    }
-    const selectedPhaseName = phaseMap[filters.phase] || filters.phase
-    const selectedPhaseType = filters.phase
-
-    const phaseResults: any[] = []
-    for (const studentId of studentIds) {
-      try {
-        const phaseRef = collection(db, 'results', studentId, selectedPhaseName)
-        const phaseSnap = await getDocs(phaseRef)
-        const studentSubjects = new Set<string>()
-        phaseSnap.docs.forEach(doc => {
-          const examData = doc.data()
-          if (examData.completed && examData.score && examData.subject) {
-            const subject = examData.subject.trim()
-            phaseResults.push({
-              userId: studentId,
-              examId: doc.id,
-              phase: selectedPhaseType,
-              subject,
-              score: { overallPercentage: examData.score.overallPercentage || 0 },
-            })
-            studentSubjects.add(subject)
-          }
-        })
-      } catch (error) {
-        console.error(`Error obteniendo resultados para estudiante ${studentId}:`, error)
-      }
-    }
-
-    const resultsByStudent = new Map<string, { scores: number[]; subjects: Set<string> }>()
-    phaseResults.forEach(result => {
-      if (!resultsByStudent.has(result.userId)) {
-        resultsByStudent.set(result.userId, { scores: [], subjects: new Set() })
-      }
-      const studentData = resultsByStudent.get(result.userId)!
-      studentData.scores.push(result.score.overallPercentage)
-      if (result.subject) studentData.subjects.add(result.subject.trim())
-    })
-
-    const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
-    const POINTS_PER_NATURALES_SUBJECT = 100 / 3
-    const POINTS_PER_REGULAR_SUBJECT = 100
-    const normalizeSubjectName = (subject: string): string => {
-      const normalized = subject.trim().toLowerCase()
-      const subjectMap: Record<string, string> = {
-        'biologia': 'Biologia', 'biología': 'Biologia', 'biology': 'Biologia',
-        'quimica': 'Quimica', 'química': 'Quimica', 'chemistry': 'Quimica',
-        'fisica': 'Física', 'física': 'Física', 'physics': 'Física',
-        'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas', 'math': 'Matemáticas',
-        'lenguaje': 'Lenguaje', 'language': 'Lenguaje',
-        'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
-        'ingles': 'Inglés', 'inglés': 'Inglés', 'english': 'Inglés'
-      }
-      return subjectMap[normalized] || subject
-    }
-
-    const ranking: Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }> = []
-    students.forEach((student: any) => {
-      const studentId = student.id || student.uid
-      const studentData = resultsByStudent.get(studentId)
-      if (!studentData || studentData.subjects.size === 0) return
-      const hasAllSubjects = REQUIRED_SUBJECTS.every(s => studentData.subjects.has(s))
-      if (!hasAllSubjects) return
-
-      const studentResults = phaseResults.filter(r => r.userId === studentId)
-      const subjectScores: { [subject: string]: number } = {}
-      studentResults.forEach(result => {
-        const subject = normalizeSubjectName(result.subject || '')
-        const percentage = result.score?.overallPercentage || 0
-        if (!subjectScores[subject] || percentage > subjectScores[subject]) subjectScores[subject] = percentage
-      })
-      let globalScore = 0
-      Object.entries(subjectScores).forEach(([subject, percentage]) => {
-        const pointsForSubject = NATURALES_SUBJECTS.includes(subject)
-          ? (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
-          : (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
-        globalScore += pointsForSubject
-      })
-      globalScore = Math.round(globalScore * 100) / 100
-      ranking.push({
-        student,
-        globalScore,
-        totalExams: studentData.scores.length,
-        completedSubjects: studentData.subjects.size,
-      })
-    })
-    ranking.sort((a, b) => {
-      if (a.totalExams === 0 && b.totalExams > 0) return 1
-      if (a.totalExams > 0 && b.totalExams === 0) return -1
-      return b.globalScore - a.globalScore
-    })
-    return ranking
+    return buildRankingFromStudents(students, filters)
   } catch (error) {
     console.error('Error al obtener ranking de estudiantes:', error)
     return []
   }
 }
 
-// Componente de Ranking de Estudiantes
-function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFilters }: any) {
+// Componente de Ranking de Estudiantes (usa institutionStudents de la única fuente)
+function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFilters, institutionStudents = [] }: any) {
   const institutionId = currentRector?.institutionId
   const queryClient = useQueryClient()
   const { options: gradeOptions } = useAllGradeOptions()
@@ -1371,10 +1355,10 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
     ? 'Todos'
     : (institutionGrades.find((g: any) => g.value === rankingFilters.gradeId)?.label ?? 'Todos')
 
-  const { data: institutionStudents, isLoading: studentsLoading, error: rankingError, refetch: refetchRanking } = useQuery({
-    queryKey: ['rector-students-ranking', institutionId, rankingFilters],
-    queryFn: () => fetchStudentsRanking(institutionId!, rankingFilters),
-    enabled: !!institutionId,
+  const { data: rankingData, isLoading: studentsLoading, error: rankingError, refetch: refetchRanking } = useQuery({
+    queryKey: ['rector-students-ranking', institutionId, rankingFilters, institutionStudents?.length ?? 0],
+    queryFn: () => fetchStudentsRankingWithStudents(institutionStudents, rankingFilters),
+    enabled: !!institutionId && (institutionStudents?.length ?? 0) > 0,
     staleTime: DASHBOARD_RECTOR_CACHE.staleTimeMs,
     gcTime: DASHBOARD_RECTOR_CACHE.gcTimeMs,
     placeholderData: keepPreviousData,
@@ -1382,18 +1366,19 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
     refetchOnMount: false,
     retry: 1,
   })
+  const institutionStudentsRanking = rankingData ?? []
+
   const [showAllRanking, setShowAllRanking] = useState(false)
   useEffect(() => {
     setShowAllRanking(false)
   }, [rankingFilters])
 
-  // Prefetch en segundo plano: otras fases/jornadas con el mismo grado
+  // Prefetch con la misma lista de estudiantes (sin nuevas lecturas de lista)
   useEffect(() => {
-    if (!institutionId) return
+    if (!institutionId || (institutionStudents?.length ?? 0) === 0) return
     const currentYear = new Date().getFullYear()
     const gradeId = rankingFilters.gradeId || 'todos'
     const baseFilters: RankingFilters = { jornada: 'todas', phase: 'first', year: currentYear, gradeId }
-
     const prefetches: RankingFilters[] = [
       { ...baseFilters, phase: 'second' },
       { ...baseFilters, phase: 'third' },
@@ -1403,13 +1388,13 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
     ]
     prefetches.forEach((filters) => {
       queryClient.prefetchQuery({
-        queryKey: ['rector-students-ranking', institutionId, filters],
-        queryFn: () => fetchStudentsRanking(institutionId, filters),
+        queryKey: ['rector-students-ranking', institutionId, filters, institutionStudents.length],
+        queryFn: () => fetchStudentsRankingWithStudents(institutionStudents, filters),
         staleTime: DASHBOARD_RECTOR_CACHE.staleTimeMs,
         gcTime: DASHBOARD_RECTOR_CACHE.gcTimeMs,
       })
     })
-  }, [institutionId, rankingFilters.gradeId, queryClient])
+  }, [institutionId, rankingFilters.gradeId, queryClient, institutionStudents])
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
@@ -1548,11 +1533,11 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
               </div>
             ))}
           </div>
-        ) : institutionStudents && institutionStudents.length > 0 ? (
+        ) : institutionStudentsRanking && institutionStudentsRanking.length > 0 ? (
           <>
             <TooltipProvider>
               <div className="space-y-1 max-h-96 overflow-y-auto" role="list" aria-label="Ranking de estudiantes">
-                {(showAllRanking ? institutionStudents : institutionStudents.slice(0, RANKING_INITIAL_VISIBLE)).map((item: any, index: number) => (
+                {(showAllRanking ? institutionStudentsRanking : institutionStudentsRanking.slice(0, RANKING_INITIAL_VISIBLE)).map((item: any, index: number) => (
                   <div
                     key={item.student.id || item.student.uid}
                     role="listitem"
@@ -1609,7 +1594,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                 ))}
               </div>
             </TooltipProvider>
-            {institutionStudents.length > RANKING_INITIAL_VISIBLE && (
+            {institutionStudentsRanking.length > RANKING_INITIAL_VISIBLE && (
               <div className="flex justify-center pt-3">
                 <Button
                   variant="ghost"
@@ -1625,7 +1610,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   ) : (
                     <>
                       <ChevronDown className="h-4 w-4 mr-1" />
-                      Ver más ({institutionStudents.length - RANKING_INITIAL_VISIBLE} más)
+                      Ver más ({institutionStudentsRanking.length - RANKING_INITIAL_VISIBLE} más)
                     </>
                   )}
                 </Button>
