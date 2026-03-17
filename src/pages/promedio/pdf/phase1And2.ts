@@ -27,8 +27,8 @@ export const generatePhase1And2PDFHTML = (
     completedSubjects: number;
     totalQuestions: number;
   },
-  studentRank: number | null,
-  totalStudents: number | null,
+  _studentRank: number | null,
+  _totalStudents: number | null,
   subjectScores: Array<{ name: string; score: number; percentage: number }>
 ): string => {
   // Convertir tiempo promedio a formato legible (0.1m)
@@ -392,16 +392,6 @@ export const generatePhase1And2PDFHTML = (
             </div>
             <div class="metric-card-value global">${phaseMetrics.globalScore}</div>
             <div class="metric-card-detail">De 500 puntos</div>
-          </div>
-
-          <!-- Puesto entre estudiantes -->
-          <div class="metric-card rank">
-            <div class="metric-card-header">
-              <div class="metric-card-title">Puesto</div>
-              <div class="metric-card-icon">📊</div>
-            </div>
-            <div class="metric-card-value rank">${studentRank !== null && totalStudents !== null ? `${studentRank}°` : 'N/A'}</div>
-            <div class="metric-card-detail">${studentRank !== null && totalStudents !== null ? `De ${totalStudents} estudiantes` : 'No disponible'}</div>
           </div>
 
           <!-- Tiempo Promedio por Pregunta -->

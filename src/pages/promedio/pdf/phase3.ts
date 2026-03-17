@@ -11,41 +11,7 @@ const getIndex = (str: string, len: number): number => {
   return Math.abs(hash) % len;
 };
 
-const getRankTrophyAndColors = (rank: number) => {
-  if (rank === 1) {
-    return {
-      trophy: '🏆',
-      bgGradient: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-      borderColor: '#fbbf24',
-      textColor: '#92400e',
-      detailColor: '#78350f'
-    };
-  } else if (rank === 2) {
-    return {
-      trophy: '🥈',
-      bgGradient: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-      borderColor: '#94a3b8',
-      textColor: '#475569',
-      detailColor: '#334155'
-    };
-  } else if (rank === 3) {
-    return {
-      trophy: '🥉',
-      bgGradient: 'linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%)',
-      borderColor: '#fb923c',
-      textColor: '#9a3412',
-      detailColor: '#7c2d12'
-    };
-  } else {
-    return {
-      trophy: '🏅',
-      bgGradient: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
-      borderColor: '#9ca3af',
-      textColor: '#4b5563',
-      detailColor: '#374151'
-    };
-  }
-};
+// getRankTrophyAndColors: reservado para cuando se reactive el ranking en el PDF (mejor lógica).
 
 const getPerformanceLevel = (score: number): { level: string; definition: string } => {
   if (score >= 80) {
@@ -83,8 +49,8 @@ export const generatePhase3PDFHTML = (
   phase1Subjects?: Array<{ name: string; percentage: number }>,
   phase2Subjects?: Array<{ name: string; percentage: number }>,
   _phaseMetrics?: { averageTimePerQuestion: number; fraudAttempts: number; luckPercentage: number },
-  studentRank?: number | null,
-  totalStudents?: number | null
+  _studentRank?: number | null,
+  _totalStudents?: number | null
 ): string => {
   const selectedQuote = PHILOSOPHICAL_QUOTES[getIndex(studentId, PHILOSOPHICAL_QUOTES.length)];
   const selectedVerse = BIBLE_VERSES[getIndex(studentId + 'verse', BIBLE_VERSES.length)];
@@ -680,17 +646,6 @@ export const generatePhase3PDFHTML = (
               <div class="global-score-number">${globalScore}</div>
               <div class="global-score-detail">De 500 puntos posibles, su puntaje global es ${globalScore}</div>
             </div>
-            ${studentRank !== null && totalStudents !== null ? (() => {
-              const currentRank = studentRank as number;
-              const rankStyle = getRankTrophyAndColors(currentRank);
-              return `
-            <div style="flex: 0.8; margin-left: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: ${rankStyle.bgGradient}; border-radius: 12px; padding: 8px 16px; border: 2px solid ${rankStyle.borderColor}; transform: scale(0.8); transform-origin: center;">
-              <div style="font-size: 26pt; margin-bottom: 6px;">${rankStyle.trophy}</div>
-              <div style="font-weight: bold; font-size: 14pt; color: ${rankStyle.textColor}; margin-bottom: 3px;">Puesto ${currentRank}</div>
-              <div style="font-size: 8pt; color: ${rankStyle.detailColor}; text-align: center;">de ${totalStudents} estudiantes de su grado</div>
-            </div>
-            `;
-            })() : ''}
           </div>
         </div>
 

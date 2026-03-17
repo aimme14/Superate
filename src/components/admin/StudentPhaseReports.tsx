@@ -29,7 +29,6 @@ import { useNotification } from '@/hooks/ui/useNotification'
 import { studentSummaryService } from '@/services/studentSummary/studentSummary.service'
 import { getUserById } from '@/controllers/user.controller'
 import { getInstitutionById } from '@/controllers/institution.controller'
-import { getFilteredStudents } from '@/controllers/student.controller'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
 
@@ -590,81 +589,6 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
     return Math.max(5, Math.round(score / 2))
   }
 
-  const calculateStudentGlobalScoreForPhase = async (studentId: string, phase: 'first' | 'second' | 'third'): Promise<number> => {
-    try {
-      const evaluations = await getPhaseEvaluations(studentId, phase)
-      
-      if (evaluations.length === 0) {
-        return 0
-      }
-
-      const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
-      const POINTS_PER_NATURALES_SUBJECT = 100 / 3
-      const POINTS_PER_REGULAR_SUBJECT = 100
-
-      const normalizeSubjectName = (subject: string): string => {
-        const normalized = subject.trim().toLowerCase()
-        const subjectMap: Record<string, string> = {
-          'biologia': 'Biologia',
-          'biología': 'Biologia',
-          'quimica': 'Quimica',
-          'química': 'Quimica',
-          'fisica': 'Física',
-          'física': 'Física',
-          'matematicas': 'Matemáticas',
-          'matemáticas': 'Matemáticas',
-          'lenguaje': 'Lenguaje',
-          'ciencias sociales': 'Ciencias Sociales',
-          'sociales': 'Ciencias Sociales',
-          'ingles': 'Inglés',
-          'inglés': 'Inglés'
-        }
-        return subjectMap[normalized] || subject
-      }
-
-      const subjectScores: { [subject: string]: number } = {}
-
-      evaluations.forEach(evalData => {
-        const subject = normalizeSubjectName(evalData.subject || evalData.examTitle || '')
-        
-        let percentage = 0
-        if (evalData.score?.overallPercentage !== undefined) {
-          percentage = evalData.score.overallPercentage
-        } else if (evalData.score?.correctAnswers !== undefined && evalData.score?.totalQuestions !== undefined) {
-          const total = evalData.score.totalQuestions
-          const correct = evalData.score.correctAnswers
-          percentage = total > 0 ? (correct / total) * 100 : 0
-        } else if (evalData.questionDetails && evalData.questionDetails.length > 0) {
-          const correct = evalData.questionDetails.filter((q: any) => q.isCorrect).length
-          const total = evalData.questionDetails.length
-          percentage = total > 0 ? (correct / total) * 100 : 0
-        }
-
-        if (!subjectScores[subject] || percentage > subjectScores[subject]) {
-          subjectScores[subject] = percentage
-        }
-      })
-
-      let globalScore = 0
-      
-      Object.entries(subjectScores).forEach(([subject, percentage]) => {
-        let pointsForSubject: number
-        if (NATURALES_SUBJECTS.includes(subject)) {
-          pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
-        } else {
-          pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
-        }
-        
-        globalScore += pointsForSubject
-      })
-
-      return Math.round(globalScore * 100) / 100
-    } catch (error) {
-      logger.error('Error calculando puntaje del estudiante para fase:', error)
-      return 0
-    }
-  }
-
   // Importar funciones de generación de PDF desde promedio.tsx
   // Por ahora, vamos a usar una versión simplificada que llama a las funciones originales
   const handleExportPDF = async (studentId: string, phase: 'first' | 'second' | 'third', keepDialogOpen: boolean = false, isBulkDownload: boolean = false) => {
@@ -775,91 +699,8 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
         }
       })
 
-      // Calcular posiciones por materia (solo para Fase III)
+      // Ranking por materia desactivado (menos lecturas). Reactivar con mejor lógica después.
       const subjectRanks: { [subjectName: string]: { position: number; totalStudents: number } } = {}
-      if (isPhase3) {
-        try {
-          const userResult = await getUserById(studentId)
-          if (userResult.success && userResult.data) {
-            const studentData = userResult.data as any
-            const institutionId = studentData.inst || studentData.institutionId
-            const campusId = studentData.campus || studentData.campusId
-            const gradeId = studentData.grade || studentData.gradeId
-
-            if (institutionId && campusId && gradeId) {
-              const studentsResult = await getFilteredStudents({
-                institutionId,
-                campusId,
-                gradeId,
-                isActive: true
-              })
-
-              if (studentsResult.success && studentsResult.data) {
-                const classmates = studentsResult.data
-                
-                for (const [subjectName] of Object.entries(subjectScores)) {
-                  const studentScores: { studentId: string; score: number }[] = []
-                  
-                  for (const classmate of classmates) {
-                    const classmateId = (classmate as any).id || (classmate as any).uid
-                    if (classmateId) {
-                      try {
-                        const classmateEvals = await getPhaseEvaluations(classmateId, phase)
-                        const classmateSubjectScores: { [key: string]: number } = {}
-                        
-                        classmateEvals.forEach(evalData => {
-                          const subject = normalizeSubjectName(evalData.subject || evalData.examTitle || '')
-                          if (subject === subjectName) {
-                            let percentage = 0
-                            if (evalData.score?.overallPercentage !== undefined) {
-                              percentage = evalData.score.overallPercentage
-                            } else if (evalData.score?.correctAnswers !== undefined && evalData.score?.totalQuestions !== undefined) {
-                              const total = evalData.score.totalQuestions
-                              const correct = evalData.score.correctAnswers
-                              percentage = total > 0 ? (correct / total) * 100 : 0
-                            } else if (evalData.questionDetails && evalData.questionDetails.length > 0) {
-                              const correct = evalData.questionDetails.filter((q: any) => q.isCorrect).length
-                              const total = evalData.questionDetails.length
-                              percentage = total > 0 ? (correct / total) * 100 : 0
-                            }
-                            
-                            if (!classmateSubjectScores[subject] || percentage > classmateSubjectScores[subject]) {
-                              classmateSubjectScores[subject] = percentage
-                            }
-                          }
-                        })
-                        
-                        if (classmateSubjectScores[subjectName]) {
-                          studentScores.push({ studentId: classmateId, score: classmateSubjectScores[subjectName] })
-                        }
-                      } catch (error) {
-                        // Continuar con el siguiente estudiante
-                      }
-                    }
-                  }
-                  
-                  studentScores.sort((a, b) => b.score - a.score)
-                  const currentStudentIndex = studentScores.findIndex(s => s.studentId === studentId)
-                  
-                  if (currentStudentIndex !== -1) {
-                    subjectRanks[subjectName] = {
-                      position: currentStudentIndex + 1,
-                      totalStudents: classmates.length
-                    }
-                  } else {
-                    subjectRanks[subjectName] = {
-                      position: 0,
-                      totalStudents: classmates.length
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          logger.error('Error calculando posiciones por materia:', error)
-        }
-      }
 
       // Ordenar materias
       const subjectOrder = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
@@ -924,58 +765,9 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
 
       const currentDate = new Date()
 
-      // Calcular puesto del estudiante
-      let pdfStudentRank: number | null = null
-      let pdfTotalStudents: number | null = null
-      
-      try {
-        const userResult = await getUserById(studentId)
-        if (userResult.success && userResult.data) {
-          const studentData = userResult.data as any
-          const institutionId = studentData.inst || studentData.institutionId
-          const campusId = studentData.campus || studentData.campusId
-          const gradeId = studentData.grade || studentData.gradeId
-
-          if (institutionId && campusId && gradeId) {
-            const studentsResult = await getFilteredStudents({
-              institutionId,
-              campusId,
-              gradeId,
-              isActive: true
-            })
-
-            if (studentsResult.success && studentsResult.data) {
-              const classmates = studentsResult.data
-              const studentScores: { studentId: string; score: number }[] = []
-              
-              for (const classmate of classmates) {
-                const classmateId = (classmate as any).id || (classmate as any).uid
-                if (classmateId) {
-                  try {
-                    const score = await calculateStudentGlobalScoreForPhase(classmateId, phase)
-                    if (score > 0) {
-                      studentScores.push({ studentId: classmateId, score })
-                    }
-                  } catch (error) {
-                    // Continuar con el siguiente estudiante
-                  }
-                }
-              }
-
-              studentScores.sort((a, b) => b.score - a.score)
-              const currentStudentIndex = studentScores.findIndex(s => s.studentId === studentId)
-              if (currentStudentIndex !== -1) {
-                pdfStudentRank = currentStudentIndex + 1
-                pdfTotalStudents = classmates.length
-              } else {
-                pdfTotalStudents = classmates.length
-              }
-            }
-          }
-        }
-      } catch (error) {
-        logger.error('Error calculando puesto para PDF:', error)
-      }
+      // Ranking global desactivado para reducir lecturas. Parámetros listos para reactivar con mejor lógica.
+      const pdfStudentRank: number | null = null
+      const pdfTotalStudents: number | null = null
 
       // Para Fase III, obtener datos de fases anteriores
       let phase1SubjectsData: Array<{ name: string; percentage: number }> | undefined = undefined

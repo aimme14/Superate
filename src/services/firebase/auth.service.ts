@@ -17,7 +17,7 @@ import {
   signOut,
   deleteUser,
   setPersistence,
-  browserSessionPersistence,
+  browserLocalPersistence,
   Auth,
   User,
 } from "firebase/auth"
@@ -31,8 +31,8 @@ class AuthService {
   static instance: AuthService;
   constructor() { 
     this.auth = getAuth(firebaseApp)
-    // Configurar persistencia de sesión: la sesión se cierra al cerrar la pestaña del navegador
-    setPersistence(this.auth, browserSessionPersistence).catch((error) => {
+    // Persistencia local: la sesión se mantiene al cerrar el navegador (menos lecturas al reabrir)
+    setPersistence(this.auth, browserLocalPersistence).catch((error) => {
       console.error('Error al configurar la persistencia de sesión:', error)
     })
   }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +17,6 @@ import {
   Activity,
   Server,
   ClipboardCheck,
-  Loader2,
   DollarSign,
   Info,
   RotateCcw,
@@ -28,9 +27,6 @@ import { useAdminStats } from '@/hooks/query/useAdminStats'
 import DailyUsageChart from '@/components/admin/DailyUsageChart'
 import MonthlyRevenueChart from '@/components/admin/MonthlyRevenueChart'
 import { useInstitutionUserCounts } from '@/hooks/query/useInstitutionUserCounts'
-import { useAdminAnalysis } from '@/hooks/query/useAdminAnalysis'
-import { useGradeAnalysis } from '@/hooks/query/useGradeAnalysis'
-import { useAllGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import { PRECIO_POR_ESTUDIANTE } from '@/utils/constants'
 
 interface AdminOverviewTabProps extends ThemeContextProps {}
@@ -42,10 +38,6 @@ export default function AdminOverviewTab({ theme }: AdminOverviewTabProps) {
   const currentYear = new Date().getFullYear()
   const [filterYear, setFilterYear] = useState<number>(currentYear)
   const [filterBudgetYear, setFilterBudgetYear] = useState<string | number>(currentYear)
-  const [filterRankingGrade, setFilterRankingGrade] = useState<string>('all')
-  const [filterRankingJornada, setFilterRankingJornada] = useState<string>('all')
-  const [filterRankingYear, setFilterRankingYear] = useState<number>(currentYear)
-
   const {
     totalUsers,
     totalInstitutions,
@@ -68,45 +60,9 @@ export default function AdminOverviewTab({ theme }: AdminOverviewTabProps) {
           : parseInt(filterBudgetYear.toString())
     )
 
-  const { data: rankingAnalysis } = useAdminAnalysis(
-    filterRankingJornada !== 'all' ? (filterRankingJornada as 'mañana' | 'tarde' | 'única') : undefined,
-    filterRankingYear
-  )
-  const { data: rankingGradeAnalysis, isLoading: isLoadingRankingGradeAnalysis } = useGradeAnalysis(
-    filterRankingGrade !== 'all' ? filterRankingGrade : '',
-    filterRankingGrade !== 'all',
-    filterRankingJornada !== 'all' ? (filterRankingJornada as 'mañana' | 'tarde' | 'única') : undefined,
-    filterRankingYear
-  )
-
-  const { options: gradeOptions } = useAllGradeOptions()
-  const uniqueGrades = useMemo(() => {
-    const gradeSet = new Set<string>()
-    gradeOptions.forEach((grade) => {
-      if (grade.label) gradeSet.add(grade.label)
-    })
-    return Array.from(gradeSet).sort()
-  }, [gradeOptions])
-
-  const rankingData = useMemo(() => {
-    if (filterRankingGrade !== 'all' && rankingGradeAnalysis) return rankingGradeAnalysis
-    return rankingAnalysis || []
-  }, [rankingAnalysis, filterRankingGrade, rankingGradeAnalysis])
-
   const totalBudgetStudents = budgetInstitutionUserCounts.reduce((sum, inst) => sum + inst.students, 0)
   const totalBudget = totalBudgetStudents * PRECIO_POR_ESTUDIANTE
   const precioFormatted = PRECIO_POR_ESTUDIANTE.toLocaleString('es-CO')
-
-  const hasRankingFilters =
-    filterRankingGrade !== 'all' ||
-    filterRankingJornada !== 'all' ||
-    filterRankingYear !== currentYear
-
-  const clearRankingFilters = () => {
-    setFilterRankingGrade('all')
-    setFilterRankingJornada('all')
-    setFilterRankingYear(currentYear)
-  }
 
   return (
     <div className="space-y-6">
@@ -343,126 +299,6 @@ export default function AdminOverviewTab({ theme }: AdminOverviewTabProps) {
         <MonthlyRevenueChart theme={theme} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Ranking de Instituciones */}
-          <Card className={cardBase(theme)}>
-            <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex-1 min-w-0">
-                  <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                    Ranking de Instituciones
-                  </CardTitle>
-                  <CardDescription>Ordenadas por puntaje de Fase III</CardDescription>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select value={filterRankingGrade} onValueChange={setFilterRankingGrade}>
-                    <SelectTrigger className={cn('w-full min-w-0 sm:w-[180px]', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Todos los grados" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los grados</SelectItem>
-                      {uniqueGrades.map((gradeName) => (
-                        <SelectItem key={gradeName} value={gradeName}>
-                          {gradeName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterRankingJornada} onValueChange={setFilterRankingJornada}>
-                    <SelectTrigger className={cn('w-full min-w-0 sm:w-[150px]', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Todas las jornadas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las jornadas</SelectItem>
-                      <SelectItem value="mañana">Mañana</SelectItem>
-                      <SelectItem value="tarde">Tarde</SelectItem>
-                      <SelectItem value="única">Única</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={filterRankingYear.toString()}
-                    onValueChange={(value) => setFilterRankingYear(parseInt(value))}
-                  >
-                    <SelectTrigger className={cn('w-full min-w-0 sm:w-[140px]', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Año" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => currentYear - i).map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {hasRankingFilters && (
-                    <Button variant="ghost" size="sm" onClick={clearRankingFilters}>
-                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                      Limpiar filtros
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                {isLoadingRankingGradeAnalysis && filterRankingGrade !== 'all' ? (
-                  <div className={cn('flex items-center justify-center py-8', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    <div className="text-center">
-                      <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-blue-500" />
-                      <p>Cargando datos del ranking...</p>
-                    </div>
-                  </div>
-                ) : rankingData.length === 0 ? (
-                  <p className={cn('py-8 text-center', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                    No hay datos disponibles para el ranking
-                  </p>
-                ) : (
-                  [...rankingData]
-                    .sort((a, b) => {
-                      const phase3A = a.phaseStats?.phase3?.average || 0
-                      const phase3B = b.phaseStats?.phase3?.average || 0
-                      return phase3B - phase3A
-                    })
-                    .map((inst, index) => {
-                      const phase3Score = inst.phaseStats?.phase3?.average || 0
-                      const totalExams =
-                        (inst as { totalExams?: number }).totalExams ??
-                        ((inst.phaseStats?.phase1?.count || 0) +
-                          (inst.phaseStats?.phase2?.count || 0) +
-                          (inst.phaseStats?.phase3?.count || 0))
-                      return (
-                        <div
-                          key={inst.institutionId}
-                          className={cn(
-                            'flex items-center justify-between rounded-lg border p-3',
-                            theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50'
-                          )}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <Badge variant="outline" className={cn('shrink-0', theme === 'dark' ? 'border-zinc-600' : '')}>
-                              #{index + 1}
-                            </Badge>
-                            <div className="min-w-0">
-                              <p className={cn('truncate font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                {inst.institutionName}
-                              </p>
-                              <p className={cn('text-xs', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                                {inst.totalStudents} estudiantes · {totalExams} exámenes
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className={cn('text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                              {Math.round(phase3Score)}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Usuarios por institución */}
           <Card className={cardBase(theme)}>
             <CardHeader>

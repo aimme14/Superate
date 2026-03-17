@@ -31,7 +31,6 @@ import UserManagement from '@/components/admin/UserManagement'
 import InstitutionManagement from '@/components/admin/InstitutionManagement'
 // AdminOverviewTab importado solo para restaurar después del mantenimiento
 // import AdminOverviewTab from '@/components/admin/AdminOverviewTab'
-import AdminAnalysis from '@/components/admin/AdminAnalysis'
 import RegistrationSettings from '@/components/admin/RegistrationSettings'
 import StudentPhaseReports from '@/components/admin/StudentPhaseReports'
 
@@ -283,16 +282,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               )}
             >
               <DropdownMenuItem
-                onClick={() => setActiveTab('analytics')}
-                className={cn(
-                  "cursor-pointer rounded-sm px-2 py-2",
-                  activeTab === 'analytics' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
-                )}
-              >
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Análisis
-              </DropdownMenuItem>
-              <DropdownMenuItem
                 onClick={() => setActiveTab('reports')}
                 className={cn(
                   "cursor-pointer rounded-sm px-2 py-2",
@@ -401,10 +390,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               <CardDescription>Contenido próximamente.</CardDescription>
             </CardHeader>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="analytics">
-          <AdminAnalysis theme={theme} />
         </TabsContent>
 
         <TabsContent value="reports">

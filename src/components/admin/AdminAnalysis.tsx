@@ -23,7 +23,7 @@ import {
   CheckCircle2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAdminAnalysis, useStudentAnalysis, useStudentsRanking } from '@/hooks/query/useAdminAnalysis'
+import { useAdminAnalysis, useStudentAnalysis } from '@/hooks/query/useAdminAnalysis'
 import { useFilteredStudents } from '@/hooks/query/useStudentQuery'
 import { useAdminStats } from '@/hooks/query/useAdminStats'
 import { useInstitutions } from '@/hooks/query/useInstitutionQuery'
@@ -287,43 +287,12 @@ function GlobalAnalysisTab({
   setFilterYear: (value: number) => void
   currentYear: number
 }) {
-  // Estados para filtros del ranking (independientes)
-  const [filterRankingGrade, setFilterRankingGrade] = useState<string>('all')
-  const [filterRankingJornada, setFilterRankingJornada] = useState<string>('all')
-  const [filterRankingYear, setFilterRankingYear] = useState<number>(currentYear)
-  const [filterRankingPhase, setFilterRankingPhase] = useState<string>('third')
-  
-  // Estados para filtros del ranking de estudiantes
-  const [filterStudentRankingJornada, setFilterStudentRankingJornada] = useState<string>('all')
-  const [filterStudentRankingYear, setFilterStudentRankingYear] = useState<number>(currentYear)
-  const [filterStudentRankingPhase, setFilterStudentRankingPhase] = useState<string>('third')
-
   // Obtener datos por grado si se selecciona un grado específico (para el gráfico)
   const { data: gradeAnalysis, isLoading: isLoadingGradeAnalysis } = useGradeAnalysis(
     filterGrade !== 'all' ? filterGrade : '',
     filterGrade !== 'all',
     filterJornada !== 'all' ? filterJornada as 'mañana' | 'tarde' | 'única' : undefined,
     filterYear
-  )
-
-  // Obtener datos para el ranking (con sus propios filtros)
-  const { data: rankingAnalysis } = useAdminAnalysis(
-    filterRankingJornada !== 'all' ? filterRankingJornada as 'mañana' | 'tarde' | 'única' : undefined,
-    filterRankingYear
-  )
-  
-  const { data: rankingGradeAnalysis, isLoading: isLoadingRankingGradeAnalysis } = useGradeAnalysis(
-    filterRankingGrade !== 'all' ? filterRankingGrade : '',
-    filterRankingGrade !== 'all',
-    filterRankingJornada !== 'all' ? filterRankingJornada as 'mañana' | 'tarde' | 'única' : undefined,
-    filterRankingYear
-  )
-  
-  // Obtener datos del ranking de estudiantes
-  const { data: studentsRanking, isLoading: isLoadingStudentsRanking } = useStudentsRanking(
-    filterStudentRankingJornada !== 'all' ? filterStudentRankingJornada as 'mañana' | 'tarde' | 'única' : undefined,
-    filterStudentRankingYear,
-    filterStudentRankingPhase !== 'all' ? filterStudentRankingPhase as 'first' | 'second' | 'third' : 'all'
   )
 
   // Crear un mapa de análisis por institución para búsqueda rápida
@@ -509,17 +478,6 @@ function GlobalAnalysisTab({
 
 
 
-  // Datos para el ranking: usar datos filtrados según filtros del ranking
-  const rankingData = useMemo(() => {
-    // Si hay un filtro de grado activo en el ranking, usar los datos del análisis por grado
-    if (filterRankingGrade !== 'all' && rankingGradeAnalysis) {
-      return rankingGradeAnalysis
-    }
-    
-    // Si no hay filtro de grado, usar datos generales
-    return rankingAnalysis || []
-  }, [rankingAnalysis, filterRankingGrade, rankingGradeAnalysis])
-
   return (
     <div className="space-y-6">
       {/* Gráfico de barras apiladas: Promedio por institución y fases */}
@@ -700,274 +658,6 @@ function GlobalAnalysisTab({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Ranking de Estudiantes */}
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  Ranking de Estudiantes
-                </CardTitle>
-                <CardDescription>
-                  Mejor estudiante por institución
-                  {filterStudentRankingPhase === 'first' ? ' (Fase I)' :
-                   filterStudentRankingPhase === 'second' ? ' (Fase II)' :
-                   filterStudentRankingPhase === 'third' ? ' (Fase III)' :
-                   ' (Todas las Fases)'}
-                </CardDescription>
-              </div>
-              <div className="ml-4 flex gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Fase
-                  </label>
-                  <Select value={filterStudentRankingPhase} onValueChange={setFilterStudentRankingPhase}>
-                    <SelectTrigger className={cn("w-[130px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Fase" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las Fases</SelectItem>
-                      <SelectItem value="first">Fase I</SelectItem>
-                      <SelectItem value="second">Fase II</SelectItem>
-                      <SelectItem value="third">Fase III</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Jornada
-                  </label>
-                  <Select value={filterStudentRankingJornada} onValueChange={setFilterStudentRankingJornada}>
-                    <SelectTrigger className={cn("w-[150px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Todas las jornadas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las jornadas</SelectItem>
-                      <SelectItem value="mañana">Mañana</SelectItem>
-                      <SelectItem value="tarde">Tarde</SelectItem>
-                      <SelectItem value="única">Única</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Año
-                  </label>
-                  <Select value={filterStudentRankingYear.toString()} onValueChange={(value) => setFilterStudentRankingYear(parseInt(value))}>
-                    <SelectTrigger className={cn("w-[140px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Año" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => currentYear - i).map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto">
-              {isLoadingStudentsRanking ? (
-                <div className={cn("flex items-center justify-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  <div className="text-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-500 mx-auto mb-2" />
-                    <p>Cargando datos del ranking...</p>
-                  </div>
-                </div>
-              ) : !studentsRanking || studentsRanking.length === 0 ? (
-                <p className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  No hay datos disponibles para el ranking
-                </p>
-              ) : (
-                studentsRanking.map((student, index) => (
-                  <div
-                    key={student.studentId}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border",
-                      theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50'
-                    )}
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <Badge variant="outline" className={cn(
-                        theme === 'dark' ? 'border-zinc-600' : ''
-                      )}>
-                        #{index + 1}
-                      </Badge>
-                      <div className="flex-1">
-                        <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                          {student.studentName}
-                        </p>
-                        <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                          {[
-                            student.institutionName,
-                            student.campusName,
-                            student.gradeName,
-                            student.jornada
-                          ].filter(Boolean).join(' · ')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={cn("font-bold text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                        {Math.round(student.score)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tabla de instituciones */}
-        <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                  Ranking de Instituciones
-                </CardTitle>
-                <CardDescription>
-                   {filterRankingPhase === 'first' ? '' : filterRankingPhase === 'second' ? '' : filterRankingPhase === 'third' ? '' : ''}
-                </CardDescription>
-              </div>
-              <div className="ml-4 flex gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Grado
-                  </label>
-                  <Select value={filterRankingGrade} onValueChange={setFilterRankingGrade}>
-                    <SelectTrigger className={cn("w-[180px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Todos los grados" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los grados</SelectItem>
-                      {uniqueGrades.map((gradeName) => (
-                        <SelectItem key={gradeName} value={gradeName}>
-                          {gradeName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Fase
-                  </label>
-                  <Select value={filterRankingPhase} onValueChange={setFilterRankingPhase}>
-                    <SelectTrigger className={cn("w-[130px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Fase" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las Fases</SelectItem>
-                      <SelectItem value="first">Fase I</SelectItem>
-                      <SelectItem value="second">Fase II</SelectItem>
-                      <SelectItem value="third">Fase III</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Jornada
-                  </label>
-                  <Select value={filterRankingJornada} onValueChange={setFilterRankingJornada}>
-                    <SelectTrigger className={cn("w-[150px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Todas las jornadas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las jornadas</SelectItem>
-                      <SelectItem value="mañana">Mañana</SelectItem>
-                      <SelectItem value="tarde">Tarde</SelectItem>
-                      <SelectItem value="única">Única</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                    Año
-                  </label>
-                  <Select value={filterRankingYear.toString()} onValueChange={(value) => setFilterRankingYear(parseInt(value))}>
-                    <SelectTrigger className={cn("w-[140px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-                      <SelectValue placeholder="Año" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => currentYear - i).map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto">
-              {isLoadingRankingGradeAnalysis && filterRankingGrade !== 'all' ? (
-                <div className={cn("flex items-center justify-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  <div className="text-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-500 mx-auto mb-2" />
-                    <p>Cargando datos del ranking...</p>
-                  </div>
-                </div>
-              ) : rankingData.length === 0 ? (
-                <p className={cn("text-center py-8", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                  No hay datos disponibles para el ranking
-                </p>
-              ) : (
-                rankingData
-                  .sort((a, b) => {
-                    const phaseKey = filterRankingPhase === 'first' ? 'phase1' : filterRankingPhase === 'second' ? 'phase2' : filterRankingPhase === 'third' ? 'phase3' : 'phase3'
-                    const phaseA = a.phaseStats?.[phaseKey]?.average || 0
-                    const phaseB = b.phaseStats?.[phaseKey]?.average || 0
-                    return phaseB - phaseA
-                  })
-                  .map((inst, index) => {
-                    const phaseKey = filterRankingPhase === 'first' ? 'phase1' : filterRankingPhase === 'second' ? 'phase2' : filterRankingPhase === 'third' ? 'phase3' : 'phase3'
-                    const phaseScore = inst.phaseStats?.[phaseKey]?.average || 0
-                    const phaseExams = inst.phaseStats?.[phaseKey]?.count || 0
-                    return (
-                      <div
-                        key={inst.institutionId}
-                        className={cn(
-                          "flex items-center justify-between p-3 rounded-lg border",
-                          theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50' : 'border-gray-200 bg-gray-50'
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className={cn(
-                            theme === 'dark' ? 'border-zinc-600' : ''
-                          )}>
-                            #{index + 1}
-                          </Badge>
-                          <div>
-                            <p className={cn("font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                              {inst.institutionName}
-                            </p>
-                            <p className={cn("text-xs", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                              {inst.totalStudents} estudiantes · {phaseExams} exámenes
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={cn("font-bold text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                            {Math.round(phaseScore)}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   )
 }
