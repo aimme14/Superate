@@ -4,6 +4,8 @@ import { useAuthContext } from "@/context/AuthContext"
 import { Navigate, Outlet, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { useNotification } from "@/hooks/ui/useNotification"
+import { getUserById } from "@/controllers/user.controller"
+import { dbService } from "@/services/firebase/db.service"
 
 function ProtectedRoute() {
   const [showSkeleton, setShowSkeleton] = useState(true)
@@ -24,7 +26,6 @@ function ProtectedRoute() {
     const validateUserStatus = async () => {
       if (!loading && isAuth && user?.uid) {
         try {
-          const { getUserById } = await import('@/controllers/user.controller')
           const userResult = await getUserById(user.uid)
           
           if (userResult.success && userResult.data) {
@@ -43,7 +44,6 @@ function ProtectedRoute() {
             
             // Verificar institución si existe
             if (userData.institutionId || userData.inst) {
-              const { dbService } = await import('@/services/firebase/db.service')
               const institutionId = userData.institutionId || userData.inst
               const institutionResult = await dbService.getInstitutionById(institutionId)
               

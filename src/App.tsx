@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 
-import { Home as NewDashboard } from "@/pages/dashboard/NewDashboard";
 import ProtectedRoute from "@/layouts/ProtectedRoute";
 import { useAuthContext } from "@/context/AuthContext";
 import { STUDENT_HOME } from "@/constants/routes";
@@ -38,6 +37,7 @@ const TeacherDashboard = lazy(() => import("@/pages/dashboard/teacher/TeacherDas
 const PrincipalDashboard = lazy(() => import("@/pages/dashboard/principal/PrincipalDashboard"));
 const RectorDashboard = lazy(() => import("@/pages/dashboard/rector/RectorDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/dashboard/admin/AdminDashboard"));
+const NewDashboard = lazy(() => import("@/pages/dashboard/NewDashboard").then(m => ({ default: m.Home })));
 
 /** Redirige a la ruta home única si el usuario está autenticado; si no, muestra el dashboard público. */
 function NewDashboardOrRedirect() {

@@ -1,6 +1,7 @@
 import { useAuthContext } from "@/context/AuthContext"
 import { UserRole } from "@/interfaces/context.interface"
-
+import { getUserById } from "@/controllers/user.controller"
+import { dbService } from "@/services/firebase/db.service"
 import { useEffect, useState } from 'react'
 
 /**
@@ -23,7 +24,6 @@ export const useRole = () => {
       }
 
       try {
-        const { getUserById } = await import('@/controllers/user.controller')
         const userResult = await getUserById(user.uid)
         
         if (userResult.success && userResult.data) {
@@ -33,7 +33,6 @@ export const useRole = () => {
           
           // Verificar institución si existe
           if (userData.institutionId || userData.inst) {
-            const { dbService } = await import('@/services/firebase/db.service')
             const institutionId = userData.institutionId || userData.inst
             const institutionResult = await dbService.getInstitutionById(institutionId)
             

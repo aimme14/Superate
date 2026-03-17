@@ -1,5 +1,6 @@
 import { login as loginFB, logout as logoutFB, register, forgotPassword } from "@/controllers/auth.controller"
 import { getUsers, getUserById, updateUser, deleteUser } from "@/controllers/user.controller"
+import { dbService } from "@/services/firebase/db.service"
 import { useNotification } from "@/hooks/ui/useNotification"
 import { Props } from "@/interfaces/props.interface"
 import { useLoading } from "@/hooks/ui/useLoading"
@@ -244,7 +245,6 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       }
 
       if (userData.institutionId || userData.inst) {
-        const { dbService } = await import('@/services/firebase/db.service')
         const institutionId = userData.institutionId || userData.inst
         const institutionResult = await dbService.getInstitutionById(institutionId)
         if (institutionResult.success && institutionResult.data) {

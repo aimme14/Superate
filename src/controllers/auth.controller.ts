@@ -2,6 +2,7 @@
 import { authService as authFB } from "@/services/firebase/auth.service"
 import { success, failure, Result } from "@/interfaces/db.interface"
 import { dbService } from "@/services/firebase/db.service"
+import { getRegistrationConfig } from "@/controllers/admin.controller"
 import { RegisterFormProps } from "@/schemas/auth.schema"
 import ErrorAPI, { Unauthorized } from "@/errors/index"
 import { normalizeError } from "@/errors/handler"
@@ -189,7 +190,6 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     const { role, userdoc, email, grade, inst, campus, username, representativePhone, academicYear, jornada } = user
     
     // Verificar que el registro esté habilitado
-    const { getRegistrationConfig } = await import('./admin.controller')
     const registrationConfigResult = await getRegistrationConfig()
     if (!registrationConfigResult.success) {
       return failure(new ErrorAPI({ 

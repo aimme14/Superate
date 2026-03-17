@@ -9,7 +9,7 @@ import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { getFirestore, doc, getDoc, collection, getDocs } from "firebase/firestore";
-import { firebaseApp } from "@/services/firebase/db.service";
+import { firebaseApp, dbService } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
@@ -192,7 +192,6 @@ const ExamWithFirebase = () => {
         }
         
         // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
-        const { dbService } = await import('@/services/firebase/db.service');
         const userResult = await dbService.getUserById(userId);
         if (userResult.success && userResult.data) {
           const studentData = userResult.data;

@@ -1,9 +1,10 @@
-import InnovativeHero from "../inovativeGero"
+import { lazy, Suspense, useEffect } from "react"
 import { motion } from "framer-motion"
 import { AlertCircle } from "lucide-react"
-import Prueba from "../prueba"
-import Intento from "../Intento"
-import { useEffect } from "react"
+
+const InnovativeHero = lazy(() => import("../inovativeGero"))
+const Prueba = lazy(() => import("../prueba"))
+const Intento = lazy(() => import("../Intento"))
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
@@ -52,7 +53,9 @@ export function Home() {
       <main className="flex-grow">
         {/* Banner de Práctica */}
         <section>
-          <InnovativeHero />
+          <Suspense fallback={null}>
+            <InnovativeHero />
+          </Suspense>
         </section>
 
         {/* Alert Section Mejorado */}
@@ -91,8 +94,10 @@ export function Home() {
               <p className={cn("text-xl max-w-3xl mx-auto", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                 Selecciona un módulo para comenzar tu evaluación.
               </p>
-              <Intento />
-              <Prueba />
+              <Suspense fallback={null}>
+                <Intento />
+                <Prueba />
+              </Suspense>
             </motion.div>
           </div>
         </section>

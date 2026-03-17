@@ -889,11 +889,6 @@ export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', yea
           for (const studentId of studentIds) {
             for (const phaseName of phasesToProcess) {
               try {
-                const { collection, getDocs } = await import('firebase/firestore')
-                const { getFirestore } = await import('firebase/firestore')
-                const { firebaseApp } = await import('@/services/firebase/db.service')
-                const db = getFirestore(firebaseApp)
-                
                 const phaseRef = collection(db, 'results', studentId, phaseName)
                 const phaseSnap = await getDocs(phaseRef)
                 
