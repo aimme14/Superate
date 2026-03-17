@@ -37,7 +37,6 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import { DASHBOARD_RECTOR_CACHE } from '@/config/dashboardRectorCache'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
-import { getFilteredStudents } from '@/controllers/student.controller'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, Legend } from 'recharts'
 import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
 import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
@@ -1318,28 +1317,6 @@ async function buildRankingFromStudents(
     return b.globalScore - a.globalScore
   })
   return ranking
-}
-
-/** Obtiene el ranking de estudiantes (usa getFilteredStudents; para admin/otros). */
-async function fetchStudentsRanking(
-  institutionId: string,
-  filters: RankingFilters
-): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
-  try {
-    const apiFilters: any = { institutionId, isActive: true }
-    if (filters.jornada && filters.jornada !== 'todas') apiFilters.jornada = filters.jornada
-    if (filters.gradeId && filters.gradeId !== 'todos') apiFilters.gradeId = filters.gradeId
-    const studentsResult = await getFilteredStudents(apiFilters)
-    if (!studentsResult.success || !studentsResult.data) return []
-    let students = studentsResult.data
-    if (filters.year) {
-      students = students.filter((s: any) => getStudentYear(s) === filters.year)
-    }
-    return buildRankingFromStudents(students, filters)
-  } catch (error) {
-    console.error('Error al obtener ranking de estudiantes:', error)
-    return []
-  }
 }
 
 // Componente de Ranking de Estudiantes (usa institutionStudents de la única fuente)
