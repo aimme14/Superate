@@ -27,14 +27,17 @@ import {
   Construction,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import UserManagement from '@/components/admin/UserManagement'
-import InstitutionManagement from '@/components/admin/InstitutionManagement'
+
 // AdminOverviewTab importado solo para restaurar después del mantenimiento
 // import AdminOverviewTab from '@/components/admin/AdminOverviewTab'
-import RegistrationSettings from '@/components/admin/RegistrationSettings'
-import StudentPhaseReports from '@/components/admin/StudentPhaseReports'
 
-// Lazy: cargar solo al abrir cada tab de Estudio
+// Lazy por costo: evita montajes/lecturas hasta que el usuario entre al tab
+const UserManagement = lazy(() => import('@/components/admin/UserManagement'))
+const InstitutionManagement = lazy(() => import('@/components/admin/InstitutionManagement'))
+const StudentPhaseReports = lazy(() => import('@/components/admin/StudentPhaseReports'))
+const RegistrationSettings = lazy(() => import('@/components/admin/RegistrationSettings'))
+
+// Lazy: cargar solo al abrir cada tab
 const QuestionBank = lazy(() => import('@/components/admin/QuestionBank'))
 const PhaseAuthorizationManagement = lazy(() => import('@/components/admin/PhaseAuthorizationManagement'))
 const StudyPlanAuthorizationManagement = lazy(() => import('@/components/admin/StudyPlanAuthorizationManagement'))
@@ -316,11 +319,27 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
         </TabsContent>
 
         <TabsContent value="users">
-          <UserManagement theme={theme} />
+          {activeTab === 'users' ? (
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            }>
+              <UserManagement theme={theme} />
+            </Suspense>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="institutions">
-          <InstitutionManagement theme={theme} />
+          {activeTab === 'institutions' ? (
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            }>
+              <InstitutionManagement theme={theme} />
+            </Suspense>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="questions">
@@ -393,11 +412,27 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
         </TabsContent>
 
         <TabsContent value="reports">
-          <StudentPhaseReports theme={theme} />
+          {activeTab === 'reports' ? (
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            }>
+              <StudentPhaseReports theme={theme} />
+            </Suspense>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6">
-          <RegistrationSettings theme={theme} />
+          {activeTab === 'settings' ? (
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            }>
+              <RegistrationSettings theme={theme} />
+            </Suspense>
+          ) : null}
         </TabsContent>
       </Tabs>
     </div>
