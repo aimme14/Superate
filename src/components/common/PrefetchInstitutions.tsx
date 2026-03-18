@@ -24,7 +24,7 @@ export function PrefetchInstitutions() {
         if (result.success) return result.data
         throw new Error(result.error.message)
       },
-      staleTime: 15 * 60 * 1000,
+      staleTime: 24 * 60 * 60 * 1000,
     })
   }, [user?.uid, user?.role, queryClient])
 

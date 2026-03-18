@@ -40,7 +40,10 @@ export const useInstitutions = () => {
       }
       throw new Error(result.error.message)
     },
-    staleTime: 15 * 60 * 1000, // 15 min (datos de referencia, persistidos; menos refetch)
+    staleTime: 24 * 60 * 60 * 1000, // 24h: reduce lecturas al navegar/entrar
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
 }
 
@@ -56,7 +59,10 @@ export const useInstitution = (id: string, enabled: boolean = true) => {
       throw new Error(result.error.message)
     },
     enabled: enabled && !!id,
-    staleTime: 5 * 60 * 1000, // 5 min - institución cambia poco, evita refetch al navegar
+    staleTime: 24 * 60 * 60 * 1000, // 24h: reduce lecturas al navegar/entrar
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
     gcTime: 10 * 60 * 1000, // 10 min en memoria
   })
 }

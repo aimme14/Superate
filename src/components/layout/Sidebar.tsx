@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { ChevronDown } from 'lucide-react'
 import { links } from '@/utils/constants'
+import { prefetchChunkForSidebarHref } from '@/utils/prefetchChunks'
 import { cn } from '@/lib/utils'
 import { useThemeContext } from '@/context/ThemeContext'
 import { useAuthContext } from '@/context/AuthContext'
@@ -82,7 +83,10 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
       <CollapsibleTrigger asChild>
         <div
           className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]"
-          onMouseEnter={isDashboard ? prefetchDashboardData : undefined}
+          onMouseEnter={() => {
+            prefetchChunkForSidebarHref(item.href as string)
+            if (isDashboard) prefetchDashboardData()
+          }}
         >
           <SidebarMenuButton 
             asChild 
@@ -146,7 +150,10 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
     <SidebarMenuSubItem>
       <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
         <CollapsibleTrigger asChild>
-          <div className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]">
+          <div
+            className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]"
+            onMouseEnter={() => prefetchChunkForSidebarHref(item.href as string)}
+          >
             <SidebarMenuSubButton 
               asChild 
               isActive={isActive}

@@ -4,7 +4,8 @@ import { getUserById } from '@/controllers/user.controller'
 /** Clave de caché compartida con AuthContext para el usuario actual */
 export const currentUserQueryKey = (uid: string) => ['currentUser', uid] as const
 
-const STALE_TIME_MS = 10 * 60 * 1000 // 10 min (persistido en localStorage; revalidar en background)
+// 24h: reduce al máximo lecturas por navegación/recuperación de caché.
+const STALE_TIME_MS = 24 * 60 * 60 * 1000
 
 /**
  * Hook para obtener los datos del usuario actual desde Firestore.
@@ -21,5 +22,9 @@ export function useCurrentUser(uid: string | undefined) {
     },
     enabled: Boolean(uid),
     staleTime: STALE_TIME_MS,
+    // Para reducir lecturas: si hay data persistida, no revalidar automáticamente.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
 }

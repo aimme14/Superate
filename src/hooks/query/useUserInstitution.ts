@@ -1,7 +1,6 @@
 import { useAuthContext } from "@/context/AuthContext"
-import { useQuery } from "@tanstack/react-query"
-import { getUserById } from "@/controllers/user.controller"
 import { useInstitution } from "./useInstitutionQuery"
+import { useCurrentUser } from "./useCurrentUser"
 import { useEffect, useState } from "react"
 
 /**
@@ -12,20 +11,10 @@ export const useUserInstitution = () => {
   const { user } = useAuthContext()
   const [institutionId, setInstitutionId] = useState<string | null>(null)
 
-  // Obtener los datos completos del usuario para acceder al institutionId
-  const { data: userData, isLoading: isLoadingUser } = useQuery({
-    queryKey: ['user', user?.uid],
-    queryFn: async () => {
-      if (!user?.uid) return null
-      const result = await getUserById(user.uid)
-      if (result.success) {
-        return result.data
-      }
-      return null
-    },
-    enabled: !!user?.uid,
-    staleTime: 5 * 60 * 1000, // 5 min - usuario cambia poco, evita refetch al navegar
-  })
+  // Reutiliza el query persistido de AuthContext:
+  // - evita una lectura duplicada ('user' vs 'currentUser')
+  // - reduce lecturas al recargar gracias a persistencia en localStorage.
+  const { data: userData, isLoading: isLoadingUser } = useCurrentUser(user?.uid)
 
   // Extraer el institutionId del usuario
   useEffect(() => {

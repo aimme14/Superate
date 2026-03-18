@@ -11,7 +11,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavRutaPreparacionDropdown } from "./NavRutaPreparacionDropdown";
-import { prefetchResultados, prefetchPromedio } from "@/utils/prefetchChunks";
+import {
+  prefetchResultados,
+  prefetchPromedio,
+  prefetchInformacion,
+  prefetchDashboardAndQuiz,
+  prefetchRutaAcademica,
+  prefetchPlanEstudioIA,
+  prefetchSimulacrosIA,
+  prefetchSimulacrosICFES,
+} from "@/utils/prefetchChunks";
 import {
   scheduleRutaPreparacionPrefetch,
   DEFAULT_GRADE_RUTA_PREPARACION,
@@ -125,6 +134,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
       href: "/informacionPage",
       icon: <ContactRound />,
       text: "Información del estudiante",
+      onPrefetch: () => prefetchInformacion(),
     },
     {
       href: "/resultados",
@@ -209,6 +219,10 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
         <NavRutaPreparacionDropdown
           theme={theme}
           onPrefetch={() => {
+            prefetchRutaAcademica();
+            prefetchPlanEstudioIA();
+            prefetchSimulacrosIA();
+            prefetchSimulacrosICFES();
             runRutaPreparacionPrefetch(queryClient, {
               grade: DEFAULT_GRADE_RUTA_PREPARACION,
             });
@@ -220,6 +234,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
           text="Presentar prueba"
           active={pathname === "/dashboard"}
           theme={theme}
+          onPrefetch={() => prefetchDashboardAndQuiz()}
         />
       </nav>
 
@@ -256,6 +271,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
                   key={item.href}
                   to={item.href}
                   className={mobileLinkClass(isActive(item.href))}
+                  onPointerEnter={() => item.onPrefetch?.()}
                   onClick={closeMobile}
                 >
                   {item.icon}
@@ -278,6 +294,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
                   key={item.href}
                   to={item.href}
                   className={mobileLinkClass(isActive(item.href))}
+                  onPointerEnter={() => item.onPrefetch?.()}
                   onClick={closeMobile}
                 >
                   {item.icon}
@@ -292,6 +309,12 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
                     pathname === "/simulacros-ia" ||
                     pathname === "/simulacros-icfes"
                 )}
+                onPointerEnter={() => {
+                  prefetchRutaAcademica();
+                  prefetchPlanEstudioIA();
+                  prefetchSimulacrosIA();
+                  prefetchSimulacrosICFES();
+                }}
                 onClick={() => {
                   runRutaPreparacionPrefetch(queryClient, { grade: DEFAULT_GRADE_RUTA_PREPARACION });
                   closeMobile();
@@ -303,6 +326,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
               <Link
                 to="/dashboard#evaluacion"
                 className={mobileLinkClass(pathname === "/dashboard")}
+                onPointerEnter={() => prefetchDashboardAndQuiz()}
                 onClick={closeMobile}
               >
                 <BookOpen className="w-5 h-5" />
