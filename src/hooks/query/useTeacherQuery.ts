@@ -216,7 +216,23 @@ export const useFilteredTeachers = (filters: {
   campusId?: string
   isActive?: boolean
 }) => {
-  const { data: teachers, isLoading, error } = useTeachers()
+  const hasInstitution = !!filters.institutionId
+
+  const {
+    data: teachersAll,
+    isLoading: teachersAllLoading,
+    error: teachersAllError,
+  } = useTeachers()
+
+  const {
+    data: teachersByInstitution,
+    isLoading: teachersByInstitutionLoading,
+    error: teachersByInstitutionError,
+  } = useTeachersByInstitution(filters.institutionId || '', hasInstitution)
+
+  const teachers = hasInstitution ? teachersByInstitution : teachersAll
+  const isLoading = hasInstitution ? teachersByInstitutionLoading : teachersAllLoading
+  const error = hasInstitution ? teachersByInstitutionError : teachersAllError
 
   const filteredTeachers = teachers?.filter((teacher: any) => {
     // Validar búsqueda por texto

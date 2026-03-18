@@ -338,6 +338,73 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
 export const getRectorByUserId = async (userId: string): Promise<Result<any>> => {
   try {
     if (!userId) return failure(new ErrorAPI({ message: 'userId es requerido', statusCode: 400 }))
+
+    // 1) Intento con nueva estructura jerárquica:
+    //    - superate/auth/institutions/{institutionId}/rectores/{rectorId}
+    //    - además el documento suele traer institutionId/inst embebidos
+    const rectorFromNewStructureResult = await dbService.getUserByIdFromNewStructure(userId)
+    if (rectorFromNewStructureResult.success) {
+      const rector = rectorFromNewStructureResult.data
+      const role = rector.role
+
+      // Si el usuario encontrado no es rector, asumimos que no aplica a este endpoint.
+      if (role && role !== 'rector') {
+        return failure(new ErrorAPI({ message: 'Rector no encontrado para el usuario', statusCode: 404 }))
+      }
+
+      const rectorId = rector.uid || rector.id || userId
+      const institutionId = rector.institutionId || rector.inst
+
+      // Si no tenemos institutionId, retornamos datos parciales.
+      if (!institutionId) {
+        return success({
+          ...rector,
+          id: rectorId,
+          uid: rectorId,
+        })
+      }
+
+      const institutionResult = await dbService.getInstitutionById(institutionId)
+      if (!institutionResult.success) return failure(institutionResult.error)
+
+      const institution = institutionResult.data
+
+      let campusCount = 0
+      let principalCount = 0
+      let teacherCount = 0
+      let studentCount = 0
+
+      if (institution.campuses && Array.isArray(institution.campuses)) {
+        campusCount = institution.campuses.length
+        institution.campuses.forEach((campus: any) => {
+          if (campus.principal) principalCount++
+          if (campus.grades && Array.isArray(campus.grades)) {
+            campus.grades.forEach((grade: any) => {
+              if (grade.teachers?.length) teacherCount += grade.teachers.length
+              if (grade.students?.length) studentCount += grade.students.length
+            })
+          }
+        })
+      }
+
+      const rectorData = {
+        ...rector,
+        id: rectorId,
+        uid: rectorId,
+        institutionId: institution.id,
+        inst: institution.id, // compatibilidad retro
+        institutionName: institution.name,
+        campusCount,
+        principalCount,
+        teacherCount,
+        studentCount: rector.studentCount ?? studentCount,
+      }
+
+      return success(rectorData)
+    }
+
+    // 2) Fallback compatible con estructura anterior:
+    //    - instituciones/{institutionId}.rector (embebido)
     const institutionsResult = await dbService.getAllInstitutions()
     if (!institutionsResult.success) return failure(institutionsResult.error)
 
@@ -369,6 +436,7 @@ export const getRectorByUserId = async (userId: string): Promise<Result<any>> =>
         id: rectorId,
         uid: rectorId,
         institutionId: institution.id,
+        inst: institution.id, // compatibilidad retro
         institutionName: institution.name,
         campusCount,
         principalCount,

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { 
-  getAllPrincipals, 
+  getAllPrincipals,
+  getPrincipalsByInstitution,
   createPrincipal, 
   updatePrincipal, 
   deletePrincipal,
@@ -15,6 +16,7 @@ export const principalKeys = {
   list: (filters: string) => [...principalKeys.lists(), { filters }] as const,
   details: () => [...principalKeys.all, 'detail'] as const,
   detail: (id: string) => [...principalKeys.details(), id] as const,
+  byInstitution: (institutionId: string) => [...principalKeys.all, 'institution', institutionId] as const,
 }
 
 // Hook para obtener todos los rectores
@@ -28,6 +30,22 @@ export const usePrincipals = () => {
       }
       throw new Error(result.error.message)
     },
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  })
+}
+
+// Hook para obtener coordinadores por institución (evita lecturas globales)
+export const usePrincipalsByInstitution = (institutionId: string, enabled: boolean = true) => {
+  return useQuery({
+    queryKey: principalKeys.byInstitution(institutionId),
+    queryFn: async () => {
+      const result = await getPrincipalsByInstitution(institutionId)
+      if (result.success) {
+        return result.data
+      }
+      throw new Error(result.error.message)
+    },
+    enabled: enabled && !!institutionId,
     staleTime: 5 * 60 * 1000, // 5 minutos
   })
 }
@@ -78,7 +96,24 @@ export const useFilteredPrincipals = (filters: {
   institutionId?: string
   isActive?: boolean
 }) => {
-  const { data: principals, isLoading, error } = usePrincipals()
+  const hasInstitution = !!filters.institutionId
+
+  // No se puede condicionar la llamada a hooks: consultamos ambos con `enabled`.
+  const {
+    data: principalsAll,
+    isLoading: principalsAllLoading,
+    error: principalsAllError
+  } = usePrincipals()
+
+  const {
+    data: principalsByInstitution,
+    isLoading: principalsByInstitutionLoading,
+    error: principalsByInstitutionError
+  } = usePrincipalsByInstitution(filters.institutionId || '', hasInstitution)
+
+  const principals = hasInstitution ? principalsByInstitution : principalsAll
+  const isLoading = hasInstitution ? principalsByInstitutionLoading : principalsAllLoading
+  const error = hasInstitution ? principalsByInstitutionError : principalsAllError
 
   const filteredPrincipals = principals?.filter(principal => {
     // Validar búsqueda por texto

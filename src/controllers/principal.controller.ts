@@ -161,6 +161,62 @@ export const getAllPrincipals = async (): Promise<Result<any[]>> => {
   }
 }
 
+/**
+ * Obtiene coordinadores (principals) de una institución específica usando la nueva estructura jerárquica.
+ * Esto evita lecturas globales sobre todas las instituciones.
+ */
+export const getPrincipalsByInstitution = async (institutionId: string): Promise<Result<any[]>> => {
+  try {
+    if (!institutionId) return failure(new ErrorAPI({ message: 'institutionId es requerido', statusCode: 400 }))
+
+    const institutionResult = await dbService.getInstitutionById(institutionId)
+    if (!institutionResult.success) return failure(institutionResult.error)
+    const institution = institutionResult.data
+
+    const principalsResult = await dbService.getUsersByInstitutionFromNewStructure(institutionId, 'principal')
+    if (!principalsResult.success) return failure(principalsResult.error)
+
+    const campusStudentCount = (campus: any): number => {
+      let count = 0
+      if (!campus?.grades || !Array.isArray(campus.grades)) return count
+      campus.grades.forEach((grade: any) => {
+        if (grade.students && Array.isArray(grade.students)) count += grade.students.length
+      })
+      return count
+    }
+
+    const principals = principalsResult.data.map((principal: any) => {
+      const campusId = principal.campusId || principal.campus
+      const campus = institution?.campuses?.find((c: any) => c.id === campusId)
+
+      // Preferir contador ya guardado; si no existe, calcularlo solo dentro de esta institución.
+      const computedStudentCount = campus?.principal?.studentCount ?? campusStudentCount(campus)
+
+      return {
+        ...principal,
+        id: principal.id || principal.uid || principalIdFromDoc(principal),
+        uid: principal.uid || principal.id || principalIdFromDoc(principal),
+        institutionId: institution.id,
+        inst: institution.id, // compatibilidad retro
+        institutionName: institution.name,
+        campusId: campusId,
+        campus: campusId, // compatibilidad retro
+        campusName: campus?.name || principal.campusName || (campusId ? String(campusId) : ''),
+        studentCount: principal.studentCount ?? computedStudentCount ?? 0,
+      }
+    })
+
+    return success(principals)
+  } catch (error) {
+    return failure(new ErrorAPI({ message: 'Error al obtener coordinadores por institución', statusCode: 500 }))
+  }
+}
+
+// Helper local para evitar fallos si faltan campos en algunos documentos migrados.
+const principalIdFromDoc = (principal: any): string | undefined => {
+  return principal?.id || principal?.uid
+}
+
 export const updatePrincipal = async (institutionId: string, campusId: string, principalId: string, data: UpdatePrincipalData, oldInstitutionId?: string, oldCampusId?: string): Promise<Result<any>> => {
   try {
     // Verificar si se está moviendo el coordinador a otra sede/institución
