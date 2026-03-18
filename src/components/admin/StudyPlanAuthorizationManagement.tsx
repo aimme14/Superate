@@ -34,10 +34,9 @@ interface StudyPlanAuthorizationManagementProps {
   theme: 'light' | 'dark';
 }
 
-// Fases disponibles para planes de estudio
+/** Solo Fase I: los planes de estudio con IA aplican al diagnóstico inicial. */
 const STUDY_PLAN_PHASES: { phase: StudyPlanPhase; name: string; label: string }[] = [
   { phase: 'first', name: 'Fase I', label: 'Fase I' },
-  { phase: 'second', name: 'Fase II', label: 'Fase II' }
 ];
 
 // Lista de todas las materias del sistema
@@ -106,10 +105,9 @@ export default function StudyPlanAuthorizationManagement({ theme }: StudyPlanAut
         institutionId: selectedGradeInfo.institutionId,
         campusId: selectedGradeInfo.campusId,
       });
-      const phaseName = selectedPhase === 'first' ? 'Fase I' : 'Fase II';
       notifySuccess({
         title: 'Plan de estudio autorizado',
-        message: `Generación de plan de estudio para ${selectedSubject} (${phaseName}) autorizada para ${selectedGradeInfo.name}`,
+        message: `Generación de plan de estudio para ${selectedSubject} (Fase I) autorizada para ${selectedGradeInfo.name}`,
       });
       setIsAuthorizeDialogOpen(false);
       setSelectedSubject(null);
@@ -129,10 +127,9 @@ export default function StudyPlanAuthorizationManagement({ theme }: StudyPlanAut
         phase: selectedPhase,
         subject: selectedSubject,
       });
-      const phaseName = selectedPhase === 'first' ? 'Fase I' : 'Fase II';
       notifySuccess({
         title: 'Autorización revocada',
-        message: `Autorización de plan de estudio para ${selectedSubject} (${phaseName}) revocada para ${selectedGradeInfo.name}`,
+        message: `Autorización de plan de estudio para ${selectedSubject} (Fase I) revocada para ${selectedGradeInfo.name}`,
       });
       setIsRevokeDialogOpen(false);
       setSelectedSubject(null);
@@ -236,7 +233,6 @@ export default function StudyPlanAuthorizationManagement({ theme }: StudyPlanAut
     let count = 0;
     Object.values(gradeStatus.subjects).forEach(subject => {
       if (subject.first.authorized) count++;
-      if (subject.second.authorized) count++;
     });
     return count;
   };
@@ -269,9 +265,8 @@ export default function StudyPlanAuthorizationManagement({ theme }: StudyPlanAut
           </div>
           <CardDescription>
             <p>
-              Gestiona la autorización de generación de planes de estudio por fase, materia y grado. 
-              Las autorizaciones son independientes por fase (Fase I y Fase II). 
-              Cuando una materia está autorizada para una fase, todos los estudiantes de ese grado podrán generar planes de estudio para esa materia en esa fase específica.
+              Gestiona la autorización de generación de planes de estudio (Fase I — diagnóstico) por materia y grado. 
+              Cuando una materia está autorizada, los estudiantes de ese grado podrán generar su plan de estudio con IA para esa materia tras la evaluación de Fase I.
             </p>
           </CardDescription>
         </CardHeader>
@@ -480,7 +475,7 @@ export default function StudyPlanAuthorizationManagement({ theme }: StudyPlanAut
                                                       : 'border-gray-400 text-gray-500'
                                                   )}
                                                 >
-                                                  {authorizedCount}/{ALL_SUBJECTS.length * 2} autorizadas
+                                                  {authorizedCount}/{ALL_SUBJECTS.length} autorizadas
                                                 </Badge>
                                               </div>
                                               <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -636,10 +631,10 @@ export default function StudyPlanAuthorizationManagement({ theme }: StudyPlanAut
             </DialogTitle>
             <DialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               ¿Estás seguro de que deseas autorizar la generación de planes de estudio para{' '}
-              <strong>{selectedSubject}</strong> ({selectedPhase === 'first' ? 'Fase I' : 'Fase II'}) en el grado <strong>{selectedGradeInfo?.name}</strong>?
+              <strong>{selectedSubject}</strong> (Fase I) en el grado <strong>{selectedGradeInfo?.name}</strong>?
               <br />
               <br />
-              Todos los estudiantes de este grado podrán generar planes de estudio para esta materia en esta fase.
+              Todos los estudiantes de este grado podrán generar el plan de estudio con IA para esta materia tras el diagnóstico de Fase I.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -681,10 +676,10 @@ export default function StudyPlanAuthorizationManagement({ theme }: StudyPlanAut
             </AlertDialogTitle>
             <AlertDialogDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               ¿Estás seguro de que deseas revocar la autorización de generación de planes de estudio para{' '}
-              <strong>{selectedSubject}</strong> ({selectedPhase === 'first' ? 'Fase I' : 'Fase II'}) en el grado <strong>{selectedGradeInfo?.name}</strong>?
+              <strong>{selectedSubject}</strong> (Fase I) en el grado <strong>{selectedGradeInfo?.name}</strong>?
               <br />
               <br />
-              Los estudiantes de este grado ya no podrán generar nuevos planes de estudio para esta materia en esta fase.
+              Los estudiantes de este grado ya no podrán generar nuevos planes de estudio con IA para esta materia.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

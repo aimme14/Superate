@@ -1,4 +1,4 @@
-import React, { useState, useEffect, startTransition } from "react"
+import React, { useState, useEffect, useCallback, startTransition } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,6 +14,13 @@ import { useThemeContext } from "@/context/ThemeContext"
 import { useAuthContext } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
 import { geminiService } from "@/services/ai/gemini.service"
+import {
+  buildPayloadFromAnalysisData,
+  buildPromedioRecommendationsHash,
+  getCachedPromedioRecommendations,
+  setCachedPromedioRecommendations,
+  clearPromedioRecommendationsCache,
+} from "@/services/ai/promedioRecommendationsCache"
 import { getPhaseType } from "@/utils/firestoreHelpers"
 import { SubjectTopicsAccordion } from "@/components/charts/SubjectTopicsAccordion"
 import { StrengthsRadarChart } from "@/components/charts/StrengthsRadarChart"
@@ -672,23 +679,19 @@ function StudyVideosSection({
   );
 }
 
-// Componente de resumen de planes de estudio para "Todas las Fases"
+/** Resumen de planes de estudio (solo Fase I — diagnóstico). */
 function StudyPlanSummary({
   phase1Data,
-  phase2Data,
   user,
   theme
 }: {
   phase1Data: AnalysisData | null;
-  phase2Data: AnalysisData | null;
   user: any;
   theme: 'light' | 'dark';
 }) {
   const [phase1Stats, setPhase1Stats] = useState({ deployed: 0, pending: 0, loading: true });
-  const [phase2Stats, setPhase2Stats] = useState({ deployed: 0, pending: 0, loading: true });
   const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
 
-  // Función para verificar si un plan está completo
   const isPlanComplete = (plan: any): boolean => {
     if (!plan) return false;
     const hasVideos = plan.video_resources && Array.isArray(plan.video_resources) && plan.video_resources.length > 0;
@@ -697,7 +700,6 @@ function StudyPlanSummary({
     return hasVideos && hasLinks && hasExercises;
   };
 
-  // Cargar estadísticas de Fase I
   useEffect(() => {
     const loadPhase1Stats = async () => {
       if (!phase1Data?.subjectsWithTopics || !user?.uid) {
@@ -734,45 +736,7 @@ function StudyPlanSummary({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase1Data, user?.uid]);
 
-  // Cargar estadísticas de Fase II
-  useEffect(() => {
-    const loadPhase2Stats = async () => {
-      if (!phase2Data?.subjectsWithTopics || !user?.uid) {
-        setPhase2Stats({ deployed: 0, pending: 0, loading: false });
-        return;
-      }
-
-      setPhase2Stats({ deployed: 0, pending: 0, loading: true });
-      const subjectsWithWeaknesses = phase2Data.subjectsWithTopics.filter(s => s.weaknesses.length > 0);
-      let deployed = 0;
-
-      for (const subject of subjectsWithWeaknesses) {
-        try {
-          const response = await fetch(
-            `${FUNCTIONS_URL}/getStudyPlan?studentId=${user.uid}&phase=second&subject=${encodeURIComponent(subject.name)}`
-          );
-          const result = await response.json();
-          if (result.success && result.data && isPlanComplete(result.data)) {
-            deployed++;
-          }
-        } catch (error) {
-          logger.error(`Error verificando plan para ${subject.name} (Fase II):`, error);
-        }
-      }
-
-      setPhase2Stats({
-        deployed,
-        pending: subjectsWithWeaknesses.length - deployed,
-        loading: false
-      });
-    };
-
-    loadPhase2Stats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase2Data, user?.uid]);
-
   const totalPhase1Subjects = phase1Data?.subjectsWithTopics?.length || 0;
-  const totalPhase2Subjects = phase2Data?.subjectsWithTopics?.length || 0;
 
   return (
     <div className="space-y-6">
@@ -802,186 +766,77 @@ function StudyPlanSummary({
               "text-2xl sm:text-3xl font-bold",
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             )}>
-              Resumen de Planes de Estudio
+              Resumen de planes de estudio
             </h3>
             <p className={cn(
               "text-sm sm:text-base mt-1",
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             )}>
-              Disponibles para Fase I y Fase II
+              Plan personalizado con IA según tu diagnóstico (Fase I)
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Fase I */}
-          <Card className={cn(
-            theme === 'dark' 
-              ? 'bg-zinc-800/50 border-zinc-700' 
-              : 'bg-white/80 border-gray-200'
-          )}>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "p-2 rounded-lg",
-                    theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'
-                  )}>
-                    <Target className={cn(
-                      "w-5 h-5",
-                      theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
-                    )} />
-                  </div>
-                  <h4 className={cn(
-                    "font-semibold text-lg",
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  )}>
-                    Fase I
-                  </h4>
-                </div>
-                <Badge className={cn(
-                  "bg-blue-500 text-white"
+        <Card className={cn(
+          theme === 'dark' 
+            ? 'bg-zinc-800/50 border-zinc-700 max-w-xl mx-auto' 
+            : 'bg-white/80 border-gray-200 max-w-xl mx-auto'
+        )}>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-2 rounded-lg",
+                  theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'
                 )}>
-                  Diagnóstico
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className={cn(
-                    "text-sm",
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  )}>
-                    Materias evaluadas
-                  </span>
-                  <span className={cn(
-                    "font-semibold",
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  )}>
-                    {totalPhase1Subjects}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={cn(
-                    "text-sm",
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  )}>
-                    Planes desplegados
-                  </span>
-                  <span className={cn(
-                    "font-semibold text-blue-500",
+                  <Target className={cn(
+                    "w-5 h-5",
                     theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
-                  )}>
-                    {phase1Stats.loading ? '...' : phase1Stats.deployed}
-                  </span>
+                  )} />
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className={cn(
-                    "text-sm",
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  )}>
-                    Planes por desplegar
-                  </span>
-                  <span className={cn(
-                    "font-semibold text-orange-500",
-                    theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-                  )}>
-                    {phase1Stats.loading ? '...' : phase1Stats.pending}
-                  </span>
-                </div>
-              </div>
-              <p className={cn(
-                "text-xs mt-4 pt-4 border-t",
-                theme === 'dark' ? 'text-gray-500 border-zinc-700' : 'text-gray-500 border-gray-200'
-              )}>
-                Selecciona "Fase I" para ver y generar planes de estudio personalizados
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Fase II */}
-          <Card className={cn(
-            theme === 'dark' 
-              ? 'bg-zinc-800/50 border-zinc-700' 
-              : 'bg-white/80 border-gray-200'
-          )}>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "p-2 rounded-lg",
-                    theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
-                  )}>
-                    <TrendingUp className={cn(
-                      "w-5 h-5",
-                      theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                    )} />
-                  </div>
-                  <h4 className={cn(
-                    "font-semibold text-lg",
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  )}>
-                    Fase II
-                  </h4>
-                </div>
-                <Badge className={cn(
-                  "bg-green-500 text-white"
+                <h4 className={cn(
+                  "font-semibold text-lg",
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
                 )}>
-                  Refuerzo
-                </Badge>
+                  Fase I — Diagnóstico
+                </h4>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className={cn(
-                    "text-sm",
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  )}>
-                    Materias evaluadas
-                  </span>
-                  <span className={cn(
-                    "font-semibold",
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  )}>
-                    {totalPhase2Subjects}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={cn(
-                    "text-sm",
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  )}>
-                    Planes desplegados
-                  </span>
-                  <span className={cn(
-                    "font-semibold text-green-500",
-                    theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                  )}>
-                    {phase2Stats.loading ? '...' : phase2Stats.deployed}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={cn(
-                    "text-sm",
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  )}>
-                    Planes por desplegar
-                  </span>
-                  <span className={cn(
-                    "font-semibold text-orange-500",
-                    theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-                  )}>
-                    {phase2Stats.loading ? '...' : phase2Stats.pending}
-                  </span>
-                </div>
+              <Badge className="bg-blue-500 text-white">Plan IA</Badge>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Materias evaluadas
+                </span>
+                <span className={cn("font-semibold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                  {totalPhase1Subjects}
+                </span>
               </div>
-              <p className={cn(
-                "text-xs mt-4 pt-4 border-t",
-                theme === 'dark' ? 'text-gray-500 border-zinc-700' : 'text-gray-500 border-gray-200'
-              )}>
-                Selecciona "Fase II" para ver y generar planes de estudio personalizados
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              <div className="flex justify-between items-center">
+                <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Planes generados
+                </span>
+                <span className={cn("font-semibold text-blue-500", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
+                  {phase1Stats.loading ? '...' : phase1Stats.deployed}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Pendientes por generar
+                </span>
+                <span className={cn("font-semibold text-orange-500", theme === 'dark' ? 'text-orange-400' : 'text-orange-600')}>
+                  {phase1Stats.loading ? '...' : phase1Stats.pending}
+                </span>
+              </div>
+            </div>
+            <p className={cn(
+              "text-xs mt-4 pt-4 border-t",
+              theme === 'dark' ? 'text-gray-500 border-zinc-700' : 'text-gray-500 border-gray-200'
+            )}>
+              Selecciona <strong>Fase I</strong> arriba para ver y generar tu plan de estudio personalizado.
+            </p>
+          </CardContent>
+        </Card>
 
         <div className={cn(
           "mt-6 p-4 rounded-lg",
@@ -999,15 +854,14 @@ function StudyPlanSummary({
                 "text-sm font-medium mb-1",
                 theme === 'dark' ? 'text-white' : 'text-gray-900'
               )}>
-                Información importante
+                Información
               </p>
               <p className={cn(
                 "text-xs leading-relaxed",
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               )}>
-                Los planes de estudio personalizados están disponibles únicamente para la <strong>Fase I</strong> (Diagnóstico) y la <strong>Fase II</strong> (Refuerzo Personalizado). 
-                La <strong>Fase III</strong> (Simulacro ICFES) es una evaluación final y no requiere plan de estudio adicional. 
-                Selecciona una fase específica arriba para ver y generar tus planes personalizados.
+                El plan de estudio con inteligencia artificial se genera a partir de los resultados de la <strong>Fase I</strong>. 
+                La Fase III (simulacro ICFES) no incluye plan de estudio adicional.
               </p>
             </div>
           </div>
@@ -1020,15 +874,14 @@ function StudyPlanSummary({
 // Componente de plan de estudio personalizado
 function PersonalizedStudyPlan({ 
   subjectsWithTopics, 
-  phase, 
   studentId, 
   theme = 'light' 
 }: { 
   subjectsWithTopics: SubjectWithTopics[];
-  phase: 'first' | 'second' | 'third';
   studentId: string;
   theme?: 'light' | 'dark';
 }) {
+  const phase = 'first' as const;
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [expandedSection] = useState<Record<string, string | null>>({});
   const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
@@ -1317,11 +1170,19 @@ function PersonalizedStudyPlan({
               )}>
 
                 {!hasWeaknesses && (
-                  <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
-                    <CheckCircle2 className={cn("h-10 w-10 flex-shrink-0", theme === 'dark' ? 'text-green-400' : 'text-green-600')} />
+                  <div className="flex flex-col items-center justify-center gap-4 py-6 text-center px-2">
+                    <CheckCircle2 className={cn("h-10 w-10 flex-shrink-0", theme === 'dark' ? 'text-green-400' : 'text-green-600')} aria-hidden />
                     <p className={cn("text-sm max-w-md", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                       {NO_WEAKNESSES_MESSAGE}
                     </p>
+                    <p className={cn("text-xs max-w-md", theme === 'dark' ? 'text-gray-500' : 'text-gray-600')}>
+                      Prioriza generar el plan en las materias donde aún tengas temas débiles; así aprovechas mejor el tiempo de estudio.
+                    </p>
+                    <Link to="/dashboard#evaluacion">
+                      <Button type="button" variant="outline" size="sm" className="gap-2">
+                        Ir a evaluaciones
+                      </Button>
+                    </Link>
                   </div>
                 )}
 
@@ -1628,7 +1489,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
   const [phase3Data, setPhase3Data] = useState<AnalysisData | null>(null);
   const { data: evaluationsFromQuery = [], isLoading: evaluationsLoading } = useStudentEvaluations();
   const loading = evaluationsLoading;
-  const [, setLoadingAI] = useState(false);
+  const [loadingAI, setLoadingAI] = useState(false);
   const evaluations = evaluationsFromQuery;
   const { user } = useAuthContext();
   const [currentMotivationalIndex, setCurrentMotivationalIndex] = useState(0);
@@ -1791,8 +1652,9 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     }
 
     const consolidatedData = calculateAllPhasesData(phase1Processed, phase2Processed, phase3Processed, user);
-    const phaseForPlans: 'phase1' | 'phase2' | 'phase3' | 'all' =
-      phase1Evals.length > 0 ? 'phase1' : phase2Evals.length > 0 ? 'phase2' : phase3Evals.length > 0 ? 'phase3' : 'all';
+    /** Plan de estudio IA solo aplica a Fase I; si no hay Fase I, resumen global o Fase III según datos. */
+    const phaseForPlans: 'phase1' | 'phase3' | 'all' =
+      phase1Evals.length > 0 ? 'phase1' : phase3Evals.length > 0 ? 'phase3' : 'all';
     const phaseForOverview = phase3Evals.length > 0 ? 'phase3' : phase2Evals.length > 0 ? 'phase2' : phase1Evals.length > 0 ? 'phase1' : 'all';
 
     startTransition(() => {
@@ -2394,65 +2256,80 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       }));
   };
 
-  // Generar recomendaciones con IA usando Gemini
-  const generateAIRecommendations = async (data: AnalysisData) => {
+  const applyBasicRecommendations = () => {
+    setAnalysisData((prev) => {
+      if (!prev) return prev;
+      return { ...prev, recommendations: generateBasicRecommendations(prev.subjects) };
+    });
+  };
+
+  /** IA: usa caché local 72h si el rendimiento no cambió; `force` omite caché (p. ej. botón Actualizar). */
+  const generateAIRecommendations = async (data: AnalysisData, options?: { force?: boolean }) => {
     if (!geminiService.isAvailable()) {
       return;
+    }
+    const payload = buildPayloadFromAnalysisData(data);
+    const hash = buildPromedioRecommendationsHash(payload);
+    const uid = user?.uid;
+    if (!options?.force && uid) {
+      const cached = getCachedPromedioRecommendations(uid, hash);
+      if (cached && cached.length > 0) {
+        setAnalysisData((prev) => (prev ? { ...prev, recommendations: cached } : prev));
+        return;
+      }
     }
 
     setLoadingAI(true);
     try {
-      const result = await geminiService.generateRecommendations({
-        subjects: data.subjects.map(subject => ({
-          name: subject.name,
-          percentage: subject.percentage,
-          strengths: subject.strengths,
-          weaknesses: subject.weaknesses
-        })),
-        overall: {
-          averagePercentage: data.overall.averagePercentage,
-          score: data.overall.score
-        },
-        patterns: {
-          strongestArea: data.patterns.strongestArea,
-          weakestArea: data.patterns.weakestArea,
-          timeManagement: data.patterns.timeManagement
-        }
-      });
+      const result = await geminiService.generateRecommendations(payload);
 
-      if (result.success && result.recommendations) {
-        setAnalysisData(prev => {
+      if (result.success && result.recommendations && result.recommendations.length > 0) {
+        if (uid) {
+          setCachedPromedioRecommendations(uid, hash, result.recommendations);
+        }
+        setAnalysisData((prev) => {
           if (!prev) return prev;
-          return {
-            ...prev,
-            recommendations: result.recommendations || []
-          };
+          return { ...prev, recommendations: result.recommendations || [] };
         });
       } else {
         logger.warn('No se pudieron generar recomendaciones con IA, usando recomendaciones básicas');
-        // Usar recomendaciones básicas como respaldo
-        setAnalysisData(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            recommendations: generateBasicRecommendations(prev.subjects)
-          };
-        });
+        applyBasicRecommendations();
       }
     } catch (error) {
       logger.error('Error al generar recomendaciones con IA:', error);
-      // Usar recomendaciones básicas como respaldo
-      setAnalysisData(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          recommendations: generateBasicRecommendations(prev.subjects)
-        };
-      });
+      applyBasicRecommendations();
     } finally {
       setLoadingAI(false);
     }
   };
+
+  const handleRefreshAIRecommendations = useCallback(() => {
+    if (!analysisData?.subjects.length || !user?.uid || !geminiService.isAvailable()) return;
+    clearPromedioRecommendationsCache(user.uid);
+    const payload = buildPayloadFromAnalysisData(analysisData);
+    const hash = buildPromedioRecommendationsHash(payload);
+    setLoadingAI(true);
+    void geminiService
+      .generateRecommendations(payload)
+      .then((result) => {
+        if (result.success && result.recommendations?.length) {
+          setCachedPromedioRecommendations(user.uid!, hash, result.recommendations);
+          setAnalysisData((prev) =>
+            prev ? { ...prev, recommendations: result.recommendations! } : prev
+          );
+        } else {
+          setAnalysisData((prev) =>
+            prev ? { ...prev, recommendations: generateBasicRecommendations(prev.subjects) } : prev
+          );
+        }
+      })
+      .catch(() => {
+        setAnalysisData((prev) =>
+          prev ? { ...prev, recommendations: generateBasicRecommendations(prev.subjects) } : prev
+        );
+      })
+      .finally(() => setLoadingAI(false));
+  }, [analysisData, user?.uid]);
 
   // Función helper para obtener los datos según la fase seleccionada
   const getCurrentPhaseData = (): AnalysisData | null => {
@@ -2604,14 +2481,23 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
         {!planOnly && (
         <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm mb-4 md:mb-8')}>
           <CardContent className="pt-4 md:pt-6 px-4 md:px-6">
-            <h3 className={cn("text-sm md:text-base font-semibold mb-3 md:mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <h3
+              id="phase-selector-heading"
+              className={cn("text-sm md:text-base font-semibold mb-3 md:mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+            >
               Seleccionar Fase
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-labelledby="phase-selector-heading"
+            >
                 <Button
                   onClick={() => setSelectedPhase('phase1')}
                   variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
                   size="sm"
+                  aria-pressed={selectedPhase === 'phase1'}
+                  aria-label="Ver resultados de Fase I, diagnóstico"
                   className={cn(
                     "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'phase1'
@@ -2632,6 +2518,8 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   onClick={() => setSelectedPhase('phase2')}
                   variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
                   size="sm"
+                  aria-pressed={selectedPhase === 'phase2'}
+                  aria-label="Ver resultados de Fase II, refuerzo"
                   className={cn(
                     "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'phase2'
@@ -2652,6 +2540,8 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   onClick={() => setSelectedPhase('phase3')}
                   variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
                   size="sm"
+                  aria-pressed={selectedPhase === 'phase3'}
+                  aria-label="Ver resultados de Fase III, simulacro ICFES"
                   className={cn(
                     "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'phase3'
@@ -2672,6 +2562,8 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   onClick={() => setSelectedPhase('all')}
                   variant={selectedPhase === 'all' ? 'default' : 'outline'}
                   size="sm"
+                  aria-pressed={selectedPhase === 'all'}
+                  aria-label="Ver todas las fases consolidadas"
                   className={cn(
                     "flex-shrink-0 min-h-[44px] md:min-h-0",
                     selectedPhase === 'all'
@@ -3199,6 +3091,102 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     subjectsWithTopics={currentData.subjectsWithTopics}
                     theme={theme}
                   />
+
+                  {analysisData && analysisData.recommendations.length > 0 && (
+                    <Card
+                      className={cn(
+                        theme === 'dark'
+                          ? 'bg-zinc-800/80 border-violet-700/40 shadow-lg'
+                          : 'bg-white/90 border-violet-200 shadow-md'
+                      )}
+                    >
+                      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <CardTitle
+                            className={cn(
+                              'flex items-center gap-2 text-lg',
+                              theme === 'dark' ? 'text-white' : 'text-gray-900'
+                            )}
+                          >
+                            <Sparkles className="h-5 w-5 text-violet-500 flex-shrink-0" />
+                            {geminiService.isAvailable()
+                              ? 'Recomendaciones personalizadas (IA)'
+                              : 'Sugerencias de mejora'}
+                          </CardTitle>
+                          <CardDescription className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                            {geminiService.isAvailable()
+                              ? 'Según tu rendimiento consolidado. Se guardan localmente hasta 3 días si tus porcentajes no cambian, para reducir consultas a la IA. Usa «Actualizar» solo si quieres nuevas ideas.'
+                              : 'Sugerencias generadas a partir de tus materias con menor rendimiento.'}
+                          </CardDescription>
+                        </div>
+                        {geminiService.isAvailable() && user?.uid && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={handleRefreshAIRecommendations}
+                            disabled={loadingAI}
+                            aria-busy={loadingAI}
+                          >
+                            {loadingAI ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                Generando…
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Actualizar consejos IA
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {analysisData.recommendations.map((rec, idx) => (
+                          <div
+                            key={`${rec.subject}-${rec.topic}-${idx}`}
+                            className={cn(
+                              'rounded-lg border p-4',
+                              theme === 'dark' ? 'border-zinc-600 bg-zinc-900/40' : 'border-gray-200 bg-gray-50/80'
+                            )}
+                          >
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <Badge
+                                className={cn(
+                                  rec.priority === 'Alta'
+                                    ? 'bg-red-600'
+                                    : rec.priority === 'Media'
+                                      ? 'bg-amber-600'
+                                      : 'bg-slate-600'
+                                )}
+                              >
+                                {rec.priority}
+                              </Badge>
+                              <span className={cn('font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                {rec.subject}
+                              </span>
+                              <span className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                · {rec.topic}
+                              </span>
+                            </div>
+                            <p className={cn('text-sm mb-3', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                              {rec.explanation}
+                            </p>
+                            <ul className={cn('text-sm list-disc list-inside mb-2', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                              {rec.resources.map((r, j) => (
+                                <li key={j}>{r}</li>
+                              ))}
+                            </ul>
+                            <p className={cn('text-xs', theme === 'dark' ? 'text-violet-400' : 'text-violet-700')}>
+                              Tiempo estimado: {rec.timeEstimate}
+                            </p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
                 </>
               );
             })()}
@@ -3207,41 +3195,44 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
           {/* Study Plan Tab */}
           <TabsContent value="study-plan" className="space-y-6">
             {(() => {
-              const currentData = getCurrentPhaseData();
-              if (!currentData) {
+              /** Fase II: sin plan IA; mensaje claro aunque no haya aún resultados de Fase II. */
+              if (selectedPhase === 'phase2') {
                 return (
                   <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
-                    <CardContent className="pt-6">
-                      <div className="text-center py-8">
-                        <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
-                        <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos disponibles para esta fase</p>
-                        <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Presenta evaluaciones para generar un plan de estudio personalizado</p>
-                      </div>
+                    <CardContent className="pt-8 pb-8 px-6 text-center space-y-4">
+                      <BookOpen className={cn('h-14 w-14 mx-auto', theme === 'dark' ? 'text-green-400' : 'text-green-600')} />
+                      <h3 className={cn('text-xl font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        Plan de estudio solo en Fase I
+                      </h3>
+                      <p className={cn('text-sm max-w-lg mx-auto', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                        El plan personalizado con IA se genera a partir del diagnóstico de <strong>Fase I</strong>.{' '}
+                        Tus resultados de Fase II puedes revisarlos en la pestaña <strong>Resumen</strong> o <strong>Diagnóstico</strong>.
+                      </p>
+                      {phase1Data && (
+                        <Button
+                          type="button"
+                          className="bg-blue-600 hover:bg-blue-700"
+                          onClick={() => setSelectedPhase('phase1')}
+                        >
+                          Ir al plan de Fase I
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 );
               }
 
-              // Determinar la fase actual
-              const currentPhase = selectedPhase === 'phase1' ? 'first' 
-                : selectedPhase === 'phase2' ? 'second' 
-                : selectedPhase === 'phase3' ? 'third' 
-                : 'first'; // Default a first si es 'all'
-
-              // Si es "Todas las Fases", mostrar resumen de planes disponibles
               if (selectedPhase === 'all') {
                 return (
                   <StudyPlanSummary 
                     phase1Data={phase1Data}
-                    phase2Data={phase2Data}
                     user={user}
                     theme={theme}
                   />
                 );
               }
 
-              // Si es Fase III, mostrar mensaje de ánimo en lugar del plan de estudio
-              if (currentPhase === 'third') {
+              if (selectedPhase === 'phase3') {
                 return (
                   <div className="flex items-center justify-center min-h-[60vh] px-4">
                     <motion.div
@@ -3321,8 +3312,56 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 );
               }
 
+              if (!phase1Data?.subjectsWithTopics?.length) {
+                return (
+                  <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm')}>
+                    <CardContent className="pt-6">
+                      <div className="text-center py-8">
+                        <BookOpen className={cn("h-12 w-12 mx-auto mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')} />
+                        <p className={cn("mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          No hay datos de Fase I para el plan de estudio
+                        </p>
+                        <p className={cn("text-sm", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
+                          Presenta la evaluación de diagnóstico (Fase I) para generar tu plan personalizado con IA.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              const subjectsWithWeaknessesCount = phase1Data.subjectsWithTopics.filter(
+                (s) => s.weaknesses.length > 0
+              ).length;
+              const subjectsBalancedCount =
+                phase1Data.subjectsWithTopics.length - subjectsWithWeaknessesCount;
+
               return (
                 <div className="space-y-6" key="study-plan-content">
+                  <div
+                    className={cn(
+                      'rounded-xl border p-4 flex gap-3',
+                      theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-violet-200 bg-violet-50/80'
+                    )}
+                    role="region"
+                    aria-label="Información sobre el plan de estudio con IA"
+                  >
+                    <Info className={cn('h-5 w-5 flex-shrink-0 mt-0.5', theme === 'dark' ? 'text-violet-400' : 'text-violet-600')} />
+                    <div className={cn('text-sm space-y-2', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                      <p className="font-medium text-base">Cómo funciona tu plan</p>
+                      <p>
+                        El plan con <strong>videos, enlaces y ejercicios</strong> se genera por materia donde el
+                        diagnóstico detecta <strong>áreas a reforzar</strong>. Si una materia va muy bien, no hace falta
+                        plan ahí: puedes enfocarte en las demás.
+                      </p>
+                      {subjectsBalancedCount > 0 && (
+                        <p className={cn('text-xs', theme === 'dark' ? 'text-gray-500' : 'text-gray-600')}>
+                          Tienes {subjectsBalancedCount} materia{subjectsBalancedCount !== 1 ? 's' : ''} sin debilidades
+                          detectadas; revisa las que muestran debilidades para generar el plan paso a paso (orden sugerido).
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <Accordion type="single" collapsible className="mb-6">
                     <AccordionItem value="tips-icfes" className={cn("border rounded-lg overflow-hidden", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/30' : 'border-gray-200 bg-white/80')}>
                       <AccordionTrigger className={cn("px-4 py-3 hover:no-underline", theme === 'dark' ? 'hover:bg-zinc-700/50 text-white' : 'hover:bg-gray-50')}>
@@ -3428,8 +3467,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     </AccordionItem>
                   </Accordion>
                   <PersonalizedStudyPlan
-                    subjectsWithTopics={currentData.subjectsWithTopics}
-                    phase={currentPhase}
+                    subjectsWithTopics={phase1Data.subjectsWithTopics}
                     studentId={user?.uid || ''}
                     theme={theme}
                   />

@@ -558,11 +558,22 @@ export const generateStudyPlan = functions
         return;
       }
 
-      // Validar fase
+      // Validar fase (planes de estudio IA solo para Fase I — diagnóstico)
       if (!['first', 'second', 'third'].includes(phase)) {
         const response: APIResponse = {
           success: false,
           error: { message: 'phase debe ser: first, second o third' },
+        };
+        res.status(400).json(response);
+        return;
+      }
+      if (phase === 'second') {
+        const response: APIResponse = {
+          success: false,
+          error: {
+            message:
+              'Los planes de estudio con IA solo están disponibles para Fase I (diagnóstico). Fase II no genera plan.',
+          },
         };
         res.status(400).json(response);
         return;
@@ -637,13 +648,21 @@ export const getStudyPlan = functions
         return;
       }
 
-      // Validar fase
       if (!['first', 'second', 'third'].includes(phase as string)) {
         const response: APIResponse = {
           success: false,
           error: { message: 'phase debe ser: first, second o third' },
         };
         res.status(400).json(response);
+        return;
+      }
+      if (phase === 'second') {
+        const response: APIResponse = {
+          success: true,
+          data: null,
+          metadata: { timestamp: new Date(), note: 'Plan Fase II deshabilitado; solo Fase I.' },
+        };
+        res.status(200).json(response);
         return;
       }
 

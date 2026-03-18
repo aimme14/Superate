@@ -1,30 +1,33 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
- * Servicio para interactuar con Google Gemini 3.0 Pro
- * Genera análisis educativos y recomendaciones personalizadas
+ * Cliente Gemini para el navegador.
+ *
+ * **Seguridad y costos:** `VITE_GEMINI_API_KEY` queda expuesta en el bundle del cliente.
+ * Cualquiera puede extraerla. Para producción robusta, migrar llamadas a Cloud Functions
+ * con clave solo en servidor, límites por usuario y autenticación.
+ *
+ * Métodos expuestos: solo los usados por la app (`generateRecommendations`, `generateImprovementRoute`).
  */
+
 class GeminiService {
   private static instance: GeminiService;
   private genAI: GoogleGenerativeAI | null = null;
-  private model: any = null;
+  private model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
 
   private constructor() {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    
+
     if (!apiKey) {
       console.warn('⚠️ VITE_GEMINI_API_KEY no está configurada. Las funciones de IA no estarán disponibles.');
       return;
     }
 
-    
     try {
       this.genAI = new GoogleGenerativeAI(apiKey);
-      // Usar Gemini 2.0 Flash (experimental) - equivalente a Gemini 3.0 Pro
-      // También puedes usar 'gemini-1.5-pro' para un modelo más estable
       const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
       this.model = this.genAI.getGenerativeModel({ model: modelName });
-      console.log(`✅ Servicio de Gemini AI inicializado correctamente con modelo: ${modelName}`);
+      console.log(`✅ Servicio de Gemini AI inicializado con modelo: ${modelName}`);
     } catch (error) {
       console.error('❌ Error al inicializar Gemini AI:', error);
     }
@@ -37,16 +40,10 @@ class GeminiService {
     return GeminiService.instance;
   }
 
-  /**
-   * Verifica si el servicio está disponible
-   */
   isAvailable(): boolean {
     return this.model !== null && this.genAI !== null;
   }
 
-  /**
-   * Genera recomendaciones personalizadas basadas en el análisis de rendimiento del estudiante
-   */
   async generateRecommendations(analysisData: {
     subjects: Array<{
       name: string;
@@ -75,10 +72,10 @@ class GeminiService {
     }>;
     error?: string;
   }> {
-    if (!this.isAvailable()) {
+    if (!this.isAvailable() || !this.model) {
       return {
         success: false,
-        error: 'Servicio de IA no disponible. Verifica la configuración de VITE_GEMINI_API_KEY'
+        error: 'Servicio de IA no disponible. Verifica la configuración de VITE_GEMINI_API_KEY',
       };
     }
 
@@ -93,11 +90,15 @@ Datos del estudiante:
 - Gestión de tiempo: ${analysisData.patterns.timeManagement}
 
 Rendimiento por materias:
-${analysisData.subjects.map(subject => `
+${analysisData.subjects
+  .map(
+    (subject) => `
 - ${subject.name}: ${subject.percentage}%
   Fortalezas: ${subject.strengths.join(', ') || 'Ninguna identificada'}
   Debilidades: ${subject.weaknesses.join(', ') || 'Ninguna identificada'}
-`).join('')}
+`
+  )
+  .join('')}
 
 Genera recomendaciones específicas y prácticas en formato JSON con esta estructura:
 {
@@ -125,260 +126,27 @@ Responde SOLO con el JSON, sin texto adicional.`;
       const response = await result.response;
       const text = response.text();
 
-      // Extraer JSON de la respuesta
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No se pudo extraer JSON de la respuesta');
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
-      
+
       return {
         success: true,
-        recommendations: parsed.recommendations || []
+        recommendations: parsed.recommendations || [],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido al generar recomendaciones';
       console.error('Error al generar recomendaciones con Gemini:', error);
       return {
         success: false,
-        error: error.message || 'Error desconocido al generar recomendaciones'
+        error: message,
       };
     }
   }
 
-  /**
-   * Genera un análisis detallado del rendimiento académico
-   */
-  async generateAnalysis(analysisData: {
-    subjects: Array<{
-      name: string;
-      percentage: number;
-      correct: number;
-      total: number;
-    }>;
-    overall: {
-      averagePercentage: number;
-      score: number;
-      questionsAnswered: number;
-      totalQuestions: number;
-    };
-    patterns: {
-      timeManagement: string;
-      errorTypes: string[];
-    };
-  }): Promise<{
-    success: boolean;
-    analysis?: {
-      summary: string;
-      strengths: string[];
-      weaknesses: string[];
-      insights: string[];
-      actionPlan: string;
-    };
-    error?: string;
-  }> {
-    if (!this.isAvailable()) {
-      return {
-        success: false,
-        error: 'Servicio de IA no disponible'
-      };
-    }
-
-    try {
-      const prompt = `Eres un analista educativo experto. Analiza el rendimiento académico y proporciona insights profundos.
-
-Datos del análisis:
-- Promedio general: ${analysisData.overall.averagePercentage}%
-- Preguntas respondidas: ${analysisData.overall.questionsAnswered}/${analysisData.overall.totalQuestions}
-- Gestión de tiempo: ${analysisData.patterns.timeManagement}
-- Tipos de errores comunes: ${analysisData.patterns.errorTypes.join(', ') || 'Ninguno identificado'}
-
-Rendimiento por materias:
-${analysisData.subjects.map(subject => `
-- ${subject.name}: ${subject.percentage}% (${subject.correct}/${subject.total} correctas)
-`).join('')}
-
-Genera un análisis completo en formato JSON:
-{
-  "summary": "Resumen ejecutivo del rendimiento (2-3 oraciones)",
-  "strengths": ["Fortaleza 1", "Fortaleza 2", "Fortaleza 3"],
-  "weaknesses": ["Debilidad 1", "Debilidad 2"],
-  "insights": ["Insight 1", "Insight 2", "Insight 3"],
-  "actionPlan": "Plan de acción general (párrafo corto)"
-}
-
-Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto adicional.`;
-
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No se pudo extraer JSON de la respuesta');
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      return {
-        success: true,
-        analysis: parsed
-      };
-    } catch (error: any) {
-      console.error('Error al generar análisis con Gemini:', error);
-      return {
-        success: false,
-        error: error.message || 'Error desconocido al generar análisis'
-      };
-    }
-  }
-
-  /**
-   * Genera feedback personalizado para una pregunta específica
-   */
-  async generateQuestionFeedback(
-    question: string,
-    studentAnswer: string,
-    correctAnswer: string,
-    subject: string
-  ): Promise<{
-    success: boolean;
-    feedback?: {
-      isCorrect: boolean;
-      explanation: string;
-      tips: string[];
-      relatedConcepts: string[];
-    };
-    error?: string;
-  }> {
-    if (!this.isAvailable()) {
-      return {
-        success: false,
-        error: 'Servicio de IA no disponible'
-      };
-    }
-
-    try {
-      const prompt = `Eres un tutor educativo. Proporciona feedback detallado y educativo sobre esta pregunta.
-
-Materia: ${subject}
-Pregunta: ${question}
-Respuesta del estudiante: ${studentAnswer}
-Respuesta correcta: ${correctAnswer}
-
-Genera feedback en formato JSON:
-{
-  "isCorrect": ${studentAnswer === correctAnswer},
-  "explanation": "Explicación detallada de la respuesta correcta y por qué",
-  "tips": ["Tip 1", "Tip 2", "Tip 3"],
-  "relatedConcepts": ["Concepto relacionado 1", "Concepto relacionado 2"]
-}
-
-Sé educativo, claro y motivador. Responde SOLO con el JSON, sin texto adicional.`;
-
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No se pudo extraer JSON de la respuesta');
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      return {
-        success: true,
-        feedback: parsed
-      };
-    } catch (error: any) {
-      console.error('Error al generar feedback con Gemini:', error);
-      return {
-        success: false,
-        error: error.message || 'Error desconocido al generar feedback'
-      };
-    }
-  }
-
-  /**
-   * Genera sugerencias de mejora para rectores/coordinadores
-   */
-  async generateInstitutionalInsights(stats: {
-    totalStudents: number;
-    totalTeachers: number;
-    averagePerformance: number;
-    campusOverview: Array<{
-      name: string;
-      average: number;
-      students: number;
-    }>;
-  }): Promise<{
-    success: boolean;
-    insights?: {
-      summary: string;
-      strengths: string[];
-      opportunities: string[];
-      recommendations: string[];
-    };
-    error?: string;
-  }> {
-    if (!this.isAvailable()) {
-      return {
-        success: false,
-        error: 'Servicio de IA no disponible'
-      };
-    }
-
-    try {
-      const prompt = `Eres un consultor educativo experto. Analiza las estadísticas institucionales y proporciona insights estratégicos.
-
-Estadísticas institucionales:
-- Total estudiantes: ${stats.totalStudents}
-- Total docentes: ${stats.totalTeachers}
-- Promedio institucional: ${stats.averagePerformance}%
-
-Rendimiento por sede:
-${stats.campusOverview.map(campus => `
-- ${campus.name}: ${campus.average}% (${campus.students} estudiantes)
-`).join('')}
-
-Genera insights estratégicos en formato JSON:
-{
-  "summary": "Resumen ejecutivo del estado institucional (2-3 oraciones)",
-  "strengths": ["Fortaleza 1", "Fortaleza 2"],
-  "opportunities": ["Oportunidad 1", "Oportunidad 2", "Oportunidad 3"],
-  "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"]
-}
-
-Sé estratégico, específico y accionable. Responde SOLO con el JSON, sin texto adicional.`;
-
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No se pudo extraer JSON de la respuesta');
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      return {
-        success: true,
-        insights: parsed
-      };
-    } catch (error: any) {
-      console.error('Error al generar insights institucionales con Gemini:', error);
-      return {
-        success: false,
-        error: error.message || 'Error desconocido al generar insights'
-      };
-    }
-  }
-
-  /**
-   * Genera una ruta de mejoramiento personalizada basada en el análisis de Fase 1
-   */
   async generateImprovementRoute(analysisData: {
     studentId: string;
     subject: string;
@@ -415,10 +183,10 @@ Sé estratégico, específico y accionable. Responde SOLO con el JSON, sin texto
     };
     error?: string;
   }> {
-    if (!this.isAvailable()) {
+    if (!this.isAvailable() || !this.model) {
       return {
         success: false,
-        error: 'Servicio de IA no disponible'
+        error: 'Servicio de IA no disponible',
       };
     }
 
@@ -433,9 +201,13 @@ Datos del estudiante:
 - Debilidad principal: ${analysisData.primaryWeakness}
 
 Rendimiento por tema:
-${analysisData.topicPerformance.map(tp => `
+${analysisData.topicPerformance
+  .map(
+    (tp) => `
 - ${tp.topic}: ${tp.percentage.toFixed(1)}% (${tp.correct}/${tp.total} correctas)
-`).join('')}
+`
+  )
+  .join('')}
 
 Genera una ruta de mejoramiento completa en formato JSON:
 {
@@ -480,191 +252,17 @@ Responde SOLO con el JSON, sin texto adicional.`;
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
-      
+
       return {
         success: true,
-        route: parsed
+        route: parsed,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido al generar ruta de mejoramiento';
       console.error('Error al generar ruta de mejoramiento con Gemini:', error);
       return {
         success: false,
-        error: error.message || 'Error desconocido al generar ruta de mejoramiento'
-      };
-    }
-  }
-
-  /**
-   * Analiza el avance entre Fase 1 y Fase 2
-   */
-  async analyzePhaseProgress(progressData: {
-    subject: string;
-    phase1Score: number;
-    phase2Score: number;
-    improvement: number;
-    weaknessImprovement: Array<{
-      topic: string;
-      phase1Percentage: number;
-      phase2Percentage: number;
-      improvement: number;
-    }>;
-  }): Promise<{
-    success: boolean;
-    analysis?: {
-      summary: string;
-      hasImproved: boolean;
-      improvementAreas: string[];
-      persistentWeaknesses: string[];
-      recommendations: string[];
-      motivation: string;
-    };
-    error?: string;
-  }> {
-    if (!this.isAvailable()) {
-      return {
-        success: false,
-        error: 'Servicio de IA no disponible'
-      };
-    }
-
-    try {
-      const prompt = `Eres un analista educativo. Analiza el progreso de un estudiante entre dos fases evaluativas.
-
-Materia: ${progressData.subject}
-Puntuación Fase 1: ${progressData.phase1Score.toFixed(1)}%
-Puntuación Fase 2: ${progressData.phase2Score.toFixed(1)}%
-Mejora general: ${progressData.improvement > 0 ? '+' : ''}${progressData.improvement.toFixed(1)}%
-
-Mejoras por tema:
-${progressData.weaknessImprovement.map(wi => `
-- ${wi.topic}: 
-  Fase 1: ${wi.phase1Percentage.toFixed(1)}%
-  Fase 2: ${wi.phase2Percentage.toFixed(1)}%
-  Mejora: ${wi.improvement > 0 ? '+' : ''}${wi.improvement.toFixed(1)}%
-`).join('')}
-
-Genera un análisis completo en formato JSON:
-{
-  "summary": "Resumen ejecutivo del progreso (2-3 oraciones)",
-  "hasImproved": true|false,
-  "improvementAreas": ["Área 1", "Área 2"],
-  "persistentWeaknesses": ["Debilidad 1", "Debilidad 2"],
-  "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"],
-  "motivation": "Mensaje motivador personalizado (1-2 oraciones)"
-}
-
-Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto adicional.`;
-
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No se pudo extraer JSON de la respuesta');
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      return {
-        success: true,
-        analysis: parsed
-      };
-    } catch (error: any) {
-      console.error('Error al analizar progreso con Gemini:', error);
-      return {
-        success: false,
-        error: error.message || 'Error desconocido al analizar progreso'
-      };
-    }
-  }
-
-  /**
-   * Genera diagnóstico final ICFES con recomendaciones
-   */
-  async generateICFESDiagnosis(diagnosisData: {
-    subject: string;
-    icfesScore: number;
-    percentage: number;
-    topicScores: Array<{
-      topic: string;
-      score: number;
-      percentage: number;
-    }>;
-    phase1Score?: number;
-    phase2Score?: number;
-  }): Promise<{
-    success: boolean;
-    diagnosis?: {
-      overallDiagnosis: string;
-      scoreInterpretation: string;
-      strengths: string[];
-      weaknesses: string[];
-      recommendations: string[];
-      nextSteps: string[];
-    };
-    error?: string;
-  }> {
-    if (!this.isAvailable()) {
-      return {
-        success: false,
-        error: 'Servicio de IA no disponible'
-      };
-    }
-
-    try {
-      const progressContext = diagnosisData.phase1Score && diagnosisData.phase2Score
-        ? `
-Progreso a través de las fases:
-- Fase 1: ${diagnosisData.phase1Score.toFixed(1)}%
-- Fase 2: ${diagnosisData.phase2Score.toFixed(1)}%
-- Fase 3 (ICFES): ${diagnosisData.percentage.toFixed(1)}%
-`
-        : '';
-
-      const prompt = `Eres un evaluador experto en pruebas ICFES. Genera un diagnóstico final completo y recomendaciones.
-
-Materia: ${diagnosisData.subject}
-Puntaje ICFES: ${diagnosisData.icfesScore}/500
-Porcentaje: ${diagnosisData.percentage.toFixed(1)}%
-${progressContext}
-Puntajes por tema:
-${diagnosisData.topicScores.map(ts => `
-- ${ts.topic}: ${ts.score}/500 (${ts.percentage.toFixed(1)}%)
-`).join('')}
-
-Genera un diagnóstico completo en formato JSON:
-{
-  "overallDiagnosis": "Diagnóstico general detallado (2-3 párrafos)",
-  "scoreInterpretation": "Interpretación del puntaje ICFES (1 párrafo)",
-  "strengths": ["Fortaleza 1", "Fortaleza 2"],
-  "weaknesses": ["Debilidad 1", "Debilidad 2"],
-  "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"],
-  "nextSteps": ["Paso siguiente 1", "Paso siguiente 2"]
-}
-
-Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto adicional.`;
-
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No se pudo extraer JSON de la respuesta');
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      return {
-        success: true,
-        diagnosis: parsed
-      };
-    } catch (error: any) {
-      console.error('Error al generar diagnóstico ICFES con Gemini:', error);
-      return {
-        success: false,
-        error: error.message || 'Error desconocido al generar diagnóstico ICFES'
+        error: message,
       };
     }
   }
@@ -672,4 +270,3 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
 
 export const geminiService = GeminiService.getInstance();
 export default geminiService;
-

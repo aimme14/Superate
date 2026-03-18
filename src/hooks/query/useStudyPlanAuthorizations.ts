@@ -56,12 +56,8 @@ async function fetchGradeStatus(grade: GradeOption): Promise<GradeSubjectStatus>
   const subjectsStatus = JSON.parse(JSON.stringify(DEFAULT_SUBJECTS)) as GradeSubjectStatus['subjects']
 
   authorizations.forEach((auth) => {
-    if (
-      auth.authorized &&
-      auth.subject in subjectsStatus &&
-      (auth.phase === 'first' || auth.phase === 'second')
-    ) {
-      subjectsStatus[auth.subject as SubjectName][auth.phase].authorized = true
+    if (auth.authorized && auth.subject in subjectsStatus && auth.phase === 'first') {
+      subjectsStatus[auth.subject as SubjectName].first.authorized = true
     }
   })
 
