@@ -43,6 +43,24 @@ export default function RutaAcademicaAdaptativaPage() {
   const { data: simulacros = [], isLoading: loading, isError, error } = useSimulacros();
   const [selectedMateria, setSelectedMateria] = useState<string | null>(null);
 
+  // Soporta `createdAt` como `Date` o como objeto tipo Firestore `Timestamp`
+  // (por ejemplo, si queda data vieja en cache tras HMR).
+  const safeCreatedAtMs = (value: unknown): number => {
+    const v = value as any;
+    if (!v) return 0;
+    if (typeof v?.getTime === "function") return v.getTime();
+    const asDate = typeof v?.toDate === "function" ? v.toDate() : undefined;
+    if (asDate && typeof asDate.getTime === "function") return asDate.getTime();
+    const maybeNum = typeof v === "number" ? v : undefined;
+    if (maybeNum && Number.isFinite(maybeNum)) return maybeNum;
+    const maybeStr = typeof v === "string" ? v : undefined;
+    if (maybeStr) {
+      const parsed = new Date(maybeStr);
+      if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
+    }
+    return 0;
+  };
+
   const byMateria = useMemo(() => {
     const map = new Map<string, Simulacro[]>();
     for (const s of simulacros) {
@@ -51,7 +69,7 @@ export default function RutaAcademicaAdaptativaPage() {
       map.get(key)!.push(s);
     }
     for (const [, list] of map) {
-      list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      list.sort((a, b) => safeCreatedAtMs(b.createdAt) - safeCreatedAtMs(a.createdAt));
     }
     return map;
   }, [simulacros]);

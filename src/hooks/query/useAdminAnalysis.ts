@@ -357,8 +357,10 @@ export const useAdminAnalysis = (jornada?: 'mañana' | 'tarde' | 'única', year?
 
       return analysis
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 10 * 60 * 1000, // Refetch cada 10 minutos
+    // Cache largo para evitar escaneos pesados repetitivos.
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 
@@ -1020,8 +1022,10 @@ export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', yea
 
       return finalRanking
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 10 * 60 * 1000, // Refetch cada 10 minutos
+    // Cache largo para evitar recalculos pesados periódicos.
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 

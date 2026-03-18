@@ -14,8 +14,10 @@ export const useDailyUsage = (days: number = 7) => {
       if (!result.success) throw result.error
       return result.data
     },
-    refetchInterval: 5 * 60 * 1000, // Refetch cada 5 minutos
-    staleTime: 2 * 60 * 1000, // Los datos se consideran frescos por 2 minutos
+    // Cache largo: evita lecturas periódicas mientras el admin está abierto.
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   return {

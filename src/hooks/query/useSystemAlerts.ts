@@ -13,8 +13,10 @@ export const useSystemAlerts = () => {
       if (!result.success) throw result.error
       return result.data
     },
-    refetchInterval: 2 * 60 * 1000, // Refetch cada 2 minutos
-    staleTime: 1 * 60 * 1000, // Los datos se consideran frescos por 1 minuto
+    // Cache largo: reduce lecturas cuando el admin mantiene abierta la pestaña.
+    staleTime: 12 * 60 * 60 * 1000, // 12h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   return {

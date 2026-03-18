@@ -204,23 +204,18 @@ export const getTotalCompletedExams = async (): Promise<Result<number>> => {
   try {
     const db = getFirestore(firebaseApp)
     
-    // Intentar primero usar el contador del registro si está disponible (más rápido)
-    try {
-      const { examRegistryService } = await import('@/services/firebase/examRegistry.service')
-      const registryResult = await examRegistryService.getTotalExams()
-      if (registryResult.success && registryResult.data > 0) {
-        console.log(`✅ [getTotalCompletedExams] Total de exámenes desde registro: ${registryResult.data}`)
-        return success(registryResult.data)
-      } else if (registryResult.success && registryResult.data === 0) {
-        console.log(`⚠️ [getTotalCompletedExams] Registro existe pero está en 0, contando manualmente desde results...`)
-      }
-    } catch (registryError) {
-      // Si falla el registro, continuar con el conteo manual
-      console.log('⚠️ [getTotalCompletedExams] No se pudo obtener desde registro, contando manualmente...')
+    // Intentar primero usar el contador del registro (1 lectura) para evitar escaneo masivo.
+    // Importante: si el contador existe aunque sea 0, evitamos "scan manual" (consume muchas lecturas).
+    const counterRef = doc(db, 'examRegistry', 'examCounter')
+    const counterSnap = await getDoc(counterRef)
+    if (counterSnap.exists()) {
+      const count = (counterSnap.data() as any)?.count ?? 0
+      console.log(`✅ [getTotalCompletedExams] Total de exámenes desde registro: ${count}`)
+      return success(count)
     }
     
-    // Si el registro no tiene datos o falla, hacer conteo manual (más lento pero más preciso)
-    // Obtener todos los estudiantes (documentos en la colección 'results')
+    // Si el contador no existe, hacer conteo manual (más lento pero más preciso)
+    // Nota: este caso debería ser raro (idealmente se backfill una vez).
     console.log('🔍 [getTotalCompletedExams] Iniciando conteo manual desde colección results...')
     const resultsRef = collection(db, 'results')
     const usersSnapshot = await getDocs(resultsRef)

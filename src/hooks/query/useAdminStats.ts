@@ -1,11 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { getAdminStats } from '@/controllers/admin.controller'
 
-const REFETCH_STATS_MS = 5 * 60 * 1000 // 5 minutos
-
 /**
  * Hook para obtener estadísticas del dashboard del administrador.
- * Actualización automática cada 5 minutos vía React Query.
+ * Optimizado: evitar lecturas repetitivas en segundo plano.
  */
 export const useAdminStats = () => {
   const statsQuery = useQuery({
@@ -15,9 +13,11 @@ export const useAdminStats = () => {
       if (!result.success) throw result.error
       return result.data
     },
-    refetchInterval: REFETCH_STATS_MS,
-    staleTime: REFETCH_STATS_MS,
-    gcTime: 10 * 60 * 1000,
+    // Cache largo para evitar re-ejecución periódica.
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    gcTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   const data = statsQuery.data

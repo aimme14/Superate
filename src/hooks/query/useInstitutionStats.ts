@@ -20,8 +20,10 @@ export const useInstitutionStats = (institutionId: string, enabled: boolean = tr
       return result.success ? result.data : []
     },
     enabled: enabled && !!institutionId,
-    staleTime: 30 * 1000, // 30 segundos para actualizaciones más frecuentes
-    refetchInterval: 60 * 1000, // Refetch cada minuto para datos en tiempo real
+    // Cache largo: reduce lecturas al desactivar refrescos periódicos.
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   // Consulta para docentes de la institución
@@ -32,8 +34,9 @@ export const useInstitutionStats = (institutionId: string, enabled: boolean = tr
       return result.success ? result.data : []
     },
     enabled: enabled && !!institutionId,
-    staleTime: 30 * 1000, // 30 segundos para actualizaciones más frecuentes
-    refetchInterval: 60 * 1000, // Refetch cada minuto para datos en tiempo real
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   return {
@@ -62,8 +65,9 @@ export const useInstitutionStudentCount = (institutionId: string, enabled: boole
       return result.success ? result.data.length : 0
     },
     enabled: enabled && !!institutionId,
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 
@@ -80,7 +84,8 @@ export const useInstitutionTeacherCount = (institutionId: string, enabled: boole
       return result.success ? result.data.length : 0
     },
     enabled: enabled && !!institutionId,
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }

@@ -708,7 +708,9 @@ function StudyPlanSummary({
       }
 
       setPhase1Stats({ deployed: 0, pending: 0, loading: true });
-      const subjectsWithWeaknesses = phase1Data.subjectsWithTopics.filter(s => s.weaknesses.length > 0);
+      const subjectsWithWeaknesses = phase1Data.subjectsWithTopics.filter((s) =>
+        Array.isArray(s.weaknesses) ? s.weaknesses.length > 0 : false
+      );
       let deployed = 0;
 
       for (const subject of subjectsWithWeaknesses) {
@@ -964,7 +966,9 @@ function PersonalizedStudyPlan({
   };
 
   /** Materias con al menos una debilidad: solo estas pueden generar plan y se usan en la cascada. */
-  const subjectsWithWeaknesses = subjectsWithTopics.filter(s => s.weaknesses.length > 0);
+  const subjectsWithWeaknesses = subjectsWithTopics.filter((s) =>
+    Array.isArray(s.weaknesses) ? s.weaknesses.length > 0 : false
+  );
 
   /** Mensaje para materias sin debilidades: orientar al estudiante a priorizar otras materias. */
   const NO_WEAKNESSES_MESSAGE =
@@ -1073,7 +1077,8 @@ function PersonalizedStudyPlan({
     >
       <div className="space-y-3">
       {sortedSubjects.map((subject) => {
-        const hasWeaknesses = subject.weaknesses.length > 0;
+        const weaknesses = Array.isArray(subject.weaknesses) ? subject.weaknesses : [];
+        const hasWeaknesses = weaknesses.length > 0;
         const plan = studyPlans[subject.name];
         const isGenerating = generatingFor === subject.name;
         const isAuthorized = subjectAuthorizations[subject.name] ?? false;
@@ -1103,7 +1108,7 @@ function PersonalizedStudyPlan({
                     </h3>
                     <p className={cn("text-sm mt-0.5", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                       {hasWeaknesses
-                        ? `${subject.weaknesses.length} debilidad(es) identificada(s)`
+                        ? `${weaknesses.length} debilidad(es) identificada(s)`
                         : 'Sin debilidades detectadas'}
                     </p>
                   </div>
@@ -1417,7 +1422,7 @@ function PersonalizedStudyPlan({
                               Debilidades identificadas:
                             </p>
                             <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                              {subject.weaknesses.map((weakness, idx) => {
+                              {weaknesses.map((weakness, idx) => {
                                 const topicData = subject.topics.find(t => t.name === weakness);
                                 return (
                                   <li key={idx}>
@@ -1454,7 +1459,7 @@ function PersonalizedStudyPlan({
                               Debilidades identificadas:
                             </p>
                             <ul className={cn("text-sm space-y-1", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                              {subject.weaknesses.map((weakness, idx) => {
+                              {weaknesses.map((weakness, idx) => {
                                 const topicData = subject.topics.find(t => t.name === weakness);
                                 return (
                                   <li key={idx}>
@@ -3330,11 +3335,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 );
               }
 
-              const subjectsWithWeaknessesCount = phase1Data.subjectsWithTopics.filter(
-                (s) => s.weaknesses.length > 0
+              const subjectsWithWeaknessesCount = phase1Data.subjectsWithTopics.filter((s) =>
+                Array.isArray(s.weaknesses) ? s.weaknesses.length > 0 : false
               ).length;
               const subjectsBalancedCount =
-                phase1Data.subjectsWithTopics.length - subjectsWithWeaknessesCount;
+                (phase1Data.subjectsWithTopics?.length ?? 0) - subjectsWithWeaknessesCount;
 
               return (
                 <div className="space-y-6" key="study-plan-content">

@@ -103,8 +103,11 @@ export const useMonthlyRevenue = (year?: number) => {
 
       return revenueData
     },
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 10 * 60 * 1000,
+    // Cache largo: evita recalcular ingresos consultando todos los usuarios.
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+    // No revalidar en background para reducir lecturas.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 
