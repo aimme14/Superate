@@ -103,6 +103,8 @@ export interface AnalysisData {
     topic: string;
     resources: string[];
     timeEstimate: string;
+    /** Texto detallado (IA o plantilla básica). */
+    explanation: string;
   }>;
 }
 
