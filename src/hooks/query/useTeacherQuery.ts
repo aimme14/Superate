@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import { 
   getAllTeachers, 
   getTeacherById, 
@@ -39,7 +40,7 @@ export const useTeachers = () => {
       }
       throw new Error(result.error.message)
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    ...ADMIN_LIST_CACHE,
   })
 }
 
@@ -55,6 +56,7 @@ export const useTeacher = (id: string, enabled: boolean = true) => {
       throw new Error(result.error.message)
     },
     enabled: enabled && !!id,
+    ...ADMIN_LIST_CACHE,
   })
 }
 
@@ -70,6 +72,7 @@ export const useTeachersByInstitution = (institutionId: string, enabled: boolean
       throw new Error(result.error.message)
     },
     enabled: enabled && !!institutionId,
+    ...ADMIN_LIST_CACHE,
   })
 }
 
@@ -85,6 +88,7 @@ export const useTeachersByCampus = (campusId: string, enabled: boolean = true) =
       throw new Error(result.error.message)
     },
     enabled: enabled && !!campusId,
+    ...ADMIN_LIST_CACHE,
   })
 }
 
@@ -99,7 +103,7 @@ export const useTeacherStats = () => {
       }
       throw new Error(result.error.message)
     },
-    staleTime: 10 * 60 * 1000, // 10 minutos
+    ...ADMIN_LIST_CACHE,
   })
 }
 

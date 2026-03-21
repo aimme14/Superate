@@ -37,7 +37,7 @@ import { useNotification } from '@/hooks/ui/useNotification'
 // import { useAutoResizeTextarea } from '@/hooks/ui/useAutoResizeTextarea'
 import RichTextEditor, { RichTextEditorRef } from '@/components/common/RichTextEditor'
 import { questionService, Question, QuestionOption } from '@/services/firebase/question.service'
-import { useQuestions, useQuestionStats, useInvalidateQuestions } from '@/hooks/query/useQuestions'
+import { useQuestionsInfinite, useQuestionStats, useInvalidateQuestions, useQuestionByCode, useQuestionCacheActions } from '@/hooks/query/useQuestions'
 import { useDebounce } from '@/hooks/ui/useDebounce'
 import { useQuestionGrouping } from '@/hooks/query/useQuestionGrouping'
 import QuestionBankStats from '@/components/admin/QuestionBankStats'
@@ -66,6 +66,10 @@ import 'katex/dist/katex.min.css'
 interface QuestionBankProps {
   theme: 'light' | 'dark'
 }
+
+// Código de pregunta: subjectCode(2) + topicCode(2) + grade(1) + levelCode(F|M|D)(1) + serie(3)
+// Ej: MAAL1F001 (longitud 9)
+const QUESTION_CODE_REGEX = /^[A-Z]{2}[A-Z]{2}[0-9]{1}[FMD]{1}[0-9]{3}$/
 
 // Función para sanitizar HTML de forma segura
 const sanitizeHtml = (html: string) => {
@@ -188,6 +192,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const { notifySuccess, notifyError } = useNotification()
   const { user: currentUser } = useAuthContext()
   const invalidateQuestions = useInvalidateQuestions()
+  const { prependCreatedQuestions, invalidateQuestionStats, upsertQuestions, removeQuestionsByIds } = useQuestionCacheActions()
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -204,6 +209,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 350)
 
+  const normalizedSearchCode = useMemo(() => debouncedSearchTerm.trim().toUpperCase(), [debouncedSearchTerm])
+  const isExactCodeSearch = useMemo(() => QUESTION_CODE_REGEX.test(normalizedSearchCode), [normalizedSearchCode])
+
   const serverFilters = useMemo(() => ({
     ...(filterSubject !== 'all' && { subjectCode: filterSubject }),
     ...(filterTopic !== 'all' && { topicCode: filterTopic }),
@@ -211,7 +219,29 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     ...(filterLevel !== 'all' && { levelCode: filterLevel }),
   }), [filterSubject, filterTopic, filterGrade, filterLevel])
 
-  const { data: questions = [], isLoading } = useQuestions(serverFilters)
+  const {
+    data: questionsPages,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useQuestionsInfinite(serverFilters, 10, !isExactCodeSearch)
+
+  const { data: exactQuestion } = useQuestionByCode(isExactCodeSearch ? normalizedSearchCode : undefined, isExactCodeSearch)
+
+  const questions = useMemo(() => {
+    if (isExactCodeSearch) {
+      return exactQuestion ? [exactQuestion] : []
+    }
+
+    // Deduplicar por ID por si existen preguntas con el mismo `createdAt` en páginas consecutivas.
+    const items = (questionsPages?.pages ?? []).flatMap(page => page.items)
+    const map = new Map<string, typeof items[number]>()
+    for (const q of items) {
+      if (q?.id) map.set(q.id, q)
+    }
+    return Array.from(map.values())
+  }, [questionsPages, isExactCodeSearch, exactQuestion])
   const { data: stats } = useQuestionStats()
   
   // Vista de organización
@@ -1563,6 +1593,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         // Crear una pregunta por cada pregunta de matching
         const createdQuestions: string[] = []
+        const createdQuestionItems: Question[] = []
         let successCount = 0
         let errorCount = 0
 
@@ -1643,6 +1674,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             if (result.success) {
               createdQuestions.push(result.data.code)
+              createdQuestionItems.push(result.data)
               successCount++
               console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
             } else {
@@ -1663,7 +1695,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -1671,7 +1704,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -1703,6 +1737,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
         // Crear una pregunta por cada hueco
         const createdQuestions: string[] = []
+        const createdQuestionItems: Question[] = []
         let successCount = 0
         let errorCount = 0
 
@@ -1763,6 +1798,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             if (result.success) {
               createdQuestions.push(result.data.code)
+              createdQuestionItems.push(result.data)
               successCount++
               console.log(`✅ Pregunta de cloze ${i + 1} creada: ${result.data.code} (Hueco ${gapNum})`)
             } else {
@@ -1783,7 +1819,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -1791,7 +1828,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -1839,6 +1877,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
         // Crear una pregunta por cada pregunta de lectura
         const createdQuestions: string[] = []
+        const createdQuestionItems: Question[] = []
         let successCount = 0
         let errorCount = 0
 
@@ -1949,6 +1988,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             if (result.success) {
               createdQuestions.push(result.data.code)
+              createdQuestionItems.push(result.data)
               successCount++
               console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
             } else {
@@ -1969,7 +2009,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -1977,7 +2018,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -2025,6 +2067,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
         // Crear una pregunta por cada pregunta de lectura
         const createdQuestions: string[] = []
+        const createdQuestionItems: Question[] = []
         let successCount = 0
         let errorCount = 0
 
@@ -2135,6 +2178,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             if (result.success) {
               createdQuestions.push(result.data.code)
+              createdQuestionItems.push(result.data)
               successCount++
               console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
             } else {
@@ -2155,7 +2199,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else if (successCount > 0) {
           notifyError({ 
             title: 'Advertencia', 
@@ -2163,7 +2208,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           resetForm()
           setIsCreateDialogOpen(false)
-          invalidateQuestions()
+          prependCreatedQuestions(createdQuestionItems)
+          invalidateQuestionStats()
         } else {
           notifyError({ 
             title: 'Error', 
@@ -2243,8 +2289,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             })
             resetForm()
             setIsCreateDialogOpen(false)
-            invalidateQuestions()
-            invalidateQuestions()
+            prependCreatedQuestions([result.data])
+            invalidateQuestionStats()
           } else {
             const errorMsg = result?.error || result?.message || 'No se pudo crear la pregunta'
             console.error('❌ Error en createQuestion:', errorMsg)
@@ -2861,9 +2907,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       
       if (result.success) {
         console.log('✅ Eliminación exitosa en la base de datos')
-        
-        // Recargar las preguntas desde la base de datos para asegurar consistencia
-        invalidateQuestions()
+        removeQuestionsByIds([question.id])
+        invalidateQuestionStats()
         
         notifySuccess({
           title: 'Éxito',
@@ -2950,6 +2995,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setIsSubmitting(true)
     let successCount = 0
     let errorCount = 0
+    const failedIds = new Set<string>()
 
     try {
       // Eliminar cada pregunta
@@ -2960,16 +3006,18 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             successCount++
           } else {
             errorCount++
+            failedIds.add(id)
             console.error(`Error al eliminar pregunta ${id}:`, result.error)
           }
         } catch (error) {
           errorCount++
+          failedIds.add(id)
           console.error(`Excepción al eliminar pregunta ${id}:`, error)
         }
       }
 
-      // Recargar las preguntas desde la base de datos para asegurar consistencia
-      invalidateQuestions()
+      removeQuestionsByIds(idsToDelete.filter((id) => !failedIds.has(id)))
+      invalidateQuestionStats()
 
       if (errorCount === 0) {
         notifySuccess({
@@ -3601,6 +3649,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         let successCount = 0
         let errorCount = 0
         const updatedCodes: string[] = []
+        const updatedQuestions: Question[] = []
+        const updatedQuestions: Question[] = []
+        const deletedQuestionIds: string[] = []
+        const updatedQuestions: Question[] = []
         
         notifySuccess({
           title: 'Actualizando',
@@ -3699,6 +3751,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             if (result.success) {
               successCount++
               updatedCodes.push(questionNewCode || relatedQuestion.code)
+              updatedQuestions.push(result.data)
             } else {
               errorCount++
               console.error(`❌ Error actualizando pregunta del hueco ${gapNum}:`, result.error)
@@ -3721,13 +3774,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           setEditClozeText('')
           setEditClozeGaps({})
           setEditClozeRelatedQuestions([])
-          invalidateQuestions()
+          upsertQuestions(updatedQuestions)
+          invalidateQuestionStats()
         } else if (successCount > 0) {
           notifyError({
             title: 'Advertencia',
             message: `Se actualizaron ${successCount} pregunta(s) de ${sortedGaps.length}. ${errorCount} fallaron.`
           })
-          invalidateQuestions()
+          upsertQuestions(updatedQuestions)
+          invalidateQuestionStats()
         } else {
           notifyError({
             title: 'Error',
@@ -4019,6 +4074,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               if (result.success) {
                 successCount++
                 updatedCodes.push(questionNewCode || relatedQuestion.code)
+                updatedQuestions.push(result.data)
               } else {
                 errorCount++
                 console.error(`❌ Error actualizando pregunta ${i + 1}:`, result.error)
@@ -4032,6 +4088,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               if (result.success) {
                 successCount++
                 updatedCodes.push(result.data.code)
+                updatedQuestions.push(result.data)
               } else {
                 errorCount++
                 console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
@@ -4054,6 +4111,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           if (questionToDelete.id) {
             try {
               await questionService.deleteQuestion(questionToDelete.id)
+              deletedQuestionIds.push(questionToDelete.id)
               console.log(`✅ Pregunta ${questionToDelete.code} eliminada`)
             } catch (error) {
               console.error(`❌ Error eliminando pregunta ${questionToDelete.code}:`, error)
@@ -4076,13 +4134,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           setEditReadingExistingImageUrl(null)
           setEditReadingQuestions([])
           setEditReadingRelatedQuestions([])
-          invalidateQuestions()
+          upsertQuestions(updatedQuestions)
+          removeQuestionsByIds(deletedQuestionIds)
+          invalidateQuestionStats()
         } else if (successCount > 0) {
           notifyError({
             title: 'Advertencia',
             message: `Se actualizaron ${successCount} pregunta(s) de ${editReadingQuestions.length}. ${errorCount} fallaron.`
           })
-          invalidateQuestions()
+          upsertQuestions(updatedQuestions)
+          removeQuestionsByIds(deletedQuestionIds)
+          invalidateQuestionStats()
             } else {
               notifyError({
                 title: 'Error',
@@ -4196,6 +4258,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             let successCount = 0
             let errorCount = 0
             const updatedCodes: string[] = []
+            const updatedQuestions: Question[] = []
+            const deletedQuestionIds: string[] = []
             
             notifySuccess({
               title: 'Actualizando',
@@ -4380,6 +4444,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   if (result.success) {
                     successCount++
                     updatedCodes.push(questionNewCode || relatedQuestion.code)
+                    updatedQuestions.push(result.data)
                   } else {
                     errorCount++
                     console.error(`❌ Error actualizando pregunta ${i + 1}:`, result.error)
@@ -4393,6 +4458,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   if (result.success) {
                     successCount++
                     updatedCodes.push(result.data.code)
+                    updatedQuestions.push(result.data)
                   } else {
                     errorCount++
                     console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
@@ -4415,6 +4481,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               if (questionToDelete.id) {
                 try {
                   await questionService.deleteQuestion(questionToDelete.id)
+                  deletedQuestionIds.push(questionToDelete.id)
                   console.log(`✅ Pregunta ${questionToDelete.code} eliminada`)
                 } catch (error) {
                   console.error(`❌ Error eliminando pregunta ${questionToDelete.code}:`, error)
@@ -4437,15 +4504,17 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               setEditOtherSubjectsReadingExistingImageUrl(null)
               setEditOtherSubjectsReadingQuestions([])
               setEditOtherSubjectsReadingRelatedQuestions([])
-              invalidateQuestions()
-              invalidateQuestions()
+              upsertQuestions(updatedQuestions)
+              removeQuestionsByIds(deletedQuestionIds)
+              invalidateQuestionStats()
             } else if (successCount > 0) {
               notifyError({
                 title: 'Advertencia',
                 message: `Se actualizaron ${successCount} pregunta(s) de ${editOtherSubjectsReadingQuestions.length}. ${errorCount} fallaron.`
               })
-              invalidateQuestions()
-              invalidateQuestions()
+              upsertQuestions(updatedQuestions)
+              removeQuestionsByIds(deletedQuestionIds)
+              invalidateQuestionStats()
             } else {
               notifyError({
                 title: 'Error',
@@ -4725,6 +4794,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             if (result.success) {
               successCount++
               updatedCodes.push(questionNewCode || relatedQuestion.code)
+              updatedQuestions.push(result.data)
             } else {
               errorCount++
               console.error(`❌ Error actualizando pregunta matching ${i + 1}:`, result.error)
@@ -4745,13 +4815,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           setSelectedQuestion(null)
           setMatchingQuestions([])
           setInglesModality('standard_mc')
-          invalidateQuestions()
+          upsertQuestions(updatedQuestions)
+          invalidateQuestionStats()
         } else if (successCount > 0) {
           notifyError({
             title: 'Advertencia',
             message: `Se actualizaron ${successCount} pregunta(s) de ${matchingQuestions.length}. ${errorCount} fallaron.`
           })
-          invalidateQuestions()
+          upsertQuestions(updatedQuestions)
+          invalidateQuestionStats()
         } else {
           notifyError({
             title: 'Error',
@@ -4901,7 +4973,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           resetForm()
           setIsEditDialogOpen(false)
           setSelectedQuestion(null)
-          invalidateQuestions()
+          upsertQuestions([result.data])
+          invalidateQuestionStats()
         } else {
           notifyError({
             title: 'Error',
@@ -5470,6 +5543,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               hasQuestions={questions.length > 0}
             />
           )}
+
+          {/* Paginación: cargar más reduce lecturas vs descargar todo el banco */}
+          <div className="mt-4 flex justify-center">
+            {hasNextPage ? (
+              <Button
+                variant="outline"
+                onClick={() => void fetchNextPage()}
+                disabled={isLoading || isFetchingNextPage}
+              >
+                {isFetchingNextPage ? 'Cargando...' : 'Cargar más (10)'}
+              </Button>
+            ) : questions.length > 0 ? (
+              <span className="text-sm text-muted-foreground">
+                No hay más preguntas con estos filtros
+              </span>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 

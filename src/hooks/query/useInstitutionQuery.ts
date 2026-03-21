@@ -41,6 +41,7 @@ export const useInstitutions = () => {
       throw new Error(result.error.message)
     },
     staleTime: 24 * 60 * 60 * 1000, // 24h: reduce lecturas al navegar/entrar
+    gcTime: 45 * 60 * 1000, // memoria: alineado con listados admin
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,

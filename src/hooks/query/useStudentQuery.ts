@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import { 
   createStudent, 
   getFilteredStudents, 
@@ -16,26 +17,23 @@ import { useNotification } from '@/hooks/ui/useNotification'
  * Hook para obtener estudiantes filtrados
  */
 export const useFilteredStudents = (filters: StudentFilters) => {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['students', 'filtered', filters],
     queryFn: async () => {
-      console.log('🔄 Hook: ejecutando queryFn con filtros:', filters)
       const result = await getFilteredStudents(filters)
-      console.log('🔄 Hook: resultado del controlador:', result.success ? 'ÉXITO' : 'ERROR')
-      if (result.success) {
-        console.log('🔄 Hook: datos recibidos:', result.data.length, 'estudiantes')
-        console.log('🔄 Hook: primer estudiante:', result.data[0])
-      }
-      return result.success ? result.data : []
+      if (result.success) return result.data
+      throw new Error(result.error?.message ?? 'Error al cargar estudiantes')
     },
-    staleTime: 5 * 60 * 1000, // 5 min - evita refetch innecesario
-    placeholderData: keepPreviousData, // mantiene lista anterior al cambiar filtros (sin parpadeo)
+    ...ADMIN_LIST_CACHE,
+    placeholderData: keepPreviousData,
   })
 
   return {
     students: data || [],
     isLoading,
-    error
+    error,
+    refetch,
+    isFetching,
   }
 }
 
@@ -46,23 +44,14 @@ export const useStudentsByTeacher = (teacherId: string, enabled: boolean = true)
   return useQuery({
     queryKey: ['students', 'by-teacher', teacherId],
     queryFn: async () => {
-      console.log('🔄 useStudentsByTeacher - Ejecutando queryFn con teacherId:', teacherId)
       const result = await getStudentsByTeacher(teacherId)
-      console.log('🔄 useStudentsByTeacher - Resultado:', result.success ? 'ÉXITO' : 'ERROR')
-      if (result.success) {
-        console.log('🔄 useStudentsByTeacher - Estudiantes encontrados:', result.data.length)
-        console.log('🔄 useStudentsByTeacher - Primer estudiante:', result.data[0])
-      } else {
-        console.error('🔄 useStudentsByTeacher - Error:', result.error)
-      }
       return result
     },
     enabled: enabled && !!teacherId,
-    staleTime: 5 * 60 * 1000,
+    ...ADMIN_LIST_CACHE,
     placeholderData: keepPreviousData,
     select: (data) => {
       const students = data.success ? data.data : []
-      console.log('🔄 useStudentsByTeacher - Select - Estudiantes procesados:', students.length)
       return students
     }
   })
@@ -76,7 +65,7 @@ export const useStudentsByPrincipal = (principalId: string, enabled: boolean = t
     queryKey: ['students', 'by-principal', principalId],
     queryFn: () => getStudentsByPrincipal(principalId),
     enabled: enabled && !!principalId,
-    staleTime: 5 * 60 * 1000,
+    ...ADMIN_LIST_CACHE,
     placeholderData: keepPreviousData,
     select: (data) => data.success ? data.data : []
   })

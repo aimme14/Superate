@@ -11,6 +11,7 @@ import {
   query, 
   where, 
   orderBy,
+  startAfter,
   limit,
   runTransaction,
   Timestamp,
@@ -112,6 +113,16 @@ export interface QuestionFilters {
   level?: string;
   levelCode?: string;
   limit?: number;
+}
+
+export interface QuestionCursor {
+  createdAtMillis: number
+}
+
+export interface PaginatedQuestions {
+  items: Question[]
+  nextCursor?: QuestionCursor
+  hasMore: boolean
 }
 
 /**
@@ -714,6 +725,86 @@ class QuestionService {
     } catch (e) {
       console.error('❌ Error al filtrar preguntas:', e);
       return failure(new ErrorAPI(normalizeError(e, 'filtrar preguntas')));
+    }
+  }
+
+  /**
+   * Obtiene una página de preguntas filtradas con paginación por cursor.
+   * Orden estable: createdAt desc + documentId desc.
+   *
+   * Nota: agregar ordenBy puede requerir índices compuestos en Firestore.
+   */
+  async getFilteredQuestionsPaginated(
+    filters: QuestionFilters,
+    pageSize: number,
+    cursor?: QuestionCursor
+  ): Promise<Result<PaginatedQuestions>> {
+    try {
+      const questionsRef = collection(db, 'superate', 'auth', 'questions')
+      const conditions: any[] = []
+
+      if (filters.subject) conditions.push(where('subject', '==', filters.subject))
+      if (filters.subjectCode) conditions.push(where('subjectCode', '==', filters.subjectCode))
+      if (filters.topic) conditions.push(where('topic', '==', filters.topic))
+      if (filters.topicCode) conditions.push(where('topicCode', '==', filters.topicCode))
+      if (filters.grade) conditions.push(where('grade', '==', filters.grade))
+      if (filters.level) conditions.push(where('level', '==', filters.level))
+      if (filters.levelCode) conditions.push(where('levelCode', '==', filters.levelCode))
+
+      // Para minimizar requisitos de índices, usamos un solo orderBy.
+      // Cursor solo con createdAt.
+      const q = query(
+        questionsRef,
+        ...conditions,
+        orderBy('createdAt', 'desc'),
+        ...(cursor ? [startAfter(Timestamp.fromMillis(cursor.createdAtMillis))] : []),
+        limit(pageSize)
+      )
+      const querySnapshot = await getDocs(q)
+
+      const items: Question[] = querySnapshot.docs.map((docSnap) => {
+        const data: any = docSnap.data()
+
+        let aiJustification = data.aiJustification
+        if (
+          aiJustification &&
+          aiJustification.generatedAt &&
+          typeof aiJustification.generatedAt.toDate === 'function'
+        ) {
+          aiJustification = {
+            ...aiJustification,
+            generatedAt: aiJustification.generatedAt.toDate(),
+          }
+        }
+
+        return {
+          ...data,
+          id: docSnap.id,
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+          aiJustification,
+        } as Question
+      })
+
+      const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1]
+      const hasMore = items.length === pageSize && !!lastDoc
+
+      let nextCursor: QuestionCursor | undefined = undefined
+      if (lastDoc) {
+        const lastData: any = lastDoc.data()
+        const lastCreatedAtMillis =
+          lastData.createdAt?.toDate?.().getTime?.() ?? Date.now()
+        nextCursor = {
+          createdAtMillis: lastCreatedAtMillis,
+        }
+      }
+
+      return success({
+        items,
+        nextCursor: hasMore ? nextCursor : undefined,
+        hasMore,
+      })
+    } catch (e) {
+      return failure(new ErrorAPI(normalizeError(e, 'filtrar preguntas paginadas')))
     }
   }
 

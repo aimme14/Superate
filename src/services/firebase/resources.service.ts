@@ -1,12 +1,20 @@
 import {
   getFirestore,
   collection,
+  collectionGroup,
   doc,
   getDocs,
   deleteDoc,
   updateDoc,
   Timestamp,
   addDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  documentId,
+  QueryConstraint,
 } from 'firebase/firestore';
 import { firebaseApp } from '@/services/db';
 import { success, failure, Result } from '@/interfaces/db.interface';
@@ -79,6 +87,17 @@ export interface ResourceFilters {
   topicCode?: string;
 }
 
+export interface ResourceCursor {
+  createdAtMillis: number;
+  id: string;
+}
+
+export interface PaginatedResources<T extends Resource> {
+  items: T[];
+  nextCursor?: ResourceCursor;
+  hasMore: boolean;
+}
+
 /** Path para eliminar o actualizar: grado, materiaCode, topicCode e id del documento */
 export interface ResourcePath {
   grado: string;
@@ -148,7 +167,10 @@ class ResourcesService {
         LINKS_SUBCOLLECTION
       );
       const docRef = await addDoc(linksColRef, {
+        grado: data.grado,
+        materiaCode: data.materiaCode,
         materia: data.materia,
+        topicCode: data.topicCode,
         topic: data.topic,
         url: data.url.trim(),
         title: data.title?.trim() || null,
@@ -188,7 +210,10 @@ class ResourcesService {
         VIDEOS_SUBCOLLECTION
       );
       const docRef = await addDoc(videosColRef, {
+        grado: data.grado,
+        materiaCode: data.materiaCode,
         materia: data.materia,
+        topicCode: data.topicCode,
         topic: data.topic,
         url: data.url.trim(),
         title: data.title?.trim() || null,
@@ -255,6 +280,41 @@ class ResourcesService {
     }
   }
 
+  async getWebLinksPaginated(
+    filters?: ResourceFilters,
+    pageSize: number = 10,
+    cursor?: ResourceCursor
+  ): Promise<Result<PaginatedResources<WebLink>>> {
+    try {
+      const constraints = this.buildQueryConstraints(filters, pageSize, cursor);
+      const q = query(collectionGroup(db, LINKS_SUBCOLLECTION), ...constraints);
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return parseLinkDoc(d.id, data, 'web', {
+          grado: String(data.grado ?? ''),
+          materiaCode: String(data.materiaCode ?? ''),
+          topicCode: String(data.topicCode ?? ''),
+        }) as WebLink;
+      });
+      const last = snapshot.docs[snapshot.docs.length - 1];
+      const hasMore = snapshot.docs.length === pageSize;
+      return success({
+        items,
+        hasMore,
+        nextCursor: hasMore
+          ? {
+              createdAtMillis: ((last.data().createdAt as Timestamp)?.toMillis?.() ?? Date.now()),
+              id: last.id,
+            }
+          : undefined,
+      });
+    } catch (e) {
+      console.error('❌ Error al listar enlaces web paginados:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'listar enlaces web paginados')));
+    }
+  }
+
   /**
    * Lista enlaces de YouTube recorriendo YoutubeLinks/{grado}/{materia}/{topic}/videos.
    */
@@ -294,6 +354,59 @@ class ResourcesService {
       console.error('❌ Error al listar enlaces YouTube:', e);
       return failure(new ErrorAPI(normalizeError(e, 'listar enlaces YouTube')));
     }
+  }
+
+  async getYoutubeLinksPaginated(
+    filters?: ResourceFilters,
+    pageSize: number = 10,
+    cursor?: ResourceCursor
+  ): Promise<Result<PaginatedResources<YoutubeLink>>> {
+    try {
+      const constraints = this.buildQueryConstraints(filters, pageSize, cursor);
+      const q = query(collectionGroup(db, VIDEOS_SUBCOLLECTION), ...constraints);
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return parseLinkDoc(d.id, data, 'youtube', {
+          grado: String(data.grado ?? ''),
+          materiaCode: String(data.materiaCode ?? ''),
+          topicCode: String(data.topicCode ?? ''),
+        }) as YoutubeLink;
+      });
+      const last = snapshot.docs[snapshot.docs.length - 1];
+      const hasMore = snapshot.docs.length === pageSize;
+      return success({
+        items,
+        hasMore,
+        nextCursor: hasMore
+          ? {
+              createdAtMillis: ((last.data().createdAt as Timestamp)?.toMillis?.() ?? Date.now()),
+              id: last.id,
+            }
+          : undefined,
+      });
+    } catch (e) {
+      console.error('❌ Error al listar enlaces YouTube paginados:', e);
+      return failure(new ErrorAPI(normalizeError(e, 'listar enlaces YouTube paginados')));
+    }
+  }
+
+  private buildQueryConstraints(
+    filters: ResourceFilters | undefined,
+    pageSize: number,
+    cursor?: ResourceCursor
+  ): QueryConstraint[] {
+    const constraints: QueryConstraint[] = [];
+    if (filters?.grado) constraints.push(where('grado', '==', filters.grado));
+    if (filters?.materiaCode) constraints.push(where('materiaCode', '==', filters.materiaCode));
+    if (filters?.topicCode) constraints.push(where('topicCode', '==', filters.topicCode));
+    constraints.push(orderBy('createdAt', 'desc'));
+    constraints.push(orderBy(documentId(), 'desc'));
+    if (cursor) {
+      constraints.push(startAfter(Timestamp.fromMillis(cursor.createdAtMillis), cursor.id));
+    }
+    constraints.push(limit(pageSize));
+    return constraints;
   }
 
   /**

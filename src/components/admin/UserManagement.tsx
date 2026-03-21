@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/ui/useDebounce'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1013,7 +1015,9 @@ export default function UserManagement({ theme }: UserManagementProps) {
   
   // Hook para mutaciones administrativas
   const { recalculateCounts, isRecalculating } = useAdminMutations()
+  const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 400)
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all')
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -1083,28 +1087,28 @@ export default function UserManagement({ theme }: UserManagementProps) {
   
   // Filtros para docentes - mostrar todos (activos e inactivos)
   const { teachers: filteredTeachers, isLoading: filteredTeachersLoading } = useFilteredTeachers({
-    searchTerm: searchTerm || undefined,
+    searchTerm: debouncedSearchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
     isActive: undefined // Mostrar todos los usuarios
   })
 
   // Filtros para coordinadores - mostrar todos (activos e inactivos)
   const { principals: filteredPrincipals, isLoading: filteredPrincipalsLoading } = useFilteredPrincipals({
-    searchTerm: searchTerm || undefined,
+    searchTerm: debouncedSearchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
     isActive: undefined // Mostrar todos los usuarios
   })
 
   // Filtros para rectores - mostrar todos (activos e inactivos)
   const { rectors: filteredRectors, isLoading: filteredRectorsLoading } = useFilteredRectors({
-    searchTerm: searchTerm || undefined,
+    searchTerm: debouncedSearchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
     isActive: undefined // Mostrar todos los usuarios
   })
 
   // Filtros para estudiantes - mostrar todos (activos e inactivos)
   const { students: filteredStudents, isLoading: filteredStudentsLoading } = useFilteredStudents({
-    searchTerm: searchTerm || undefined,
+    searchTerm: debouncedSearchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
     gradeId: selectedGrade !== 'all' ? selectedGrade : undefined,
     isActive: undefined // Mostrar todos los usuarios
@@ -2048,6 +2052,20 @@ export default function UserManagement({ theme }: UserManagementProps) {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-zinc-600 dark:text-gray-200 dark:hover:bg-zinc-800"
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ['teachers'] })
+              void queryClient.invalidateQueries({ queryKey: ['principals'] })
+              void queryClient.invalidateQueries({ queryKey: ['rectors'] })
+              void queryClient.invalidateQueries({ queryKey: ['students'] })
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Actualizar listas
+          </Button>
           <Button 
             onClick={() => recalculateCounts()}
             disabled={isRecalculating}

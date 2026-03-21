@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import { 
   getAllRectors, 
   getRectorByUserId,
@@ -32,7 +33,7 @@ export const useRectors = () => {
       }
       throw new Error(result.error.message)
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    ...ADMIN_LIST_CACHE,
   })
 }
 

@@ -1,10 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import {
   resourcesService,
   type WebLink,
   type YoutubeLink,
   type ResourceFilters,
   type ResourcePath,
+  type ResourceCursor,
+  type PaginatedResources,
   type CreateWebLinkData,
   type CreateYoutubeLinkData,
   type UpdateResourceData,
@@ -40,8 +43,37 @@ export function useResources(filters: ResourceFilters = {}) {
   return useQuery({
     queryKey: RESOURCES_KEYS.list(filters),
     queryFn: () => fetchResources(filters),
-    staleTime: 2 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
+    ...ADMIN_LIST_CACHE,
+  })
+}
+
+export function useWebLinksInfinite(filters: ResourceFilters = {}, pageSize: number = 10) {
+  return useInfiniteQuery({
+    queryKey: [...RESOURCES_KEYS.list(filters), 'web', 'infinite', pageSize],
+    queryFn: async ({ pageParam }): Promise<PaginatedResources<WebLink>> => {
+      const cursor = pageParam as ResourceCursor | undefined
+      const res = await resourcesService.getWebLinksPaginated(filters, pageSize, cursor)
+      if (!res.success) throw res.error
+      return res.data
+    },
+    initialPageParam: undefined as ResourceCursor | undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    ...ADMIN_LIST_CACHE,
+  })
+}
+
+export function useYoutubeLinksInfinite(filters: ResourceFilters = {}, pageSize: number = 10) {
+  return useInfiniteQuery({
+    queryKey: [...RESOURCES_KEYS.list(filters), 'youtube', 'infinite', pageSize],
+    queryFn: async ({ pageParam }): Promise<PaginatedResources<YoutubeLink>> => {
+      const cursor = pageParam as ResourceCursor | undefined
+      const res = await resourcesService.getYoutubeLinksPaginated(filters, pageSize, cursor)
+      if (!res.success) throw res.error
+      return res.data
+    },
+    initialPageParam: undefined as ResourceCursor | undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    ...ADMIN_LIST_CACHE,
   })
 }
 

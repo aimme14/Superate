@@ -141,6 +141,51 @@ class HandlerErrors {
       message: 'El tamaño del archivo en el cliente no coincide con el recibido por el servidor',
       errorType: Conflict
     },
+    // Cloud Firestore (códigos comunes del SDK web modular)
+    'permission-denied': {
+      message: 'No tienes permiso para realizar esta acción en la base de datos',
+      errorType: Forbidden
+    },
+    'unavailable': {
+      message: 'El servicio de base de datos no está disponible temporalmente. Intenta de nuevo en unos segundos',
+      errorType: ErrorAPI
+    },
+    'failed-precondition': {
+      message: 'La operación no puede ejecutarse: falta un índice compuesto o los datos no cumplen una condición requerida. Revisa la consola de Firebase para crear el índice sugerido',
+      errorType: Validation
+    },
+    'not-found': {
+      message: 'No se encontró el documento o recurso solicitado',
+      errorType: NotFound
+    },
+    'already-exists': {
+      message: 'El documento ya existe',
+      errorType: Conflict
+    },
+    'aborted': {
+      message: 'La operación fue cancelada',
+      errorType: Conflict
+    },
+    'cancelled': {
+      message: 'La operación fue cancelada',
+      errorType: Conflict
+    },
+    'deadline-exceeded': {
+      message: 'Tiempo de espera agotado al consultar la base de datos',
+      errorType: ErrorAPI
+    },
+    'invalid-argument': {
+      message: 'Argumento inválido en la consulta o escritura',
+      errorType: Validation
+    },
+    'data-loss': {
+      message: 'Error de integridad de datos persistentes',
+      errorType: ErrorAPI
+    },
+    'internal': {
+      message: 'Error interno del servicio de base de datos',
+      errorType: ErrorAPI
+    },
     // Firebase Firestore - Cuota excedida
     'resource-exhausted': {
       message: 'Se ha excedido la cuota de Firebase. Por favor, espera unos minutos e intenta nuevamente.',

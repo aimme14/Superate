@@ -12,7 +12,7 @@ export interface QuestionStats {
   byGrade: Record<string, number>
 }
 
-const INITIAL_VISIBLE = 3
+const INITIAL_VISIBLE = 2
 
 interface QuestionBankStatsProps {
   stats: QuestionStats
@@ -41,17 +41,17 @@ function ExpandableStatsSection({
 
   return (
     <Card className={cn(isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className={cn('text-sm font-medium', isDark ? 'text-gray-300' : 'text-gray-600')}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-2">
+        <CardTitle className={cn('text-xs font-medium', isDark ? 'text-gray-300' : 'text-gray-600')}>
           {title}
         </CardTitle>
-        <Icon className={cn('h-4 w-4', iconColor)} aria-hidden />
+        <Icon className={cn('h-3.5 w-3.5', iconColor)} aria-hidden />
       </CardHeader>
-      <CardContent>
-        <div className="space-y-1">
+      <CardContent className="px-3 pb-2 pt-0">
+        <div className="space-y-0.5">
           {visibleEntries.map(([key, count]) => (
-            <div key={key} className="flex justify-between text-sm">
-              <span className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>
+            <div key={key} className="flex justify-between text-xs">
+              <span className={cn('truncate pr-2', isDark ? 'text-gray-400' : 'text-gray-600')}>
                 {formatLabel(key)}
               </span>
               <span className={cn('font-medium', isDark ? 'text-white' : 'text-gray-900')}>
@@ -65,7 +65,7 @@ function ExpandableStatsSection({
             variant="ghost"
             size="sm"
             className={cn(
-              'w-full mt-2 -mb-1 text-xs',
+              'w-full mt-1 h-6 px-1 text-[11px]',
               isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
             )}
             onClick={() => setExpanded(!expanded)}
@@ -95,16 +95,16 @@ export default function QuestionBankStats({ stats, theme }: QuestionBankStatsPro
   const gradeEntries = Object.entries(stats.byGrade)
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
       <Card className={cn(isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className={cn('text-sm font-medium', isDark ? 'text-gray-300' : 'text-gray-600')}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-2">
+          <CardTitle className={cn('text-xs font-medium', isDark ? 'text-gray-300' : 'text-gray-600')}>
             Total Preguntas
           </CardTitle>
-          <FileText className="h-4 w-4 text-blue-500" aria-hidden />
+          <FileText className="h-3.5 w-3.5 text-blue-500" aria-hidden />
         </CardHeader>
-        <CardContent>
-          <div className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>
+        <CardContent className="px-3 pb-2 pt-0">
+          <div className={cn('text-xl font-bold leading-tight', isDark ? 'text-white' : 'text-gray-900')}>
             {stats.total}
           </div>
         </CardContent>
@@ -120,16 +120,16 @@ export default function QuestionBankStats({ stats, theme }: QuestionBankStatsPro
       />
 
       <Card className={cn(isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className={cn('text-sm font-medium', isDark ? 'text-gray-300' : 'text-gray-600')}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-2">
+          <CardTitle className={cn('text-xs font-medium', isDark ? 'text-gray-300' : 'text-gray-600')}>
             Por Nivel
           </CardTitle>
-          <AlertCircle className="h-4 w-4 text-amber-500" aria-hidden />
+          <AlertCircle className="h-3.5 w-3.5 text-amber-500" aria-hidden />
         </CardHeader>
-        <CardContent>
-          <div className="space-y-1">
+        <CardContent className="px-3 pb-2 pt-0">
+          <div className="space-y-0.5">
             {Object.entries(stats.byLevel).map(([level, count]) => (
-              <div key={level} className="flex justify-between text-sm">
+              <div key={level} className="flex justify-between text-xs">
                 <span className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>{level}</span>
                 <span className={cn('font-medium', isDark ? 'text-white' : 'text-gray-900')}>
                   {count}

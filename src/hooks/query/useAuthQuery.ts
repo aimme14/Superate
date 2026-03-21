@@ -1,5 +1,6 @@
 import { CustomMutation_User, DeleteMutationProps, QueryReact_User, UpdateMutationProps } from '@/interfaces/hook.interface'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import { QueryOptions } from '@/interfaces/props.interface'
 import { RegisterFormProps } from '@/schemas/auth.schema'
 import { useAuthContext } from '@/context/AuthContext'
@@ -24,7 +25,8 @@ export const useQueryUser = (): QueryReact_User => {
     queryFn: () => user.getAll<T>(),
     queryKey: QUERY_KEYS.users(),
     select: (data) => data || [],
-    initialData: []
+    initialData: [],
+    ...ADMIN_LIST_CACHE,
   })
 
   /**

@@ -8,6 +8,11 @@ import {
   deleteDoc,
   Timestamp,
   addDoc,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  documentId,
 } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { firebaseApp } from '@/services/db'
@@ -67,6 +72,17 @@ export interface CreateAIToolInput {
 }
 
 export interface UpdateAIToolInput extends Partial<CreateAIToolInput> {}
+
+export interface AIToolCursor {
+  createdAtMillis: number
+  id: string
+}
+
+export interface PaginatedAITools {
+  items: AIToolData[]
+  nextCursor?: AIToolCursor
+  hasMore: boolean
+}
 
 function parseAIToolDoc(id: string, data: Record<string, unknown>): AIToolData {
   const createdAt = (data.createdAt as Timestamp)?.toDate?.() ?? new Date()
@@ -279,6 +295,50 @@ class AIToolsService {
     } catch (e) {
       console.error('❌ Error al listar herramientas IA:', e)
       return failure(new ErrorAPI(normalizeError(e, 'listar herramientas IA')))
+    }
+  }
+
+  /** Lista paginada por createdAt desc (10 por defecto). */
+  async getAllPaginated(
+    pageSize: number = 10,
+    cursor?: AIToolCursor
+  ): Promise<Result<PaginatedAITools>> {
+    try {
+      let q = query(
+        collection(db, AI_TOOLS_COLLECTION),
+        orderBy('createdAt', 'desc'),
+        orderBy(documentId(), 'desc'),
+        limit(pageSize)
+      )
+
+      if (cursor) {
+        q = query(
+          collection(db, AI_TOOLS_COLLECTION),
+          orderBy('createdAt', 'desc'),
+          orderBy(documentId(), 'desc'),
+          startAfter(Timestamp.fromMillis(cursor.createdAtMillis), cursor.id),
+          limit(pageSize)
+        )
+      }
+
+      const snapshot = await getDocs(q)
+      const items = snapshot.docs.map((d) => parseAIToolDoc(d.id, d.data() as Record<string, unknown>))
+      const last = snapshot.docs[snapshot.docs.length - 1]
+      const hasMore = snapshot.docs.length === pageSize
+
+      return success({
+        items,
+        hasMore,
+        nextCursor: hasMore
+          ? {
+              createdAtMillis: ((last.data().createdAt as Timestamp)?.toMillis?.() ?? Date.now()),
+              id: last.id,
+            }
+          : undefined,
+      })
+    } catch (e) {
+      console.error('❌ Error al listar herramientas IA paginadas:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'listar herramientas IA paginadas')))
     }
   }
 

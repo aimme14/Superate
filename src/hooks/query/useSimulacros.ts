@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { simulacrosService } from "@/services/firebase/simulacros.service";
 import type { Simulacro } from "@/interfaces/simulacro.interface";
+import type { PaginatedSimulacros, SimulacroCursor } from "@/services/firebase/simulacros.service";
 import {
   RUTA_ACADEMICA_SIMULACROS_CACHE,
   ESTUDIANTE_SESSION_CACHE,
@@ -45,6 +46,23 @@ export function useSimulacrosList() {
     },
     ...ESTUDIANTE_SESSION_CACHE,
   });
+}
+
+export function useSimulacrosListInfinite(pageSize: number = 10) {
+  return useInfiniteQuery({
+    queryKey: [...SIMULACROS_LIST_QUERY_KEY, "infinite", pageSize],
+    queryFn: async ({ pageParam }): Promise<PaginatedSimulacros> => {
+      const cursor = pageParam as SimulacroCursor | undefined
+      const res = await simulacrosService.getAllPaginated(pageSize, cursor)
+      if (!res.success) throw new Error(res.error?.message ?? "Error al cargar simulacros")
+      return res.data
+    },
+    initialPageParam: undefined as SimulacroCursor | undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    ...ESTUDIANTE_SESSION_CACHE,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
 }
 
 /**

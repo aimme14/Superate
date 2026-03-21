@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/ui/useDebounce'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   Download, 
   Search, 
+  RefreshCw,
   Loader2, 
   Target, 
   FileText,
@@ -37,7 +40,9 @@ const db = getFirestore(firebaseApp)
 interface StudentPhaseReportsProps extends ThemeContextProps {}
 
 export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps) {
+  const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 400)
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all')
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
   const [isPhaseDialogOpen, setIsPhaseDialogOpen] = useState(false)
@@ -70,8 +75,8 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
   const { notifySuccess, notifyError } = useNotification()
 
   // Obtener estudiantes filtrados
-  const { students, isLoading: isLoadingStudents } = useFilteredStudents({
-    searchTerm: searchTerm || undefined,
+  const { students, isLoading: isLoadingStudents, isFetching: isFetchingStudents } = useFilteredStudents({
+    searchTerm: debouncedSearchTerm || undefined,
     institutionId: selectedInstitution !== 'all' ? selectedInstitution : undefined,
     isActive: true
   })
@@ -100,16 +105,16 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
 
   // Filtrar estudiantes por término de búsqueda
   const filteredStudents = useMemo(() => {
-    if (!searchTerm) return students
-    
-    const term = searchTerm.toLowerCase()
+    if (!debouncedSearchTerm) return students
+
+    const term = debouncedSearchTerm.toLowerCase()
     return students.filter((student: any) => {
       const name = (student.name || '').toLowerCase()
       const email = (student.email || '').toLowerCase()
       const idNumber = (student.idNumber || student.identification || '').toLowerCase()
       return name.includes(term) || email.includes(term) || idNumber.includes(term)
     })
-  }, [students, searchTerm])
+  }, [students, debouncedSearchTerm])
 
   // Estado para controlar qué secciones están expandidas
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
@@ -1164,7 +1169,7 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
             Resúmenes de Fase PDF
@@ -1173,6 +1178,19 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
             Descarga los resúmenes académicos en PDF de cualquier estudiante
           </p>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isLoadingStudents || isFetchingStudents}
+          onClick={() => {
+            void queryClient.invalidateQueries({ queryKey: ['students'] })
+          }}
+          className={cn(theme === 'dark' ? 'border-zinc-600 text-gray-200 hover:bg-zinc-800' : '')}
+        >
+          <RefreshCw className={cn('h-4 w-4 mr-2', (isLoadingStudents || isFetchingStudents) && 'animate-spin')} />
+          Actualizar lista
+        </Button>
       </div>
 
       {/* Filtros de búsqueda */}

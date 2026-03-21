@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/ui/useDebounce'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,12 +30,13 @@ import {
   Users,
   Loader2,
   X,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
 import { Institution, Campus } from '@/interfaces/db.interface'
-import { useInstitutions, useInstitutionMutations, useCampusOptions } from '@/hooks/query/useInstitutionQuery'
+import { useInstitutions, useInstitutionMutations, useCampusOptions, institutionKeys } from '@/hooks/query/useInstitutionQuery'
 import { useFilteredPrincipals } from '@/hooks/query/usePrincipalQuery'
 import { useFilteredTeachers } from '@/hooks/query/useTeacherQuery'
 import { useFilteredStudents, useStudentsByTeacher } from '@/hooks/query/useStudentQuery'
@@ -949,6 +952,7 @@ interface InstitutionManagementProps {
 
 export default function InstitutionManagement({ theme }: InstitutionManagementProps) {
   const { notifySuccess, notifyError, notifyInfo } = useNotification()
+  const queryClient = useQueryClient()
   const { data: institutions = [], isLoading, error } = useInstitutions()
   const { createCampus, createGrade, updateInstitution, deleteInstitution, updateCampus, deleteCampus, updateGrade, deleteGrade } = useInstitutionMutations()
   
@@ -974,6 +978,8 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   const [newGradeInEdit, setNewGradeInEdit] = useState<{campusId: string, name: string, level: number} | null>(null)
   
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 400)
+  const [institutionDisplayLimit, setInstitutionDisplayLimit] = useState(30)
   const [selectedType, setSelectedType] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [isCreateCampusDialogOpen, setIsCreateCampusDialogOpen] = useState(false)
@@ -1456,8 +1462,8 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
   }
 
   const filteredInstitutions = institutions.filter(institution => {
-    const matchesSearch = institution.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         institution.address.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = institution.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                         institution.address.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
     const matchesType = selectedType === 'all' || institution.type === selectedType
     const matchesStatus = selectedStatus === 'all' || 
                          (selectedStatus === 'active' && institution.isActive) ||
@@ -1465,6 +1471,12 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
     
     return matchesSearch && matchesType && matchesStatus
   })
+
+  const displayedInstitutions = filteredInstitutions.slice(0, institutionDisplayLimit)
+
+  useEffect(() => {
+    setInstitutionDisplayLimit(30)
+  }, [debouncedSearchTerm, selectedType, selectedStatus])
 
   if (isLoading) {
     return (
@@ -1529,7 +1541,22 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
             Administra la estructura institucional jerárquica
           </p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(
+              theme === 'dark'
+                ? 'border-zinc-600 text-gray-200 hover:bg-zinc-800'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            )}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: institutionKeys.lists() })
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Actualizar
+          </Button>
           <Button 
             onClick={() => setIsWizardOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1639,12 +1666,16 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
           <CardTitle className={cn('font-bold', theme === 'dark' ? 'text-white' : 'text-black')}>
-            Instituciones ({filteredInstitutions.length})
+            {`Instituciones (${filteredInstitutions.length}${
+              filteredInstitutions.length > institutionDisplayLimit
+                ? ` · mostrando ${displayedInstitutions.length}`
+                : ''
+            })`}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {filteredInstitutions.map((institution) => (
+            {displayedInstitutions.map((institution) => (
               <div key={institution.id} className={cn('p-4 rounded-lg border', theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -1720,6 +1751,22 @@ export default function InstitutionManagement({ theme }: InstitutionManagementPr
                 </div>
               </div>
             ))}
+            {filteredInstitutions.length > displayedInstitutions.length && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    theme === 'dark'
+                      ? 'border-zinc-600 text-gray-200 hover:bg-zinc-800'
+                      : 'border-gray-300'
+                  )}
+                  onClick={() => setInstitutionDisplayLimit((n) => n + 30)}
+                >
+                  Cargar más ({filteredInstitutions.length - displayedInstitutions.length} restantes)
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

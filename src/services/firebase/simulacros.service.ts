@@ -10,6 +10,9 @@ import {
   Timestamp,
   query,
   orderBy,
+  limit,
+  startAfter,
+  documentId,
 } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { firebaseApp } from '@/services/db'
@@ -40,6 +43,17 @@ const MAX_PDF_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024 // 500 MB
 const ALLOWED_PDF_TYPES = ['application/pdf']
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
+
+export interface SimulacroCursor {
+  createdAtMillis: number
+  id: string
+}
+
+export interface PaginatedSimulacros {
+  items: Simulacro[]
+  nextCursor?: SimulacroCursor
+  hasMore: boolean
+}
 
 function parseIcfes(data: Record<string, unknown>): SimulacroICFES | undefined {
   const s1Doc = data.icfesSeccion1DocumentoUrl
@@ -364,6 +378,66 @@ class SimulacrosService {
     } catch (e) {
       console.error('❌ Error al listar simulacros:', e)
       return failure(new ErrorAPI(normalizeError(e, 'listar simulacros')))
+    }
+  }
+
+  /** Lista paginada de simulacros por createdAt desc (10 por defecto). */
+  async getAllPaginated(
+    pageSize: number = 10,
+    cursor?: SimulacroCursor
+  ): Promise<Result<PaginatedSimulacros>> {
+    try {
+      let q = query(
+        collection(db, SIMULACROS_COLLECTION),
+        orderBy('createdAt', 'desc'),
+        orderBy(documentId(), 'desc'),
+        limit(pageSize)
+      )
+
+      if (cursor) {
+        q = query(
+          collection(db, SIMULACROS_COLLECTION),
+          orderBy('createdAt', 'desc'),
+          orderBy(documentId(), 'desc'),
+          startAfter(Timestamp.fromMillis(cursor.createdAtMillis), cursor.id),
+          limit(pageSize)
+        )
+      }
+
+      const snapshot = await getDocs(q)
+      const items = snapshot.docs.map((d) =>
+        parseSimulacroDoc(d.id, d.data() as Record<string, unknown>)
+      )
+      const last = snapshot.docs[snapshot.docs.length - 1]
+      const hasMore = snapshot.docs.length === pageSize
+
+      return success({
+        items,
+        hasMore,
+        nextCursor: hasMore
+          ? {
+              createdAtMillis: ((last.data().createdAt as Timestamp)?.toMillis?.() ?? Date.now()),
+              id: last.id,
+            }
+          : undefined,
+      })
+    } catch (e) {
+      console.error('❌ Error al listar simulacros paginados:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'listar simulacros paginados')))
+    }
+  }
+
+  /** Obtiene el siguiente numeroOrden sin cargar toda la colección. */
+  async getNextNumeroOrden(): Promise<Result<number>> {
+    try {
+      const q = query(collection(db, SIMULACROS_COLLECTION), orderBy('numeroOrden', 'desc'), limit(1))
+      const snapshot = await getDocs(q)
+      if (snapshot.empty) return success(1)
+      const lastValue = Number(snapshot.docs[0].data().numeroOrden ?? 0)
+      return success(Math.max(0, lastValue) + 1)
+    } catch (e) {
+      console.error('❌ Error al calcular numeroOrden siguiente:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'calcular numeroOrden siguiente')))
     }
   }
 

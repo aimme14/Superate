@@ -26,7 +26,7 @@ import {
   type YoutubeLink,
   type ResourcePath,
 } from '@/services/firebase/resources.service'
-import { useResources, useResourcesMutations } from '@/hooks/query/useResources'
+import { useWebLinksInfinite, useYoutubeLinksInfinite, useResourcesMutations } from '@/hooks/query/useResources'
 
 const GRADES = Object.entries(GRADE_CODE_TO_NAME).map(([, name]) => ({ value: name, label: name }))
 
@@ -61,9 +61,22 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
     ...(filterMateria !== 'all' && { materiaCode: filterMateria }),
     ...(filterTopic !== 'all' && { topicCode: filterTopic }),
   }
-  const { data: resourcesData, isLoading: loading } = useResources(filters)
-  const webLinks = resourcesData?.webLinks ?? []
-  const youtubeLinks = resourcesData?.youtubeLinks ?? []
+  const {
+    data: webPages,
+    isLoading: loadingWeb,
+    hasNextPage: hasNextWeb,
+    fetchNextPage: fetchNextWeb,
+    isFetchingNextPage: fetchingNextWeb,
+  } = useWebLinksInfinite(filters, 10)
+  const {
+    data: youtubePages,
+    isLoading: loadingYoutube,
+    hasNextPage: hasNextYoutube,
+    fetchNextPage: fetchNextYoutube,
+    isFetchingNextPage: fetchingNextYoutube,
+  } = useYoutubeLinksInfinite(filters, 10)
+  const webLinks = webPages?.pages.flatMap((p) => p.items) ?? []
+  const youtubeLinks = youtubePages?.pages.flatMap((p) => p.items) ?? []
   const {
     createWebLink: createWebLinkMutation,
     createYoutubeLink: createYoutubeLinkMutation,
@@ -367,7 +380,7 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {loadingWeb || loadingYoutube ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
@@ -432,6 +445,13 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
                       </li>
                     ))}
                   </ul>
+                  {hasNextWeb ? (
+                    <div className="pt-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => void fetchNextWeb()} disabled={fetchingNextWeb}>
+                        {fetchingNextWeb ? 'Cargando...' : 'Cargar más (10)'}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               )}
               {youtubeLinks.length > 0 && (
@@ -493,6 +513,19 @@ export default function AdminRecursos({ theme }: AdminRecursosProps) {
                       </li>
                     ))}
                   </ul>
+                  {hasNextYoutube ? (
+                    <div className="pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void fetchNextYoutube()}
+                        disabled={fetchingNextYoutube}
+                      >
+                        {fetchingNextYoutube ? 'Cargando...' : 'Cargar más (10)'}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               )}
               {webLinks.length === 0 && youtubeLinks.length === 0 && (

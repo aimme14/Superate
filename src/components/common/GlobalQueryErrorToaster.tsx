@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/hooks/ui/use-toast'
+import { getQueryErrorToastContent } from '@/utils/queryErrorToast'
 
 const TOAST_DEBOUNCE_MS = 2000
 
@@ -20,14 +21,12 @@ export function GlobalQueryErrorToaster() {
       const query = event.query
       if (query.state.status !== 'error') return
       const error = query.state.error
-      const message = error instanceof Error ? error.message : 'Error de conexión'
       if (Date.now() - lastToastRef.current < TOAST_DEBOUNCE_MS) return
       lastToastRef.current = Date.now()
+      const { title, description } = getQueryErrorToastContent(error)
       toast({
-        title: 'Error de conexión',
-        description: message.includes('Failed to fetch') || message.includes('network')
-          ? 'Revisa tu conexión a internet. Se reintentará automáticamente.'
-          : message,
+        title,
+        description,
         variant: 'destructive',
         duration: 5000,
       })

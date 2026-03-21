@@ -1,5 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { aiToolsService, type AIToolData } from '@/services/firebase/aiTools.service'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  aiToolsService,
+  type AIToolData,
+  type AIToolCursor,
+  type PaginatedAITools,
+} from '@/services/firebase/aiTools.service'
 
 export const AI_TOOLS_KEYS = {
   all: ['aiTools'] as const,
@@ -19,6 +24,24 @@ export function useAITools() {
     },
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+  })
+}
+
+export function useAIToolsInfinite(pageSize: number = 10) {
+  return useInfiniteQuery({
+    queryKey: [...AI_TOOLS_KEYS.list(), 'infinite', pageSize],
+    queryFn: async ({ pageParam }): Promise<PaginatedAITools> => {
+      const cursor = pageParam as AIToolCursor | undefined
+      const res = await aiToolsService.getAllPaginated(pageSize, cursor)
+      if (!res.success) throw res.error
+      return res.data
+    },
+    initialPageParam: undefined as AIToolCursor | undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 

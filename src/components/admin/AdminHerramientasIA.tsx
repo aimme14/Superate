@@ -26,7 +26,7 @@ import {
   type Nivel,
 } from '@/services/firebase/aiTools.service'
 import { useNotification } from '@/hooks/ui/useNotification'
-import { useAITools, useInvalidateAITools } from '@/hooks/query/useAITools'
+import { useAIToolsInfinite, useInvalidateAITools } from '@/hooks/query/useAITools'
 import { cn } from '@/lib/utils'
 import {
   Sparkles,
@@ -61,7 +61,15 @@ const ICON_UPLOAD_TIMEOUT_MS = 25_000
 
 export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps) {
   const { notifySuccess, notifyError } = useNotification()
-  const { data: tools = [], isLoading: loading, refetch } = useAITools()
+  const {
+    data: toolsPages,
+    isLoading: loading,
+    refetch,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useAIToolsInfinite(10)
+  const tools = toolsPages?.pages.flatMap((page) => page.items) ?? []
   const invalidateAITools = useInvalidateAITools()
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -558,6 +566,7 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
                   : 'No hay herramientas que coincidan con el filtro.'}
               </p>
             ) : (
+            <>
             <ul className="space-y-3">
               {filtered.map((tool) => (
                 <li
@@ -632,6 +641,19 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
                 </li>
               ))}
             </ul>
+            {hasNextPage ? (
+              <div className="pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? 'Cargando...' : 'Cargar más (10)'}
+                </Button>
+              </div>
+            ) : null}
+            </>
             )
           })()}
         </CardContent>

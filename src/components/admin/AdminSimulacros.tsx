@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { simulacrosService } from '@/services/firebase/simulacros.service'
-import { useSimulacrosList, SIMULACROS_LIST_QUERY_KEY, useSimulacroDetails } from '@/hooks/query/useSimulacros'
+import { useSimulacrosListInfinite, SIMULACROS_LIST_QUERY_KEY, useSimulacroDetails } from '@/hooks/query/useSimulacros'
 import { useNotification } from '@/hooks/ui/useNotification'
 import {
   SIMULACRO_GRADOS,
@@ -86,7 +86,15 @@ function generateVideoRowId(): string {
 export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
   const { notifySuccess, notifyError } = useNotification()
   const queryClient = useQueryClient()
-  const { data: simulacros = [], isLoading: loading, refetch } = useSimulacrosList()
+  const {
+    data: simulacrosPages,
+    isLoading: loading,
+    refetch,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useSimulacrosListInfinite(10)
+  const simulacros = simulacrosPages?.pages.flatMap((page) => page.items) ?? []
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [pdfSimulacroFile, setPdfSimulacroFile] = useState<File | null>(null)
@@ -181,10 +189,13 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
             }
           : undefined
 
-      const nextOrden =
-        simulacros.length === 0
-          ? 1
-          : Math.max(0, ...simulacros.map((s) => s.numeroOrden)) + 1
+      const nextOrdenRes = await simulacrosService.getNextNumeroOrden()
+      if (!nextOrdenRes.success) {
+        notifyError({ message: nextOrdenRes.error?.message ?? 'No se pudo calcular el orden del simulacro.' })
+        setSaving(false)
+        return
+      }
+      const nextOrden = nextOrdenRes.data
 
       const createPayload = {
         grado: form.grado,
@@ -786,13 +797,27 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
               No hay simulacros. Crea uno con el formulario de arriba.
             </p>
           ) : (
-            <SimulacrosListByMateria
-              simulacros={simulacros}
-              theme={theme}
-              materiaLabel={materiaLabel}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-            />
+            <div className="space-y-4">
+              <SimulacrosListByMateria
+                simulacros={simulacros}
+                theme={theme}
+                materiaLabel={materiaLabel}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+              />
+              {hasNextPage ? (
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                  >
+                    {isFetchingNextPage ? 'Cargando...' : 'Cargar más (10)'}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           )}
         </CardContent>
       </Card>

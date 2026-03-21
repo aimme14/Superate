@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import { 
   getAllPrincipals,
   getPrincipalsByInstitution,
@@ -30,7 +31,7 @@ export const usePrincipals = () => {
       }
       throw new Error(result.error.message)
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    ...ADMIN_LIST_CACHE,
   })
 }
 
@@ -46,7 +47,7 @@ export const usePrincipalsByInstitution = (institutionId: string, enabled: boole
       throw new Error(result.error.message)
     },
     enabled: enabled && !!institutionId,
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    ...ADMIN_LIST_CACHE,
   })
 }
 
