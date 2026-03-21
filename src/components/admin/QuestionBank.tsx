@@ -3650,9 +3650,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         let errorCount = 0
         const updatedCodes: string[] = []
         const updatedQuestions: Question[] = []
-        const updatedQuestions: Question[] = []
-        const deletedQuestionIds: string[] = []
-        const updatedQuestions: Question[] = []
         
         notifySuccess({
           title: 'Actualizando',
@@ -3897,6 +3894,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         let successCount = 0
         let errorCount = 0
         const updatedCodes: string[] = []
+        const updatedQuestions: Question[] = []
+        const deletedQuestionIds: string[] = []
         
         notifySuccess({
           title: 'Actualizando',
@@ -4145,13 +4144,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           upsertQuestions(updatedQuestions)
           removeQuestionsByIds(deletedQuestionIds)
           invalidateQuestionStats()
-            } else {
-              notifyError({
-                title: 'Error',
-                message: 'No se pudo actualizar ninguna pregunta de comprensión de lectura.'
-              })
-            }
-          } else if (isEditingOtherSubjectsReadingComprehension) {
+        } else {
+          notifyError({
+            title: 'Error',
+            message: 'No se pudo actualizar ninguna pregunta de comprensión de lectura.'
+          })
+        }
+      } else if (isEditingOtherSubjectsReadingComprehension) {
             // Manejar actualización de Comprensión de Lectura para otras materias
             if (!editOtherSubjectsReadingText.trim()) {
               notifyError({ 
@@ -4608,6 +4607,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         let successCount = 0
         let errorCount = 0
         const updatedCodes: string[] = []
+        const updatedQuestions: Question[] = []
         
         notifySuccess({
           title: 'Actualizando',
