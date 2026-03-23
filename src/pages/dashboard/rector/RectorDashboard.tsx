@@ -37,6 +37,7 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import { DASHBOARD_RECTOR_CACHE } from '@/config/dashboardRectorCache'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
+import { getOrBuildRectorEvolutionSnapshot, getOrBuildRectorInstitutionAverageSnapshot } from '@/services/firebase/analyticsSnapshots.service'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, Legend } from 'recharts'
 import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
 import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
@@ -487,101 +488,13 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
       if (!institutionId || !institutionStudents || institutionStudents.length === 0) {
         return 0
       }
-
-      const studentIds = institutionStudents.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-      if (studentIds.length === 0) return 0
-
-      const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-      const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
-      const POINTS_PER_NATURALES_SUBJECT = 100 / 3
-      const POINTS_PER_REGULAR_SUBJECT = 100
-
-      const phaseMap: { [key: string]: string } = {
-        'first': 'fase I',
-        'second': 'Fase II',
-        'third': 'fase III'
-      }
-      
-      const phaseName = phaseMap[phase]
-      
-      const normalizeSubjectName = (subject: string): string => {
-        const normalized = subject.trim().toLowerCase()
-        const subjectMap: Record<string, string> = {
-          'biologia': 'Biologia', 'biología': 'Biologia',
-          'quimica': 'Quimica', 'química': 'Quimica',
-          'fisica': 'Física', 'física': 'Física',
-          'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas',
-          'lenguaje': 'Lenguaje',
-          'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
-          'ingles': 'Inglés', 'inglés': 'Inglés'
-        }
-        return subjectMap[normalized] || subject
-      }
-
-      // Array para almacenar los globalScores de cada estudiante
-      const studentGlobalScores: number[] = []
-
-      for (const studentId of studentIds) {
-        try {
-          const phaseRef = collection(db, 'results', studentId, phaseName)
-          const phaseSnap = await getDocs(phaseRef)
-          
-          // Recopilar todos los resultados del estudiante en esta fase
-          const studentResults: any[] = []
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data()
-            if (examData.completed && examData.score && examData.subject) {
-              studentResults.push({
-                subject: examData.subject.trim(),
-                percentage: examData.score.overallPercentage || 0
-              })
-            }
-          })
-
-          if (studentResults.length === 0) continue
-
-          // Obtener el mejor porcentaje por materia
-          const subjectScores: { [subject: string]: number } = {}
-          studentResults.forEach(result => {
-            const subject = normalizeSubjectName(result.subject || '')
-            const percentage = result.percentage
-            
-            if (!subjectScores[subject] || percentage > subjectScores[subject]) {
-              subjectScores[subject] = percentage
-            }
-          })
-
-          // Verificar que tenga todas las materias requeridas
-          const hasAllSubjects = REQUIRED_SUBJECTS.every(subject => 
-            subjectScores.hasOwnProperty(subject)
-          )
-
-          if (!hasAllSubjects) continue
-
-          // Calcular globalScore del estudiante (0-500)
-          let globalScore = 0
-          Object.entries(subjectScores).forEach(([subject, percentage]) => {
-            let pointsForSubject: number
-            if (NATURALES_SUBJECTS.includes(subject)) {
-              pointsForSubject = (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
-            } else {
-              pointsForSubject = (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
-            }
-            globalScore += pointsForSubject
-          })
-
-          globalScore = Math.round(globalScore * 100) / 100
-          studentGlobalScores.push(globalScore)
-        } catch (error) {
-          console.error(`Error obteniendo resultados para estudiante ${studentId}:`, error)
-        }
-      }
-
-      if (studentGlobalScores.length === 0) return 0
-      
-      // Calcular promedio de los globalScores de los estudiantes
-      const average = studentGlobalScores.reduce((sum, score) => sum + score, 0) / studentGlobalScores.length
-      return Math.round(average * 100) / 100
+      return getOrBuildRectorInstitutionAverageSnapshot({
+        institutionId,
+        phase,
+        gradeId: selectedGrade,
+        jornada: selectedJornada,
+        students: institutionStudents,
+      })
     },
     enabled: !!institutionId && !!institutionStudents && institutionStudents.length > 0,
     staleTime: DASHBOARD_RECTOR_CACHE.staleTimeMs,
@@ -602,58 +515,13 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
         queryKey: key,
         queryFn: async ({ queryKey }: { queryKey: readonly unknown[] }) => {
           const p = queryKey[2] as 'first' | 'second' | 'third'
-          const studentIds = institutionStudents.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-          if (studentIds.length === 0) return 0
-          const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-          const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
-          const POINTS_PER_NATURALES_SUBJECT = 100 / 3
-          const POINTS_PER_REGULAR_SUBJECT = 100
-          const phaseMap: { [key: string]: string } = { 'first': 'fase I', 'second': 'Fase II', 'third': 'fase III' }
-          const phaseName = phaseMap[p]
-          const normalizeSubjectName = (subject: string): string => {
-            const normalized = subject.trim().toLowerCase()
-            const subjectMap: Record<string, string> = {
-              'biologia': 'Biologia', 'biología': 'Biologia', 'quimica': 'Quimica', 'química': 'Quimica',
-              'fisica': 'Física', 'física': 'Física', 'matematicas': 'Matemáticas', 'matemáticas': 'Matemáticas',
-              'lenguaje': 'Lenguaje', 'ciencias sociales': 'Ciencias Sociales', 'sociales': 'Ciencias Sociales',
-              'ingles': 'Inglés', 'inglés': 'Inglés'
-            }
-            return subjectMap[normalized] || subject
-          }
-          const studentGlobalScores: number[] = []
-          for (const studentId of studentIds) {
-            try {
-              const phaseRef = collection(db, 'results', studentId, phaseName)
-              const phaseSnap = await getDocs(phaseRef)
-              const studentResults: any[] = []
-              phaseSnap.docs.forEach(doc => {
-                const examData = doc.data()
-                if (examData.completed && examData.score && examData.subject) {
-                  studentResults.push({ subject: examData.subject.trim(), percentage: examData.score.overallPercentage || 0 })
-                }
-              })
-              if (studentResults.length === 0) continue
-              const subjectScores: { [subject: string]: number } = {}
-              studentResults.forEach(result => {
-                const subject = normalizeSubjectName(result.subject || '')
-                const percentage = result.percentage
-                if (!subjectScores[subject] || percentage > subjectScores[subject]) subjectScores[subject] = percentage
-              })
-              const hasAllSubjects = REQUIRED_SUBJECTS.every(s => subjectScores.hasOwnProperty(s))
-              if (!hasAllSubjects) continue
-              let globalScore = 0
-              Object.entries(subjectScores).forEach(([subject, percentage]) => {
-                const points = NATURALES_SUBJECTS.includes(subject)
-                  ? (percentage / 100) * POINTS_PER_NATURALES_SUBJECT
-                  : (percentage / 100) * POINTS_PER_REGULAR_SUBJECT
-                globalScore += points
-              })
-              studentGlobalScores.push(Math.round(globalScore * 100) / 100)
-            } catch (_) {}
-          }
-          if (studentGlobalScores.length === 0) return 0
-          const average = studentGlobalScores.reduce((sum, score) => sum + score, 0) / studentGlobalScores.length
-          return Math.round(average * 100) / 100
+          return getOrBuildRectorInstitutionAverageSnapshot({
+            institutionId,
+            phase: p,
+            gradeId: selectedGrade,
+            jornada: selectedJornada,
+            students: institutionStudents,
+          })
         },
         staleTime: DASHBOARD_RECTOR_CACHE.staleTimeMs,
         gcTime: DASHBOARD_RECTOR_CACHE.gcTimeMs,
@@ -1010,113 +878,16 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, in
     queryFn: async ({ queryKey }: { queryKey: unknown[] }) => {
       const key = queryKey[2] as { year: number; jornada: string; studentId: string; gradeId: string }
       if (!institutionId || !allStudents || allStudents.length === 0) return { chartData: [], subjects: [] }
-
-      // Filtrar estudiantes según la clave (sin materia)
-      let filteredStudents = allStudents
-
-      if (key.year) {
-        filteredStudents = filteredStudents.filter((student: any) => {
-          const getStudentYear = (student: any): number | null => {
-            if (student.academicYear) return student.academicYear
-            if (!student.createdAt) return null
-            let date: Date
-            if (typeof student.createdAt === 'string') {
-              date = new Date(student.createdAt)
-            } else if (student.createdAt?.toDate) {
-              date = student.createdAt.toDate()
-            } else if (student.createdAt?.seconds) {
-              date = new Date(student.createdAt.seconds * 1000)
-            } else {
-              return null
-            }
-            return date.getFullYear()
-          }
-          const studentYear = getStudentYear(student)
-          if (studentYear === null) return true
-          return studentYear === key.year
-        })
-      }
-
-      if (key.jornada && key.jornada !== 'todas') {
-        filteredStudents = filteredStudents.filter((student: any) => student.jornada === key.jornada)
-      }
-
-      if (key.gradeId && key.gradeId !== 'todos') {
-        filteredStudents = filteredStudents.filter((student: any) => (student.grade || student.gradeId) === key.gradeId)
-      }
-
-      if (key.studentId && key.studentId !== 'todos') {
-        filteredStudents = filteredStudents.filter((student: any) => (student.id || student.uid) === key.studentId)
-      }
-
-      const studentIds = filteredStudents.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-      if (studentIds.length === 0) return { chartData: [], subjects: [] }
-
-      const normalizeSubject = (subject: string): string => {
-        const normalized = subject.trim()
-        const subjectMap: { [key: string]: string } = {
-          'Matemáticas': 'Matemáticas', 'Matematicas': 'Matemáticas',
-          'Lenguaje': 'Lenguaje', 'Ciencias Sociales': 'Ciencias Sociales', 'Sociales': 'Ciencias Sociales',
-          'Biologia': 'Biologia', 'Biología': 'Biologia', 'Quimica': 'Quimica', 'Química': 'Quimica',
-          'Física': 'Física', 'Fisica': 'Física', 'Inglés': 'Inglés', 'Ingles': 'Inglés'
-        }
-        return subjectMap[normalized] || normalized
-      }
-
-      const allPossibleSubjects = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-      const phases = [
-        { key: 'first', name: 'fase I' },
-        { key: 'second', name: 'Fase II' },
-        { key: 'third', name: 'fase III' }
-      ]
-      const resultsByPhaseAndSubject = new Map<string, Map<string, number[]>>()
-
-      for (const studentId of studentIds) {
-        for (const phase of phases) {
-          try {
-            const phaseRef = collection(db, 'results', studentId, phase.name)
-            const phaseSnap = await getDocs(phaseRef)
-            phaseSnap.docs.forEach(doc => {
-              const examData = doc.data()
-              if (examData.completed && examData.score && examData.subject) {
-                const subject = normalizeSubject(examData.subject)
-                if (allPossibleSubjects.includes(subject)) {
-                  const score = examData.score.overallPercentage || 0
-                  if (!resultsByPhaseAndSubject.has(phase.key)) {
-                    resultsByPhaseAndSubject.set(phase.key, new Map())
-                  }
-                  const phaseMap = resultsByPhaseAndSubject.get(phase.key)!
-                  if (!phaseMap.has(subject)) phaseMap.set(subject, [])
-                  phaseMap.get(subject)!.push(score)
-                }
-              }
-            })
-          } catch (error) {
-            console.error(`Error obteniendo resultados para estudiante ${studentId} en ${phase.name}:`, error)
-          }
-        }
-      }
-
-      const allSubjectsSet = new Set<string>()
-      resultsByPhaseAndSubject.forEach((phaseMap) => {
-        phaseMap.forEach((_, subject) => allSubjectsSet.add(subject))
+      return getOrBuildRectorEvolutionSnapshot({
+        institutionId,
+        filters: {
+          year: key.year,
+          jornada: key.jornada,
+          gradeId: key.gradeId,
+          studentId: key.studentId,
+        },
+        students: allStudents,
       })
-      const allSubjects = Array.from(allSubjectsSet).sort()
-
-      const chartData: any[] = []
-      phases.forEach(phase => {
-        const dataPoint: any = { fase: phase.key === 'first' ? 'Fase I' : phase.key === 'second' ? 'Fase II' : 'Fase III' }
-        allSubjects.forEach(subject => {
-          const phaseMap = resultsByPhaseAndSubject.get(phase.key)
-          const scores = phaseMap?.get(subject) || []
-          dataPoint[subject] = scores.length > 0
-            ? Math.round((scores.reduce((sum: number, s: number) => sum + s, 0) / scores.length) * 100) / 100
-            : null
-        })
-        chartData.push(dataPoint)
-      })
-
-      return { chartData, subjects: allSubjects }
     },
     enabled: !!institutionId && !!allStudents && allStudents.length > 0,
     staleTime: DASHBOARD_RECTOR_CACHE.staleTimeMs,

@@ -227,6 +227,15 @@ service cloud.firestore {
       
       allow delete: if isAdmin();
     }
+
+    // Snapshots agregados para dashboards (rector/docente).
+    // Permite acceso a usuarios activos de la misma institución y a admins.
+    match /superate/auth/institutions/{institutionId}/analyticsSnapshots/{snapshotId} {
+      allow read, write: if isAdmin() ||
+        (canAccess() &&
+         exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId == institutionId);
+    }
     
     // Colecci?n de preguntas
     match /superate/auth/questions/{questionId} {
