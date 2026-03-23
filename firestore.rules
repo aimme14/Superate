@@ -2,18 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Función auxiliar para verificar si el usuario está autenticado
+    // Funci?n auxiliar para verificar si el usuario est? autenticado
     function isAuthenticated() {
       return request.auth != null;
     }
     
-    // Función auxiliar para verificar si la institución está activa
+    // Funci?n auxiliar para verificar si la instituci?n est? activa
     function isInstitutionActive(institutionId) {
       return exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) &&
              get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true;
     }
     
-    // Función auxiliar para verificar si el usuario está activo en nueva estructura jerárquica
+    // Funci?n auxiliar para verificar si el usuario est? activo en nueva estructura jer?rquica
     // Busca en todas las posibles ubicaciones por rol
     function isUserActiveInNewStructure(institutionId, role) {
       return isAuthenticated() && 
@@ -29,38 +29,37 @@ service cloud.firestore {
         );
     }
     
-    // Función auxiliar para verificar si el usuario está activo
-    // Para admin, busca en estructura antigua (solo admin queda ahí)
+    // Funci?n auxiliar para verificar si el usuario est? activo
+    // Para admin, busca en estructura antigua (solo admin queda ah?)
     // Para otros usuarios, busca en nueva estructura
     function isUserActive() {
       return isAuthenticated() && 
         (
-          // Admin en estructura antigua
           (exists(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)) &&
            get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.isActive == true &&
-           get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin')
+           get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin') ||
+          isActiveNonAdminUser()
         );
     }
     
-    // Función auxiliar para verificar si la institución del usuario está activa
-    // Para admin, siempre permitir (no tiene institución)
+    // Funci?n auxiliar para verificar si la instituci?n del usuario est? activa
+    // Para admin, siempre permitir (no tiene instituci?n)
     function isUserInstitutionActive() {
       return isAuthenticated() && 
         (
-          // Admin no tiene institución, siempre permitir
-          (exists(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin') ||
-          // Para otros usuarios, la validación se hace en las reglas específicas de cada colección
-          true
+          isAdmin() ||
+          (exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)).data.isActive == true)
         );
     }
     
-    // Función auxiliar para verificar si el usuario puede acceder (activo y su institución activa)
+    // Funci?n auxiliar para verificar si el usuario puede acceder (activo y su instituci?n activa)
     function canAccess() {
       return isUserActive() && isUserInstitutionActive();
     }
     
-    // Función auxiliar para verificar si el usuario es administrador
+    // Funci?n auxiliar para verificar si el usuario es administrador
     // Admin solo existe en estructura antigua
     function isAdmin() {
       return isAuthenticated() && 
@@ -68,19 +67,49 @@ service cloud.firestore {
         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.isActive == true &&
         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin';
     }
+
+    // Usuarios no admin: solo existen bajo institutions/...; userLookup apunta a su doc activo.
+    function isActiveNonAdminUser() {
+      return exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
+        (
+          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'rector' &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/rectores/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/rectores/$(request.auth.uid)).data.isActive == true) ||
+          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'principal' &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/coordinadores/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/coordinadores/$(request.auth.uid)).data.isActive == true) ||
+          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'teacher' &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/profesores/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/profesores/$(request.auth.uid)).data.isActive == true) ||
+          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'student' &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/estudiantes/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/estudiantes/$(request.auth.uid)).data.isActive == true)
+        );
+    }
+
+    // superate/auth/users: solo cuentas administrador. Nadie m?s lee ni escribe esta ruta salvo admin activo.
+    match /superate/auth/users/{userId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // superate/auth/userLookup: ?ndice uid ? institutionId + rol (el cliente lee el propio al resolver sesi?n).
+    match /superate/auth/userLookup/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
     
-    // La colección de usuarios antigua ha sido eliminada completamente
-    // Todos los usuarios ahora están en la nueva estructura jerárquica por institución y rol
+    // La colecci?n de usuarios antigua ha sido eliminada completamente
+    // Todos los usuarios ahora est?n en la nueva estructura jer?rquica por instituci?n y rol
     
-    // NUEVA ESTRUCTURA JER��RQUICA: Rectores
+    // NUEVA ESTRUCTURA JER��RQUICA: Rectores
     match /superate/auth/institutions/{institutionId}/rectores/{rectorId} {
-      // Los rectores activos pueden leer su propia información
+      // Los rectores activos pueden leer su propia informaci?n
       allow read: if canAccess() && request.auth.uid == rectorId;
       
-      // Solo admins activos pueden leer información de otros rectores
+      // Solo admins activos pueden leer informaci?n de otros rectores
       allow read: if isAdmin();
       
-      // Los rectores activos pueden actualizar su propia información (campos limitados)
+      // Los rectores activos pueden actualizar su propia informaci?n (campos limitados)
       allow update: if canAccess() && 
         request.auth.uid == rectorId &&
         request.resource.data.role == 'rector' &&
@@ -98,15 +127,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // NUEVA ESTRUCTURA JER��RQUICA: Coordinadores
+    // NUEVA ESTRUCTURA JER��RQUICA: Coordinadores
     match /superate/auth/institutions/{institutionId}/coordinadores/{coordinadorId} {
-      // Los coordinadores activos pueden leer su propia información
+      // Los coordinadores activos pueden leer su propia informaci?n
       allow read: if canAccess() && request.auth.uid == coordinadorId;
       
-      // Solo admins activos pueden leer información de otros coordinadores
+      // Solo admins activos pueden leer informaci?n de otros coordinadores
       allow read: if isAdmin();
       
-      // Los coordinadores activos pueden actualizar su propia información (campos limitados)
+      // Los coordinadores activos pueden actualizar su propia informaci?n (campos limitados)
       allow update: if canAccess() && 
         request.auth.uid == coordinadorId &&
         request.resource.data.role == 'principal' &&
@@ -124,15 +153,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // NUEVA ESTRUCTURA JER��RQUICA: Profesores
+    // NUEVA ESTRUCTURA JER��RQUICA: Profesores
     match /superate/auth/institutions/{institutionId}/profesores/{profesorId} {
-      // Los profesores activos pueden leer su propia información
+      // Los profesores activos pueden leer su propia informaci?n
       allow read: if canAccess() && request.auth.uid == profesorId;
       
-      // Solo admins activos pueden leer información de otros profesores
+      // Solo admins activos pueden leer informaci?n de otros profesores
       allow read: if isAdmin();
       
-      // Los profesores activos pueden actualizar su propia información (campos limitados)
+      // Los profesores activos pueden actualizar su propia informaci?n (campos limitados)
       allow update: if canAccess() && 
         request.auth.uid == profesorId &&
         request.resource.data.role == 'teacher' &&
@@ -150,15 +179,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // NUEVA ESTRUCTURA JER��RQUICA: Estudiantes
+    // NUEVA ESTRUCTURA JER��RQUICA: Estudiantes
     match /superate/auth/institutions/{institutionId}/estudiantes/{estudianteId} {
-      // Los estudiantes activos pueden leer su propia información
+      // Los estudiantes activos pueden leer su propia informaci?n
       allow read: if canAccess() && request.auth.uid == estudianteId;
       
-      // Solo admins activos pueden leer información de otros estudiantes
+      // Solo admins activos pueden leer informaci?n de otros estudiantes
       allow read: if isAdmin();
       
-      // Los estudiantes activos pueden actualizar su propia información (campos limitados)
+      // Los estudiantes activos pueden actualizar su propia informaci?n (campos limitados)
       allow update: if canAccess() && 
         request.auth.uid == estudianteId &&
         request.resource.data.role == 'student' &&
@@ -176,7 +205,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Colección de instituciones
+    // Colecci?n de instituciones
     match /superate/auth/institutions/{institutionId} {
       // Los admins pueden leer todas las instituciones (activas e inactivas)
       // Los usuarios regulares solo pueden leer instituciones activas
@@ -190,7 +219,7 @@ service cloud.firestore {
       allow create: if isAdmin() &&
         request.resource.data.isActive != null;
       
-      // Los admins pueden actualizar instituciones incluso si están inactivas
+      // Los admins pueden actualizar instituciones incluso si est?n inactivas
       // Esto permite reactivar instituciones
       allow update: if isAdmin() &&
         // Permitir cambiar isActive solo a admin
@@ -199,7 +228,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Colección de preguntas
+    // Colecci?n de preguntas
     match /superate/auth/questions/{questionId} {
       // Solo usuarios activos pueden leer preguntas
       allow read: if canAccess();
@@ -216,20 +245,20 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Colección de contadores
+    // Colecci?n de contadores
     match /superate/auth/counters/{counterId} {
       // Solo usuarios activos con permisos pueden acceder
       // Admin puede acceder, otros roles se validan en sus respectivas colecciones
       allow read, write: if canAccess() && isAdmin();
     }
     
-    // Configuración del sistema - Registro de usuarios
+    // Configuraci?n del sistema - Registro de usuarios
     match /superate/auth/system/registration {
-      // Todos los usuarios (autenticados o no) pueden leer la configuración de registro
-      // Esto permite que la UI sepa si mostrar o no el botón de registro
+      // Todos los usuarios (autenticados o no) pueden leer la configuraci?n de registro
+      // Esto permite que la UI sepa si mostrar o no el bot?n de registro
       allow read: if true;
       
-      // Solo admins activos pueden actualizar la configuración de registro
+      // Solo admins activos pueden actualizar la configuraci?n de registro
       allow write: if isAdmin();
     }
     

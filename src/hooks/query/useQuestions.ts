@@ -1,5 +1,5 @@
 import { InfiniteData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
+import { ADMIN_LIST_CACHE, QUESTIONS_BANK_INFINITE_CACHE } from '@/config/adminQueryCache'
 import { questionService } from '@/services/firebase/question.service'
 import type {
   Question,
@@ -16,7 +16,6 @@ export const QUESTIONS_KEYS = {
 
 /**
  * Hook para cargar preguntas con filtros de servidor (subjectCode, topicCode, grade, levelCode).
- * Filtros adicionales (searchTerm, filterAIInconsistency) se aplican en cliente.
  */
 export function useQuestions(filters: QuestionFilters = {}) {
   const serverFilters = {
@@ -40,6 +39,9 @@ export function useQuestions(filters: QuestionFilters = {}) {
 /**
  * Hook paginado para el banco de preguntas (cursor pagination).
  * Reduce lecturas porque no descarga todo el banco de una vez.
+ *
+ * Usa {@link QUESTIONS_BANK_INFINITE_CACHE}: las páginas cargadas permanecen en memoria durante
+ * la vida del cliente (sin límite de 15/45 min) hasta invalidación manual o recarga del navegador.
  */
 export function useQuestionsInfinite(
   filters: QuestionFilters = {},
@@ -67,7 +69,7 @@ export function useQuestionsInfinite(
       if (!lastPage.hasMore) return undefined
       return lastPage.nextCursor
     },
-    ...ADMIN_LIST_CACHE,
+    ...QUESTIONS_BANK_INFINITE_CACHE,
   })
 }
 

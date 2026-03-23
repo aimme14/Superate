@@ -37,11 +37,9 @@ import { useNotification } from '@/hooks/ui/useNotification'
 // import { useAutoResizeTextarea } from '@/hooks/ui/useAutoResizeTextarea'
 import RichTextEditor, { RichTextEditorRef } from '@/components/common/RichTextEditor'
 import { questionService, Question, QuestionOption } from '@/services/firebase/question.service'
-import { useQuestionsInfinite, useQuestionStats, useInvalidateQuestions, useQuestionByCode, useQuestionCacheActions } from '@/hooks/query/useQuestions'
-import { useDebounce } from '@/hooks/ui/useDebounce'
+import { useQuestionsInfinite, useQuestionStats, useInvalidateQuestions, useQuestionCacheActions } from '@/hooks/query/useQuestions'
 import { useQuestionGrouping } from '@/hooks/query/useQuestionGrouping'
 import QuestionBankStats from '@/components/admin/QuestionBankStats'
-import QuestionBankFilters from '@/components/admin/QuestionBankFilters'
 import QuestionBankList from '@/components/admin/questionBank/QuestionBankList'
 import {
   stripHtmlTags,
@@ -66,10 +64,6 @@ import 'katex/dist/katex.min.css'
 interface QuestionBankProps {
   theme: 'light' | 'dark'
 }
-
-// Código de pregunta: subjectCode(2) + topicCode(2) + grade(1) + levelCode(F|M|D)(1) + serie(3)
-// Ej: MAAL1F001 (longitud 9)
-const QUESTION_CODE_REGEX = /^[A-Z]{2}[A-Z]{2}[0-9]{1}[FMD]{1}[0-9]{3}$/
 
 // Función para sanitizar HTML de forma segura
 const sanitizeHtml = (html: string) => {
@@ -200,48 +194,22 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
   const [relatedQuestions, setRelatedQuestions] = useState<Question[]>([]) // Para agrupar preguntas de comprensión de lectura
 
-  // Filtros
-  const [filterSubject, setFilterSubject] = useState<string>('all')
-  const [filterTopic, setFilterTopic] = useState<string>('all')
-  const [filterGrade, setFilterGrade] = useState<string>('all')
-  const [filterLevel, setFilterLevel] = useState<string>('all')
-  const [filterAIInconsistency, setFilterAIInconsistency] = useState<boolean>(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const debouncedSearchTerm = useDebounce(searchTerm, 350)
-
-  const normalizedSearchCode = useMemo(() => debouncedSearchTerm.trim().toUpperCase(), [debouncedSearchTerm])
-  const isExactCodeSearch = useMemo(() => QUESTION_CODE_REGEX.test(normalizedSearchCode), [normalizedSearchCode])
-
-  const serverFilters = useMemo(() => ({
-    ...(filterSubject !== 'all' && { subjectCode: filterSubject }),
-    ...(filterTopic !== 'all' && { topicCode: filterTopic }),
-    ...(filterGrade !== 'all' && { grade: filterGrade }),
-    ...(filterLevel !== 'all' && { levelCode: filterLevel }),
-  }), [filterSubject, filterTopic, filterGrade, filterLevel])
-
   const {
     data: questionsPages,
     isLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useQuestionsInfinite(serverFilters, 10, !isExactCodeSearch)
-
-  const { data: exactQuestion } = useQuestionByCode(isExactCodeSearch ? normalizedSearchCode : undefined, isExactCodeSearch)
+  } = useQuestionsInfinite({}, 10, true)
 
   const questions = useMemo(() => {
-    if (isExactCodeSearch) {
-      return exactQuestion ? [exactQuestion] : []
-    }
-
-    // Deduplicar por ID por si existen preguntas con el mismo `createdAt` en páginas consecutivas.
     const items = (questionsPages?.pages ?? []).flatMap(page => page.items)
     const map = new Map<string, typeof items[number]>()
     for (const q of items) {
       if (q?.id) map.set(q.id, q)
     }
     return Array.from(map.values())
-  }, [questionsPages, isExactCodeSearch, exactQuestion])
+  }, [questionsPages])
   const { data: stats } = useQuestionStats()
   
   // Vista de organización
@@ -454,68 +422,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     }
   }, [expandedViewOptions])
 
-  // Limpiar selección cuando cambien los filtros
-  useEffect(() => {
-    setSelectedQuestionIds(new Set())
-  }, [filterSubject, filterTopic, filterGrade, filterLevel, filterAIInconsistency, searchTerm])
-
-  const filteredQuestions = useMemo(() => {
-    let filtered = [...questions]
-
-    // Filtros cliente: searchTerm y filterAIInconsistency (los de servidor ya están aplicados)
-    if (filterAIInconsistency) {
-      filtered = filtered.filter(q => {
-        if (!q.aiJustification) return false
-        
-        const aiJustification = q.aiJustification
-        
-        // Obtener la opción marcada como correcta en la pregunta
-        const correctOption = q.options.find(opt => opt.isCorrect)
-        if (!correctOption) return false
-        
-        // Obtener todas las opciones incorrectas según la pregunta
-        const incorrectOptions = q.options.filter(opt => !opt.isCorrect)
-        
-        // Verificar inconsistencias:
-        // 1. La opción correcta aparece en las explicaciones de opciones incorrectas
-        const correctOptionInIncorrect = aiJustification.incorrectAnswersExplanation?.some(
-          exp => exp.optionId === correctOption.id
-        )
-        
-        // 2. El número de explicaciones incorrectas no coincide con el número real de opciones incorrectas
-        const incorrectCountMismatch = aiJustification.incorrectAnswersExplanation?.length !== incorrectOptions.length
-        
-        // 3. Confianza muy baja (menor a 0.7)
-        const lowConfidence = aiJustification.confidence < 0.7
-        
-        // 4. Explicación de respuesta correcta muy corta o faltante
-        const shortExplanation = !aiJustification.correctAnswerExplanation || 
-                                 aiJustification.correctAnswerExplanation.length < 50
-        
-        // 5. Falta alguna explicación de opción incorrecta
-        const missingIncorrectExplanation = incorrectOptions.some(opt => 
-          !aiJustification.incorrectAnswersExplanation?.some(exp => exp.optionId === opt.id)
-        )
-        
-        return correctOptionInIncorrect || incorrectCountMismatch || lowConfidence || shortExplanation || missingIncorrectExplanation
-      })
-    }
-
-    // Filtro por búsqueda de texto (usa valor debounced para evitar re-renders en cada tecla)
-    if (debouncedSearchTerm) {
-      const term = debouncedSearchTerm.toLowerCase()
-      filtered = filtered.filter(q =>
-        (q.questionText || '').toLowerCase().includes(term) ||
-        (q.code || '').toLowerCase().includes(term) ||
-        (q.subject || '').toLowerCase().includes(term) ||
-        (q.topic || '').toLowerCase().includes(term)
-      )
-    }
-
-    return filtered
-  }, [questions, filterAIInconsistency, debouncedSearchTerm])
-
-  const combinedItems = useQuestionGrouping(filteredQuestions, questions)
+  const combinedItems = useQuestionGrouping(questions, questions)
 
   const handleSubjectChange = (subjectCode: string) => {
     const subject = getSubjectByCode(subjectCode)
@@ -2958,7 +2865,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   }
 
   const selectAllQuestions = () => {
-    const allIds = new Set(filteredQuestions.map(q => q.id).filter(Boolean) as string[])
+    const allIds = new Set(questions.map(q => q.id).filter(Boolean) as string[])
     setSelectedQuestionIds(allIds)
   }
 
@@ -4997,10 +4904,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     ? getSubjectByCode(formData.subjectCode)?.topics || []
     : []
 
-  const filterAvailableTopics = filterSubject !== 'all'
-    ? getSubjectByCode(filterSubject)?.topics || []
-    : []
-
   // Función para organizar preguntas en jerarquía
   const organizeQuestionsHierarchy = (questions: Question[]) => {
     const hierarchy: Record<string, Record<string, Record<string, Record<string, Question[]>>>> = {}
@@ -5068,7 +4971,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   const toggleAllNodes = (expand: boolean) => {
     if (expand) {
       const allNodes = new Set<string>()
-      filteredQuestions.forEach(q => {
+      questions.forEach(q => {
         allNodes.add(`subject-${q.subjectCode}`)
         allNodes.add(`subject-${q.subjectCode}-topic-${q.topicCode}`)
         allNodes.add(`subject-${q.subjectCode}-topic-${q.topicCode}-grade-${q.grade}`)
@@ -5080,7 +4983,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     }
   }
 
-  const hierarchy = organizeQuestionsHierarchy(filteredQuestions)
+  const hierarchy = organizeQuestionsHierarchy(questions)
 
   // Componente para renderizar una pregunta
   const renderQuestion = (question: Question) => {
@@ -5171,7 +5074,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
   // Componente para renderizar el árbol jerárquico
   const renderTreeView = () => {
-    if (filteredQuestions.length === 0) {
+    if (questions.length === 0) {
       return (
         <div className="text-center py-12">
           <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
@@ -5420,34 +5323,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       {/* Estadísticas */}
       {stats && <QuestionBankStats stats={stats} theme={theme} />}
 
-      {/* Filtros */}
-      <QuestionBankFilters
-        theme={theme}
-        filterSubject={filterSubject}
-        setFilterSubject={setFilterSubject}
-        filterTopic={filterTopic}
-        setFilterTopic={setFilterTopic}
-        filterGrade={filterGrade}
-        setFilterGrade={setFilterGrade}
-        filterLevel={filterLevel}
-        setFilterLevel={setFilterLevel}
-        filterAIInconsistency={filterAIInconsistency}
-        setFilterAIInconsistency={setFilterAIInconsistency}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        filterAvailableTopics={filterAvailableTopics}
-        onRefresh={() => invalidateQuestions()}
-        isLoading={isLoading}
-        filteredCount={filteredQuestions.length}
-      />
-
       {/* Lista de preguntas */}
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <CardTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                Preguntas ({filteredQuestions.length})
+                Preguntas ({questions.length})
               </CardTitle>
               {selectedQuestionIds.size > 0 && (
                 <Badge variant="secondary" className="text-sm">
@@ -5476,7 +5358,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   </Button>
                 </>
               )}
-              {selectedQuestionIds.size === 0 && filteredQuestions.length > 0 && (
+              {selectedQuestionIds.size === 0 && questions.length > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -5485,6 +5367,22 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   Seleccionar todo
                 </Button>
               )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void invalidateQuestions()}
+                disabled={isLoading}
+                className={cn(
+                  'gap-2 shrink-0',
+                  theme === 'dark'
+                    ? 'border-teal-500/80 bg-teal-950/60 text-teal-50 shadow-sm shadow-teal-950/40 hover:bg-teal-900/70 hover:text-white hover:border-teal-400/90 disabled:opacity-50'
+                    : 'border-teal-600/50 bg-teal-50 text-teal-900 hover:bg-teal-100 hover:border-teal-600'
+                )}
+              >
+                <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+                Refrescar lista
+              </Button>
               <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="sm"
@@ -5556,7 +5454,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               </Button>
             ) : questions.length > 0 ? (
               <span className="text-sm text-muted-foreground">
-                No hay más preguntas con estos filtros
+                No hay más preguntas para cargar
               </span>
             ) : null}
           </div>
