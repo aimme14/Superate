@@ -1,19 +1,15 @@
+import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
+import { getErrorMessage, isNetworkErrorLike, normalizeText } from '@/utils/networkError'
+
 /**
  * Título y descripción amigables para toasts de errores de React Query.
  */
 export function getQueryErrorToastContent(error: unknown): { title: string; description: string } {
-  const message =
-    error instanceof Error ? error.message : typeof error === 'string' ? error : 'Error desconocido'
-
+  const message = getErrorMessage(error)
   const lower = message.toLowerCase()
+  const normalizedLower = normalizeText(message)
 
-  if (message.includes('Failed to fetch') || lower.includes('network') || lower.includes('fetch')) {
-    return {
-      title: 'Sin conexión',
-      description:
-        'Revisa tu conexión a internet. Se reintentará automáticamente cuando vuelva la red.',
-    }
-  }
+  if (isNetworkErrorLike(error)) return { title: OFFLINE_USER_MESSAGE, description: '' }
 
   if (
     lower.includes('permiso') ||
@@ -27,19 +23,12 @@ export function getQueryErrorToastContent(error: unknown): { title: string; desc
   }
 
   if (
-    lower.includes('índice') ||
-    lower.includes('index') ||
+    normalizedLower.includes('indice') ||
+    normalizedLower.includes('index') ||
     lower.includes('failed-precondition')
   ) {
     return {
       title: 'Consulta o índice requerido',
-      description: message,
-    }
-  }
-
-  if (lower.includes('no disponible') || lower.includes('unavailable')) {
-    return {
-      title: 'Servicio no disponible',
       description: message,
     }
   }

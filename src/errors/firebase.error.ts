@@ -1,5 +1,6 @@
 import ErrorAPI, { Conflict, Validation, Unauthorized, NotFound, defaultRecord, ErrorRecord, Forbidden } from '@/errors'
 import { FirebaseError } from 'firebase/app';
+import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages';
 
 class HandlerErrors {
   /**
@@ -147,7 +148,7 @@ class HandlerErrors {
       errorType: Forbidden
     },
     'unavailable': {
-      message: 'El servicio de base de datos no está disponible temporalmente. Intenta de nuevo en unos segundos',
+      message: OFFLINE_USER_MESSAGE,
       errorType: ErrorAPI
     },
     'failed-precondition': {
@@ -171,7 +172,7 @@ class HandlerErrors {
       errorType: Conflict
     },
     'deadline-exceeded': {
-      message: 'Tiempo de espera agotado al consultar la base de datos',
+      message: OFFLINE_USER_MESSAGE,
       errorType: ErrorAPI
     },
     'invalid-argument': {

@@ -60,6 +60,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import DOMPurify from 'dompurify'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
 
 interface QuestionBankProps {
   theme: 'light' | 'dark'
@@ -2227,7 +2228,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         } else if (error.message.includes('Storage') || error.message.includes('storage')) {
           errorMessage = 'Error con el almacenamiento de imágenes. Verifique la configuración de Firebase Storage.'
         } else if (error.message.includes('Network') || error.message.includes('network')) {
-          errorMessage = 'Error de conexión. Verifique su conexión a internet e intente nuevamente.'
+          errorMessage = OFFLINE_USER_MESSAGE
         } else {
           errorMessage = `Error: ${error.message}`
         }

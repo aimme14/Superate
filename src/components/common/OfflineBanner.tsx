@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
 
 /**
  * Banner fijo que se muestra cuando el usuario pierde conexión (navigator.onLine === false).
@@ -35,7 +36,7 @@ export function OfflineBanner() {
       )}
     >
       <WifiOff className="w-4 h-4 shrink-0" />
-      <span>Sin conexión. Mostrando datos en caché. Algunas acciones pueden no estar disponibles.</span>
+      <span>{OFFLINE_USER_MESSAGE}</span>
     </div>
   )
 }

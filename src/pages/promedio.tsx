@@ -50,6 +50,8 @@ import {
   prepareSubjectTopicsData,
 } from './promedio/utils'
 import { logger } from '@/utils/logger'
+import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
+import { isBrowserOffline } from '@/utils/networkError'
 import {
   Brain,
   TrendingUp,
@@ -3460,7 +3462,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                           {!loadingHerramientasIA && (!herramientasIA || herramientasIA.length === 0) && (
                             <div className={cn("flex flex-col items-center justify-center gap-3 py-6 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
                               <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                                {herramientasIAError ? 'No se pudieron cargar las herramientas. Revisa tu conexión.' : 'No hay herramientas IA disponibles en este momento.'}
+                                {herramientasIAError
+                                  ? isBrowserOffline()
+                                    ? OFFLINE_USER_MESSAGE
+                                    : 'No se pudieron cargar las herramientas. Revisa tu conexión.'
+                                  : 'No hay herramientas IA disponibles en este momento.'}
                               </p>
                               <Button type="button" variant="outline" size="sm" onClick={loadHerramientasIA} className={theme === 'dark' ? 'border-teal-400/40 bg-teal-500/15 text-teal-100 hover:bg-teal-500/25' : ''}>
                                 Reintentar
