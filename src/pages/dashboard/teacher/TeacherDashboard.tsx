@@ -521,7 +521,6 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
   const subjects = ['todas', 'Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-  const jornadas = ['todas', 'mañana', 'tarde', 'única']
   const studentsKey = students.map((s: any) => s.id || s.uid).join(',')
   const evolutionDataKey = { year: filters.year, jornada: filters.jornada }
 
