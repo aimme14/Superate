@@ -30,8 +30,8 @@ const UserMenu = ({ }: ThemeContextProps) => {
 
   const handleLogout = async () => {
     await signout()
-    // Redirigir a la página de inicio después de cerrar sesión
-    navigate('/', { replace: true })
+    // Redirigir siempre al login después de cerrar sesión
+    navigate('/auth/login', { replace: true })
   }
 
   const handlePaletteChange = (palette: ColorPalette) => {

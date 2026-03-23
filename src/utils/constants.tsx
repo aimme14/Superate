@@ -47,6 +47,22 @@ export const links = (registrationEnabled: boolean = true) => {
 }
 /*---------------------------------------------------------------------------------------------------------*/
 
+interface GuestLinksOptions {
+  isMobile: boolean
+}
+
+export const getGuestLinksForViewport = (
+  guestItems: NavItemProps[],
+  { isMobile }: GuestLinksOptions
+): NavItemProps[] => {
+  if (!isMobile) {
+    return guestItems
+  }
+
+  return guestItems.filter((item) => item.href === '/auth/login')
+}
+/*---------------------------------------------------------------------------------------------------------*/
+
 /*--------------------------------------------------default style values--------------------------------------------------*/
 export const defaultStyles = 'px-8 flex items-center gap-2 hover:bg-accent/50 transition-all duration-200 relative group'
 export const activeStyles = 'bg-white text-black shadow-sm after:content-[""] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-primary'

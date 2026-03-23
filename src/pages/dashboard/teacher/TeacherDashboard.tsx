@@ -18,6 +18,7 @@ import {
   Clock,
   Shield,
   Zap,
+  Wrench,
   PieChart as PieChartIcon,
   RotateCw,
   ChevronDown,
@@ -31,6 +32,7 @@ import { DASHBOARD_TEACHER_CACHE } from '@/config/dashboardTeacherCache'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
@@ -43,6 +45,8 @@ import { SubjectTopicsAccordion } from '@/components/charts/SubjectTopicsAccordi
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
 import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRoleSkeleton'
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useIsMobile } from '@/hooks/ui/use-mobile'
+import { getWhatsAppUrl } from '@/components/WhatsAppFab'
 
 const db = getFirestore(firebaseApp)
 const RANKING_INITIAL_VISIBLE = 10
@@ -52,6 +56,7 @@ interface TeacherDashboardProps extends ThemeContextProps {}
 export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   const { stats, isLoading, students } = useTeacherDashboardStats()
   const { institutionName, institutionLogo } = useUserInstitution()
+  const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = useState('inicio')
   const [rankingFilters, setRankingFilters] = useState<{
     jornada: 'mañana' | 'tarde' | 'única' | 'todas'
@@ -77,13 +82,13 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   }
 
   return (
-    <div className={cn('min-h-screen', theme === 'dark' ? 'bg-zinc-950' : 'bg-gray-100')}>
+    <div className={cn('min-h-screen overflow-x-hidden', theme === 'dark' ? 'bg-zinc-950' : 'bg-gray-100')}>
       <div className="flex flex-col gap-0.5">
         {/* Header con logo y gradiente */}
         <div
           className={cn(
             'animate-in fade-in slide-in-from-top-2 duration-300',
-            'relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl',
+            isMobile ? 'relative overflow-hidden rounded-none px-4 pt-3 pb-2 text-white shadow-2xl' : 'relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl',
             theme === 'dark'
               ? 'bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900'
               : ''
@@ -94,26 +99,29 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
             <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 via-blue-800/90 to-blue-900/80" />
           )}
           <div className="relative z-10">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
+            <div className={cn('flex items-center justify-between flex-wrap', isMobile ? 'gap-2' : 'gap-3')}>
+              <div className={cn('flex items-center', isMobile ? 'gap-2' : 'gap-3')}>
                 <div className="relative">
                   <img
                     src={institutionLogo || '/assets/agustina.png'}
                     alt={`Logo de ${institutionName}`}
-                    className="w-20 h-20 object-contain rounded-lg bg-white/20 backdrop-blur-sm p-2 shadow border border-white/30"
+                    className={cn(
+                      'object-contain rounded-lg bg-white/20 backdrop-blur-sm shadow border border-white/30',
+                      isMobile ? 'w-14 h-14 p-1.5' : 'w-20 h-20 p-2'
+                    )}
                     onError={(e) => {
                       e.currentTarget.src = '/assets/agustina.png'
                     }}
                   />
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold mb-0.5">
+                <div className="min-w-0">
+                  <h1 className={cn('font-bold mb-0.5 leading-tight', isMobile ? 'text-base' : 'text-xl')}>
                     Bienvenido, {stats.teacherName}
                   </h1>
-                  <p className="text-sm opacity-90 mb-0.5">
+                  <p className={cn('opacity-90 mb-0.5', isMobile ? 'text-xs' : 'text-sm')}>
                     Docencia - {stats.campusName} • {stats.gradeName}
                   </p>
-                  <p className="text-xs opacity-75">
+                  <p className={cn('opacity-75 truncate', isMobile ? 'text-[11px] max-w-[180px]' : 'text-xs')}>
                     {institutionName || stats.institutionName} • {stats.teacherEmail}
                   </p>
                 </div>
@@ -125,12 +133,12 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
               </div>
             </div>
           </div>
-          <School className="absolute top-0 right-0 h-40 w-40 opacity-10" aria-hidden />
+          <School className={cn('absolute top-0 right-0 opacity-10', isMobile ? 'h-28 w-28' : 'h-40 w-40')} aria-hidden />
         </div>
       </div>
 
       {/* Botones de acción */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="hidden md:grid md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
           { icon: Users, label: 'Mis Estudiantes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes', count: stats?.totalStudents ?? null },
@@ -159,7 +167,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       </div>
 
       {/* Contenido dinámico según tab activo - mismo patrón que Principal/Rector */}
-      <div className="mx-4 md:mx-6 lg:mx-8 mt-3">
+      <div className="mx-4 md:mx-6 lg:mx-8 mt-3 pb-20 md:pb-0">
         {activeTab === 'inicio' && (
           <div className="space-y-6">
             <WelcomeTab
@@ -184,6 +192,38 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
           </div>
         )}
       </div>
+
+      {isMobile && (
+        <div className="fixed bottom-3 left-1/2 z-30 -translate-x-1/2">
+          <div className={cn(
+            'flex items-center gap-1 rounded-xl border px-2 py-1.5 shadow-xl backdrop-blur',
+            theme === 'dark' ? 'border-zinc-700 bg-zinc-900/90' : 'border-gray-300 bg-white/90'
+          )}>
+            <Button type="button" size="icon" variant="ghost" aria-label="Inicio" title="Inicio" onClick={() => setActiveTab('inicio')}
+              className={cn('h-9 w-9 rounded-lg', activeTab === 'inicio' ? (theme === 'dark' ? 'bg-blue-600/30 text-blue-300' : 'bg-blue-100 text-blue-700') : (theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100'))}>
+              <Sparkles className="h-4 w-4" />
+            </Button>
+            <Button type="button" size="icon" variant="ghost" aria-label="Mis Estudiantes" title="Mis Estudiantes" onClick={() => setActiveTab('estudiantes')}
+              className={cn('h-9 w-9 rounded-lg', activeTab === 'estudiantes' ? (theme === 'dark' ? 'bg-blue-600/30 text-blue-300' : 'bg-blue-100 text-blue-700') : (theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100'))}>
+              <Users className="h-4 w-4" />
+            </Button>
+            <Button type="button" size="icon" variant="ghost" aria-label="Análisis del curso" title="Análisis del curso" onClick={() => setActiveTab('analisis-curso')}
+              className={cn('h-9 w-9 rounded-lg', activeTab === 'analisis-curso' ? (theme === 'dark' ? 'bg-blue-600/30 text-blue-300' : 'bg-blue-100 text-blue-700') : (theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100'))}>
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+            <Button asChild size="icon" variant="ghost" aria-label="Soporte técnico" title="Soporte técnico"
+              className={cn('h-9 w-9 rounded-lg', theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100')}>
+              <a
+                href={getWhatsAppUrl('Hola, soy docente y necesito soporte técnico con el sistema.')}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Wrench className="h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -283,6 +323,8 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
   rankingFilters: TeacherRankingFilters
   setRankingFilters: (f: any) => void
 }) {
+  const isMobile = useIsMobile()
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const queryClient = useQueryClient()
   const studentsKey = students.map((s: any) => s.id || s.uid).join(',')
 
@@ -326,34 +368,42 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
 
   return (
     <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-      <CardHeader className="pb-2">
+      <CardHeader className={cn(isMobile ? 'pb-1.5 pt-3 px-3' : 'pb-2')}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <Trophy className={cn('h-5 w-5', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+            <CardTitle className={cn('flex items-center gap-2', isMobile ? 'text-xl' : '', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <Trophy className={cn(isMobile ? 'h-4 w-4' : 'h-5 w-5', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
               Ranking de Mejores Estudiantes
             </CardTitle>
-            <CardDescription>Solo estudiantes de tu grado, ordenados por rendimiento</CardDescription>
-            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
-              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year} · {rankingFilters.jornada === 'todas' ? 'Todas las jornadas' : rankingFilters.jornada}
+            {!isMobile && <CardDescription>Solo estudiantes de tu grado, ordenados por rendimiento</CardDescription>}
+            <p className={cn('text-xs mt-1', isMobile && 'truncate pr-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
+              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            {isMobile && (
+              <Popover open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" size="sm" variant="outline" className={cn('h-7 px-2.5 text-[11px]', theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white' : 'bg-white border-gray-300 text-gray-900')}>
+                    Filtros
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className={cn('w-56 p-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')}>
+                  <div className="grid grid-cols-1 gap-2">
+                    <Select value={rankingFilters.phase} onValueChange={(v) => setRankingFilters({ ...rankingFilters, phase: v })}>
+                      <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="first">Fase I</SelectItem><SelectItem value="second">Fase II</SelectItem><SelectItem value="third">Fase III</SelectItem></SelectContent>
+                    </Select>
+                    <Select value={rankingFilters.year.toString()} onValueChange={(v) => setRankingFilters({ ...rankingFilters, year: parseInt(v) })}>
+                      <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año académico"><SelectValue /></SelectTrigger>
+                      <SelectContent>{years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
+                    </Select>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            {!isMobile && (
             <div className="flex items-center gap-2">
-              <div className="flex flex-col items-center gap-0.5">
-                <label className={cn('text-[10px] leading-none', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Jornada</label>
-                <Select value={rankingFilters.jornada || 'todas'} onValueChange={(v) => setRankingFilters({ ...rankingFilters, jornada: v === 'todas' ? 'todas' : (v as 'mañana' | 'tarde' | 'única') })}>
-                  <SelectTrigger className={cn('h-8 w-24 text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
-                    <SelectValue placeholder="Jornada" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
-                    <SelectItem value="mañana">Mañana</SelectItem>
-                    <SelectItem value="tarde">Tarde</SelectItem>
-                    <SelectItem value="única">Única</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="flex flex-col items-center gap-0.5">
                 <label className={cn('text-[10px] leading-none', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Fase</label>
                 <Select value={rankingFilters.phase} onValueChange={(v) => setRankingFilters({ ...rankingFilters, phase: v })}>
@@ -379,10 +429,11 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
                 </Select>
               </div>
             </div>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className={cn(isMobile ? 'pt-0 px-3 pb-3' : '')}>
         {rankingError ? (
           <div className="flex flex-col items-center justify-center py-8 gap-4">
             <p className={cn('text-sm text-center', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error al cargar el ranking. Intenta de nuevo.</p>
@@ -408,31 +459,30 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
         ) : rankingData && rankingData.length > 0 ? (
           <>
             <TooltipProvider>
-              <div className="space-y-1 max-h-96 overflow-y-auto" role="list" aria-label="Ranking de estudiantes">
+              <div className={cn('space-y-1 overflow-y-auto', isMobile ? 'max-h-80' : 'max-h-96')} role="list" aria-label="Ranking de estudiantes">
                 {(showAllRanking ? rankingData : rankingData.slice(0, RANKING_INITIAL_VISIBLE)).map((item: any, index: number) => (
-                  <div key={item.student.id || item.student.uid} role="listitem" className={cn('flex items-center justify-between py-1.5 px-2 rounded-md border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-300 bg-gray-100 hover:bg-gray-200')}>
+                  <div key={item.student.id || item.student.uid} role="listitem" className={cn(isMobile ? 'flex items-center justify-between py-1.5 px-1.5 rounded-md border' : 'flex items-center justify-between py-1.5 px-2 rounded-md border', theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-300 bg-gray-100 hover:bg-gray-200')}>
                     <div className="flex items-center gap-2">
                       <div className={cn('w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0', index === 0 ? (theme === 'dark' ? 'bg-yellow-600 text-white' : 'bg-yellow-500 text-white') : index === 1 ? (theme === 'dark' ? 'bg-gray-400 text-white' : 'bg-gray-300 text-gray-900') : index === 2 ? (theme === 'dark' ? 'bg-orange-700 text-white' : 'bg-orange-500 text-white') : (theme === 'dark' ? 'bg-zinc-700 text-gray-300' : 'bg-gray-200 text-gray-600'))}>
                         {index + 1}
                       </div>
                       <div className="min-w-0">
-                        <p className={cn('font-medium text-sm truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{item.student.name || item.student.displayName || 'Estudiante'}</p>
-                        {item.student.gradeName && <p className={cn('text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{item.student.gradeName}</p>}
+                        <p className={cn(isMobile ? 'font-medium text-[13px] truncate' : 'font-medium text-sm truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{item.student.name || item.student.displayName || 'Estudiante'}</p>
+                        {item.student.gradeName && <p className={cn(isMobile ? 'text-[9px] leading-tight' : 'text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{item.student.gradeName}</p>}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <UITooltip>
                         <TooltipTrigger asChild>
                           <div className="flex flex-col items-end gap-0 cursor-help">
-                            <p className={cn('text-[10px] font-medium leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Puntaje (0-500)</p>
-                            <p className={cn('font-bold text-base leading-tight', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{item.globalScore.toFixed(1)}</p>
+                            <p className={cn(isMobile ? 'font-bold text-[15px] leading-tight' : 'font-bold text-base leading-tight', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{item.globalScore.toFixed(1)}</p>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="left" className="max-w-xs">
                           <p>Puntaje global de la fase (escala 0-500). Solo incluye estudiantes que completaron las 7 materias.</p>
                         </TooltipContent>
                       </UITooltip>
-                      <p className={cn('text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{item.student.jornada ? item.student.jornada.charAt(0).toUpperCase() + item.student.jornada.slice(1) : 'N/A'}</p>
+                      <p className={cn(isMobile ? 'text-[9px] leading-tight' : 'text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{item.student.jornada ? item.student.jornada.charAt(0).toUpperCase() + item.student.jornada.slice(1) : 'N/A'}</p>
                     </div>
                   </div>
                 ))}
@@ -450,7 +500,7 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
           <div className="text-center py-8 space-y-2">
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay estudiantes con resultados para los filtros seleccionados</p>
             <p className={cn('text-xs', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
-              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year} · {rankingFilters.jornada === 'todas' ? 'Todas las jornadas' : rankingFilters.jornada}
+              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year}
             </p>
           </div>
         )}
@@ -466,6 +516,8 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
   filters: { year: number; subject: string; jornada: string }
   setFilters: (f: any) => void
 }) {
+  const isMobile = useIsMobile()
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
   const subjects = ['todas', 'Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
@@ -547,21 +599,46 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
 
   return (
     <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
-      <CardHeader className="pb-2">
+      <CardHeader className={cn(isMobile ? 'pb-1.5 pt-3 px-3' : 'pb-2')}>
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <BarChart3 className={cn('h-5 w-5 shrink-0', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              Evolución por Materia
+            <CardTitle className={cn('flex items-center gap-2', isMobile ? 'text-xl' : '', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <BarChart3 className={cn(isMobile ? 'h-4 w-4 shrink-0' : 'h-5 w-5 shrink-0', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+              Evolución académica
             </CardTitle>
+            {!isMobile && (
             <CardDescription className="mt-0.5">
               {evolutionData?.subjects?.length ? (filters.subject === 'todas' ? `${evolutionData.subjects.length} materias evaluadas` : displaySubjects.length === 1 ? '1 materia evaluada' : 'Promedio por materia') : 'Promedio de puntuación por materia en las 3 fases'}
             </CardDescription>
-            <p className={cn('text-[10px] mt-0.5', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
-              {filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject} · {filters.jornada === 'todas' ? 'Todas' : filters.jornada}
+            )}
+            <p className={cn('text-[10px] mt-0.5', isMobile && 'truncate pr-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
+              {filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject}
             </p>
           </div>
           <div className="flex items-end gap-2 flex-wrap">
+            {isMobile && (
+              <Popover open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" size="sm" variant="outline" className={cn('h-7 px-2.5 text-[11px]', theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white' : 'bg-white border-gray-300 text-gray-900')}>
+                    Filtros
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className={cn('w-60 p-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')}>
+                  <div className="grid grid-cols-1 gap-2">
+                    <Select value={filters.year.toString()} onValueChange={(v) => setFilters({ ...filters, year: parseInt(v) })}>
+                      <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año"><SelectValue placeholder="Año" /></SelectTrigger>
+                      <SelectContent>{years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
+                    </Select>
+                    <Select value={filters.subject} onValueChange={(v) => setFilters({ ...filters, subject: v })}>
+                      <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por materia"><SelectValue placeholder="Materia" /></SelectTrigger>
+                      <SelectContent>{subjects.map(s => (<SelectItem key={s} value={s}>{s === 'todas' ? 'Todas las materias' : s}</SelectItem>))}</SelectContent>
+                    </Select>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            {!isMobile && (
+            <>
             <div className="flex flex-col gap-0.5">
               <label className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Año</label>
               <Select value={filters.year.toString()} onValueChange={(v) => setFilters({ ...filters, year: parseInt(v) })}>
@@ -580,19 +657,12 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
                 <SelectContent>{subjects.map(s => (<SelectItem key={s} value={s}>{s === 'todas' ? 'Todas' : s}</SelectItem>))}</SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <label className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Jornada</label>
-              <Select value={filters.jornada} onValueChange={(v) => setFilters({ ...filters, jornada: v })}>
-                <SelectTrigger className={cn('h-7 w-24 text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
-                  <SelectValue placeholder="Jornada" />
-                </SelectTrigger>
-                <SelectContent>{jornadas.map(j => (<SelectItem key={j} value={j}>{j === 'todas' ? 'Todas' : j.charAt(0).toUpperCase() + j.slice(1)}</SelectItem>))}</SelectContent>
-              </Select>
-            </div>
+            </>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className={cn(isMobile ? 'pt-0 px-3 pb-3' : 'pt-0')}>
         {evolutionError ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3">
             <p className={cn('text-sm text-center', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error al cargar la evolución. Por favor, intenta nuevamente.</p>
@@ -608,13 +678,13 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
             </div>
           </div>
         ) : hasChartData && displaySubjects.length > 0 ? (
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={isMobile ? 190 : 240}>
             <LineChart data={evolutionData!.chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#3f3f46' : '#d1d5db'} />
-              <XAxis dataKey="fase" stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 11 }} />
-              <YAxis domain={[0, 100]} stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 11 }} />
+              <XAxis dataKey="fase" stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: isMobile ? 10 : 11 }} />
+              <YAxis domain={[0, 100]} stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: isMobile ? 10 : 11 }} />
               <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#18181b' : '#ffffff', border: theme === 'dark' ? '1px solid #3f3f46' : '1px solid #e5e7eb', borderRadius: '8px' }} labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#111827' }} />
-              <Legend wrapperStyle={{ paddingTop: '8px' }} iconType="line" iconSize={8} formatter={(value) => <span style={{ fontSize: 11 }}>{value}</span>} />
+              <Legend wrapperStyle={{ paddingTop: isMobile ? '4px' : '8px' }} iconType="line" iconSize={isMobile ? 6 : 8} formatter={(value) => <span style={{ fontSize: isMobile ? 10 : 11 }}>{value}</span>} />
               {displaySubjects.map((subject: string) => (
                 <Line key={subject} type="monotone" dataKey={subject} name={subject} stroke={SUBJECT_COLORS[subject] || '#6b7280'} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
               ))}
@@ -623,12 +693,12 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
         ) : hasChartData && filters.subject !== 'todas' && displaySubjects.length === 0 ? (
           <div className="text-center py-8 space-y-1">
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos para {filters.subject} con los filtros seleccionados</p>
-            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year} · {filters.jornada === 'todas' ? 'Todas' : filters.jornada}</p>
+            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year}</p>
           </div>
         ) : (
           <div className="text-center py-8 space-y-1">
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos disponibles para los filtros seleccionados</p>
-            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject} · {filters.jornada === 'todas' ? 'Todas' : filters.jornada}</p>
+            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject}</p>
           </div>
         )}
       </CardContent>
@@ -638,6 +708,8 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
 
 // Promedio del grado por fase (tarjeta con filtro de fase)
 function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; students: any[] }) {
+  const isMobile = useIsMobile()
+  const [mobilePhaseOpen, setMobilePhaseOpen] = useState(false)
   const [phase, setPhase] = useState<'first' | 'second' | 'third'>('first')
   const phaseMap: Record<string, string> = { first: 'fase I', second: 'Fase II', third: 'fase III' }
   const phaseName = phaseMap[phase]
@@ -716,22 +788,61 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
     <div className="animate-in fade-in zoom-in-95 duration-300">
       <Card className={cn('relative overflow-hidden border-0 shadow-lg', theme === 'dark' ? 'bg-zinc-900' : 'bg-white')}>
         <div className={cn('absolute top-0 right-0 w-14 h-14 bg-gradient-to-br opacity-10 rounded-full -mr-7 -mt-7', 'from-emerald-500 to-emerald-600')} />
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 py-1 px-3 pb-0 relative z-10">
-          <CardTitle className={cn('text-xs font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Promedio del Grado</CardTitle>
+        <CardHeader className={cn(
+          'flex flex-row items-center justify-between space-y-0 relative z-10',
+          isMobile ? 'py-0.5 px-2 pb-0' : 'py-1 px-3 pb-0'
+        )}>
+          <CardTitle className={cn(isMobile ? 'text-[10px] font-medium leading-none' : 'text-xs font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+            {isMobile ? 'Promedio Grado' : 'Promedio del Grado'}
+          </CardTitle>
           <div className="flex items-center gap-1">
-            <Select value={phase} onValueChange={(v) => setPhase(v as 'first' | 'second' | 'third')}>
-              <SelectTrigger className={cn('h-4 min-h-4 w-[68px] text-[10px] py-0 leading-tight', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gray-100 border-gray-200')} aria-label="Filtrar por fase">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="first">Fase I</SelectItem>
-                <SelectItem value="second">Fase II</SelectItem>
-                <SelectItem value="third">Fase III</SelectItem>
-              </SelectContent>
-            </Select>
+            {isMobile ? (
+              <Popover open={mobilePhaseOpen} onOpenChange={setMobilePhaseOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      'h-5 px-2 text-[10px]',
+                      theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                    )}
+                  >
+                    Fase
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="end"
+                  className={cn('w-40 p-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')}
+                >
+                  <Select value={phase} onValueChange={(v) => setPhase(v as 'first' | 'second' | 'third')}>
+                    <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="first">Fase I</SelectItem>
+                      <SelectItem value="second">Fase II</SelectItem>
+                      <SelectItem value="third">Fase III</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <Select value={phase} onValueChange={(v) => setPhase(v as 'first' | 'second' | 'third')}>
+                <SelectTrigger className={cn('h-4 min-h-4 w-[68px] text-[10px] py-0 leading-tight', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-gray-100 border-gray-200')} aria-label="Filtrar por fase">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="first">Fase I</SelectItem>
+                  <SelectItem value="second">Fase II</SelectItem>
+                  <SelectItem value="third">Fase III</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardHeader>
-        <CardContent className="relative z-10 pt-0.5 px-3 pb-2.5 leading-none">
+        <CardContent className={cn('relative z-10 pt-0.5 leading-none', isMobile ? 'px-2 pb-1' : 'px-3 pb-2.5')}>
           {averageError ? (
             <div className="flex flex-col gap-1.5">
               <span className={cn('text-xs', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error</span>
@@ -742,9 +853,9 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
           ) : isLoading ? (
             <div className={cn('h-7 w-14 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} aria-busy="true" aria-label="Cargando promedio" />
           ) : average != null ? (
-            <span className={cn('text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{average.toFixed(1)}</span>
+            <span className={cn(isMobile ? 'text-lg font-bold' : 'text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{average.toFixed(1)}</span>
           ) : (
-            <span className={cn('text-lg', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>—</span>
+            <span className={cn(isMobile ? 'text-lg' : 'text-lg', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>—</span>
           )}
         </CardContent>
       </Card>
@@ -754,20 +865,21 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
 
 // Componente de Bienvenida
 function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters, evolutionFilters, setEvolutionFilters }: any) {
+  const isMobile = useIsMobile()
   return (
     <div>
       {/* Estadísticas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
+      <div className="grid grid-cols-2 md:grid-cols-2 gap-2 md:gap-4 animate-in fade-in duration-300 items-start">
         {/* Total Estudiantes */}
         <div className="animate-in fade-in zoom-in-95 duration-300">
           <Card className={cn('relative overflow-hidden border-0 shadow-lg', theme === 'dark' ? 'bg-zinc-900' : 'bg-white')}>
             <div className={cn('absolute top-0 right-0 w-14 h-14 bg-gradient-to-br opacity-10 rounded-full -mr-7 -mt-7', 'from-green-500 to-green-600')} />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 py-1 px-3 pb-0 relative z-10">
-              <CardTitle className={cn('text-xs font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Total Estudiantes</CardTitle>
-              <Users className="h-4 w-4 text-green-500 shrink-0" />
+            <CardHeader className={cn('flex flex-row items-center justify-between space-y-0 relative z-10', isMobile ? 'py-1 px-2 pb-0' : 'py-1 px-3 pb-0')}>
+              <CardTitle className={cn(isMobile ? 'text-[11px] font-medium' : 'text-xs font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Total Estudiantes</CardTitle>
+              <Users className={cn(isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4', 'text-green-500 shrink-0')} />
             </CardHeader>
-            <CardContent className="relative z-10 pt-0.5 px-3 pb-2.5">
-              <span className={cn('text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{stats.totalStudents.toLocaleString()}</span>
+            <CardContent className={cn('relative z-10 pt-0.5', isMobile ? 'px-2 pb-1.5' : 'px-3 pb-2.5')}>
+              <span className={cn(isMobile ? 'text-xl font-bold' : 'text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{stats.totalStudents.toLocaleString()}</span>
             </CardContent>
           </Card>
         </div>
@@ -778,18 +890,18 @@ function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters,
 
       {/* Ranking de mejores estudiantes y logros */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-2">
-        <TeacherRankingCard
-          theme={theme}
-          students={students}
-          rankingFilters={rankingFilters}
-          setRankingFilters={setRankingFilters}
-        />
-
         <TeacherEvolutionBySubjectChart
           theme={theme}
           students={students}
           filters={evolutionFilters}
           setFilters={setEvolutionFilters}
+        />
+
+        <TeacherRankingCard
+          theme={theme}
+          students={students}
+          rankingFilters={rankingFilters}
+          setRankingFilters={setRankingFilters}
         />
       </div>
     </div>

@@ -43,6 +43,8 @@ import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart
 import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
 import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRoleSkeleton'
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { useIsMobile } from '@/hooks/ui/use-mobile'
 
 const db = getFirestore(firebaseApp)
 
@@ -54,7 +56,10 @@ interface RectorDashboardProps extends ThemeContextProps {}
 export default function RectorDashboard({ theme }: RectorDashboardProps) {
   const { stats, isLoading, currentRector, coordinators, teachers, students } = useRectorStats()
   const { institutionName, institutionLogo } = useUserInstitution()
+  const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = useState('inicio')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set(['inicio']))
   const [rankingFilters, setRankingFilters] = useState<{
     jornada: 'mañana' | 'tarde' | 'única' | 'todas'
     phase: 'first' | 'second' | 'third'
@@ -110,6 +115,28 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   }
 
   const COLORS = ['#1e40af', '#2563eb', '#374151', '#4b5563', '#1e3a8a', '#3b82f6']
+  const dashboardButtons = [
+    { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
+    { icon: UserCog, label: 'Administrativos', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos' },
+    { icon: Users, label: 'Análisis por estudiante', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes' },
+  ] as const
+
+  // Mantener en memoria las pestañas visitadas para evitar recargas al volver.
+  useEffect(() => {
+    setLoadedTabs((prev) => {
+      if (prev.has(activeTab)) return prev
+      const next = new Set(prev)
+      next.add(activeTab)
+      return next
+    })
+  }, [activeTab])
+
+  useEffect(() => {
+    if (!isMobile) return
+    const openMenu = () => setMobileMenuOpen(true)
+    window.addEventListener('rector-mobile-menu-toggle', openMenu)
+    return () => window.removeEventListener('rector-mobile-menu-toggle', openMenu)
+  }, [isMobile])
 
   // Mostrar loading si los datos están cargando
   if (isLoading) {
@@ -128,13 +155,15 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   }
 
   return (
-    <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-950' : 'bg-gray-100')}>
+    <div className={cn("min-h-screen overflow-x-hidden", theme === 'dark' ? 'bg-zinc-950' : 'bg-gray-100')}>
       <div className="flex flex-col gap-0.5">
       {/* Header con logo y gradiente */}
       <div
         className={cn(
           'animate-in fade-in slide-in-from-top-2 duration-300',
-          "relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl",
+          isMobile
+            ? "relative overflow-hidden rounded-none px-4 pt-3 pb-2 text-white shadow-2xl"
+            : "relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl",
           theme === 'dark' 
             ? "bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900" 
             : ""
@@ -145,26 +174,29 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 via-blue-800/90 to-blue-900/80" />
         )}
         <div className="relative z-10">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
+          <div className={cn("flex items-center justify-between flex-wrap", isMobile ? "gap-2" : "gap-3")}>
+            <div className={cn("flex items-center", isMobile ? "gap-2" : "gap-3")}>
               <div className="relative">
                 <img 
                   src={institutionLogo || '/assets/agustina.png'} 
                   alt={`Logo de ${institutionName}`}
-                  className="w-20 h-20 object-contain rounded-lg bg-white/20 backdrop-blur-sm p-2 shadow-lg border border-white/30"
+                  className={cn(
+                    "object-contain rounded-lg bg-white/20 backdrop-blur-sm shadow-lg border border-white/30",
+                    isMobile ? "w-14 h-14 p-1.5" : "w-20 h-20 p-2"
+                  )}
                   onError={(e) => {
                     e.currentTarget.src = '/assets/agustina.png'
                   }}
                 />
               </div>
-              <div>
-                <h1 className="text-xl font-bold mb-1">
+              <div className="min-w-0">
+                <h1 className={cn("font-bold mb-0.5 leading-tight", isMobile ? "text-base" : "text-xl")}>
                   Bienvenido Rector de {institutionName || stats.institutionName || 'la Institución'}
                 </h1>
-                <p className="text-sm opacity-90 mb-0.5">
+                <p className={cn("opacity-90 mb-0.5", isMobile ? "text-xs" : "text-sm")}>
                   Rectoría - {institutionName || stats.institutionName}
                 </p>
-                <p className="text-xs opacity-75">
+                <p className={cn("opacity-75 truncate", isMobile ? "text-[11px] max-w-[180px]" : "text-xs")}>
                   {stats.rectorEmail}
                 </p>
               </div>
@@ -183,17 +215,64 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             </div>
           </div>
         </div>
-        <School className="absolute top-0 right-0 h-40 w-40 opacity-10" aria-hidden />
+        <School className={cn("absolute top-0 right-0 opacity-10", isMobile ? "h-28 w-28" : "h-40 w-40")} aria-hidden />
       </div>
       </div>
 
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent
+          side="right"
+          className={cn(
+            "w-[min(100vw-2rem,320px)]",
+            theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white text-gray-900'
+          )}
+        >
+          <SheetHeader>
+            <SheetTitle className={cn(theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              Menú del rector
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 flex flex-col gap-2">
+            {dashboardButtons.map((btn) => (
+              <Button
+                key={btn.label}
+                onClick={() => {
+                  setActiveTab(btn.tab)
+                  setMobileMenuOpen(false)
+                }}
+                className={cn(
+                  "w-full h-12 flex flex-row items-center justify-start gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                  btn.color
+                )}
+              >
+                <btn.icon className="h-5 w-5 shrink-0" />
+                <span className="font-semibold text-sm truncate">{btn.label}</span>
+              </Button>
+            ))}
+            <Button
+              asChild
+              className={cn(
+                "w-full h-12 flex flex-row items-center justify-start gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700'
+              )}
+            >
+              <a
+                href={getWhatsAppUrl('Hola, soy el rector de la institución, necesito soporte técnico, tengo algunos problemas con el sistema.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-row items-center justify-start gap-2 w-full h-full"
+              >
+                <Wrench className="h-5 w-5 shrink-0" />
+                <span className="font-semibold text-sm truncate">Soporte técnico</span>
+              </a>
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Botones de acción */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-        {[
-          { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
-          { icon: UserCog, label: 'Administrativos', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos' },
-          { icon: Users, label: 'Análisis por estudiante', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes' },
-        ].map((btn) => (
+      <div className="hidden md:grid md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {dashboardButtons.map((btn) => (
           <div key={btn.label}>
             <Button
               onClick={() => setActiveTab(btn.tab)}
@@ -229,13 +308,13 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       </div>
 
       {/* Contenido dinámico según tab activo */}
-      <div className="mx-4 md:mx-6 lg:mx-8 mt-3">
+      <div className="mx-4 md:mx-6 lg:mx-8 mt-3 pb-20 md:pb-0">
         {/* Tab Inicio */}
-        {activeTab === 'inicio' && (
-          <div className="space-y-6">
-            <WelcomeTab 
-              theme={theme} 
-              stats={stats} 
+        {loadedTabs.has('inicio') && (
+          <div className={cn('space-y-6', activeTab !== 'inicio' && 'hidden')}>
+            <WelcomeTab
+              theme={theme}
+              stats={stats}
               currentRector={currentRector}
               rankingFilters={rankingFilters}
               setRankingFilters={setRankingFilters}
@@ -245,11 +324,11 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         )}
 
         {/* Tab Sedes */}
-        {activeTab === 'sedes' && (
-          <div className="space-y-6">
-            <CampusesTab 
-              theme={theme} 
-              stats={stats} 
+        {loadedTabs.has('sedes') && (
+          <div className={cn('space-y-6', activeTab !== 'sedes' && 'hidden')}>
+            <CampusesTab
+              theme={theme}
+              stats={stats}
               currentRector={currentRector}
               coordinators={coordinators || []}
               teachers={teachers || []}
@@ -258,10 +337,10 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         )}
 
         {/* Tab Administrativos */}
-        {activeTab === 'administrativos' && (
-          <div className="space-y-6">
-            <AdministrativosTab 
-              theme={theme} 
+        {loadedTabs.has('administrativos') && (
+          <div className={cn('space-y-6', activeTab !== 'administrativos' && 'hidden')}>
+            <AdministrativosTab
+              theme={theme}
               coordinators={coordinators || []}
               teachers={teachers || []}
             />
@@ -269,20 +348,20 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         )}
 
         {/* Tab Estudiantes */}
-        {activeTab === 'estudiantes' && (
-          <div className="space-y-6">
-            <StudentsTab 
-              theme={theme} 
+        {loadedTabs.has('estudiantes') && (
+          <div className={cn('space-y-6', activeTab !== 'estudiantes' && 'hidden')}>
+            <StudentsTab
+              theme={theme}
               students={students || []}
             />
           </div>
         )}
 
         {/* Tab Resultados */}
-        {activeTab === 'resultados' && (
-          <div className="space-y-6">
-            <ResultsTab 
-              theme={theme} 
+        {loadedTabs.has('resultados') && (
+          <div className={cn('space-y-6', activeTab !== 'resultados' && 'hidden')}>
+            <ResultsTab
+              theme={theme}
               stats={stats}
               staticData={staticData}
               COLORS={COLORS}
@@ -290,13 +369,93 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           </div>
         )}
       </div>
+
+      {isMobile && (
+        <div className="fixed bottom-3 left-1/2 z-30 -translate-x-1/2">
+          <div className={cn(
+            "flex items-center gap-1 rounded-xl border px-2 py-1.5 shadow-xl backdrop-blur",
+            theme === 'dark' ? 'border-zinc-700 bg-zinc-900/90' : 'border-gray-300 bg-white/90'
+          )}>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label="Inicio"
+              title="Inicio"
+              onClick={() => setActiveTab('inicio')}
+              className={cn(
+                "h-9 w-9 rounded-lg",
+                activeTab === 'inicio'
+                  ? (theme === 'dark' ? 'bg-blue-600/30 text-blue-300' : 'bg-blue-100 text-blue-700')
+                  : (theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100')
+              )}
+            >
+              <Sparkles className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label="Administrativos"
+              title="Administrativos"
+              onClick={() => setActiveTab('administrativos')}
+              className={cn(
+                "h-9 w-9 rounded-lg",
+                activeTab === 'administrativos'
+                  ? (theme === 'dark' ? 'bg-blue-600/30 text-blue-300' : 'bg-blue-100 text-blue-700')
+                  : (theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100')
+              )}
+            >
+              <UserCog className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label="Análisis por estudiante"
+              title="Análisis por estudiante"
+              onClick={() => setActiveTab('estudiantes')}
+              className={cn(
+                "h-9 w-9 rounded-lg",
+                activeTab === 'estudiantes'
+                  ? (theme === 'dark' ? 'bg-blue-600/30 text-blue-300' : 'bg-blue-100 text-blue-700')
+                  : (theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100')
+              )}
+            >
+              <Users className="h-4 w-4" />
+            </Button>
+            <Button
+              asChild
+              size="icon"
+              variant="ghost"
+              aria-label="Soporte técnico"
+              title="Soporte técnico"
+              className={cn(
+                "h-9 w-9 rounded-lg",
+                theme === 'dark' ? 'text-zinc-200 hover:bg-zinc-800' : 'text-gray-700 hover:bg-gray-100'
+              )}
+            >
+              <a
+                href={getWhatsAppUrl('Hola, soy el rector de la institución, necesito soporte técnico, tengo algunos problemas con el sistema.')}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Wrench className="h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 
 // Componente de Promedio Institucional con filtro por fase (usa institutionStudents de la única fuente)
-function InstitutionAverageCard({ theme, currentRector, institutionStudents: institutionStudentsProp = [] }: any) {
+function InstitutionAverageCard({ theme, currentRector, institutionStudents: institutionStudentsProp = [], compactMobile = false }: any) {
+  const isMobile = useIsMobile()
+  const isCompactMobile = isMobile && compactMobile
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [selectedPhase, setSelectedPhase] = useState<'first' | 'second' | 'third'>('first')
   const [selectedGrade, setSelectedGrade] = useState<string>('todos')
   const [selectedJornada, setSelectedJornada] = useState<'mañana' | 'tarde' | 'única' | 'todas'>('todas')
@@ -503,8 +662,8 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
   }, [institutionId, institutionStudents, selectedGrade, selectedJornada, queryClient])
 
   return (
-    <div className="space-y-1 flex-1 flex flex-col justify-between">
-      <div className="flex items-center justify-between gap-1.5">
+    <div className={cn("space-y-1", isCompactMobile ? "overflow-hidden" : isMobile ? "" : "flex-1 flex flex-col justify-between")}>
+      <div className={cn("flex gap-1.5", isCompactMobile ? "items-start justify-between" : isMobile ? "flex-col" : "items-center justify-between")}>
         <div className="flex items-center gap-1.5">
             {averageError ? (
               <div className="flex items-center gap-2">
@@ -522,8 +681,8 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
             ) : averageLoading ? (
               <div className={cn('h-8 w-16 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} aria-busy="true" aria-label="Cargando promedio" />
             ) : (
-              <div className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                <span className={cn('text-lg font-normal mr-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>~</span>
+              <div className={cn(isCompactMobile ? 'text-2xl font-bold leading-none tracking-tight' : isMobile ? 'text-[2rem] font-bold leading-none' : 'text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                <span className={cn(isCompactMobile ? 'text-xs font-normal mr-1' : isMobile ? 'text-base font-normal mr-1' : 'text-lg font-normal mr-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>~</span>
                 {phaseAverage ?? 0}
               </div>
             )}
@@ -553,16 +712,84 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
               </Popover>
             )}
         </div>
-        <div className="flex items-end gap-1.5">
-          <div className="flex flex-col gap-0.5">
-            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+        {isCompactMobile ? (
+          <Popover open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={cn(
+                  "h-7 px-2 text-[11px] shrink-0",
+                  theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                )}
+              >
+                Filtros
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="bottom"
+              align="end"
+              className={cn("w-56 p-2", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')}
+            >
+              <div className="grid grid-cols-1 gap-2">
+                <Select
+                  value={selectedGrade}
+                  onValueChange={setSelectedGrade}
+                >
+                  <SelectTrigger className={cn("h-7 w-full text-[11px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
+                    <SelectValue placeholder="Grado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos (grado)</SelectItem>
+                    {institutionGrades.map((grade: any) => (
+                      <SelectItem key={grade.value} value={grade.value}>
+                        {grade.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={selectedJornada}
+                  onValueChange={(value) => setSelectedJornada(value as 'mañana' | 'tarde' | 'única' | 'todas')}
+                >
+                  <SelectTrigger className={cn("h-7 w-full text-[11px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
+                    <SelectValue placeholder="Jornada" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas (jornada)</SelectItem>
+                    <SelectItem value="mañana">Mañana</SelectItem>
+                    <SelectItem value="tarde">Tarde</SelectItem>
+                    <SelectItem value="única">Única</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={selectedPhase}
+                  onValueChange={(value) => setSelectedPhase(value as 'first' | 'second' | 'third')}
+                >
+                  <SelectTrigger className={cn("h-7 w-full text-[11px]", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="first">Fase I</SelectItem>
+                    <SelectItem value="second">Fase II</SelectItem>
+                    <SelectItem value="third">Fase III</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : (
+        <div className={cn("gap-1.5", isMobile ? "grid grid-cols-3 w-full" : "flex items-end flex-wrap justify-end")}>
+          <div className={cn("flex flex-col gap-0.5", isMobile ? "min-w-0" : "min-w-[4.5rem]")}>
+            <label className={cn("text-[10px] font-medium", isMobile && "sr-only", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Grado
             </label>
             <Select
               value={selectedGrade}
               onValueChange={setSelectedGrade}
             >
-              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
+              <SelectTrigger className={cn(isMobile ? "h-7 w-full text-[11px]" : "h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
                 <SelectValue placeholder="Grado" />
               </SelectTrigger>
               <SelectContent>
@@ -575,15 +802,15 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+          <div className={cn("flex flex-col gap-0.5", isMobile ? "min-w-0" : "min-w-[4.5rem]")}>
+            <label className={cn("text-[10px] font-medium", isMobile && "sr-only", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Jornada
             </label>
             <Select
               value={selectedJornada}
               onValueChange={(value) => setSelectedJornada(value as 'mañana' | 'tarde' | 'única' | 'todas')}
             >
-              <SelectTrigger className={cn("h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
+              <SelectTrigger className={cn(isMobile ? "h-7 w-full text-[11px]" : "h-6 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
                 <SelectValue placeholder="Jornada" />
               </SelectTrigger>
               <SelectContent>
@@ -594,15 +821,15 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+          <div className={cn("flex flex-col gap-0.5", isMobile ? "min-w-0" : "min-w-[4.5rem]")}>
+            <label className={cn("text-[10px] font-medium", isMobile && "sr-only", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
               Fase
             </label>
             <Select
               value={selectedPhase}
               onValueChange={(value) => setSelectedPhase(value as 'first' | 'second' | 'third')}
             >
-              <SelectTrigger className={cn("h-6 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
+              <SelectTrigger className={cn(isMobile ? "h-7 w-full text-[11px]" : "h-6 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -613,6 +840,7 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
             </Select>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
@@ -620,6 +848,7 @@ function InstitutionAverageCard({ theme, currentRector, institutionStudents: ins
 
 // Componente de Bienvenida (institutionStudents = única fuente de estudiantes para el tab)
 function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFilters, institutionStudents = [] }: any) {
+  const isMobile = useIsMobile()
   const [evolutionFilters, setEvolutionFilters] = useState<{
     year: number
     subject: string
@@ -637,9 +866,7 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
   return (
     <div className="space-y-3">
       {/* Estadísticas principales con animaciones */}
-      <div
-        className="grid grid-cols-1 md:grid-cols-2 gap-3"
-      >
+      <div className="grid grid-cols-2 gap-2 md:gap-3 items-start">
         {[
           { 
             title: 'Total Estudiantes', 
@@ -650,44 +877,52 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
             gradient: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800'
           },
           { 
-            title: 'Promedio Institucional', 
+            title: isMobile ? 'Promedio Inst.' : 'Promedio Institucional',
             value: null,
             change: '',
             icon: TrendingUp, 
             color: 'blue',
             gradient: theme === 'dark' ? 'from-blue-800 to-blue-900' : 'from-blue-700 to-blue-800',
             isCustom: true,
-            customComponent: <InstitutionAverageCard theme={theme} currentRector={currentRector} institutionStudents={institutionStudents} />
+            customComponent: <InstitutionAverageCard theme={theme} currentRector={currentRector} institutionStudents={institutionStudents} compactMobile={isMobile} />
           },
         ].map((stat) => (
-          <div
-            key={stat.title}
-            className="h-full"
-          >
+          <div key={stat.title}>
             <Card className={cn(
-              "relative overflow-hidden shadow-lg h-full flex flex-col",
+              "relative overflow-hidden shadow-lg",
               theme === 'dark' 
                 ? 'bg-zinc-900 border-0' 
               : 'bg-gray-200 border-2 border-gray-300'
             )}>
               <div className={cn("absolute top-0 right-0 w-24 h-24 bg-gradient-to-br opacity-10 rounded-full -mr-12 -mt-12", stat.gradient)} />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0.5 pt-2 px-3 relative z-10">
-                <CardTitle className={cn('text-xs font-medium', theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+              <CardHeader className={cn(
+                "flex flex-row items-center justify-between space-y-0 pb-0.5 relative z-10",
+                isMobile ? "pt-1.5 px-2" : "pt-2 px-3"
+              )}>
+                <CardTitle className={cn(
+                  'font-medium',
+                  isMobile ? 'text-[11px]' : 'text-xs',
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                )}>
                   {stat.title}
                 </CardTitle>
                 <div>
-                  <stat.icon className={cn("h-4 w-4", `text-${stat.color}-500`)} />
+                  <stat.icon className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4", `text-${stat.color}-500`)} />
                 </div>
               </CardHeader>
-              <CardContent className="relative z-10 px-3 pb-2 pt-0.5 flex-1 flex flex-col">
+              <CardContent className={cn(
+                "relative z-10 pt-0.5",
+                isMobile ? "px-2 pb-1.5" : "px-3 pb-2"
+              )}>
                 {stat.isCustom && stat.customComponent ? (
-                  <div className="flex-1 flex flex-col">
-                    {stat.customComponent}
-                  </div>
+                  stat.customComponent
                 ) : (
                   <>
                     <div
-                      className={cn('text-2xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                      className={cn(
+                        isMobile ? 'text-xl font-bold' : 'text-2xl font-bold',
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      )}
                     >
                       {stat.value}
                     </div>
@@ -708,21 +943,21 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
         ))}
       </div>
 
-      {/* Ranking de estudiantes y logros */}
+      {/* Evolución académica y ranking */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <StudentRankingCard 
-          theme={theme}
-          currentRector={currentRector}
-          rankingFilters={rankingFilters}
-          setRankingFilters={setRankingFilters}
-          institutionStudents={institutionStudents}
-        />
-
         <EvolutionBySubjectChart 
           theme={theme}
           currentRector={currentRector}
           filters={evolutionFilters}
           setFilters={setEvolutionFilters}
+          institutionStudents={institutionStudents}
+        />
+
+        <StudentRankingCard 
+          theme={theme}
+          currentRector={currentRector}
+          rankingFilters={rankingFilters}
+          setRankingFilters={setRankingFilters}
           institutionStudents={institutionStudents}
         />
       </div>
@@ -732,10 +967,12 @@ function WelcomeTab({ theme, stats, currentRector, rankingFilters, setRankingFil
 
 // Componente de Evolución por Materia (usa institutionStudents de la única fuente)
 function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, institutionStudents: allStudentsProp = [] }: any) {
+  const isMobile = useIsMobile()
   const institutionId = currentRector?.institutionId
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
   const [studentPopoverOpen, setStudentPopoverOpen] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const allStudents = allStudentsProp ?? []
 
   const subjects = [
@@ -911,14 +1148,15 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, in
 
   return (
     <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-      <CardHeader className="pb-2">
+      <CardHeader className={cn(isMobile ? 'pb-1.5 pt-3 px-3' : 'pb-2')}>
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <BarChart3 className={cn("h-5 w-5 shrink-0", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-              Evolución por Materia
+            <CardTitle className={cn('flex items-center gap-2', isMobile ? 'text-xl' : '', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <BarChart3 className={cn(isMobile ? "h-4 w-4 shrink-0" : "h-5 w-5 shrink-0", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+              Evolución académica
             </CardTitle>
-            <CardDescription className="mt-0.5">
+            {!isMobile && (
+              <CardDescription className="mt-0.5">
               {evolutionData && 'subjects' in evolutionData && evolutionData.subjects && evolutionData.subjects.length > 0
                 ? filters.subject === 'todas'
                   ? `${evolutionData.subjects.length} ${evolutionData.subjects.length === 1 ? 'materia evaluada' : 'materias evaluadas'}`
@@ -927,13 +1165,98 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, in
                     : 'Promedio de puntuación por materia en las 3 fases'
                 : 'Promedio de puntuación por materia en las 3 fases'
               }
-            </CardDescription>
-            <p className={cn('text-[10px] mt-0.5', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
+              </CardDescription>
+            )}
+            <p className={cn('text-[10px] mt-0.5', isMobile && 'truncate pr-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
               {filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject} · {filters.jornada === 'todas' ? 'Todas' : filters.jornada} · {gradeLabel} · {filters.studentId === 'todos' || !filters.studentId ? 'Todos' : 'Estudiante'}
             </p>
           </div>
           {/* Filtros */}
           <div className="flex items-end gap-2 flex-wrap">
+            {isMobile && (
+              <Popover open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      "h-7 px-2.5 text-[11px]",
+                      theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                    )}
+                  >
+                    Filtros
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="end"
+                  className={cn("w-64 p-2", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')}
+                >
+                  <div className="grid grid-cols-1 gap-2">
+                    <Select
+                      value={filters.year.toString()}
+                      onValueChange={(value) => setFilters({ ...filters, year: parseInt(value) })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año">
+                        <SelectValue placeholder="Año" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map(year => (
+                          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={filters.subject}
+                      onValueChange={(value) => setFilters({ ...filters, subject: value })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por materia">
+                        <SelectValue placeholder="Materia" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subjects.map(subject => (
+                          <SelectItem key={subject} value={subject}>
+                            {subject === 'todas' ? 'Todas las materias' : subject}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={filters.jornada}
+                      onValueChange={(value) => setFilters({ ...filters, jornada: value })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
+                        <SelectValue placeholder="Jornada" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jornadas.map(jornada => (
+                          <SelectItem key={jornada} value={jornada}>
+                            {jornada === 'todas' ? 'Todas las jornadas' : jornada.charAt(0).toUpperCase() + jornada.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={filters.gradeId || 'todos'}
+                      onValueChange={(value) => setFilters({ ...filters, gradeId: value })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
+                        <SelectValue placeholder="Grado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos los grados</SelectItem>
+                        {institutionGrades.map((g: any) => (
+                          <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            {!isMobile && (
+            <>
             <div className="flex flex-col gap-0.5">
               <label className={cn("text-[10px] font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                 Año
@@ -1087,10 +1410,12 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, in
                 </PopoverContent>
               </Popover>
             </div>
+            </>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className={cn(isMobile ? "pt-0 px-3 pb-3" : "pt-0")}>
         {evolutionError ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3">
             <p className={cn('text-sm text-center', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
@@ -1116,18 +1441,18 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, in
             </div>
           </div>
         ) : hasChartData && displaySubjects.length > 0 ? (
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={isMobile ? 190 : 240}>
             <LineChart data={evolutionData!.chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#3f3f46' : '#d1d5db'} />
               <XAxis 
                 dataKey="fase" 
                 stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'}
-                tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 11 }}
+                tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: isMobile ? 10 : 11 }}
               />
               <YAxis 
                 domain={[0, 100]}
                 stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'}
-                tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: 11 }}
+                tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: isMobile ? 10 : 11 }}
               />
               <Tooltip 
                 contentStyle={{
@@ -1138,10 +1463,10 @@ function EvolutionBySubjectChart({ theme, currentRector, filters, setFilters, in
                 labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
               />
               <Legend 
-                wrapperStyle={{ paddingTop: '8px' }}
+                wrapperStyle={{ paddingTop: isMobile ? '4px' : '8px' }}
                 iconType="line"
-                iconSize={8}
-                formatter={(value) => <span style={{ fontSize: 11 }}>{value}</span>}
+                iconSize={isMobile ? 6 : 8}
+                formatter={(value) => <span style={{ fontSize: isMobile ? 10 : 11 }}>{value}</span>}
               />
               {displaySubjects.map((subject: string) => {
                 const colors: { [key: string]: string } = {
@@ -1321,8 +1646,10 @@ async function buildRankingFromStudents(
 
 // Componente de Ranking de Estudiantes (usa institutionStudents de la única fuente)
 function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFilters, institutionStudents = [] }: any) {
+  const isMobile = useIsMobile()
   const institutionId = currentRector?.institutionId
   const queryClient = useQueryClient()
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const { options: gradeOptions } = useAllGradeOptions()
   const institutionGrades = useMemo(
     () => (gradeOptions || []).filter((g: any) => g.institutionId === institutionId),
@@ -1378,22 +1705,102 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
 
   return (
     <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
+      <CardHeader className={cn(isMobile ? 'pb-1.5 pt-3 px-3' : '')}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex-1">
-            <CardTitle className={cn('flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-              <Trophy className={cn("h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
+            <CardTitle className={cn('flex items-center gap-2', isMobile ? 'text-xl' : '', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <Trophy className={cn(isMobile ? "h-4 w-4" : "h-5 w-5", theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
               Ranking de Mejores Estudiantes
             </CardTitle>
-            <CardDescription>Top estudiantes ordenados por rendimiento</CardDescription>
-            <p className={cn('text-xs mt-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
+            {!isMobile && <CardDescription>Top estudiantes ordenados por rendimiento</CardDescription>}
+            <p className={cn('text-xs mt-1', isMobile && 'truncate pr-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
               {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year} · {gradeLabel} · {rankingFilters.jornada === 'todas' ? 'Todas las jornadas' : rankingFilters.jornada}
             </p>
           </div>
           {/* Filtros en la parte superior derecha */}
-          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col items-center gap-0.5">
+          <div className="flex flex-col items-start md:items-end gap-1 w-full md:w-auto">
+            {isMobile && (
+              <Popover open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      "h-7 px-2.5 text-[11px]",
+                      theme === 'dark' ? 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                    )}
+                  >
+                    Filtros
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="end"
+                  className={cn("w-60 p-2", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')}
+                >
+                  <div className="grid grid-cols-1 gap-2">
+                    <Select
+                      value={rankingFilters.gradeId || 'todos'}
+                      onValueChange={(value) => setRankingFilters({ ...rankingFilters, gradeId: value })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
+                        <SelectValue placeholder="Grado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos los grados</SelectItem>
+                        {institutionGrades.map((g: any) => (
+                          <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={rankingFilters.jornada || 'todas'}
+                      onValueChange={(value) => setRankingFilters({ ...rankingFilters, jornada: value === 'todas' ? 'todas' : (value as 'mañana' | 'tarde' | 'única') })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
+                        <SelectValue placeholder="Jornada" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas las jornadas</SelectItem>
+                        <SelectItem value="mañana">Mañana</SelectItem>
+                        <SelectItem value="tarde">Tarde</SelectItem>
+                        <SelectItem value="única">Única</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={rankingFilters.phase}
+                      onValueChange={(value) => setRankingFilters({ ...rankingFilters, phase: value as any })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="first">Fase I</SelectItem>
+                        <SelectItem value="second">Fase II</SelectItem>
+                        <SelectItem value="third">Fase III</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={rankingFilters.year.toString()}
+                      onValueChange={(value) => setRankingFilters({ ...rankingFilters, year: parseInt(value) })}
+                    >
+                      <SelectTrigger className={cn("h-8 w-full text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año académico">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map(year => (
+                          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            {!isMobile && (
+            <div className="grid grid-cols-2 md:flex md:flex-row gap-2 w-full md:w-auto">
+              <div className="flex flex-col gap-0.5 min-w-0">
                 <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')} id="ranking-grade-label">
                   Grado
                 </label>
@@ -1401,7 +1808,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   value={rankingFilters.gradeId || 'todos'}
                   onValueChange={(value) => setRankingFilters({ ...rankingFilters, gradeId: value })}
                 >
-                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
+                  <SelectTrigger className={cn("h-8 w-full md:w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por grado">
                     <SelectValue placeholder="Grado" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1412,7 +1819,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col gap-0.5 min-w-0">
                 <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')} id="ranking-jornada-label">
                   Jornada
                 </label>
@@ -1420,7 +1827,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   value={rankingFilters.jornada || 'todas'}
                   onValueChange={(value) => setRankingFilters({ ...rankingFilters, jornada: value === 'todas' ? 'todas' : (value as 'mañana' | 'tarde' | 'única') })}
                 >
-                  <SelectTrigger className={cn("h-8 w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
+                  <SelectTrigger className={cn("h-8 w-full md:w-24 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por jornada">
                     <SelectValue placeholder="Jornada" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1431,7 +1838,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col gap-0.5 min-w-0">
                 <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')} id="ranking-phase-label">
                   Fase
                 </label>
@@ -1439,7 +1846,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   value={rankingFilters.phase}
                   onValueChange={(value) => setRankingFilters({ ...rankingFilters, phase: value as any })}
                 >
-                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
+                  <SelectTrigger className={cn("h-8 w-full md:w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1449,7 +1856,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col gap-0.5 min-w-0">
                 <label className={cn("text-[10px] leading-none", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')} id="ranking-year-label">
                   Año
                 </label>
@@ -1457,7 +1864,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                   value={rankingFilters.year.toString()}
                   onValueChange={(value) => setRankingFilters({ ...rankingFilters, year: parseInt(value) })}
                 >
-                  <SelectTrigger className={cn("h-8 w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año académico">
+                  <SelectTrigger className={cn("h-8 w-full md:w-20 text-xs", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año académico">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1468,10 +1875,11 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                 </Select>
               </div>
             </div>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className={cn(isMobile ? "pt-0 px-3 pb-3" : "")}>
 
         {/* Ranking */}
         {rankingError ? (
@@ -1513,13 +1921,13 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
         ) : institutionStudentsRanking && institutionStudentsRanking.length > 0 ? (
           <>
             <TooltipProvider>
-              <div className="space-y-1 max-h-96 overflow-y-auto" role="list" aria-label="Ranking de estudiantes">
+              <div className={cn("space-y-1 overflow-y-auto", isMobile ? "max-h-80" : "max-h-96")} role="list" aria-label="Ranking de estudiantes">
                 {(showAllRanking ? institutionStudentsRanking : institutionStudentsRanking.slice(0, RANKING_INITIAL_VISIBLE)).map((item: any, index: number) => (
                   <div
                     key={item.student.id || item.student.uid}
                     role="listitem"
                     className={cn(
-                      'flex items-center justify-between py-1.5 px-2 rounded-md border',
+                      isMobile ? 'flex items-center justify-between py-1.5 px-1.5 rounded-md border' : 'flex items-center justify-between py-1.5 px-2 rounded-md border',
                       theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800' : 'border-gray-300 bg-gray-100 hover:bg-gray-200'
                     )}
                   >
@@ -1537,11 +1945,11 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                         {index + 1}
                       </div>
                       <div className="min-w-0">
-                        <p className={cn('font-medium text-sm truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                        <p className={cn(isMobile ? 'font-medium text-[13px] truncate' : 'font-medium text-sm truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                           {item.student.name}
                         </p>
                         {item.student.gradeName && (
-                          <p className={cn('text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                          <p className={cn(isMobile ? 'text-[9px] leading-tight' : 'text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                             {item.student.gradeName}
                           </p>
                         )}
@@ -1551,10 +1959,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                       <UITooltip>
                         <TooltipTrigger asChild>
                           <div className="flex flex-col items-end gap-0 cursor-help">
-                            <p className={cn('text-[10px] font-medium leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                              Puntaje (0-500)
-                            </p>
-                            <p className={cn('font-bold text-base leading-tight', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                            <p className={cn(isMobile ? 'font-bold text-[15px] leading-tight' : 'font-bold text-base leading-tight', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                               {item.globalScore.toFixed(1)}
                             </p>
                           </div>
@@ -1563,7 +1968,7 @@ function StudentRankingCard({ theme, currentRector, rankingFilters, setRankingFi
                           <p>Puntaje global de la fase (escala 0-500). Solo incluye estudiantes que completaron las 7 materias.</p>
                         </TooltipContent>
                       </UITooltip>
-                      <p className={cn('text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
+                      <p className={cn(isMobile ? 'text-[9px] leading-tight' : 'text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                         {item.student.campusName || 'N/A'} • {item.student.jornada ? item.student.jornada.charAt(0).toUpperCase() + item.student.jornada.slice(1) : 'N/A'}
                       </p>
                     </div>
@@ -1695,6 +2100,13 @@ function CampusesTab({ theme, stats, currentRector }: any) {
 
 // Componente de Administrativos (unifica Coordinadores y Docentes con jerarquía)
 function AdministrativosTab({ theme, coordinators, teachers }: any) {
+  const isCoordinatorRole = (role: unknown): boolean => {
+    const normalizedRole = String(role || '').toLowerCase().trim()
+    return normalizedRole === '' || normalizedRole === 'principal' || normalizedRole === 'coordinator'
+  }
+
+  const safeCoordinators = (coordinators || []).filter((coordinator: any) => isCoordinatorRole(coordinator?.role))
+
   return (
     <div className="space-y-6">
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-200 border-gray-300')}>
@@ -1708,7 +2120,7 @@ function AdministrativosTab({ theme, coordinators, teachers }: any) {
         <CardContent>
           <Accordion type="multiple" className="w-full space-y-3">
             {/* Coordinadores */}
-            {coordinators.map((coordinator: any) => {
+            {safeCoordinators.map((coordinator: any) => {
               const campusTeachers = teachers.filter((t: any) => t.campusId === coordinator.campusId)
               return (
                 <AccordionItem
@@ -1751,7 +2163,7 @@ function AdministrativosTab({ theme, coordinators, teachers }: any) {
                 </AccordionItem>
               )
             })}
-            {coordinators.length === 0 && (
+            {safeCoordinators.length === 0 && (
               <p className={cn('text-sm text-center py-4', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                 No hay coordinadores asignados
               </p>

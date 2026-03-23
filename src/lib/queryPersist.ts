@@ -13,6 +13,7 @@ const PERSIST_MAX_AGE_MS = Infinity
  * - simulacros: lista de simulacros (ruta académica); reduce lecturas al reabrir.
  * - study-plan-data: plan de estudio IA por estudiante/fase; reduce lecturas al reabrir.
  * - student-evaluations: evaluaciones del estudiante; reduce lecturas al reabrir.
+ * - rector-*: métricas/filtros del dashboard de rector para navegación fluida.
  */
 function shouldDehydrateQuery(query: { queryKey: readonly unknown[] }): boolean {
   const key = query.queryKey[0]
@@ -21,6 +22,7 @@ function shouldDehydrateQuery(query: { queryKey: readonly unknown[] }): boolean 
   if (key === 'simulacros') return true
   if (key === 'study-plan-data') return true
   if (key === 'student-evaluations') return true
+  if (typeof key === 'string' && key.startsWith('rector-')) return true
   return false
 }
 

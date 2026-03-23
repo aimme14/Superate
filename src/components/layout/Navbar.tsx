@@ -6,18 +6,22 @@ import ThemeToggle from '#/layout/Theme'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { Link, useLocation } from 'react-router-dom'
 import { hasStudentNav } from '@/constants/routes'
+import { Menu } from 'lucide-react'
 import logoLight from '/assets/logo_tematica_blanca.png'
 import logoDark from '/assets/logo_tematica_negra.png'
 import letraModoClaro from '/assets/letra_modo_claro.png'
 import letraModoNegro from '/assets/letra_modo_negro.png'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 const Navbar = () => {
   const { user, isAuth } = useAuthContext()
   const { theme } = useThemeContext()
   const isMobile = useIsMobile()
   const { pathname } = useLocation()
-  const showSidebarTrigger = isMobile && !hasStudentNav(pathname)
+  const isRectorDashboardPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/rector')
+  const showRectorMobileMenuTrigger = isMobile && isAuth && user?.role === 'rector' && isRectorDashboardPath
+  const showSidebarTrigger = isMobile && !hasStudentNav(pathname) && isAuth && !showRectorMobileMenuTrigger
   return (
     <header className={cn(
       'sticky top-0 z-20 bg-gradient-to-r',
@@ -27,6 +31,17 @@ const Navbar = () => {
       <div className="container flex h-14 min-h-[44px] sm:h-16 p-3 sm:p-4 items-center justify-between gap-2">
         <div className="flex items-center min-w-0 flex-1 space-x-2">
           {showSidebarTrigger && <SidebarTrigger className="mr-1 shrink-0 sm:mr-2" />}
+          {showRectorMobileMenuTrigger && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Abrir menú del dashboard de rector"
+              className="mr-1 shrink-0 sm:mr-2"
+              onClick={() => window.dispatchEvent(new CustomEvent('rector-mobile-menu-toggle'))}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
           {!isMobile && (
             <div className="animate-in zoom-in-95 duration-300">
               <span className={cn("flex h-12 mr-2 shrink-0 items-center justify-center", isAuth ? 'w-16' : 'w-20')}>

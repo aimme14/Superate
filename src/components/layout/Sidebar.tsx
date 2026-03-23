@@ -3,7 +3,7 @@ import { NavItemProps } from "@/interfaces/props.interface"
 import { Link, useLocation } from 'react-router-dom'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { ChevronDown } from 'lucide-react'
-import { links } from '@/utils/constants'
+import { getGuestLinksForViewport, links } from '@/utils/constants'
 import { prefetchChunkForSidebarHref } from '@/utils/prefetchChunks'
 import { cn } from '@/lib/utils'
 import { useThemeContext } from '@/context/ThemeContext'
@@ -30,8 +30,15 @@ import {
 export const Sidebar = () => {
   const { toggleSidebar } = useSidebar()
   const isMobile = useIsMobile()
+  const { isAuth } = useAuthContext()
   const { isEnabled: registrationEnabled } = useRegistrationConfig()
-  const items = links(registrationEnabled)
+  const allItems = links(registrationEnabled)
+  const items =
+    !isAuth
+      ? getGuestLinksForViewport(allItems, {
+          isMobile,
+      })
+      : allItems
   return (
     <SidebarShadcn>
       <SidebarContent>
