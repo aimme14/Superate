@@ -1,0 +1,42 @@
+{
+  "id": "/",
+  "name": "Supérate.IA",
+  "short_name": "Supérate",
+  "description": "Plataforma educativa inteligente para potenciar el aprendizaje.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait",
+  "theme_color": "#18181b",
+  "background_color": "#ffffff",
+  "categories": ["education", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Iniciar sesión",
+      "short_name": "Login",
+      "url": "/login"
+    },
+    {
+      "name": "Simulacros",
+      "short_name": "Simulacros",
+      "url": "/simulacros-icfes"
+    }
+  ]
+}
