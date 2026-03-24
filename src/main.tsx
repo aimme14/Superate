@@ -17,3 +17,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </PersistQueryClientProvider>
   </React.StrictMode>
 )
+
+const splashElement = document.getElementById('boot-splash')
+if (splashElement) {
+  window.requestAnimationFrame(() => {
+    splashElement.classList.add('boot-splash--hide')
+    window.setTimeout(() => splashElement.remove(), 240)
+  })
+}

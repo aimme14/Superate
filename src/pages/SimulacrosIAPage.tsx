@@ -204,20 +204,20 @@ export default function SimulacrosIAPage() {
 
   return (
     <div className={cn("min-h-screen", themeSafe === "dark" ? "bg-zinc-900" : "bg-gray-50")}>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <RutaPreparacionSubNav theme={themeSafe} />
 
         <div className="mb-2">
           <h1
             className={cn(
-              "text-3xl font-bold mb-2 flex items-center gap-3",
+              "text-[15px] sm:text-[23px] font-bold mb-2 flex flex-wrap items-center gap-2 sm:gap-3 break-words",
               themeSafe === "dark" ? "text-white" : "text-gray-900"
             )}
           >
-            <Bot className="h-8 w-8 flex-shrink-0" />
+            <Bot className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0" />
             Simulacros IA
           </h1>
-          <p className={cn(themeSafe === "dark" ? "text-gray-400" : "text-gray-600")}>
+          <p className={cn("text-sm sm:text-base break-words", themeSafe === "dark" ? "text-gray-400" : "text-gray-600")}>
             Practica con 10 preguntas generadas por IA. Tienes 1 minuto por pregunta.
           </p>
         </div>

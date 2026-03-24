@@ -142,7 +142,7 @@ export default function RutaAcademicaAdaptativaPage() {
         <div className="mb-5 sm:mb-8">
           <h1
             className={cn(
-              "text-xl sm:text-3xl font-bold mb-2 flex flex-wrap items-center gap-2 sm:gap-3 break-words",
+              "text-[15px] sm:text-[23px] font-bold mb-2 flex flex-wrap items-center gap-2 sm:gap-3 break-words",
               theme === "dark" ? "text-white" : "text-gray-900"
             )}
           >

@@ -5,6 +5,7 @@
     <link rel="icon" type="image/x-icon" href="/assets/logo_tematica_blanca.png">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#18181b">
+    <meta name="description" content="Supérate.IA: plataforma educativa inteligente para potenciar el aprendizaje.">
     <link rel="apple-touch-icon" href="/pwa-192x192.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Preconnect para Cloud Functions: reduce latencia en Simulacros IA -->
@@ -12,9 +13,34 @@
     <link rel="dns-prefetch" href="https://us-central1-superate-ia.cloudfunctions.net">
     <!-- Preload LCP: logo usado en header/landing para primera pintada más rápida -->
     <link rel="preload" href="/assets/logo_tematica_blanca.png" as="image">
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #05070d;
+        z-index: 10000;
+        transition: opacity 220ms ease, visibility 220ms ease;
+      }
+
+      #boot-splash.boot-splash--hide {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .boot-splash-logo {
+        width: min(140px, 28vw);
+        height: min(140px, 28vw);
+        object-fit: contain;
+      }
+    </style>
     <title>SUPERATE.IA</title>
   </head>
   <body>
+    <div id="boot-splash" aria-hidden="true">
+      <img class="boot-splash-logo" src="/pwa-192x192.png" alt="">
+    </div>
     <div id="root"></div>
     <div id="radix-portals" translate="no"></div>
     <script type="module" src="/src/main.tsx"></script>

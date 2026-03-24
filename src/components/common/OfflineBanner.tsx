@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
+import { toast } from '@/hooks/ui/use-toast'
 
 /**
  * Banner fijo que se muestra cuando el usuario pierde conexión (navigator.onLine === false).
@@ -15,7 +16,14 @@ export function OfflineBanner() {
   useEffect(() => {
     if (typeof navigator === 'undefined') return
     const handleOffline = () => setIsOffline(true)
-    const handleOnline = () => setIsOffline(false)
+    const handleOnline = () => {
+      setIsOffline(false)
+      toast({
+        variant: 'success',
+        title: 'Conexión restablecida',
+        description: 'Ya puedes usar todas las funciones en línea.'
+      })
+    }
     window.addEventListener('offline', handleOffline)
     window.addEventListener('online', handleOnline)
     return () => {

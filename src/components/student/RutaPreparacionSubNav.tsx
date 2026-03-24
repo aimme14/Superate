@@ -79,43 +79,46 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
   return (
     <div
       className={cn(
-        "flex flex-col sm:flex-row flex-wrap gap-2 mb-4 sm:mb-6 p-2 sm:p-1 rounded-lg",
+        "flex flex-row flex-nowrap sm:flex-wrap gap-2 mb-4 sm:mb-6 p-2 sm:p-1 rounded-lg",
         theme === "dark" ? "bg-zinc-800/50" : "bg-gray-100"
       )}
     >
       <Link
         to={RUTA_ACADEMICA_PATH}
-        className={cn(buttonClass(isRutaAcademicaActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
+        className={cn(buttonClass(isRutaAcademicaActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isRutaAcademicaActive ? "page" : undefined}
+        aria-label="Ruta Académica Simulacros"
       >
         <Pencil className="w-5 h-5 flex-shrink-0" aria-hidden />
         <span className="hidden sm:inline">Ruta Académica Simulacros</span>
-        <span className="inline sm:hidden">Ruta Académica</span>
       </Link>
       <Link
         to={PLAN_ESTUDIO_IA_PATH}
-        className={cn(buttonClass(isPlanEstudioActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
+        className={cn(buttonClass(isPlanEstudioActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isPlanEstudioActive ? "page" : undefined}
+        aria-label="Plan de estudio IA"
       >
         <BookOpen className="w-5 h-5 flex-shrink-0" aria-hidden />
-        Plan de estudio IA
+        <span className="hidden sm:inline">Plan de estudio IA</span>
       </Link>
       <Link
         to={SIMULACROS_IA_PATH}
-        className={cn(buttonClass(isSimulacrosIAActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
+        className={cn(buttonClass(isSimulacrosIAActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isSimulacrosIAActive ? "page" : undefined}
         onMouseEnter={handleSimulacrosIAHover}
+        aria-label="Simulacros IA"
       >
         <Zap className="w-5 h-5 flex-shrink-0" aria-hidden />
-        Simulacros IA
+        <span className="hidden sm:inline">Simulacros IA</span>
       </Link>
       <Link
         to={SIMULACROS_ICFES_PATH}
-        className={cn(buttonClass(isSimulacrosICFESActive), "w-full sm:w-auto min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
+        className={cn(buttonClass(isSimulacrosICFESActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
         aria-current={isSimulacrosICFESActive ? "page" : undefined}
+        aria-label="Simulacros ICFES"
       >
         <FileCheck className="w-5 h-5 flex-shrink-0" aria-hidden />
-        Simulacros ICFES
+        <span className="hidden sm:inline">Simulacros ICFES</span>
       </Link>
     </div>
   );

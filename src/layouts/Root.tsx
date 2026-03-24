@@ -14,6 +14,7 @@ import { Sidebar } from '#/layout/Sidebar'
 import { Toaster } from '#/ui/toaster'
 import { GlobalQueryErrorToaster } from '@/components/common/GlobalQueryErrorToaster'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
+import { PwaLifecycleToaster } from '@/components/common/PwaLifecycleToaster'
 import Footer from '#/layout/Footer'
 import Navbar from '#/layout/Navbar'
 
@@ -63,8 +64,18 @@ const RootLayout = () => {
             {/* Main content */}
             <SidebarInset>
               <AnimatedBG>
+                <a
+                  href="#main-content"
+                  className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[10000] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
+                >
+                  Saltar al contenido principal
+                </a>
                 <Navbar />
-                <main className="z-10 flex flex-col min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100vh-64px)]">
+                <main
+                  id="main-content"
+                  tabIndex={-1}
+                  className="z-10 flex flex-col min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100vh-64px)]"
+                >
                   <div className="flex-1 flex flex-col">
                     <Outlet />
                   </div>
@@ -79,6 +90,7 @@ const RootLayout = () => {
 
       {/* Componentes UI globales */}
       <OfflineBanner />
+      <PwaLifecycleToaster />
       <Toaster />
       <GlobalQueryErrorToaster />
       <ScrollToTop />
