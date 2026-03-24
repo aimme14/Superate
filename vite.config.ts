@@ -14,7 +14,9 @@ export default defineConfig({
       manifest: false,
       includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
       workbox: {
-        navigateFallback: '/offline.html',
+        // En SPA, usar index como fallback evita falsos "sin conexión"
+        // cuando hay red pero ocurre un miss de navegación.
+        navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/__/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
         cleanupOutdatedCaches: true,
