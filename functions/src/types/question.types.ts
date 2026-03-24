@@ -231,6 +231,7 @@ export interface APIResponse<T = any> {
     processingTime?: number;
     timestamp?: Date;
     version?: string;
+    note?: string;
   };
 }
 
