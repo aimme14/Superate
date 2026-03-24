@@ -89,8 +89,8 @@ class AuthService {
    * @param {string} email - El correo del usuario.
    * @param {string} password - La contraseña del usuario.
    * @param {boolean} preserveSession - Si es true, preserva la sesión del usuario actual (útil para admins)
-   * @param {string} adminEmail - Email del admin para restaurar sesión (requerido si preserveSession es true)
-   * @param {string} adminPassword - Contraseña del admin para restaurar sesión (requerido si preserveSession es true)
+   * @param {string} _adminEmail - Reservado (compatibilidad con llamadas antiguas; con Auth secundario ya no se usa)
+   * @param {string} _adminPassword - Reservado (compatibilidad con llamadas antiguas; con Auth secundario ya no se usa)
    * @param {boolean} sendEmailVerificationBeforeRestore - Si es true, envía verificación al usuario recién creado antes de cerrar su sesión (solo con preserveSession)
    * @returns {Promise<Result<User>>} El usuario auth de firebase creado.
    */
@@ -99,8 +99,8 @@ class AuthService {
     email: string, 
     password: string, 
     preserveSession: boolean = false,
-    adminEmail?: string,
-    adminPassword?: string,
+    _adminEmail?: string,
+    _adminPassword?: string,
     sendEmailVerificationBeforeRestore: boolean = false
   ): Promise<Result<User>> {
     try {

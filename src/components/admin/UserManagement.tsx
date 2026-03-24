@@ -985,35 +985,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const [activeTab, setActiveTab] = useState('students')
   const [adminPassword, setAdminPassword] = useState('')
 
-  // Helper function para obtener la contraseña del admin (del estado o sessionStorage)
-  // IMPORTANTE: sessionStorage se limpia automáticamente al cerrar la pestaña/ventana
-  // No persiste entre dispositivos ni después de cerrar el navegador
-  const getAdminPassword = (): string | undefined => {
-    // Prioridad 1: Contraseña en el estado actual (si el usuario la acaba de ingresar)
-    if (adminPassword) return adminPassword
-    
-    // Prioridad 2: Contraseña en sessionStorage (solo durante la sesión actual del navegador)
-    // sessionStorage SE LIMPIA al cerrar la pestaña/ventana del navegador
-    // NO se sincroniza entre dispositivos
-    // NO persiste después de cerrar el navegador
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = sessionStorage.getItem('admin_password_temp')
-        if (stored) {
-          const decoded = atob(stored)
-          // Actualizar el estado para que el campo no aparezca
-          if (decoded) {
-            setAdminPassword(decoded)
-          }
-          return decoded
-        }
-      } catch {
-        return undefined
-      }
-    }
-    return undefined
-  }
-  
   // Hook para mutaciones administrativas
   const { recalculateCounts, isRecalculating } = useAdminMutations()
   const queryClient = useQueryClient()
