@@ -28,19 +28,19 @@ export function Home() {
     <div className={cn("min-h-screen flex flex-col", theme === 'dark' ? 'bg-zinc-900' : '')}>
       {/* Sección 1: Encabezado y Navegación */}
       <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="container mx-auto px-2 py-2 sm:px-4 sm:py-3 flex items-center justify-between">
           <div className="flex items-center">
             <img 
               src={institutionLogo} 
-              width="80" 
-              height="80" 
+              width="40" 
+              height="40" 
               alt={`Logo de ${institutionName}`} 
-              className="mr-2"
+              className="mr-2 w-8 h-8 sm:w-12 sm:h-12 object-contain"
               onError={(e) => {
                 e.currentTarget.src = '/assets/agustina.png'
               }}
             />
-            <span className={cn("font-bold text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+            <span className={cn("font-bold text-sm sm:text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
@@ -58,13 +58,18 @@ export function Home() {
           </Suspense>
         </section>
 
-        {/* Alert Section Mejorado */}
-        <section className={cn("py-8", theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-r from-blue-50/50 to-indigo-50/50')}>
-          <div className="max-w-6xl mx-auto px-8">
+        {/* Alert Section Mejorado — oculto en móvil */}
+        <section
+          className={cn(
+            "hidden md:block py-6 sm:py-8",
+            theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-r from-blue-50/50 to-indigo-50/50'
+          )}
+        >
+          <div className="max-w-6xl mx-auto px-4 sm:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className={cn("backdrop-blur-sm rounded-xl p-6 shadow-lg", theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-white/80 border border-blue-200/50')}
+              className={cn("backdrop-blur-sm rounded-xl p-4 sm:p-6 shadow-lg", theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-white/80 border border-blue-200/50')}
             >
               <div className="flex items-start space-x-4">
                 <AlertCircle className="w-6 h-6 text-blue-500 mt-1 flex-shrink-0" />
@@ -81,17 +86,23 @@ export function Home() {
         </section>
 
         {/* Tarjetas de Contenido */}
-        <section id="evaluacion" className={cn("py-12", theme === 'dark' ? 'bg-zinc-900' : '')}>
+        <section
+          id="evaluacion"
+          className={cn(
+            "hidden md:block py-8 sm:py-12",
+            theme === "dark" ? "bg-zinc-900" : ""
+          )}
+        >
           <div className="container mx-auto px-4">
             {/* Título Principal */}
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
-              <h2 className={cn("text-4xl font-bold mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10 sm:mb-16">
+              <h2 className={cn("text-3xl sm:text-4xl font-bold mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 Módulos de{" "}
                 <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
                   Evaluación
                 </span>
               </h2>
-              <p className={cn("text-xl max-w-3xl mx-auto", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+              <p className={cn("text-lg sm:text-xl max-w-3xl mx-auto", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
                 Selecciona un módulo para comenzar tu evaluación.
               </p>
               <Suspense fallback={null}>

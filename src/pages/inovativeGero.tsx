@@ -34,7 +34,7 @@ export default function InnovativeHero() {
   }, [])
 
   return (
-    <section className={cn("relative min-h-[80vh] overflow-hidden", theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50')}>
+    <section className={cn("relative min-h-[70vh] sm:min-h-[80vh] overflow-hidden", theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50')}>
       {/* Fondo animado con partículas */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_50%)]" />
@@ -71,14 +71,14 @@ export default function InnovativeHero() {
         ))}
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-16 flex items-center min-h-[80vh]">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex items-center min-h-[70vh]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 items-center w-full">
           {/* Contenido principal */}
           <motion.div
             initial={{ opacity: 0, x: -50 }}
             animate={isVisible ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="space-y-8"
+            className="space-y-5 sm:space-y-8"
           >
             {/* Título principal con efecto gradiente */}
             <div className="space-y-4">
@@ -96,7 +96,7 @@ export default function InnovativeHero() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={isVisible ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.8, delay: 0.3 }}
-                className="text-6xl lg:text-7xl font-bold leading-tight"
+                className="text-4xl sm:text-6xl lg:text-7xl font-bold leading-tight"
               >
                 <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
                   Desafía
@@ -108,7 +108,7 @@ export default function InnovativeHero() {
               </motion.h1>
 
               {/* Frase motivacional rotativa */}
-              <div className="h-8 flex items-center">
+              <div className="h-6 sm:h-8 flex items-center">
                 <AnimatePresence mode="wait">
                   <motion.p
                     key={currentPhrase}
@@ -116,7 +116,10 @@ export default function InnovativeHero() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.5 }}
-                    className={cn("text-xl font-medium", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}
+                    className={cn(
+                      "text-[0.68rem] leading-snug sm:text-xl font-medium",
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                    )}
                   >
                     {motivationalPhrases[currentPhrase]}
                   </motion.p>
@@ -129,14 +132,14 @@ export default function InnovativeHero() {
               initial={{ opacity: 0, y: 20 }}
               animate={isVisible ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: 0.5 }}
-              className="space-y-4"
+              className="space-y-3 sm:space-y-4"
             >
-              <p className={cn("text-lg leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+              <p className={cn("text-base sm:text-lg leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
                 Nuestra <span className={cn("font-semibold", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')}>inteligencia artificial avanzada</span> analiza
                 cuales son tus fortalezas y debilidades con el objetico de crear un <span className={cn("font-semibold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>plan personalizado</span> potenciando tus conocimientos al maximo.
               </p>
 
-              <div className="grid grid-cols-2 gap-4 pt-4">
+              <div className="grid grid-cols-2 gap-3 pt-3 sm:gap-4 sm:pt-4">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                   <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Análisis de tus conocimientos</span>
@@ -161,7 +164,7 @@ export default function InnovativeHero() {
               initial={{ opacity: 0, y: 20 }}
               animate={isVisible ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: 0.7 }}
-              className="flex flex-col sm:flex-row gap-4 pt-4"
+              className="flex flex-col sm:flex-row gap-3 pt-3 sm:gap-4 sm:pt-4"
             >
             </motion.div>
           </motion.div>
@@ -178,7 +181,7 @@ export default function InnovativeHero() {
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                className="relative w-80 h-80 mx-auto"
+                className="relative w-56 h-56 sm:w-80 sm:h-80 mx-auto"
               >
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 opacity-20"></div>
                 <div className="absolute inset-4 rounded-full bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 opacity-20"></div>
@@ -188,8 +191,8 @@ export default function InnovativeHero() {
                     transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
                     className="text-center"
                   >
-                    <Brain className={cn("w-16 h-16 mx-auto mb-4", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
-                    <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
+                    <Brain className={cn("w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
+                    <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
                     <div className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Potenciada</div>
                   </motion.div>
                 </div>
@@ -205,7 +208,7 @@ export default function InnovativeHero() {
               ].map((item, index) => (
                 <motion.div
                   key={index}
-                  className={cn("absolute w-16 h-16 rounded-full shadow-lg flex items-center justify-center", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
+                  className={cn("absolute w-12 h-12 sm:w-16 sm:h-16 rounded-full shadow-lg flex items-center justify-center", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
                   style={{
                     top: "50%",
                     left: "50%",
@@ -229,8 +232,8 @@ export default function InnovativeHero() {
                     delay: index * 0.5,
                   }}
                 >
-                  <div className={`w-10 h-10 rounded-full ${item.color} flex items-center justify-center`}>
-                    <item.icon className="w-5 h-5 text-white" />
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${item.color} flex items-center justify-center`}>
+                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                 </motion.div>
               ))}
@@ -241,10 +244,10 @@ export default function InnovativeHero() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={isVisible ? { opacity: 1, scale: 1 } : {}}
               transition={{ duration: 0.6, delay: 1 }}
-              className={cn("absolute -top-4 -right-4 rounded-2xl shadow-xl p-4 border", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-emerald-100')}
+              className={cn("absolute -top-3 -right-3 rounded-2xl shadow-xl p-3 border sm:-top-4 sm:-right-4 sm:p-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-emerald-100')}
             >
               <div className="text-center">
-                <div className={cn("text-2xl font-bold", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')}>98%</div>
+                <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')}>98%</div>
                 <div className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Precisión IA</div>
               </div>
             </motion.div>
@@ -253,7 +256,7 @@ export default function InnovativeHero() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={isVisible ? { opacity: 1, scale: 1 } : {}}
               transition={{ duration: 0.6, delay: 1.2 }}
-              className={cn("absolute -bottom-4 -left-4 rounded-2xl shadow-xl p-4 border", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-purple-100')}
+              className={cn("absolute -bottom-3 -left-3 rounded-2xl shadow-xl p-3 border sm:-bottom-4 sm:-left-4 sm:p-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-purple-100')}
             >
               <div className="text-center">
                 <div className={cn("text-1xl font-bold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>SOLO TU PUEDES</div>

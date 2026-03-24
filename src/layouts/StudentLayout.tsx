@@ -36,7 +36,7 @@ export default function StudentLayout() {
             />
             <span
               className={cn(
-                "font-bold text-lg md:text-xl lg:text-2xl truncate",
+                "font-bold text-[0.79rem] md:text-xl lg:text-2xl truncate",
                 themeSafe === "dark" ? "text-red-400" : "text-red-600"
               )}
             >

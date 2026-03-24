@@ -3,7 +3,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { useAuthContext } from '@/context/AuthContext'
 import ScrollToTop from '@/hooks/ui/useScrollTop'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useUserActivity } from '@/hooks/useUserActivity'
 
@@ -15,11 +15,19 @@ import { Toaster } from '#/ui/toaster'
 import { GlobalQueryErrorToaster } from '@/components/common/GlobalQueryErrorToaster'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
 import { PwaLifecycleToaster } from '@/components/common/PwaLifecycleToaster'
+import { AuthBootScreen } from '@/components/common/AuthBootScreen'
+import { useInitialAuthSplash } from '@/hooks/ui/useInitialAuthSplash'
 import Footer from '#/layout/Footer'
 import Navbar from '#/layout/Navbar'
 
+type SplashPhase = 'splash' | 'fade' | 'app'
+
 const RootLayout = () => {
   const { user, isAuth, loading } = useAuthContext()
+  const { showSplash } = useInitialAuthSplash(loading)
+  const [splashPhase, setSplashPhase] = useState<SplashPhase>('splash')
+  const [bootChunksReady, setBootChunksReady] = useState(false)
+  const [dashboardChunkReady, setDashboardChunkReady] = useState(false)
   const location = useLocation()
   const [openSidebar, setOpenSidebar] = useState(true)
   const isExpanded = !isAuth || (user?.displayName === 'aimme')
@@ -38,22 +46,44 @@ const RootLayout = () => {
       setOpenSidebar(isExpanded)
     }
   }, [isQuizRoute, isExpanded])
-  
-  // Mostrar loader mientras se verifica la autenticación
-  if (loading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background z-[9999]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm font-medium text-muted-foreground">
-            Verificando sesión...
-          </p>
-        </div>
-      </div>
-    )
-  }
-  
-  return (
+
+  // Precargar chunks principales mientras mostramos la bienvenida.
+  // Esto evita que justo al quitar la capa aparezcan placeholders de Suspense (`LazyRouteBoundary`).
+  useEffect(() => {
+    // Siempre es probable que el start_url sea "/"
+    Promise.all([
+      import('@/pages/HomePage').catch(() => undefined),
+      import('@/pages/LoginPage').catch(() => undefined)
+    ])
+      .then(() => setBootChunksReady(true))
+      .catch(() => setBootChunksReady(true))
+  }, [])
+
+  // Si al terminar auth el usuario SÍ está autenticado, precargamos dashboard.
+  useEffect(() => {
+    if (loading) return
+    if (!isAuth) return
+    void import('@/pages/dashboard')
+      .then(() => setDashboardChunkReady(true))
+      .catch(() => setDashboardChunkReady(true))
+  }, [loading, isAuth])
+
+  // Al terminar tiempo/auth: fade-out y luego mostrar solo la app (sin parpadeo)
+  useEffect(() => {
+    if (!showSplash && splashPhase === 'splash') {
+      // Espera a que los chunks necesarios ya estén listos para evitar el skeleton de Suspense.
+      const needsDashboard = isAuth
+      const okDashboard = needsDashboard ? dashboardChunkReady : true
+      if (!bootChunksReady || !okDashboard) return
+      setSplashPhase('fade')
+    }
+  }, [showSplash, splashPhase, bootChunksReady, dashboardChunkReady, isAuth])
+
+  const onSplashFadeComplete = useCallback(() => {
+    setSplashPhase('app')
+  }, [])
+
+  const mainShell = (
     <>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <ConfirmProvider>
@@ -95,6 +125,18 @@ const RootLayout = () => {
       <GlobalQueryErrorToaster />
       <ScrollToTop />
       <LoadingScreen />
+    </>
+  )
+
+  return (
+    <>
+      {splashPhase !== 'app' && (
+        <AuthBootScreen
+          exiting={splashPhase === 'fade'}
+          onFadeComplete={onSplashFadeComplete}
+        />
+      )}
+      {splashPhase !== 'splash' && mainShell}
     </>
   )
 }

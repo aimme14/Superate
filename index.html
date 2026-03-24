@@ -11,36 +11,20 @@
     <!-- Preconnect para Cloud Functions: reduce latencia en Simulacros IA -->
     <link rel="preconnect" href="https://us-central1-superate-ia.cloudfunctions.net" crossorigin>
     <link rel="dns-prefetch" href="https://us-central1-superate-ia.cloudfunctions.net">
-    <!-- Preload LCP: logo usado en header/landing para primera pintada más rápida -->
+    <!-- Preload LCP: logo header + ícono bienvenida -->
     <link rel="preload" href="/assets/logo_tematica_blanca.png" as="image">
+    <link rel="preload" href="/pwa-192x192.png" as="image">
+    <!-- Sin splash de solo-logo: mismo fondo que AuthBootScreen hasta que React monte -->
     <style>
-      #boot-splash {
-        position: fixed;
-        inset: 0;
-        display: grid;
-        place-items: center;
-        background: #05070d;
-        z-index: 10000;
-        transition: opacity 220ms ease, visibility 220ms ease;
-      }
-
-      #boot-splash.boot-splash--hide {
-        opacity: 0;
-        visibility: hidden;
-      }
-
-      .boot-splash-logo {
-        width: min(140px, 28vw);
-        height: min(140px, 28vw);
-        object-fit: contain;
+      html, body, #root {
+        min-height: 100%;
+        margin: 0;
+        background-color: #05070d;
       }
     </style>
     <title>SUPERATE.IA</title>
   </head>
   <body>
-    <div id="boot-splash" aria-hidden="true">
-      <img class="boot-splash-logo" src="/pwa-192x192.png" alt="">
-    </div>
     <div id="root"></div>
     <div id="radix-portals" translate="no"></div>
     <script type="module" src="/src/main.tsx"></script>
