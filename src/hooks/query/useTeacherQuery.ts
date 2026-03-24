@@ -132,7 +132,13 @@ export const useTeacherMutations = () => {
   const queryClient = useQueryClient()
 
   const createTeacherMutation = useMutation({
-    mutationFn: (data: CreateTeacherData) => createTeacher(data),
+    mutationFn: async (data: CreateTeacherData) => {
+      const result = await createTeacher(data)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al crear el docente')
+      }
+      return result.data
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: teacherKeys.lists() })
       queryClient.invalidateQueries({ queryKey: teacherKeys.stats() })
@@ -162,8 +168,13 @@ export const useTeacherMutations = () => {
   })
 
   const deleteTeacherFromGradeMutation = useMutation({
-    mutationFn: ({ institutionId, campusId, gradeId, teacherId, adminEmail, adminPassword }: { institutionId: string; campusId: string; gradeId: string; teacherId: string; adminEmail?: string; adminPassword?: string }) => 
-      deleteTeacherFromGrade(institutionId, campusId, gradeId, teacherId, adminEmail, adminPassword),
+    mutationFn: async ({ institutionId, campusId, gradeId, teacherId }: { institutionId: string; campusId: string; gradeId: string; teacherId: string }) => {
+      const result = await deleteTeacherFromGrade(institutionId, campusId, gradeId, teacherId)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al eliminar el docente')
+      }
+      return result
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: teacherKeys.lists() })
       queryClient.invalidateQueries({ queryKey: teacherKeys.stats() })

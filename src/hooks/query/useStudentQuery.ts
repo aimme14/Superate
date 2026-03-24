@@ -79,21 +79,15 @@ export const useStudentMutations = () => {
   const { notifySuccess, notifyError } = useNotification()
 
   const createStudentMutation = useMutation({
-    mutationFn: (studentData: CreateStudentData) => createStudent(studentData),
-    onSuccess: (result) => {
-      if (result.success) {
-        // Invalidar todas las consultas de estudiantes para refrescar la lista
-        queryClient.invalidateQueries({ queryKey: ['students'] })
-        notifySuccess({ 
-          title: 'Éxito', 
-          message: 'Estudiante creado correctamente y asignado automáticamente según su institución, sede y grado' 
-        })
-      } else {
-        notifyError({ 
-          title: 'Error', 
-          message: result.error?.message || 'Error al crear el estudiante' 
-        })
+    mutationFn: async (studentData: CreateStudentData) => {
+      const result = await createStudent(studentData)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al crear el estudiante')
       }
+      return result.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] })
     },
     onError: (error) => {
       notifyError({ 
@@ -129,28 +123,16 @@ export const useStudentMutations = () => {
   })
 
   const deleteStudentMutation = useMutation({
-    mutationFn: ({ studentId, adminEmail, adminPassword }: { studentId: string, adminEmail?: string, adminPassword?: string }) => 
-      deleteStudent(studentId, adminEmail, adminPassword),
-    onSuccess: (result) => {
-      if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ['students'] })
-        notifySuccess({ 
-          title: 'Éxito', 
-          message: 'Estudiante eliminado correctamente' 
-        })
-      } else {
-        notifyError({ 
-          title: 'Error', 
-          message: result.error?.message || 'Error al eliminar el estudiante' 
-        })
+    mutationFn: async ({ studentId }: { studentId: string }) => {
+      const result = await deleteStudent(studentId)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al eliminar el estudiante')
       }
+      return result
     },
-    onError: (error) => {
-      notifyError({ 
-        title: 'Error', 
-        message: error instanceof Error ? error.message : 'Error al eliminar el estudiante' 
-      })
-    }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] })
+    },
   })
 
   return {

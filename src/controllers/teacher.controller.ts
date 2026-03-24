@@ -92,7 +92,7 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
 
     // Crear cuenta en Firebase Auth (preservando la sesión del admin)
     console.log('📝 Creando cuenta en Firebase Auth...')
-    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword, true, data.adminEmail, data.adminPassword)
+    const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword, true, undefined, undefined)
     if (!userAccount.success) {
       console.error('❌ Error al crear cuenta en Firebase Auth:', userAccount.error)
       throw userAccount.error
@@ -189,9 +189,7 @@ export const deleteTeacherFromGrade = async (
   institutionId: string,
   campusId: string,
   gradeId: string,
-  teacherId: string,
-  adminEmail?: string,
-  adminPassword?: string
+  teacherId: string
 ): Promise<Result<boolean>> => {
   try {
     // Primero obtener la información del docente para conseguir su email
@@ -228,54 +226,8 @@ export const deleteTeacherFromGrade = async (
 
         if (userToDelete) {
           console.log('🗑️ Eliminando usuario de Firestore PRIMERO (antes de estructura jerárquica):', userToDelete.id)
-          
-          // PRIMERO intentar eliminar de Firebase Auth
-          let authDeleted = false
-          if (adminEmail && adminPassword && teacher.email) {
-            try {
-              // Reconstruir la contraseña del docente (patrón: name.toLowerCase().replace(/\s+/g, '') + '123')
-              // Intentar múltiples variaciones
-              const basePassword = teacher.name.toLowerCase().replace(/\s+/g, '')
-              const passwordVariations = [
-                basePassword + '123',
-                basePassword + '1234',
-                basePassword,
-                teacher.name.toLowerCase().replace(/\s+/g, '') + '123'
-              ]
-              
-              console.log('🗑️ Intentando eliminar de Firebase Auth...')
-              
-              for (const teacherPassword of passwordVariations) {
-                try {
-                  const authDeleteResult = await authService.deleteUserByCredentials(
-                    teacher.email,
-                    teacherPassword,
-                    adminEmail,
-                    adminPassword
-                  )
-                  
-                  if (authDeleteResult.success) {
-                    console.log('✅ Docente eliminado de Firebase Auth')
-                    authDeleted = true
-                    break
-                  }
-                } catch (tryError) {
-                  console.log(`⚠️ Intento con contraseña falló, intentando siguiente variación...`)
-                  continue
-                }
-              }
-              
-              if (!authDeleted) {
-                console.warn('⚠️ No se pudo eliminar de Firebase Auth con ninguna variación de contraseña')
-              }
-            } catch (authError) {
-              console.warn('⚠️ Error al eliminar de Firebase Auth:', authError)
-            }
-          } else {
-            console.warn('⚠️ No se proporcionaron credenciales de admin. El usuario quedará en Firebase Auth.')
-          }
 
-          // SIEMPRE eliminar de Firestore (esto impedirá el login incluso si no se eliminó de Firebase Auth)
+          // SIEMPRE eliminar de Firestore (bloquea el acceso aunque quede cuenta en Firebase Auth)
           const deleteResult = await dbService.deleteUser(userToDelete.id)
           if (deleteResult.success) {
             console.log('✅ Usuario eliminado de Firestore')

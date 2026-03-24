@@ -22,7 +22,8 @@ import {
   Trash2,
   RefreshCw,
   Building2,
-  Loader2
+  Loader2,
+  Copy
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
@@ -1126,6 +1127,11 @@ export default function UserManagement({ theme }: UserManagementProps) {
     academicYear: new Date().getFullYear() as number, // Valor por defecto: año actual
     jornada: '' as 'mañana' | 'tarde' | 'única' | ''
   })
+  const [createdUserSummary, setCreatedUserSummary] = useState<{
+    name: string
+    email: string
+    password: string
+  } | null>(null)
 
 
   // Obtener opciones dinámicas de instituciones - solo activas para crear usuarios
@@ -1329,27 +1335,15 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeleteTeacher = async () => {
     if (!selectedTeacher) return
 
-    if (!adminPassword) {
-      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
-      return
-    }
-
-    if (!currentUser?.email) {
-      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
-      return
-    }
-
     try {
       await deleteTeacherFromGrade.mutateAsync({
         institutionId: selectedTeacher.institutionId,
         campusId: selectedTeacher.campusId,
         gradeId: selectedTeacher.gradeId,
-        teacherId: selectedTeacher.id,
-        adminEmail: currentUser.email,
-        adminPassword: adminPassword
+        teacherId: selectedTeacher.id
       })
       
-      notifySuccess({ title: 'Éxito', message: 'Docente eliminado correctamente' })
+      notifySuccess({ title: 'Éxito', message: 'Usuario eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedTeacher(null)
       setAdminPassword('')
@@ -1489,26 +1483,14 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeletePrincipal = async () => {
     if (!selectedPrincipal) return
 
-    if (!adminPassword) {
-      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
-      return
-    }
-
-    if (!currentUser?.email) {
-      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
-      return
-    }
-
     try {
       await deletePrincipal.mutateAsync({
         institutionId: selectedPrincipal.institutionId,
         campusId: selectedPrincipal.campusId,
-        principalId: selectedPrincipal.id,
-        adminEmail: currentUser.email,
-        adminPassword: adminPassword
+        principalId: selectedPrincipal.id
       })
       
-      notifySuccess({ title: 'Éxito', message: 'Coordinador eliminado correctamente' })
+      notifySuccess({ title: 'Éxito', message: 'Usuario eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedPrincipal(null)
       setAdminPassword('')
@@ -1639,25 +1621,13 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeleteRector = async () => {
     if (!selectedRector) return
 
-    if (!adminPassword) {
-      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
-      return
-    }
-
-    if (!currentUser?.email) {
-      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
-      return
-    }
-
     try {
       await deleteRector.mutateAsync({
         institutionId: selectedRector.institutionId,
-        rectorId: selectedRector.id,
-        adminEmail: currentUser.email,
-        adminPassword: adminPassword
+        rectorId: selectedRector.id
       })
       
-      notifySuccess({ title: 'Éxito', message: 'Rector eliminado correctamente' })
+      notifySuccess({ title: 'Éxito', message: 'Usuario eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedRector(null)
       setAdminPassword('')
@@ -1777,24 +1747,12 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const confirmDeleteStudent = async () => {
     if (!selectedStudent) return
 
-    if (!adminPassword) {
-      notifyError({ title: 'Error', message: 'Debes ingresar tu contraseña de administrador para eliminar usuarios' })
-      return
-    }
-
-    if (!currentUser?.email) {
-      notifyError({ title: 'Error', message: 'No se pudo obtener la información del administrador' })
-      return
-    }
-
     try {
       await deleteStudent.mutateAsync({
-        studentId: selectedStudent.id,
-        adminEmail: currentUser.email,
-        adminPassword: adminPassword
+        studentId: selectedStudent.id
       })
       
-      notifySuccess({ title: 'Éxito', message: 'Estudiante eliminado correctamente' })
+      notifySuccess({ title: 'Éxito', message: 'Usuario eliminado correctamente' })
       setIsDeleteDialogOpen(false)
       setSelectedStudent(null)
       setAdminPassword('')
@@ -1804,9 +1762,25 @@ export default function UserManagement({ theme }: UserManagementProps) {
     }
   }
 
+  const handleCopyCreatedUserSummary = async () => {
+    if (!createdUserSummary) return
+    const text = `Usuario: ${createdUserSummary.name}\nCorreo: ${createdUserSummary.email}\nContraseña: ${createdUserSummary.password}\n\nYa se encuentra registrado en Superate.IA.`
+    try {
+      await navigator.clipboard.writeText(text)
+      notifySuccess({ title: 'Copiado', message: 'Los datos se copiaron al portapapeles.' })
+    } catch {
+      notifyError({ title: 'Error', message: 'No se pudo copiar al portapapeles.' })
+    }
+  }
+
   const handleCreateUser = async () => {
     if (newUser.password !== newUser.confirmPassword) {
       notifyError({ title: 'Error', message: 'Las contraseñas no coinciden' })
+      return
+    }
+
+    if (!currentUser?.email) {
+      notifyError({ title: 'Error', message: 'No se pudo obtener el correo del administrador.' })
       return
     }
 
@@ -1854,8 +1828,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
           gradeId: newUser.grade,
           userdoc: newUser.password, // Usar la contraseña como documento temporal
           password: newUser.password,
-          adminEmail: currentUser?.email,
-          adminPassword: getAdminPassword(),
           representativePhone: newUser.representativePhone || undefined,
           academicYear: newUser.academicYear,
           jornada: newUser.jornada || undefined
@@ -1888,8 +1860,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
           gradeId: newUser.grade,
           phone: undefined,
           password: newUser.password, // Pasar la contraseña al controlador
-          adminEmail: currentUser?.email,
-          adminPassword: getAdminPassword(),
           jornada: newUser.jornada || undefined // Agregar jornada si está definida
         }
         
@@ -1943,9 +1913,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
           institutionId: newUser.institution,
           campusId: newUser.campus,
           phone: undefined,
-          password: newUser.password, // Pasar la contraseña al controlador
-          adminEmail: currentUser?.email,
-          adminPassword: getAdminPassword()
+          password: newUser.password // Pasar la contraseña al controlador
         }
         
         console.log('🔍 Datos del coordinador desde el formulario:', principalData)
@@ -1966,9 +1934,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
           email: newUser.email,
           institutionId: newUser.institution,
           phone: undefined,
-          password: newUser.password, // Pasar la contraseña al controlador
-          adminEmail: currentUser?.email,
-          adminPassword: getAdminPassword()
+          password: newUser.password // Pasar la contraseña al controlador
         }
         
         console.log('🔍 Datos del rector desde el formulario:', rectorData)
@@ -2009,6 +1975,16 @@ export default function UserManagement({ theme }: UserManagementProps) {
         throw new Error((result as any).error?.message || 'Error al crear el usuario')
       }
 
+      const effectivePasswordForUser =
+        newUser.role === 'student'
+          ? newUser.password
+          : newUser.password || `${newUser.name.toLowerCase().replace(/\s+/g, '')}123`
+
+      setCreatedUserSummary({
+        name: newUser.name,
+        email: newUser.email,
+        password: effectivePasswordForUser
+      })
       setIsCreateDialogOpen(false)
       setNewUser({
         name: '',
@@ -2022,10 +1998,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
         representativePhone: '',
         academicYear: new Date().getFullYear(),
         jornada: '' as 'mañana' | 'tarde' | 'única' | ''
-      })
-      notifySuccess({ 
-        title: 'Éxito', 
-        message: `${newUser.role === 'student' ? 'Estudiante' : newUser.role === 'teacher' ? 'Docente' : newUser.role === 'principal' ? 'Coordinador' : 'Rector'} creado correctamente.` 
       })
     } catch (error) {
       console.error('Error creating user:', error)
@@ -3145,36 +3117,10 @@ export default function UserManagement({ theme }: UserManagementProps) {
                selectedStudent ? 'estudiante' : 
                'usuario'}{' '}
               <strong className={cn(theme === 'dark' ? 'text-white' : '')}>{selectedTeacher?.name || selectedPrincipal?.name || selectedRector?.name || selectedStudent?.name}</strong> del sistema.
-              <br /><br />
-              <strong className={cn(theme === 'dark' ? 'text-white' : '')}>Para confirmar, ingresa tu contraseña de administrador:</strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="px-6 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="admin-password" className={cn(theme === 'dark' ? 'text-gray-300' : '')}>
-                Contraseña de administrador
-              </Label>
-              <Input
-                id="admin-password"
-                type="password"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="Ingresa tu contraseña"
-                className={cn(theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (selectedTeacher) confirmDeleteTeacher()
-                    else if (selectedPrincipal) confirmDeletePrincipal()
-                    else if (selectedRector) confirmDeleteRector()
-                    else if (selectedStudent) confirmDeleteStudent()
-                  }
-                }}
-              />
-            </div>
-          </div>
           <AlertDialogFooter>
             <AlertDialogCancel 
-              onClick={() => setAdminPassword('')}
               className={cn(theme === 'dark' ? 'bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600' : '')}
             >
               Cancelar
@@ -3188,6 +3134,31 @@ export default function UserManagement({ theme }: UserManagementProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!createdUserSummary} onOpenChange={(open) => { if (!open) setCreatedUserSummary(null) }}>
+        <DialogContent className={cn('max-w-md', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <DialogHeader>
+            <DialogTitle className={cn(theme === 'dark' ? 'text-white' : '')}>Registro completado</DialogTitle>
+            <DialogDescription className="sr-only">
+              Datos del usuario registrado para copiar o compartir
+            </DialogDescription>
+          </DialogHeader>
+          {createdUserSummary && (
+            <p className={cn('text-sm leading-relaxed px-1', theme === 'dark' ? 'text-gray-300' : 'text-gray-800')}>
+              El usuario <strong>{createdUserSummary.name}</strong>, correo <strong>{createdUserSummary.email}</strong> y contraseña <strong>{createdUserSummary.password}</strong> ya se encuentra registrado en Superate.IA.
+            </p>
+          )}
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2">
+            <Button variant="outline" type="button" onClick={() => setCreatedUserSummary(null)} className={cn(theme === 'dark' ? 'border-zinc-600' : '')}>
+              Cerrar
+            </Button>
+            <Button type="button" className="bg-black text-white hover:bg-gray-800" onClick={() => void handleCopyCreatedUserSummary()}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar texto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

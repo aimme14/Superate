@@ -1,7 +1,7 @@
 import { failure, Result, success } from "@/interfaces/db.interface"
 import { normalizeError } from "@/errors/handler"
 import ErrorAPI, { NotFound } from "@/errors"
-import { firebaseApp } from "@/services/db"
+import { firebaseApp, firebaseSecondaryApp } from "@/services/db"
 
 
 import {
@@ -28,6 +28,8 @@ import {
  */
 class AuthService {
   auth: Auth;
+  /** Auth del proyecto en app secundaria: crear usuarios sin tocar la sesión del admin en `this.auth`. */
+  private secondaryAuth: Auth | null = null;
   static instance: AuthService;
   constructor() { 
     this.auth = getAuth(firebaseApp)
@@ -40,6 +42,13 @@ class AuthService {
   static getInstance() {
     if (!AuthService.instance) { AuthService.instance = new AuthService() }
     return AuthService.instance
+  }
+
+  private getSecondaryAuth(): Auth {
+    if (!this.secondaryAuth) {
+      this.secondaryAuth = getAuth(firebaseSecondaryApp)
+    }
+    return this.secondaryAuth
   }
 
   /*---------------> authentication <---------------*/
@@ -82,6 +91,7 @@ class AuthService {
    * @param {boolean} preserveSession - Si es true, preserva la sesión del usuario actual (útil para admins)
    * @param {string} adminEmail - Email del admin para restaurar sesión (requerido si preserveSession es true)
    * @param {string} adminPassword - Contraseña del admin para restaurar sesión (requerido si preserveSession es true)
+   * @param {boolean} sendEmailVerificationBeforeRestore - Si es true, envía verificación al usuario recién creado antes de cerrar su sesión (solo con preserveSession)
    * @returns {Promise<Result<User>>} El usuario auth de firebase creado.
    */
   async registerAccount(
@@ -90,87 +100,62 @@ class AuthService {
     password: string, 
     preserveSession: boolean = false,
     adminEmail?: string,
-    adminPassword?: string
+    adminPassword?: string,
+    sendEmailVerificationBeforeRestore: boolean = false
   ): Promise<Result<User>> {
     try {
       console.log('🚀 Iniciando registro de cuenta:', { email, preserveSession })
       
-      // Si queremos preservar la sesión actual (administrador creando usuarios)
-      if (preserveSession && this.auth.currentUser) {
-        const currentUser = this.auth.currentUser
-        const currentUserEmail = currentUser.email
-        
-        console.log('🔐 Preservando sesión del usuario actual:', currentUserEmail)
-        
-        // Crear el nuevo usuario (esto cerrará la sesión actual automáticamente)
-        console.log('📝 Creando nuevo usuario en Firebase Auth...')
-        const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)
+      if (preserveSession) {
+        if (!this.auth.currentUser) {
+          return failure(new ErrorAPI({
+            message: 'Debes tener sesión iniciada como administrador para crear usuarios.',
+            statusCode: 401
+          }))
+        }
+
+        const secondaryAuth = this.getSecondaryAuth()
+        console.log('🔐 Creando usuario en Auth secundario (sin cambiar sesión del admin):', this.auth.currentUser.email)
+
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password)
         const newUser = userCredential.user
-        
+
         console.log('✅ Usuario creado en Firebase Auth con UID:', newUser.uid)
-        
-        // Actualizar perfil del nuevo usuario
-        console.log('👤 Actualizando perfil del nuevo usuario...')
+
         const profileUpdate = await this.updateProfile(newUser, { displayName: username })
         if (!profileUpdate.success) {
           console.error('❌ Error al actualizar perfil:', profileUpdate.error)
           throw profileUpdate.error
         }
-        console.log('✅ Perfil actualizado correctamente')
-        
-        // Cerrar sesión del nuevo usuario inmediatamente
-        console.log('🔒 Cerrando sesión del nuevo usuario...')
-        await signOut(this.auth)
-        
-        // Intentar restaurar sesión del admin
-        if (adminEmail && adminPassword) {
-          console.log('🔄 Restaurando sesión del administrador con credenciales...')
+
+        if (sendEmailVerificationBeforeRestore) {
           try {
-            await signInWithEmailAndPassword(this.auth, adminEmail, adminPassword)
-            console.log('✅ Sesión del administrador restaurada exitosamente')
-          } catch (restoreError) {
-            console.error('❌ Error al restaurar sesión del administrador:', restoreError)
-            // Si falla, intentar con el email del admin actual que guardamos antes
-            if (currentUserEmail && adminPassword) {
-              try {
-                await signInWithEmailAndPassword(this.auth, currentUserEmail, adminPassword)
-                console.log('✅ Sesión restaurada con email del admin actual')
-              } catch (retryError) {
-                console.error('❌ Error al restaurar sesión con reintento:', retryError)
-              }
-            }
+            await sendEmailVerificationFB(newUser)
+            console.log('✅ Correo de verificación enviado al usuario creado')
+          } catch (verifyErr) {
+            console.warn('⚠️ No se pudo enviar verificación de email al nuevo usuario:', verifyErr)
           }
-        } else if (currentUserEmail && adminPassword) {
-          // Si no se proporcionó adminEmail pero tenemos el email del admin actual
-          console.log('🔄 Restaurando sesión del administrador con email actual...')
-          try {
-            await signInWithEmailAndPassword(this.auth, currentUserEmail, adminPassword)
-            console.log('✅ Sesión del administrador restaurada exitosamente')
-          } catch (restoreError) {
-            console.error('❌ Error al restaurar sesión del administrador:', restoreError)
-          }
-        } else {
-          console.log('⚠️ No se proporcionaron credenciales del admin para restaurar sesión')
         }
-        
-        console.log('✅ Usuario creado:', email)
-        
+
+        await signOut(secondaryAuth)
+        console.log('✅ Sesión secundaria cerrada; sesión del administrador intacta')
+
         return success(newUser)
-      } else {
-        // Comportamiento normal - crear usuario e iniciar sesión con él
-        console.log('📝 Creando usuario en Firebase Auth (flujo normal)...')
-        const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)
-        console.log('✅ Usuario creado en Firebase Auth con UID:', userCredential.user.uid)
-        
-        const profileUpdate = await this.updateProfile(userCredential.user, { displayName: username })
-        if (!profileUpdate.success) {
-          console.error('❌ Error al actualizar perfil:', profileUpdate.error)
-          throw profileUpdate.error
-        }
-        console.log('✅ Perfil actualizado correctamente')
-        
-        return success(userCredential.user)
       }
+
+      // Comportamiento normal - crear usuario e iniciar sesión con él
+      console.log('📝 Creando usuario en Firebase Auth (flujo normal)...')
+      const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)
+      console.log('✅ Usuario creado en Firebase Auth con UID:', userCredential.user.uid)
+
+      const profileUpdate = await this.updateProfile(userCredential.user, { displayName: username })
+      if (!profileUpdate.success) {
+        console.error('❌ Error al actualizar perfil:', profileUpdate.error)
+        throw profileUpdate.error
+      }
+      console.log('✅ Perfil actualizado correctamente')
+
+      return success(userCredential.user)
     } catch (e) { 
       console.error('❌ Error al registrar cuenta:', e)
       return failure(new ErrorAPI(normalizeError(e, 'registrar cuenta'))) 

@@ -56,7 +56,13 @@ export const usePrincipalMutations = () => {
   const queryClient = useQueryClient()
 
   const createPrincipalMutation = useMutation({
-    mutationFn: (data: CreatePrincipalData) => createPrincipal(data),
+    mutationFn: async (data: CreatePrincipalData) => {
+      const result = await createPrincipal(data)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al crear el coordinador')
+      }
+      return result.data
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: principalKeys.lists() })
       // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
@@ -75,8 +81,13 @@ export const usePrincipalMutations = () => {
   })
 
   const deletePrincipalMutation = useMutation({
-    mutationFn: ({ institutionId, campusId, principalId, adminEmail, adminPassword }: { institutionId: string; campusId: string; principalId: string; adminEmail?: string; adminPassword?: string }) => 
-      deletePrincipal(institutionId, campusId, principalId, adminEmail, adminPassword),
+    mutationFn: async ({ institutionId, campusId, principalId }: { institutionId: string; campusId: string; principalId: string }) => {
+      const result = await deletePrincipal(institutionId, campusId, principalId)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al eliminar el coordinador')
+      }
+      return result
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: principalKeys.lists() })
       // También invalidar las consultas de instituciones para actualizar la estructura jerárquica

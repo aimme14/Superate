@@ -65,22 +65,16 @@ export const useRectorMutations = () => {
   const { notifySuccess, notifyError } = useNotification()
 
   const createRectorMutation = useMutation({
-    mutationFn: (data: CreateRectorData) => createRector(data),
-    onSuccess: (result) => {
-      if (result.success) {
-        queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
-        // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
-        queryClient.invalidateQueries({ queryKey: ['institutions'] })
-        notifySuccess({ 
-          title: 'Éxito', 
-          message: 'Rector creado correctamente. Tu sesión se cerrará automáticamente, deberás volver a iniciar sesión.' 
-        })
-      } else {
-        notifyError({ 
-          title: 'Error', 
-          message: result.error?.message || 'Error al crear el rector' 
-        })
+    mutationFn: async (data: CreateRectorData) => {
+      const result = await createRector(data)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al crear el rector')
       }
+      return result.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ['institutions'] })
     },
     onError: (error) => {
       console.error('Error al crear rector:', error)
@@ -120,31 +114,17 @@ export const useRectorMutations = () => {
   })
 
   const deleteRectorMutation = useMutation({
-    mutationFn: ({ institutionId, rectorId, adminEmail, adminPassword }: { institutionId: string; rectorId: string; adminEmail?: string; adminPassword?: string }) => 
-      deleteRector(institutionId, rectorId, adminEmail, adminPassword),
-    onSuccess: (result) => {
-      if (result.success) {
-        queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
-        // También invalidar las consultas de instituciones para actualizar la estructura jerárquica
-        queryClient.invalidateQueries({ queryKey: ['institutions'] })
-        notifySuccess({ 
-          title: 'Éxito', 
-          message: 'Rector eliminado correctamente' 
-        })
-      } else {
-        notifyError({ 
-          title: 'Error', 
-          message: result.error?.message || 'Error al eliminar el rector' 
-        })
+    mutationFn: async ({ institutionId, rectorId }: { institutionId: string; rectorId: string }) => {
+      const result = await deleteRector(institutionId, rectorId)
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Error al eliminar el rector')
       }
+      return result
     },
-    onError: (error) => {
-      console.error('Error al eliminar rector:', error)
-      notifyError({ 
-        title: 'Error', 
-        message: error instanceof Error ? error.message : 'Error al eliminar el rector' 
-      })
-    }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: rectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ['institutions'] })
+    },
   })
 
   return {
