@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { useThemeContext } from "@/context/ThemeContext";
 import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 import { StudentNav } from "@/components/student/StudentNav";
+import { StudentMobileQuickNav } from "@/components/student/StudentMobileQuickNav";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,7 +16,9 @@ export default function StudentLayout() {
   const themeSafe = theme ?? "light";
 
   return (
-    <div className={cn("min-h-screen", themeSafe === "dark" ? "bg-zinc-900" : "bg-gray-50")}>
+    <div
+      className={cn("min-h-screen", themeSafe === "dark" ? "bg-zinc-900" : "bg-gray-50")}
+    >
       <header
         className={cn(
           "shadow-sm sticky top-0 z-10",
@@ -47,6 +50,7 @@ export default function StudentLayout() {
         </div>
       </header>
       <Outlet />
+      <StudentMobileQuickNav theme={themeSafe} />
     </div>
   );
 }

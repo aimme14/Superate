@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Brain, Target, Zap, TrendingUp, Star, Lightbulb, Rocket, Award, Sparkles } from "lucide-react"
 import { useThemeContext } from "@/context/ThemeContext"
+import { useIsMobile } from "@/hooks/ui/use-mobile"
 import { cn } from "@/lib/utils"
 
 const motivationalPhrases = [
@@ -24,6 +25,7 @@ export default function InnovativeHero() {
   const [currentPhrase, setCurrentPhrase] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
   const { theme } = useThemeContext()
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     setIsVisible(true)
@@ -34,7 +36,13 @@ export default function InnovativeHero() {
   }, [])
 
   return (
-    <section className={cn("relative min-h-[70vh] sm:min-h-[80vh] overflow-hidden", theme === 'dark' ? 'bg-zinc-900' : 'bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50')}>
+    <section
+      className={cn(
+        "relative overflow-hidden",
+        isMobile ? "min-h-0" : "min-h-[70vh] sm:min-h-[80vh]",
+        theme === "dark" ? "bg-zinc-900" : "bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50"
+      )}
+    >
       {/* Fondo animado con partículas */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_50%)]" />
@@ -42,36 +50,43 @@ export default function InnovativeHero() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(168,85,247,0.1),transparent_50%)]" />
       </div>
 
-      {/* Iconos flotantes animados */}
-      <div className="absolute inset-0 pointer-events-none">
-        {floatingIcons.map((item, index) => (
-          <motion.div
-            key={index}
-            className={`absolute ${item.color}`}
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{
-              opacity: [0, 1, 0],
-              scale: [0, 1, 0],
-              x: [0, Math.random() * 100 - 50],
-              y: [0, Math.random() * 100 - 50],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Number.POSITIVE_INFINITY,
-              delay: item.delay,
-              ease: "easeInOut",
-            }}
-            style={{
-              left: `${Math.random() * 80 + 10}%`,
-              top: `${Math.random() * 80 + 10}%`,
-            }}
-          >
-            <item.icon className="w-8 h-8" />
-          </motion.div>
-        ))}
-      </div>
+      {/* Iconos flotantes: solo en md+ para no cargar el hilo en móvil */}
+      {!isMobile && (
+        <div className="absolute inset-0 pointer-events-none">
+          {floatingIcons.map((item, index) => (
+            <motion.div
+              key={index}
+              className={`absolute ${item.color}`}
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{
+                opacity: [0, 1, 0],
+                scale: [0, 1, 0],
+                x: [0, Math.random() * 100 - 50],
+                y: [0, Math.random() * 100 - 50],
+              }}
+              transition={{
+                duration: 4,
+                repeat: Number.POSITIVE_INFINITY,
+                delay: item.delay,
+                ease: "easeInOut",
+              }}
+              style={{
+                left: `${Math.random() * 80 + 10}%`,
+                top: `${Math.random() * 80 + 10}%`,
+              }}
+            >
+              <item.icon className="w-8 h-8" />
+            </motion.div>
+          ))}
+        </div>
+      )}
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex items-center min-h-[70vh]">
+      <div
+        className={cn(
+          "relative z-10 max-w-7xl mx-auto px-4 sm:px-6 sm:py-16 flex",
+          isMobile ? "min-h-0 items-start py-6" : "items-center min-h-[70vh] py-10"
+        )}
+      >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 items-center w-full">
           {/* Contenido principal */}
           <motion.div
@@ -96,12 +111,19 @@ export default function InnovativeHero() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={isVisible ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.8, delay: 0.3 }}
-                className="text-4xl sm:text-6xl lg:text-7xl font-bold leading-tight"
+                className={cn(
+                  "font-bold leading-tight",
+                  /* Vista móvil (max-md): una sola fila; tamaño fluido para el ancho */
+                  "max-md:whitespace-nowrap max-md:text-[clamp(1.6875rem,6.15vw,2.475rem)]",
+                  "md:text-6xl lg:text-7xl"
+                )}
               >
                 <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
                   Desafía
                 </span>
-                <br />
+                {/* Espacio solo en móvil (misma línea); en md+ salto de línea sin sangría */}
+                <span className="max-md:inline md:hidden"> </span>
+                <br className="hidden md:block" aria-hidden="true" />
                 <span className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent">
                   tus límites
                 </span>
@@ -177,24 +199,36 @@ export default function InnovativeHero() {
             className="relative"
           >
             <div className="relative w-full max-w-lg mx-auto">
-              {/* Círculo principal animado */}
+              {/* Círculo principal: en móvil sin rotación para reducir lag */}
               <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                animate={isMobile ? { rotate: 0 } : { rotate: 360 }}
+                transition={
+                  isMobile
+                    ? { duration: 0 }
+                    : { duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }
+                }
                 className="relative w-56 h-56 sm:w-80 sm:h-80 mx-auto"
               >
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 opacity-20"></div>
                 <div className="absolute inset-4 rounded-full bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 opacity-20"></div>
                 <div className={cn("absolute inset-8 rounded-full shadow-2xl flex items-center justify-center", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}>
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-                    className="text-center"
-                  >
-                    <Brain className={cn("w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
-                    <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
-                    <div className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Potenciada</div>
-                  </motion.div>
+                  {isMobile ? (
+                    <div className="text-center">
+                      <Brain className={cn("w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
+                      <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
+                      <div className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Potenciada</div>
+                    </div>
+                  ) : (
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                      className="text-center"
+                    >
+                      <Brain className={cn("w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
+                      <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
+                      <div className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Potenciada</div>
+                    </motion.div>
+                  )}
                 </div>
               </motion.div>
 

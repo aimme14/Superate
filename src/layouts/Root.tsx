@@ -37,6 +37,9 @@ const RootLayout = () => {
   
   // Detectar si estamos en la ruta de quiz
   const isQuizRoute = location.pathname.startsWith('/quiz')
+  /** En el home del estudiante el contenido es corto: no estirar el Outlet en móvil para evitar hueco sobre el footer */
+  const tightOutletMobile =
+    location.pathname === '/dashboard' || location.pathname === '/dashboard/student'
   
   // Ocultar sidebar cuando estamos en quiz
   useEffect(() => {
@@ -106,7 +109,13 @@ const RootLayout = () => {
                   tabIndex={-1}
                   className="z-10 flex flex-col min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100vh-64px)]"
                 >
-                  <div className="flex-1 flex flex-col">
+                  <div
+                    className={
+                      tightOutletMobile
+                        ? 'flex flex-col min-h-0 max-md:flex-none md:flex-1'
+                        : 'flex-1 flex flex-col min-h-0'
+                    }
+                  >
                     <Outlet />
                   </div>
                   <Footer />

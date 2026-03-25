@@ -323,15 +323,6 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
                 <Route className="w-5 h-5" />
                 <span>Ruta de Preparación ICFES</span>
               </Link>
-              <Link
-                to="/dashboard#evaluacion"
-                className={mobileLinkClass(pathname === "/dashboard")}
-                onPointerEnter={() => prefetchDashboardAndQuiz()}
-                onClick={closeMobile}
-              >
-                <BookOpen className="w-5 h-5" />
-                <span>Presentar prueba</span>
-              </Link>
             </nav>
           </SheetContent>
         </Sheet>

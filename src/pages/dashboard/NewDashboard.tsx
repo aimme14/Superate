@@ -9,7 +9,7 @@ import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
 import { StudentNav } from "@/components/student/StudentNav"
-  
+import { StudentMobileQuickNav } from "@/components/student/StudentMobileQuickNav"
 
 export function Home() {
   useEffect(() => {
@@ -25,7 +25,9 @@ export function Home() {
   const { theme } = useThemeContext()
 
   return (
-    <div className={cn("min-h-screen flex flex-col", theme === 'dark' ? 'bg-zinc-900' : '')}>
+    <div
+      className={cn("flex flex-col md:min-h-screen", theme === "dark" ? "bg-zinc-900" : "")}
+    >
       {/* Sección 1: Encabezado y Navegación */}
       <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
         <div className="container mx-auto px-2 py-2 sm:px-4 sm:py-3 flex items-center justify-between">
@@ -50,7 +52,7 @@ export function Home() {
       </header>
 
       {/* Sección 2: Contenido Principal */}
-      <main className="flex-grow">
+      <main className="flex-grow max-md:flex-grow-0">
         {/* Banner de Práctica */}
         <section>
           <Suspense fallback={null}>
@@ -113,6 +115,7 @@ export function Home() {
           </div>
         </section>
       </main>
+      <StudentMobileQuickNav theme={theme || "light"} />
     </div>
   )
 }

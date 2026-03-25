@@ -1,17 +1,26 @@
 import { useThemeContext } from '@/context/ThemeContext'
+import { useLocation } from 'react-router-dom'
 import { Button } from '#/ui/button'
 import { Badge } from '#/ui/badge'
 import { cn } from '@/lib/utils'
+import { hasStudentNav } from '@/constants/routes'
 
 const FooterSection = () => {
   const { theme } = useThemeContext()
+  const { pathname } = useLocation()
+  const studentBottomNav = hasStudentNav(pathname)
+
   return (
     <footer
       className={cn(
-        'px-4 py-5 sm:px-6 sm:py-6 border-t mt-auto z-10',
+        'px-4 py-5 sm:px-6 sm:py-6 border-t z-10',
+        /* mt-auto solo en md+: en móvil evita la franja vacía entre contenido y pie */
+        'md:mt-auto',
         'flex flex-col sm:flex-row',
         'justify-between items-center gap-4 sm:gap-6',
-        'pb-[max(1.25rem,env(safe-area-inset-bottom))]',
+        studentBottomNav
+          ? 'max-md:pb-[max(calc(5.5rem+env(safe-area-inset-bottom,0px)),1.25rem)]'
+          : 'max-md:pb-[max(1.25rem,env(safe-area-inset-bottom))]',
         theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-50 border-gray-200'
       )}
     >
