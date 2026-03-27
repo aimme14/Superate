@@ -26,6 +26,13 @@ const storage = getStorage(firebaseApp)
 const AI_TOOLS_COLLECTION = 'AI_Tools'
 const AI_TOOLS_ICONS_PATH = 'AI_Tools_icons'
 
+/**
+ * Cabecera Cache-Control en Storage: el navegador guarda el archivo y reduce descargas repetidas (egress).
+ * Sin `immutable` para que, si se resube en la misma ruta, tras expirar el max-age se actualice; nuevas subidas aplican al instante.
+ * Iconos ya en Storage antes de este cambio: resubir desde admin o actualizar metadata en consola para el mismo efecto.
+ */
+export const AI_TOOL_ICON_CACHE_CONTROL = 'public, max-age=31536000'
+
 /** Módulos recomendados (áreas Saber 11) */
 export const MODULOS_RECOMENDADOS = [
   { value: 'lectura-critica', label: 'Lectura Crítica' },
@@ -233,7 +240,10 @@ export async function uploadAIToolIcon(toolId: string, file: File): Promise<Resu
     const outExt = ext || 'png'
     const path = `${AI_TOOLS_ICONS_PATH}/${toolId}/icon.${outExt}`
     const storageRef = ref(storage, path)
-    const metadata = { contentType: fileToUpload.type || contentType }
+    const metadata = {
+      contentType: fileToUpload.type || contentType,
+      cacheControl: AI_TOOL_ICON_CACHE_CONTROL,
+    }
     await uploadBytes(storageRef, fileToUpload, metadata)
     const downloadURL = await getDownloadURL(storageRef)
     return success(downloadURL)

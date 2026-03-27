@@ -69,6 +69,10 @@ export function HerramientasIASection({ tools, theme }: HerramientasIASectionPro
                   <img
                     src={tool.iconUrl}
                     alt=""
+                    width={48}
+                    height={48}
+                    loading="lazy"
+                    decoding="async"
                     className="h-12 w-12 flex-shrink-0 rounded-xl object-cover ring-1 ring-black/5 dark:ring-white/10 self-start"
                   />
                 ) : (

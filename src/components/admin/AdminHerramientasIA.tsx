@@ -577,7 +577,15 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
                   )}
                 >
                   {tool.iconUrl ? (
-                    <img src={tool.iconUrl} alt="" className="h-10 w-10 object-contain rounded" />
+                    <img
+                      src={tool.iconUrl}
+                      alt=""
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-10 w-10 object-contain rounded"
+                    />
                   ) : (
                     <div
                       className={cn(
