@@ -2,14 +2,13 @@ import { useEffect, useRef } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { toast } from '@/hooks/ui/use-toast'
 import { ToastAction } from '@/components/ui/toast'
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
-}
+import {
+  promptInstall,
+  setDeferredInstallPrompt,
+  type BeforeInstallPromptEvent,
+} from '@/lib/pwaInstall'
 
 export function PwaLifecycleToaster() {
-  const installEventRef = useRef<BeforeInstallPromptEvent | null>(null)
   const shownUpdateToastRef = useRef(false)
   const shownInstallToastRef = useRef(false)
 
@@ -45,7 +44,7 @@ export function PwaLifecycleToaster() {
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
-      installEventRef.current = event as BeforeInstallPromptEvent
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent)
 
       if (shownInstallToastRef.current) return
       shownInstallToastRef.current = true
@@ -58,18 +57,14 @@ export function PwaLifecycleToaster() {
           <ToastAction
             altText="Instalar aplicación"
             onClick={async () => {
-              const installEvent = installEventRef.current
-              if (!installEvent) return
-              await installEvent.prompt()
-              const choice = await installEvent.userChoice
-              if (choice.outcome === 'accepted') {
+              const outcome = await promptInstall()
+              if (outcome === 'accepted') {
                 toast({
                   variant: 'success',
                   title: 'Instalación iniciada',
                   description: 'Supérate.IA quedó lista como app.'
                 })
               }
-              installEventRef.current = null
             }}
           >
             Instalar

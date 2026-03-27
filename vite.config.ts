@@ -12,7 +12,12 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       manifest: false,
-      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: [
+        'pwa-192x192.png',
+        'pwa-512x512.png',
+        'pwa-512x512-maskable.png',
+        'apple-touch-icon.png',
+      ],
       workbox: {
         // En SPA, usar index como fallback evita falsos "sin conexión"
         // cuando hay red pero ocurre un miss de navegación.

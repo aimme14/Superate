@@ -4,6 +4,7 @@ import { Button } from '#/ui/button'
 import { Badge } from '#/ui/badge'
 import { cn } from '@/lib/utils'
 import { hasStudentNav } from '@/constants/routes'
+import { PwaInstallButton } from '@/components/common/PwaInstallButton'
 
 const FooterSection = () => {
   const { theme } = useThemeContext()
@@ -38,7 +39,8 @@ const FooterSection = () => {
           2025. Todos los derechos reservados.
         </p>
       </div>
-      <div className="flex flex-wrap justify-center gap-3 sm:gap-4 order-1 sm:order-2 [&_a]:min-h-[44px] [&_a]:min-w-[44px] [&_a]:flex [&_a]:items-center [&_a]:justify-center">
+      <div className="flex flex-wrap justify-center items-center gap-3 sm:gap-4 order-1 sm:order-2 [&_a]:min-h-[44px] [&_a]:min-w-[44px] [&_a]:flex [&_a]:items-center [&_a]:justify-center">
+        <PwaInstallButton />
         <Button variant="link" size="sm" className="h-auto py-2 sm:py-0">Términos de Servicio</Button>
         <Button variant="link" size="sm" className="h-auto py-2 sm:py-0">Política de Privacidad</Button>
         <Badge variant="outline" className="hidden md:inline-flex">Versión 1.0.0</Badge>

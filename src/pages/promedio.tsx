@@ -42,6 +42,11 @@ import {
   prepareSubjectTopicsData,
 } from './promedio/utils'
 import { logger } from '@/utils/logger'
+import {
+  mergeRutaPreparacionCache,
+  readRutaPreparacionCache,
+  clearCachedIcfesTips,
+} from '@/lib/rutaPreparacionLocalCache'
 import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
 import { isBrowserOffline } from '@/utils/networkError'
 import {
@@ -68,7 +73,6 @@ import {
   Copy,
   ExternalLink,
   Lightbulb,
-  RefreshCw,
   Sparkles,
   Dumbbell,
 } from "lucide-react"
@@ -1545,15 +1549,23 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     return () => clearTimeout(t);
   }, [activeTab]);
 
-  // Cargar tips ICFES al abrir el tab Plan de estudio (una sola vez por sesión; retry resetea icfesTips)
+  // Cargar tips ICFES: primero caché local (misma sesión / mismo dispositivo hasta cerrar sesión), luego red una sola vez
   const FUNCTIONS_URL_TIPS = import.meta.env.VITE_CLOUD_FUNCTIONS_URL || 'https://us-central1-superate-ia.cloudfunctions.net';
   const loadIcfesTips = React.useCallback(() => {
+    if (user?.uid) clearCachedIcfesTips(user.uid);
     setTipsError(false);
     setLoadingTips(true);
     setIcfesTips(null);
-  }, []);
+  }, [user?.uid]);
   useEffect(() => {
-    if (activeTab !== 'study-plan' || !shouldLoadSecondary || icfesTips !== null) return;
+    if (activeTab !== 'study-plan' || !shouldLoadSecondary || icfesTips !== null || !user?.uid) return;
+    const cached = readRutaPreparacionCache(user.uid);
+    if (cached?.icfesTips !== undefined) {
+      setIcfesTips(cached.icfesTips);
+      setTipsError(false);
+      setLoadingTips(false);
+      return;
+    }
     let cancelled = false;
     setLoadingTips(true);
     setTipsError(false);
@@ -1566,8 +1578,10 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
         if (cancelled) return;
         if (result.success && Array.isArray(result.data)) {
           setIcfesTips(result.data);
+          mergeRutaPreparacionCache(user.uid, { icfesTips: result.data });
         } else {
           setIcfesTips([]);
+          mergeRutaPreparacionCache(user.uid, { icfesTips: [] });
         }
       })
       .catch((err) => {
@@ -1581,10 +1595,20 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
         if (!cancelled) setLoadingTips(false);
       });
     return () => { cancelled = true; };
-  }, [activeTab, shouldLoadSecondary, icfesTips, FUNCTIONS_URL_TIPS]);
+  }, [activeTab, shouldLoadSecondary, icfesTips, FUNCTIONS_URL_TIPS, user?.uid]);
 
-  // Cargar herramientas IA (solo activas): al abrir el tab Plan de estudio o al pulsar Reintentar/Actualizar
-  const loadHerramientasIA = React.useCallback(async () => {
+  // Herramientas IA: caché local hasta cerrar sesión; red solo si no hay caché o reintento forzado
+  const loadHerramientasIA = React.useCallback(async (opts?: { forceNetwork?: boolean }) => {
+    const uid = user?.uid;
+    if (uid && !opts?.forceNetwork) {
+      const cached = readRutaPreparacionCache(uid);
+      if (cached?.herramientasIA !== undefined) {
+        setHerramientasIA(cached.herramientasIA);
+        setHerramientasIAError(false);
+        setLoadingHerramientasIA(false);
+        return;
+      }
+    }
     setHerramientasIAError(false);
     setLoadingHerramientasIA(true);
     try {
@@ -1592,6 +1616,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       if (res.success) {
         const active = res.data.filter((t) => t.isActive);
         setHerramientasIA(active);
+        if (uid) mergeRutaPreparacionCache(uid, { herramientasIA: active });
       } else {
         setHerramientasIA([]);
         setHerramientasIAError(true);
@@ -1602,11 +1627,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     } finally {
       setLoadingHerramientasIA(false);
     }
-  }, []);
+  }, [user?.uid]);
   useEffect(() => {
-    if (activeTab !== 'study-plan' || !shouldLoadSecondary) return;
+    if (activeTab !== 'study-plan' || !shouldLoadSecondary || !user?.uid) return;
     loadHerramientasIA();
-  }, [activeTab, shouldLoadSecondary, loadHerramientasIA]);
+  }, [activeTab, shouldLoadSecondary, loadHerramientasIA, user?.uid]);
 
   useEffect(() => {
     if (!mobilePhaseFilterOpen) return;
@@ -3607,27 +3632,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                             </div>
                           )}
                           {!loadingTips && icfesTips && icfesTips.length > 0 && (
-                            <>
-                              <TipsICFESSection tips={icfesTips} theme={theme} />
-                              <div className="mt-4 flex justify-center">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={loadIcfesTips}
-                                  disabled={loadingTips}
-                                  className={cn(
-                                    "gap-2",
-                                    theme === 'dark'
-                                      ? "border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25 hover:border-amber-400/50"
-                                      : ""
-                                  )}
-                                >
-                                  <RefreshCw className={cn("h-4 w-4", loadingTips && "animate-spin")} />
-                                  Obtener más consejos
-                                </Button>
-                              </div>
-                            </>
+                            <TipsICFESSection tips={icfesTips} theme={theme} />
                           )}
                           {!loadingTips && (!icfesTips || icfesTips.length === 0) && (
                             <div className={cn("flex flex-col items-center justify-center gap-3 py-6 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
@@ -3658,27 +3663,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                             </div>
                           )}
                           {!loadingHerramientasIA && herramientasIA && herramientasIA.length > 0 && (
-                            <>
-                              <HerramientasIASection tools={herramientasIA} theme={theme} />
-                              <div className="mt-4 flex justify-center">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={loadHerramientasIA}
-                                  disabled={loadingHerramientasIA}
-                                  className={cn(
-                                    "gap-2",
-                                    theme === 'dark'
-                                      ? "border-teal-400/40 bg-teal-500/15 text-teal-100 hover:bg-teal-500/25 hover:border-teal-400/50"
-                                      : ""
-                                  )}
-                                >
-                                  <RefreshCw className={cn("h-4 w-4", loadingHerramientasIA && "animate-spin")} />
-                                  Actualizar herramientas
-                                </Button>
-                              </div>
-                            </>
+                            <HerramientasIASection tools={herramientasIA} theme={theme} />
                           )}
                           {!loadingHerramientasIA && (!herramientasIA || herramientasIA.length === 0) && (
                             <div className={cn("flex flex-col items-center justify-center gap-3 py-6 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
@@ -3689,7 +3674,13 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                                     : 'No se pudieron cargar las herramientas. Revisa tu conexión.'
                                   : 'No hay herramientas IA disponibles en este momento.'}
                               </p>
-                              <Button type="button" variant="outline" size="sm" onClick={loadHerramientasIA} className={theme === 'dark' ? 'border-teal-400/40 bg-teal-500/15 text-teal-100 hover:bg-teal-500/25' : ''}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => loadHerramientasIA({ forceNetwork: true })}
+                                className={theme === 'dark' ? 'border-teal-400/40 bg-teal-500/15 text-teal-100 hover:bg-teal-500/25' : ''}
+                              >
                                 Reintentar
                               </Button>
                             </div>
