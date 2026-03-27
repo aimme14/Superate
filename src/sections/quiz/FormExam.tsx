@@ -698,7 +698,7 @@ const ExamWithFirebase = () => {
         <CardFooter className="flex justify-center">
           <Button
             onClick={() => navigate('/dashboard')}
-            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
+            className="bg-purple-600 hover:bg-purple-700 transition-colors duration-150"
           >
             Ir a las demás pruebas
           </Button>
@@ -791,7 +791,7 @@ const ExamWithFirebase = () => {
           <Button
             onClick={startExam}
             size="lg"
-            className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 text-lg font-semibold transition-colors duration-150"
           >
             <Play className="h-5 w-5 mr-2" />
             Iniciar Examen
@@ -1086,7 +1086,7 @@ const ExamWithFirebase = () => {
             <Button
               onClick={() => navigate('/dashboard')}
               size="lg"
-              className="bg-green-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-500 hover:shadow-lg text-white px-8 py-3 text-lg font-semibold transition-all duration-300"
+              className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg font-semibold transition-colors duration-150"
             >
               <CheckCircle2 className="h-5 w-5 mr-2" />
               Volver a las demas pruebas
@@ -1213,7 +1213,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={nextQuestion}
                 disabled={currentQuestion === examData.questions.length - 1}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 transition-colors duration-150"
               >
                 Siguiente <ChevronRight className="h-4 w-4" />
               </Button>
@@ -1223,7 +1223,7 @@ const ExamWithFirebase = () => {
 
         {/* Panel lateral derecho con navegación de preguntas */}
         <div className="w-full lg:w-56 flex-shrink-0">
-          <div className="bg-white border rounded-lg p-3 sticky top-4 shadow-sm">
+          <div className="bg-white border rounded-lg p-3 lg:sticky lg:top-4 shadow-sm">
             <h3 className="text-xs font-semibold mb-2.5 text-gray-700 uppercase tracking-wide">
               Navegación
             </h3>
@@ -1243,7 +1243,7 @@ const ExamWithFirebase = () => {
                       // BLOQUEAR TODOS los clics - los botones son SOLO marcadores visuales
                       return false;
                     }}
-                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 cursor-not-allowed ${
+                    className={`relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-colors duration-150 cursor-not-allowed ${
                       isCurrent
                         ? isAnswered
                           ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
@@ -1283,7 +1283,7 @@ const ExamWithFirebase = () => {
               <Button
                 onClick={showSubmitWarning}
                 disabled={isSubmitting}
-                className="w-full mt-4 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
+                className="w-full mt-4 bg-purple-600 hover:bg-purple-700 transition-colors duration-150"
               >
                 {isSubmitting ? (
                   <>

@@ -102,7 +102,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
       {/* Header con logo y gradiente */}
       <div
         className={cn(
-          'animate-in fade-in slide-in-from-top-2 duration-300',
+          'fade-in duration-200',
           "relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl",
           theme === 'dark' 
             ? "bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900" 
@@ -120,7 +120,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
                 <img 
                   src={institutionLogo || '/assets/agustina.png'} 
                   alt={`Logo de ${institutionName}`}
-                  className="w-20 h-20 object-contain rounded-lg bg-white/20 backdrop-blur-sm p-2 shadow-lg border border-white/30"
+                  className="w-20 h-20 object-contain rounded-lg bg-white/15 p-2 shadow-sm border border-white/30"
                   onError={(e) => {
                     e.currentTarget.src = '/assets/agustina.png'
                   }}
@@ -139,12 +139,12 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2">
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center border-2 border-white/40 shadow-lg">
+              <div className="bg-white/15 rounded-lg p-3 text-center border-2 border-white/40 shadow-sm">
                 <GraduationCap className="h-6 w-6 mx-auto mb-1 text-white" />
                 <div className="text-lg font-bold text-white">{stats.totalTeachers}</div>
                 <div className="text-[10px] opacity-90 text-white font-medium">Docentes</div>
               </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center border-2 border-white/40 shadow-lg">
+              <div className="bg-white/15 rounded-lg p-3 text-center border-2 border-white/40 shadow-sm">
                 <Users className="h-6 w-6 mx-auto mb-1 text-white" />
                 <div className="text-lg font-bold text-white">{stats.totalStudents}</div>
                 <div className="text-[10px] opacity-90 text-white font-medium">Estudiantes</div>
@@ -157,7 +157,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
       </div>
 
       {/* Botones de acción */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 fade-in duration-200">
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' as const, count: null },
           { icon: GraduationCap, label: 'Docentes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'administrativos' as const, count: stats?.totalTeachers || 0 },
@@ -169,7 +169,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
               <Button
                 onClick={() => setActiveTab(btn.tab)}
                 className={cn(
-                  "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                  "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-md transition-colors duration-150",
                   btn.color
                 )}
               >
@@ -187,7 +187,7 @@ export default function PrincipalDashboard({ theme }: PrincipalDashboardProps) {
               <Button
                 asChild
                 className={cn(
-                  "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                  "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-md transition-colors duration-150",
                   btn.color
                 )}
               >

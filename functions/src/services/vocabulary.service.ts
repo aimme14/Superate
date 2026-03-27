@@ -7,6 +7,7 @@
 
 import * as admin from 'firebase-admin';
 import { geminiClient } from '../config/gemini.config';
+import { geminiCentralizedService } from './geminiService';
 
 /**
  * Mapeo de materias ICFES a nombres normalizados para Firestore
@@ -326,8 +327,14 @@ class VocabularyService {
       // Generar definición con IA
       const prompt = `${SYSTEM_PROMPT}\n\nDefine la siguiente palabra en el contexto de ${materia} para estudiantes de grado 11:\n\n"${palabra}"`;
 
-      const response = await geminiClient.generateContent(prompt, [], {
-        timeout: 30000, // 30 segundos para definiciones simples
+      const response = await geminiCentralizedService.generateContent({
+        userId: 'system:vocabulary',
+        prompt,
+        processName: 'vocabulary_definition',
+        images: [],
+        options: {
+          timeout: 30000, // 30 segundos para definiciones simples
+        },
       });
 
       if (!response || !response.text) {
@@ -341,8 +348,14 @@ class VocabularyService {
       let respuestaEjemploIcfes: string | undefined;
       try {
         const examplePrompt = getExamplePrompt(palabra, materia);
-        const exampleResponse = await geminiClient.generateContent(examplePrompt, [], {
-          timeout: 30000, // 30 segundos para ejemplos
+        const exampleResponse = await geminiCentralizedService.generateContent({
+          userId: 'system:vocabulary',
+          prompt: examplePrompt,
+          processName: 'vocabulary_example',
+          images: [],
+          options: {
+            timeout: 30000, // 30 segundos para ejemplos
+          },
         });
 
         if (exampleResponse && exampleResponse.text) {
@@ -542,8 +555,14 @@ class VocabularyService {
 
             // Generar ejemplo con respuesta
             const examplePrompt = getExamplePrompt(word.palabra, normalizedMateria);
-            const exampleResponse = await geminiClient.generateContent(examplePrompt, [], {
-              timeout: 30000,
+            const exampleResponse = await geminiCentralizedService.generateContent({
+              userId: 'system:vocabulary',
+              prompt: examplePrompt,
+              processName: 'vocabulary_batch_example',
+              images: [],
+              options: {
+                timeout: 30000,
+              },
             });
 
             if (!exampleResponse || !exampleResponse.text) {

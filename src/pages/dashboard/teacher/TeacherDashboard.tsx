@@ -87,7 +87,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
         {/* Header con logo y gradiente */}
         <div
           className={cn(
-            'animate-in fade-in slide-in-from-top-2 duration-300',
+            'fade-in duration-200',
             isMobile ? 'relative overflow-hidden rounded-none px-4 pt-3 pb-2 text-white shadow-2xl' : 'relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl',
             theme === 'dark'
               ? 'bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900'
@@ -106,7 +106,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                     src={institutionLogo || '/assets/agustina.png'}
                     alt={`Logo de ${institutionName}`}
                     className={cn(
-                      'object-contain rounded-lg bg-white/20 backdrop-blur-sm shadow border border-white/30',
+                      'object-contain rounded-lg bg-white/15 shadow-sm border border-white/30',
                       isMobile ? 'w-14 h-14 p-1.5' : 'w-20 h-20 p-2'
                     )}
                     onError={(e) => {
@@ -127,7 +127,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                 </div>
               </div>
               <div className="hidden md:flex items-center">
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center border-2 border-white/40 shadow">
+                <div className="bg-white/15 rounded-lg p-3 text-center border-2 border-white/40 shadow-sm">
                   <GraduationCap className="h-6 w-6 mx-auto text-white" aria-label="Docente" />
                 </div>
               </div>
@@ -138,7 +138,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       </div>
 
       {/* Botones de acción */}
-      <div className="hidden md:grid md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="hidden md:grid md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 fade-in duration-200">
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
           { icon: Users, label: 'Mis Estudiantes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes', count: stats?.totalStudents ?? null },
@@ -148,7 +148,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
             <Button
               onClick={() => setActiveTab(btn.tab)}
               className={cn(
-                'w-full h-18 flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br text-white shadow-lg transition-all',
+                'w-full h-18 flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br text-white shadow-md transition-colors duration-150',
                 btn.color
               )}
             >
@@ -196,7 +196,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       {isMobile && (
         <div className="fixed bottom-3 left-1/2 z-30 -translate-x-1/2">
           <div className={cn(
-            'flex items-center gap-1 rounded-xl border px-2 py-1.5 shadow-xl backdrop-blur',
+            'flex items-center gap-1 rounded-xl border px-2 py-1.5 shadow-md',
             theme === 'dark' ? 'border-zinc-700 bg-zinc-900/90' : 'border-gray-300 bg-white/90'
           )}>
             <Button type="button" size="icon" variant="ghost" aria-label="Inicio" title="Inicio" onClick={() => setActiveTab('inicio')}
@@ -784,7 +784,7 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
   })
 
   return (
-    <div className="animate-in fade-in zoom-in-95 duration-300">
+    <div className="fade-in duration-200">
       <Card className={cn('relative overflow-hidden border-0 shadow-lg', theme === 'dark' ? 'bg-zinc-900' : 'bg-white')}>
         <div className={cn('absolute top-0 right-0 w-14 h-14 bg-gradient-to-br opacity-10 rounded-full -mr-7 -mt-7', 'from-emerald-500 to-emerald-600')} />
         <CardHeader className={cn(
@@ -868,9 +868,9 @@ function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters,
   return (
     <div>
       {/* Estadísticas principales */}
-      <div className="grid grid-cols-2 md:grid-cols-2 gap-2 md:gap-4 animate-in fade-in duration-300 items-start">
+      <div className="grid grid-cols-2 md:grid-cols-2 gap-2 md:gap-4 fade-in duration-200 items-start">
         {/* Total Estudiantes */}
-        <div className="animate-in fade-in zoom-in-95 duration-300">
+        <div className="fade-in duration-200">
           <Card className={cn('relative overflow-hidden border-0 shadow-lg', theme === 'dark' ? 'bg-zinc-900' : 'bg-white')}>
             <div className={cn('absolute top-0 right-0 w-14 h-14 bg-gradient-to-br opacity-10 rounded-full -mr-7 -mt-7', 'from-green-500 to-green-600')} />
             <CardHeader className={cn('flex flex-row items-center justify-between space-y-0 relative z-10', isMobile ? 'py-1 px-2 pb-0' : 'py-1 px-3 pb-0')}>

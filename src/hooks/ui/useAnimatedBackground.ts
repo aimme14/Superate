@@ -1,13 +1,18 @@
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { useSpring } from '@react-spring/web'
 
-export const useAnimatedBackground = ({ theme }: ThemeContextProps) => {
+type UseAnimatedBackgroundParams = ThemeContextProps & {
+  shouldAnimate: boolean
+}
+
+export const useAnimatedBackground = ({ theme, shouldAnimate }: UseAnimatedBackgroundParams) => {
   const springProps = useSpring({
     from: { backgroundPosition: '0% 50%' },
     to: { backgroundPosition: '100% 50%' },
     config: { duration: 30000 },
     loop: true,
-  });
+    pause: !shouldAnimate,
+  })
 
   // Gradientes más sofisticados y profesionales
   const gradientColors = theme === 'dark'

@@ -89,7 +89,7 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
     <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
       <CollapsibleTrigger asChild>
         <div
-          className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]"
+          className="transition-colors duration-150"
           onMouseEnter={() => {
             prefetchChunkForSidebarHref(item.href as string)
             if (isDashboard) prefetchDashboardData()
@@ -99,12 +99,12 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
             asChild 
             isActive={isActive}
             className={cn(
-              "relative overflow-hidden group transition-all duration-300",
+              "relative overflow-hidden group transition-colors duration-150",
               "rounded-lg mx-2 my-1",
               isActive
                 ? theme === 'dark'
-                  ? '!bg-purple-600 !text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
-                  : '!bg-purple-700 !text-white !border-2 !border-purple-800 hover:bg-gradient-to-r hover:from-purple-700 hover:via-purple-800 hover:to-indigo-700 hover:shadow-lg hover:shadow-purple-500/30'
+                  ? '!bg-purple-600 !text-white hover:bg-purple-700'
+                  : '!bg-purple-700 !text-white !border-2 !border-purple-800 hover:bg-purple-800'
                 : theme === 'dark'
                   ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
                   : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
@@ -120,7 +120,7 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
             >
               <div>
                 <item.icon className={cn(
-                  'w-5 h-5 transition-transform duration-300 group-hover:scale-110',
+                    'w-5 h-5',
                   isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
                 )} />
               </div>
@@ -158,19 +158,19 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
       <Collapsible open={isOpen} onOpenChange={setIsOpen} onClick={() => isMobile && !item.subItems && toggle()}>
         <CollapsibleTrigger asChild>
           <div
-            className="transition-transform duration-200 hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98]"
+            className="transition-colors duration-150"
             onMouseEnter={() => prefetchChunkForSidebarHref(item.href as string)}
           >
             <SidebarMenuSubButton 
               asChild 
               isActive={isActive}
               className={cn(
-                "relative overflow-hidden group transition-all duration-300",
+                "relative overflow-hidden group transition-colors duration-150",
                 "rounded-lg mx-2 my-1",
                 isActive
                   ? theme === 'dark'
-                    ? '!bg-purple-600 !text-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-purple-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-purple-500/50'
-                    : '!bg-purple-700 !text-white !border-2 !border-purple-800 hover:bg-gradient-to-r hover:from-purple-700 hover:via-purple-800 hover:to-indigo-700 hover:shadow-lg hover:shadow-purple-500/30'
+                    ? '!bg-purple-600 !text-white hover:bg-purple-700'
+                    : '!bg-purple-700 !text-white !border-2 !border-purple-800 hover:bg-purple-800'
                   : theme === 'dark'
                     ? 'hover:bg-zinc-800/80 text-zinc-200 hover:text-purple-300'
                     : 'hover:bg-purple-50 text-gray-700 hover:text-purple-700'
@@ -186,7 +186,7 @@ const SidebarSubItem = ({ item, isMobile, toggle }: SidebarSubItemProps) => {
               >
                 <div>
                   <item.icon className={cn(
-                    'w-4 h-4 transition-transform duration-300 group-hover:scale-110',
+                    'w-4 h-4',
                     isActive && theme === 'light' ? '!text-white' : isActive ? 'text-white' : ''
                   )} />
                 </div>

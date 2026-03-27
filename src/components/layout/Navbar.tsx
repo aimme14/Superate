@@ -25,7 +25,7 @@ const Navbar = () => {
   return (
     <header className={cn(
       'sticky top-0 z-20 bg-gradient-to-r',
-      'backdrop-blur-sm transition-colors duration-500',
+      'transition-colors duration-300',
       theme === 'dark' ? 'from-zinc-800 to-zinc-800/30 text-zinc-100' : 'from-gray-200 to-gray-200/30 text-gray-900'
     )}>
       <div className="container flex h-14 min-h-[44px] sm:h-16 p-3 sm:p-4 items-center justify-between gap-2">
@@ -43,7 +43,7 @@ const Navbar = () => {
             </Button>
           )}
           {!isMobile && (
-            <div className="animate-in zoom-in-95 duration-300">
+            <div className="fade-in duration-200">
               <span className={cn("flex h-12 mr-2 shrink-0 items-center justify-center", isAuth ? 'w-16' : 'w-20')}>
                 <img
                   src={theme === 'dark' ? logoDark : logoLight}

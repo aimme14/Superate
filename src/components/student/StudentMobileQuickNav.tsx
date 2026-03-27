@@ -128,7 +128,7 @@ export function StudentMobileQuickNav({ theme }: StudentMobileQuickNavProps) {
     >
       <div
         className={cn(
-          "flex max-w-[calc(100vw-1rem)] items-center gap-3.5 rounded-2xl border px-4 py-2.5 shadow-xl backdrop-blur",
+          "flex max-w-[calc(100vw-1rem)] items-center gap-3.5 rounded-2xl border px-4 py-2.5 shadow-md",
           theme === "dark"
             ? "border-zinc-700 bg-zinc-900/90"
             : "border-gray-300 bg-white/90"

@@ -1,22 +1,19 @@
-import { useAnimatedBackground } from '@/hooks/ui/useAnimatedBackground'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { useThemeContext } from '@/context/ThemeContext'
 import { Props } from '@/interfaces/props.interface'
-import { animated } from '@react-spring/web'
-import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 export const AnimatedBackground = ({ children }: Props) => {
   const { theme } = useThemeContext()
-  const { springProps, gradientColors } = useAnimatedBackground({ theme })
+  const gradientColors = theme === 'dark'
+    ? ['from-slate-950', 'via-purple-950/80', 'via-indigo-950/80', 'to-slate-950']
+    : ['from-slate-50', 'via-purple-50/90', 'via-indigo-50/90', 'to-pink-50']
 
   return (
-    <animated.div
-      style={springProps}
+    <div
       className={cn(
         'relative min-h-screen flex flex-col',
         'bg-gradient-to-br transition-colors duration-1000',
-        'bg-[length:200%_200%]',
         gradientColors.join(' ')
       )}
     >
@@ -27,9 +24,9 @@ export const AnimatedBackground = ({ children }: Props) => {
           ? 'bg-gradient-to-br from-purple-950/20 via-transparent to-indigo-950/20' 
           : 'bg-gradient-to-br from-purple-100/30 via-transparent to-pink-100/30'
       )} />
-      <AnimatedParticles theme={theme} />
+      <StaticParticles theme={theme} />
       {children}
-    </animated.div>
+    </div>
   )
 }
 
@@ -42,123 +39,66 @@ const getParticlePosition = (index: number, total: number) => {
   return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
 }
 
-const AnimatedParticles = ({ theme }: ThemeContextProps) => {
+const StaticParticles = ({ theme }: ThemeContextProps) => {
+  const counts = { large: 8, medium: 10, small: 14 }
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Partículas grandes con movimiento suave */}
-      {[...Array(30)].map((_, i) => {
-        const pos = getParticlePosition(i, 30)
+      {/* Partículas estáticas ligeras para mantener estética sin costo de animación. */}
+      {[...Array(counts.large)].map((_, i) => {
+        const pos = getParticlePosition(i, counts.large)
         return (
-          <motion.div
+          <div
             key={`large-${i}`}
-            custom={i}
             className={cn(
-              'absolute rounded-full blur-sm',
+              'absolute rounded-full',
               theme === 'dark' 
-                ? 'bg-purple-500/20 w-32 h-32' 
-                : 'bg-purple-300/30 w-24 h-24'
+                ? 'bg-purple-500/12 w-28 h-28'
+                : 'bg-purple-300/20 w-20 h-20'
             )}
             style={{
               left: `${pos.x}%`,
               top: `${pos.y}%`,
             }}
-            variants={largeParticleVariants}
-            initial="hidden"
-            animate="visible"
           />
         )
       })}
-      {/* Partículas medianas */}
-      {[...Array(40)].map((_, i) => {
-        const pos = getParticlePosition(i + 30, 40)
+      {[...Array(counts.medium)].map((_, i) => {
+        const pos = getParticlePosition(i + counts.large, counts.medium)
         return (
-          <motion.div
+          <div
             key={`medium-${i}`}
-            custom={i}
             className={cn(
               'absolute rounded-full',
               theme === 'dark' 
-                ? 'bg-purple-400/30 w-3 h-3' 
-                : 'bg-purple-400/40 w-2.5 h-2.5'
+                ? 'bg-purple-400/20 w-3 h-3'
+                : 'bg-purple-400/25 w-2.5 h-2.5'
             )}
             style={{
               left: `${pos.x}%`,
               top: `${pos.y}%`,
             }}
-            variants={particleVariants}
-            initial="hidden"
-            animate="visible"
           />
         )
       })}
-      {/* Partículas pequeñas brillantes */}
-      {[...Array(60)].map((_, i) => {
-        const pos = getParticlePosition(i + 70, 60)
+      {[...Array(counts.small)].map((_, i) => {
+        const pos = getParticlePosition(i + counts.large + counts.medium, counts.small)
         return (
-          <motion.div
+          <div
             key={`small-${i}`}
-            custom={i}
             className={cn(
               'absolute rounded-full',
               theme === 'dark' 
-                ? 'bg-indigo-300/40 w-1.5 h-1.5' 
-                : 'bg-indigo-400/50 w-1 h-1'
+                ? 'bg-indigo-300/30 w-1.5 h-1.5'
+                : 'bg-indigo-400/35 w-1 h-1'
             )}
             style={{
               left: `${pos.x}%`,
               top: `${pos.y}%`,
             }}
-            variants={smallParticleVariants}
-            initial="hidden"
-            animate="visible"
           />
         )
       })}
     </div>
   )
-}
-
-// Variants for the particles - mejorados con movimientos más sofisticados
-const largeParticleVariants = {
-  hidden: { opacity: 0, scale: 0, x: 0, y: 0 },
-  visible: (i: number) => ({
-    opacity: [0.2, 0.4, 0.2],
-    scale: [1, 1.2, 1],
-    x: [0, Math.sin(i) * 50, 0],
-    y: [0, Math.cos(i) * 50, 0],
-    transition: {
-      delay: i * 0.15,
-      duration: 8 + (i % 3) * 2,
-      repeat: Infinity,
-      ease: "easeInOut",
-    }
-  })
-}
-
-const particleVariants = {
-  hidden: { opacity: 0, scale: 0 },
-  visible: (i: number) => ({
-    opacity: [0, 1, 0.5, 1, 0],
-    scale: [0, 1, 1.1, 1, 0],
-    transition: {
-      delay: i * 0.08,
-      duration: 4 + (i % 2),
-      repeat: Infinity,
-      ease: "easeInOut",
-    }
-  })
-}
-
-const smallParticleVariants = {
-  hidden: { opacity: 0, scale: 0 },
-  visible: (i: number) => ({
-    opacity: [0, 0.8, 0.4, 0.8, 0],
-    scale: [0, 1, 1.2, 1, 0],
-    transition: {
-      delay: i * 0.05,
-      duration: 3 + (i % 2) * 0.5,
-      repeat: Infinity,
-      ease: "easeInOut",
-    }
-  })
 }

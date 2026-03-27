@@ -6,6 +6,7 @@
  */
 
 import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
+import { geminiCentralizedService } from './geminiService';
 import {
   QuestionGenerationData,
   AIJustification,
@@ -53,10 +54,20 @@ class GeminiService {
         // Intentar primero con imágenes si las hay
         if (multimodalContent.images.length > 0) {
           console.log(`📷 Intentando generación CON ${multimodalContent.images.length} imagen(es)...`);
-          result = await geminiClient.generateContent(multimodalContent.text, multimodalContent.images);
+          result = await geminiCentralizedService.generateContent({
+            userId: 'system:question-justification',
+            prompt: multimodalContent.text,
+            processName: 'question_justification',
+            images: multimodalContent.images,
+          });
         } else {
           // No hay imágenes, generar solo con texto
-          result = await geminiClient.generateContent(multimodalContent.text, []);
+          result = await geminiCentralizedService.generateContent({
+            userId: 'system:question-justification',
+            prompt: multimodalContent.text,
+            processName: 'question_justification',
+            images: [],
+          });
           usedImages = false;
         }
       } catch (error: any) {
@@ -75,7 +86,12 @@ class GeminiService {
             
             try {
               // Intentar sin imágenes
-              result = await geminiClient.generateContent(multimodalContent.text, []);
+              result = await geminiCentralizedService.generateContent({
+                userId: 'system:question-justification',
+                prompt: multimodalContent.text,
+                processName: 'question_justification_fallback',
+                images: [],
+              });
               usedImages = false;
               console.log(`✅ Fallback exitoso: Generación completada SIN imágenes`);
             } catch (fallbackError: any) {

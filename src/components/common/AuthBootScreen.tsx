@@ -77,7 +77,7 @@ export function AuthBootScreen({
             <span className="text-cyan-400">Supérate.IA</span>
           </h1>
           <p className="text-sm leading-relaxed text-zinc-300 sm:text-base">
-            Aplicación gubernamental para el mejoramiento académico.
+            Aplicación oficial del Ministerio de Educación para el mejoramiento académico.
           </p>
           <p className="text-xs text-zinc-500 sm:text-sm">Validando tu sesión…</p>
         </div>

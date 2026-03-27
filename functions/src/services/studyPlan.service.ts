@@ -12,6 +12,7 @@ if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'devel
 }
 
 import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
+import { geminiCentralizedService } from './geminiService';
 import {
   getCanonicalTopicsWithWeakness,
   getGradeNameForAdminPath,
@@ -413,11 +414,11 @@ class StudyPlanService {
    * Parte 1 = avisos públicos / mensajes funcionales (ICFES), no publicitarios.
    */
   private static readonly ENGLISH_SEARCH_TOPIC_NAMES: Record<string, string> = {
-    'Parte 1': 'Avisos y mensajes en inglés, vocabulario',
-    'Parte 2': 'Vocabulario inglés, asociación de palabras',
+    'Parte 1': 'Avisos y mensajes en inglés, comprensión contextual',
+    'Parte 2': 'Asociación de palabras y comprensión léxica en inglés',
     'Parte 3': 'Diálogos inglés, expresiones cotidianas',
     'Parte 4': 'Comprensión lectora y gramática en contexto inglés',
-    'Parte 5': 'Ideas principales, vocabulario en contexto inglés',
+    'Parte 5': 'Ideas principales y comprensión en contexto inglés',
     'Parte 6': 'Comprensión lectora crítica, propósito del autor inglés',
     'Parte 7': 'Gramática inglés, preposiciones y conectores',
   };
@@ -427,11 +428,11 @@ class StudyPlanService {
    * Términos genéricos por tema para encontrar videos útiles de CUALQUIER canal (no solo los recomendados).
    */
   private static readonly ENGLISH_FALLBACK_KEYWORDS: Record<string, string[]> = {
-    'Parte 1': ['avisos públicos en inglés', 'mensajes cortos en inglés', 'vocabulario', 'aprender inglés', 'ICFES inglés'],
-    'Parte 2': ['vocabulario en inglés', 'asociación de palabras en inglés', 'comprensión léxica de textos en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
+    'Parte 1': ['avisos públicos en inglés', 'mensajes cortos en inglés', 'comprensión de mensajes en inglés', 'aprender inglés', 'ICFES inglés'],
+    'Parte 2': ['asociación de palabras en inglés', 'comprensión léxica de textos en inglés', 'comprensión de expresiones en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
     'Parte 3': ['diálogos en inglés', 'expresiones cotidianas en inglés', 'conversación en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
     'Parte 4': ['comprensión lectora en inglés', 'gramática en contexto en inglés', 'pasado, presente y futuro en inglés', 'tiempos verbales en inglés', 'lectura en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
-    'Parte 5': ['ideas principales en texto en inglés', 'vocabulario en contexto inglés', 'comprensión de lectura en inglés', 'inferencias simples en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
+    'Parte 5': ['ideas principales en texto en inglés', 'comprensión en contexto inglés', 'comprensión de lectura en inglés', 'inferencias simples en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
     'Parte 6': ['comprensión lectora de textos en inglés', 'propósito del autor en inglés', 'interpretación de textos en inglés', 'pronombres relativos en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
     'Parte 7': ['gramática aplicada en inglés', 'uso del lenguaje en contexto en inglés', 'preposiciones y conectores en inglés', 'cuantificadores en inglés', 'tiempos verbales en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
   };
@@ -518,7 +519,7 @@ ${sampleQuestions}`;
     // Instrucción para inglés: priorizar keywords que encuentren videos útiles de CUALQUIER canal
     const englishChannelsSection = this.isEnglishSubject(subject) ? `
 **KEYWORDS PARA INGLÉS (videos en español que explican inglés):**
-- Incluye términos que encuentren contenido útil de **cualquier canal** (no solo canales específicos): el tema + "aprender inglés", "inglés explicado en español", "gramática inglés", "vocabulario inglés", "ICFES inglés", "clase inglés bachillerato".
+- Incluye términos que encuentren contenido útil de **cualquier canal** (no solo canales específicos): el tema + "aprender inglés", "inglés explicado en español", "gramática inglés", "comprensión lectora inglés", "ICFES inglés", "clase inglés bachillerato".
 - Puedes mencionar canales conocidos como referencia opcional, pero **prioriza palabras clave genéricas** para que YouTube devuelva videos útiles de diversos canales educativos.` : '';
 
     // Instrucciones específicas de webSearchInfo por materia (alineadas a Icfes Saber 11°)
@@ -572,7 +573,7 @@ ${sampleQuestions}`;
         ? `
 **RECURSOS WEB PARA INGLÉS (OBLIGATORIO en webSearchInfo):**
 - **CRÍTICO**: Busca **contenido en ESPAÑOL que explica inglés** (no páginas solo en inglés). Material para aprender inglés explicado en español, para secundaria/ICFES.
-- En **searchIntent** indica: páginas web **en español** que explican inglés (gramática, vocabulario, comprensión lectora) para el tema/debilidad.
+- En **searchIntent** indica: páginas web **en español** que explican inglés (gramática y comprensión lectora) para el tema/debilidad.
 - En **searchKeywords** incluye siempre: "inglés explicado en español", "gramática inglés secundaria", "aprender inglés español", y el tema específico.
 - En **expectedContentTypes** incluye: "página en español que explica inglés", "gramática inglés explicada en español", "guía paso a paso en español", "material para aprender inglés en español".`
         : '';
@@ -720,14 +721,16 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
 
       // 4. Generar contenido con Gemini (con timeout extendido para respuestas largas)
       console.log(`\n🤖 Enviando request a Gemini (esto puede tardar varios minutos)...`);
-      const result = await geminiClient.generateContent(
+      const result = await geminiCentralizedService.generateContent({
+        userId: input.studentId,
         prompt,
-        [],
-        {
+        processName: 'study_plan',
+        images: [],
+        options: {
           retries: 3,
           timeout: 600000, // 10 minutos para respuestas largas
-        }
-      );
+        },
+      });
 
       // Verificar respuesta de Gemini ANTES del parsing
       console.log(`\n📋 RESPUESTA DE GEMINI RECIBIDA:`);
@@ -1798,7 +1801,7 @@ Para el siguiente tema con debilidad identificada, devuelve:
 **Fase:** ${phaseMap[phase]}
 **Keywords básicas del tema:** ${keywords.join(', ')}
 ${this.isEnglishSubject(subject) ? `
-IMPORTANTE PARA INGLÉS: Buscamos videos EN ESPAÑOL que explican inglés, de CUALQUIER canal útil. En searchKeywords usa términos GENÉRICOS por tema (ej. "aprender inglés", "inglés explicado en español", "gramática inglés", "vocabulario inglés", "ICFES inglés") combinados con el tema. NO uses solo nombres de canales: prioriza palabras clave que encuentren contenido educativo de diversos canales.` : ''}
+IMPORTANTE PARA INGLÉS: Buscamos videos EN ESPAÑOL que explican inglés, de CUALQUIER canal útil. En searchKeywords usa términos GENÉRICOS por tema (ej. "aprender inglés", "inglés explicado en español", "gramática inglés", "comprensión lectora inglés", "ICFES inglés") combinados con el tema. NO uses solo nombres de canales: prioriza palabras clave que encuentren contenido educativo de diversos canales.` : ''}
 
 Devuelve exclusivamente un objeto JSON válido con esta estructura:
 {
@@ -1812,9 +1815,15 @@ Devuelve exclusivamente un objeto JSON válido con esta estructura:
 Responde SOLO con JSON válido, sin texto adicional.`;
 
       console.log(`   🤖 Consultando Gemini para información semántica de búsqueda...`);
-      const result = await geminiClient.generateContent(prompt, [], {
-        retries: 2,
-        timeout: 30000, // 30 segundos
+      const result = await geminiCentralizedService.generateContent({
+        userId: 'system:study-plan',
+        prompt,
+        processName: 'study_plan_semantic_search',
+        images: [],
+        options: {
+          retries: 2,
+          timeout: 30000, // 30 segundos
+        },
       });
 
       // Parsear respuesta JSON

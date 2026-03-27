@@ -10,9 +10,10 @@ if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'devel
   dotenv.config();
 }
 
-import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
+import { GEMINI_CONFIG } from '../config/gemini.config';
 import * as admin from 'firebase-admin';
 import { getStudentDatabase } from '../utils/firestoreHelpers';
+import { geminiCentralizedService } from './geminiService';
 
 /**
  * Lista de las 7 materias del sistema
@@ -782,7 +783,12 @@ class StudentSummaryService {
     const prompt = await this.buildSummaryPrompt(normalizedResults, globalMetrics, academicContext, phase, studentId);
     
     try {
-      const result = await geminiClient.generateContent(prompt, []);
+      const result = await geminiCentralizedService.generateContent({
+        userId: studentId,
+        prompt,
+        processName: 'student_summary',
+        images: [],
+      });
       
       // Parsear respuesta JSON
       let cleanedText = result.text.replace(/```json\n?([\s\S]*?)\n?```/g, '$1');

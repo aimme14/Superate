@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BookOpen, CheckCircle2, AlertCircle, Clock, TrendingUp, User, Shield, Eye, X, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,13 @@ const renderMathInHtml = (html: string): string => {
   return tempDiv.innerHTML
 }
 
+let katexModulePromise: Promise<typeof import('katex')> | null = null
+
+const getKatexModule = () => {
+  if (!katexModulePromise) katexModulePromise = import('katex')
+  return katexModulePromise
+}
+
 // Componente para renderizar texto con fórmulas matemáticas
 const MathText = ({ text, className = '' }: { text: string; className?: string }) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -93,13 +100,17 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
     const processedHtml = renderMathInHtml(processedText)
     containerRef.current.innerHTML = processedHtml
     
-    // Renderizar todas las fórmulas con KaTeX
-    const mathElements = containerRef.current.querySelectorAll('[data-latex]')
-    mathElements.forEach((el) => {
-      const latex = el.getAttribute('data-latex')
-      if (latex && !el.querySelector('.katex')) {
-        import('katex').then((katexModule) => {
-          const katex = katexModule.default
+    // Renderizar todas las fórmulas con una sola carga de KaTeX.
+    const mathElements = Array.from(containerRef.current.querySelectorAll('[data-latex]'))
+    if (mathElements.length === 0) return
+
+    getKatexModule()
+      .then((katexModule) => {
+        const katex = katexModule.default
+        mathElements.forEach((el) => {
+          const latex = el.getAttribute('data-latex')
+          if (!latex || el.querySelector('.katex')) return
+
           const isDisplay = el.getAttribute('data-display') === 'true'
           try {
             katex.render(latex, el as HTMLElement, {
@@ -112,11 +123,11 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
             console.error('Error renderizando fórmula:', error)
             el.textContent = latex
           }
-        }).catch(() => {
-          console.warn('No se pudo cargar KaTeX')
         })
-      }
-    })
+      })
+      .catch(() => {
+        console.warn('No se pudo cargar KaTeX')
+      })
   }, [text])
   
   return <div ref={containerRef} className={className} />
@@ -138,10 +149,14 @@ export default function EvaluationsTab() {
   } | null>(null);
   const [showQuestionView, setShowQuestionView] = useState(false);
   const [loadingQuestion, setLoadingQuestion] = useState(false);
-  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({
-    'fase I': true,
-    'Fase II': true,
-    'fase III': true,
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>(() => {
+    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+    return {
+      'fase I': !isMobileViewport,
+      'Fase II': !isMobileViewport,
+      'fase III': !isMobileViewport,
+      'Sin fase': !isMobileViewport,
+    };
   });
   const { theme } = useThemeContext();
 
@@ -347,13 +362,16 @@ export default function EvaluationsTab() {
     });
   };
 
+  const groupedEvaluations = useMemo(() => groupEvaluationsByPhase(evaluations), [evaluations])
+  const phaseOrder = useMemo(() => getPhaseOrderByLatestExam(groupedEvaluations), [groupedEvaluations])
+
   // Modal de detalles del examen
   const ExamDetailsModal = () => {
     if (!selectedExam || !showDetails) return null;
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className={cn("rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-white')}>
+        <div className={cn("rounded-lg shadow-md max-w-4xl w-full max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-white')}>
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className={cn("text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -498,7 +516,7 @@ export default function EvaluationsTab() {
                 <p className={cn("text-lg mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No has presentado ningún examen aún</p>
                 <p className={cn("mb-4", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>Cuando presentes una evaluación, aparecerá aquí</p>
                 <Link to="/dashboard#evaluacion">
-                  <Button className="bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg">
+                  <Button className="bg-purple-600 hover:bg-purple-700 transition-colors duration-150">
                     Ir a las Evaluaciones
                   </Button>
                 </Link>
@@ -506,10 +524,6 @@ export default function EvaluationsTab() {
             ) : (
               <div className="space-y-6">
                 {(() => {
-                  const groupedEvaluations = groupEvaluationsByPhase(evaluations);
-                  // Ordenar las fases por la fecha del examen más reciente
-                  const phaseOrder = getPhaseOrderByLatestExam(groupedEvaluations);
-                  
                   return phaseOrder.map((phaseKey) => {
                     const phaseEvaluations = groupedEvaluations[phaseKey];
                     // Ocultar si está vacía

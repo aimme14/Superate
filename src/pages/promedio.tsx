@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, startTransition } from "react"
+import React, { useState, useEffect, useRef, startTransition } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -13,14 +13,6 @@ import { useStudyPlanData } from "@/hooks/query/useStudyPlanData"
 import { useThemeContext } from "@/context/ThemeContext"
 import { useAuthContext } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
-import { geminiService } from "@/services/ai/gemini.service"
-import {
-  buildPayloadFromAnalysisData,
-  buildPromedioRecommendationsHash,
-  getCachedPromedioRecommendations,
-  setCachedPromedioRecommendations,
-  clearPromedioRecommendationsCache,
-} from "@/services/ai/promedioRecommendationsCache"
 import { getPhaseType } from "@/utils/firestoreHelpers"
 import { SubjectTopicsAccordion } from "@/components/charts/SubjectTopicsAccordion"
 import { StrengthsRadarChart } from "@/components/charts/StrengthsRadarChart"
@@ -1266,8 +1258,10 @@ function PersonalizedStudyPlan({
                   </AccordionItem>
                 </Accordion>
 
-                {/* Banco de Vocabulario Académico */}
-                <VocabularyBank materia={subject.name} theme={theme} />
+                {/* Banco de Vocabulario Académico (oculto para Inglés) */}
+                {!['ingles', 'inglés', 'english'].includes(String(subject.name || '').trim().toLowerCase()) && (
+                  <VocabularyBank materia={subject.name} theme={theme} />
+                )}
 
                 {/* Ejercicios de práctica */}
                 <Accordion type="single" collapsible value={expandedSection[`${subject.name}-exercises`] || undefined}>
@@ -1490,13 +1484,16 @@ function PersonalizedStudyPlan({
 export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalysisInterfaceProps) {
   const [activeTab, setActiveTab] = useState(planOnly ? "study-plan" : "overview")
   const [selectedPhase, setSelectedPhase] = useState<'phase1' | 'phase2' | 'phase3' | 'all'>('all');
+  const [mobilePhaseFilterOpen, setMobilePhaseFilterOpen] = useState(false);
+  const mobilePhaseFilterRef = useRef<HTMLDivElement | null>(null);
+  const [mobileOverviewDiagnosisFilterOpen, setMobileOverviewDiagnosisFilterOpen] = useState(false);
+  const mobileOverviewDiagnosisFilterRef = useRef<HTMLDivElement | null>(null);
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [phase1Data, setPhase1Data] = useState<AnalysisData | null>(null);
   const [phase2Data, setPhase2Data] = useState<AnalysisData | null>(null);
   const [phase3Data, setPhase3Data] = useState<AnalysisData | null>(null);
   const { data: evaluationsFromQuery = [], isLoading: evaluationsLoading } = useStudentEvaluations();
   const loading = evaluationsLoading;
-  const [loadingAI, setLoadingAI] = useState(false);
   const evaluations = evaluationsFromQuery;
   const { user } = useAuthContext();
   const [currentMotivationalIndex, setCurrentMotivationalIndex] = useState(0);
@@ -1611,6 +1608,44 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     loadHerramientasIA();
   }, [activeTab, shouldLoadSecondary, loadHerramientasIA]);
 
+  useEffect(() => {
+    if (!mobilePhaseFilterOpen) return;
+
+    const handlePointerOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (mobilePhaseFilterRef.current?.contains(target)) return;
+      setMobilePhaseFilterOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerOutside);
+    document.addEventListener('touchstart', handlePointerOutside, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerOutside);
+      document.removeEventListener('touchstart', handlePointerOutside);
+    };
+  }, [mobilePhaseFilterOpen]);
+
+  useEffect(() => {
+    if (!mobileOverviewDiagnosisFilterOpen) return;
+
+    const handlePointerOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (mobileOverviewDiagnosisFilterRef.current?.contains(target)) return;
+      setMobileOverviewDiagnosisFilterOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerOutside);
+    document.addEventListener('touchstart', handlePointerOutside, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerOutside);
+      document.removeEventListener('touchstart', handlePointerOutside);
+    };
+  }, [mobileOverviewDiagnosisFilterOpen]);
+
   // Procesar evaluaciones desde React Query (cache compartido con Resultados)
   useEffect(() => {
     if (!user) return;
@@ -1669,9 +1704,6 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       setSelectedPhase(planOnly ? phaseForPlans : phaseForOverview);
     });
 
-    if (geminiService.isAvailable() && consolidatedData.subjects.length > 0) {
-      generateAIRecommendations(consolidatedData);
-    }
   }, [user, evaluationsFromQuery, evaluationsLoading, planOnly]);
 
   const processEvaluationData = (evaluations: ExamResult[], user: any): AnalysisData => {
@@ -2263,81 +2295,6 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       }));
   };
 
-  const applyBasicRecommendations = () => {
-    setAnalysisData((prev) => {
-      if (!prev) return prev;
-      return { ...prev, recommendations: generateBasicRecommendations(prev.subjects) };
-    });
-  };
-
-  /** IA: usa caché local 72h si el rendimiento no cambió; `force` omite caché (p. ej. botón Actualizar). */
-  const generateAIRecommendations = async (data: AnalysisData, options?: { force?: boolean }) => {
-    if (!geminiService.isAvailable()) {
-      return;
-    }
-    const payload = buildPayloadFromAnalysisData(data);
-    const hash = buildPromedioRecommendationsHash(payload);
-    const uid = user?.uid;
-    if (!options?.force && uid) {
-      const cached = getCachedPromedioRecommendations(uid, hash);
-      if (cached && cached.length > 0) {
-        setAnalysisData((prev) => (prev ? { ...prev, recommendations: cached } : prev));
-        return;
-      }
-    }
-
-    setLoadingAI(true);
-    try {
-      const result = await geminiService.generateRecommendations(payload);
-
-      if (result.success && result.recommendations && result.recommendations.length > 0) {
-        if (uid) {
-          setCachedPromedioRecommendations(uid, hash, result.recommendations);
-        }
-        setAnalysisData((prev) => {
-          if (!prev) return prev;
-          return { ...prev, recommendations: result.recommendations || [] };
-        });
-      } else {
-        logger.warn('No se pudieron generar recomendaciones con IA, usando recomendaciones básicas');
-        applyBasicRecommendations();
-      }
-    } catch (error) {
-      logger.error('Error al generar recomendaciones con IA:', error);
-      applyBasicRecommendations();
-    } finally {
-      setLoadingAI(false);
-    }
-  };
-
-  const handleRefreshAIRecommendations = useCallback(() => {
-    if (!analysisData?.subjects.length || !user?.uid || !geminiService.isAvailable()) return;
-    clearPromedioRecommendationsCache(user.uid);
-    const payload = buildPayloadFromAnalysisData(analysisData);
-    const hash = buildPromedioRecommendationsHash(payload);
-    setLoadingAI(true);
-    void geminiService
-      .generateRecommendations(payload)
-      .then((result) => {
-        if (result.success && result.recommendations?.length) {
-          setCachedPromedioRecommendations(user.uid!, hash, result.recommendations);
-          setAnalysisData((prev) =>
-            prev ? { ...prev, recommendations: result.recommendations! } : prev
-          );
-        } else {
-          setAnalysisData((prev) =>
-            prev ? { ...prev, recommendations: generateBasicRecommendations(prev.subjects) } : prev
-          );
-        }
-      })
-      .catch(() => {
-        setAnalysisData((prev) =>
-          prev ? { ...prev, recommendations: generateBasicRecommendations(prev.subjects) } : prev
-        );
-      })
-      .finally(() => setLoadingAI(false));
-  }, [analysisData, user?.uid]);
-
   // Función helper para obtener los datos según la fase seleccionada
   const getCurrentPhaseData = (): AnalysisData | null => {
     if (selectedPhase === 'phase1' && phase1Data) return phase1Data;
@@ -2484,7 +2441,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
           </div>
         </div>
 
-        {/* Selector de Fase: en móvil los botones hacen wrap (sin scroll horizontal) */}
+        {/* Selector de Fase: en móvil, filtro compacto seleccionable (sin desplegable) */}
         {!planOnly && (
         <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/90 border-gray-200 shadow-md backdrop-blur-sm mb-4 md:mb-8')}>
           <CardContent className="pt-4 md:pt-6 px-4 md:px-6">
@@ -2494,8 +2451,154 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
             >
               Seleccionar Fase
             </h3>
+            <div className="md:hidden grid grid-cols-2 gap-2" role="group" aria-labelledby="phase-selector-heading">
+              <div className="relative" ref={mobilePhaseFilterRef}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setMobilePhaseFilterOpen((prev) => !prev)}
+                className={cn(
+                  "h-8 px-2.5 text-[11px] w-full justify-between",
+                  theme === 'dark' ? 'bg-zinc-700 border border-zinc-600 text-white hover:bg-zinc-600' : 'bg-white border border-gray-300 text-gray-900 hover:bg-gray-50'
+                )}
+                aria-expanded={mobilePhaseFilterOpen}
+                aria-label="Abrir filtro de fase"
+              >
+                <span className="flex items-center gap-1.5">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  {selectedPhase === 'phase1'
+                    ? 'Fase I'
+                    : selectedPhase === 'phase2'
+                    ? 'Fase II'
+                    : selectedPhase === 'phase3'
+                    ? 'Fase III'
+                    : 'Todas'}
+                </span>
+                <Badge className="text-[10px] bg-blue-600">
+                  Filtro
+                </Badge>
+              </Button>
+
+              {mobilePhaseFilterOpen && (
+                <div
+                  className={cn(
+                    "absolute left-0 right-0 top-[calc(100%+6px)] z-20 rounded-lg border p-2 shadow-md",
+                    theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200'
+                  )}
+                >
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      onClick={() => { setSelectedPhase('phase1'); setMobilePhaseFilterOpen(false) }}
+                      variant={selectedPhase === 'phase1' ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn("h-8 px-2 text-[11px]", selectedPhase === 'phase1' ? 'bg-blue-600 hover:bg-blue-700 text-white' : '')}
+                      disabled={!phase1Data}
+                    >
+                      Fase I
+                    </Button>
+                    <Button
+                      onClick={() => { setSelectedPhase('phase2'); setMobilePhaseFilterOpen(false) }}
+                      variant={selectedPhase === 'phase2' ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn("h-8 px-2 text-[11px]", selectedPhase === 'phase2' ? 'bg-green-600 hover:bg-green-700 text-white' : '')}
+                      disabled={!phase2Data || activeTab === 'study-plan'}
+                    >
+                      Fase II
+                    </Button>
+                    <Button
+                      onClick={() => { setSelectedPhase('phase3'); setMobilePhaseFilterOpen(false) }}
+                      variant={selectedPhase === 'phase3' ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn("h-8 px-2 text-[11px]", selectedPhase === 'phase3' ? 'bg-orange-600 hover:bg-orange-700 text-white' : '')}
+                      disabled={!phase3Data || activeTab === 'study-plan'}
+                    >
+                      Fase III
+                    </Button>
+                    <Button
+                      onClick={() => { setSelectedPhase('all'); setMobilePhaseFilterOpen(false) }}
+                      variant={selectedPhase === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn("h-8 px-2 text-[11px]", selectedPhase === 'all' ? 'bg-purple-600 hover:bg-purple-700 text-white' : '')}
+                      disabled={activeTab === 'study-plan' || planOnly}
+                    >
+                      Todas
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </div>
+              <div
+                className="relative"
+                role="group"
+                aria-labelledby="phase-selector-heading"
+                ref={mobileOverviewDiagnosisFilterRef}
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setMobileOverviewDiagnosisFilterOpen((prev) => !prev)
+                    setMobilePhaseFilterOpen(false)
+                  }}
+                  className={cn(
+                    "h-8 px-2.5 text-[11px] w-full justify-between",
+                    theme === 'dark' ? 'bg-zinc-700 border border-zinc-600 text-white hover:bg-zinc-600' : 'bg-white border border-gray-300 text-gray-900 hover:bg-gray-50'
+                  )}
+                  aria-expanded={mobileOverviewDiagnosisFilterOpen}
+                  aria-label="Abrir filtro de Resumen o Diagnóstico"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Target className="h-4 w-4" />
+                    {activeTab === 'diagnosis' ? 'Diagnóstico' : 'Resumen'}
+                  </span>
+                  <Badge className="text-[10px] bg-blue-600 px-1 py-0">
+                    Filtro
+                  </Badge>
+                </Button>
+
+                {mobileOverviewDiagnosisFilterOpen && (
+                  <div
+                    className={cn(
+                      "absolute left-0 right-0 top-[calc(100%+6px)] z-20 rounded-lg border p-2 shadow-md",
+                      theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200'
+                    )}
+                  >
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Button
+                        onClick={() => {
+                          setActiveTab('overview')
+                          setMobileOverviewDiagnosisFilterOpen(false)
+                        }}
+                        variant={activeTab === 'overview' ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                          "h-8 px-2 text-[11px]",
+                          activeTab === 'overview' ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''
+                        )}
+                      >
+                        Resumen
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setActiveTab('diagnosis')
+                          setMobileOverviewDiagnosisFilterOpen(false)
+                        }}
+                        variant={activeTab === 'diagnosis' ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                          "h-8 px-2 text-[11px]",
+                          activeTab === 'diagnosis' ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                        )}
+                      >
+                        Diagnóstico
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
             <div
-              className="flex flex-wrap gap-2"
+              className="hidden md:flex md:flex-wrap gap-2"
               role="group"
               aria-labelledby="phase-selector-heading"
             >
@@ -2597,13 +2700,13 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
           className="space-y-3 md:space-y-5"
         >
           {!planOnly && (
-          <TabsList className={cn("grid w-full grid-cols-2 h-auto min-h-[44px] py-2 md:py-0", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
-            <TabsTrigger value="overview" className={cn("flex items-center justify-center gap-2 min-h-[44px] py-2.5 md:py-0 text-sm", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700 border-gray-200')}>
-              <BarChart3 className="h-4 w-4 flex-shrink-0" />
+          <TabsList className={cn("hidden md:flex w-full flex-row items-stretch gap-2 h-auto min-h-[40px] py-1.5 md:py-0", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-white/80 border-gray-200 shadow-md backdrop-blur-sm')}>
+            <TabsTrigger value="overview" className={cn("flex-1 min-w-0 flex items-center justify-center gap-1.5 min-h-[40px] py-2 md:py-0 text-xs md:text-sm", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700 border-gray-200')}>
+              <BarChart3 className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Resumen</span>
             </TabsTrigger>
-            <TabsTrigger value="diagnosis" className={cn("flex items-center justify-center gap-2 min-h-[44px] py-2.5 md:py-0 text-sm", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700 border-gray-200')}>
-              <Target className="h-4 w-4 flex-shrink-0" />
+            <TabsTrigger value="diagnosis" className={cn("flex-1 min-w-0 flex items-center justify-center gap-1.5 min-h-[40px] py-2 md:py-0 text-xs md:text-sm", theme === 'dark' ? 'data-[state=active]:bg-zinc-700 data-[state=active]:text-white' : 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700 border-gray-200')}>
+              <Target className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Diagnóstico</span>
             </TabsTrigger>
           </TabsList>
@@ -2633,17 +2736,17 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
               return (
                 <div className="space-y-4 md:space-y-5" key="overview-content">
                   <section aria-label="Resumen de métricas">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 md:gap-3 lg:gap-3">
-                    <Card className={cn("md:col-span-2 lg:col-span-1", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md')}>
-                      <CardContent className="p-3 md:py-5 md:px-5">
+                    <div className="grid grid-cols-6 lg:grid-cols-5 gap-2 md:gap-3 lg:gap-3">
+                    <Card className={cn("col-span-3 lg:col-span-1", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md')}>
+                      <CardContent className="p-2 md:py-5 md:px-5">
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <p className={cn("text-xl md:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{currentData.overall.score}</p>
+                            <p className={cn("text-base md:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>{currentData.overall.score}</p>
                             <p className={cn("text-xs md:text-sm truncate", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
                               {selectedPhase === 'all' ? 'Puntaje Global' : `Puntaje de Fase ${currentData.overall.currentPhase}`}
                             </p>
                           </div>
-                          <Award className="h-6 w-6 md:h-8 md:w-8 text-yellow-500 flex-shrink-0" />
+                          <Award className="h-4 w-4 md:h-8 md:w-8 text-yellow-500 flex-shrink-0" />
                         </div>
                   {selectedPhase !== 'all' && (
                     <div className={cn("flex items-center gap-2 p-2 md:p-2.5 rounded-lg mt-2 md:mt-3 border-l-4", theme === 'dark' ? 'bg-amber-500/10 border-amber-400/50' : 'bg-amber-50 border-amber-500/60')}>
@@ -2656,11 +2759,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 </CardContent>
               </Card>
 
-              <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200 shadow-md')}>
-                <CardContent className="p-3 md:py-5 md:px-5">
+              <Card className={cn("col-span-3 lg:col-span-1", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-green-50 to-emerald-50 border-gray-200 shadow-md')}>
+                <CardContent className="p-2 md:py-5 md:px-5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className={cn("text-xl md:text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
+                      <p className={cn("text-base md:text-2xl font-bold", theme === 'dark' ? 'text-green-400' : 'text-green-700')}>
                         {selectedPhase === 'all' 
                           ? (() => {
                               // Para "Todas las Fases", calcular el porcentaje real basándose en materias completadas vs materias esperadas
@@ -2696,7 +2799,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                         }
                       </p>
                     </div>
-                    <TrendingUp className="h-6 w-6 md:h-8 md:w-8 text-green-500 flex-shrink-0" />
+                    <TrendingUp className="h-4 w-4 md:h-8 md:w-8 text-green-500 flex-shrink-0" />
                   </div>
                   <div className="mt-2">
                     <Progress 
@@ -2754,31 +2857,56 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                 </CardContent>
               </Card>
 
-              <Card className={cn(theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-gray-200 shadow-md')}>
-                <CardContent className="p-3 md:py-5 md:px-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className={cn("text-xl md:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <Card className={cn("col-span-2 max-md:flex max-md:h-full max-md:min-h-0 max-md:flex-col lg:col-span-1", theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg' : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-gray-200 shadow-md')}>
+                <CardContent className="p-2 md:py-5 md:px-5 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col">
+                  <div className="md:hidden flex flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <p className={cn("text-base font-bold tabular-nums leading-none", theme === 'dark' ? 'text-blue-300' : 'text-blue-700')}>
                         {currentData.overall.timeSpent.toFixed(1)}m
                       </p>
-                      <p className={cn("text-xs md:text-sm line-clamp-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                        {selectedPhase === 'all' ? 'Tiempo Promedio por Pregunta' : `Tiempo Promedio por Pregunta - Fase ${currentData.overall.currentPhase}`}
-                      </p>
+                      <Clock className="h-4 w-4 shrink-0 text-blue-500" aria-hidden />
                     </div>
-                    <Clock className="h-6 w-6 md:h-8 md:w-8 text-blue-500 flex-shrink-0" />
+                    <p className={cn("mt-1 line-clamp-1 text-[10px] font-medium", theme === 'dark' ? 'text-zinc-400' : 'text-gray-600')}>
+                      Tiempo promedio
+                    </p>
+                    <div className="mt-2 flex flex-1 flex-col justify-end">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'flex min-h-[2.25rem] w-full items-center justify-center px-1.5 py-1 text-center text-[10px] font-normal leading-tight',
+                          theme === 'dark' ? 'border-blue-800/60 bg-blue-950/40 text-blue-200' : 'border-blue-200 bg-white/80 text-blue-900'
+                        )}
+                      >
+                        <span className="line-clamp-2">
+                          {currentData.overall.totalQuestions > 0
+                            ? `${currentData.overall.totalQuestions} preguntas`
+                            : 'Sin datos'}
+                        </span>
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="mt-2">
-                    <Badge variant="outline" className={cn(theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-300 bg-white/50')}>
-                      {currentData.overall.totalQuestions > 0 ? 
-                        `Promedio de ${currentData.overall.totalQuestions} preguntas` : 
-                        'Sin datos'
-                      }
-                    </Badge>
+                  <div className="hidden md:block">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className={cn("text-base md:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                          {currentData.overall.timeSpent.toFixed(1)}m
+                        </p>
+                      </div>
+                      <Clock className="h-4 w-4 md:h-8 md:w-8 text-blue-500 flex-shrink-0" />
+                    </div>
+                    <div className="mt-2">
+                      <Badge variant="outline" className={cn(theme === 'dark' ? 'border-zinc-600 bg-zinc-700/50' : 'border-gray-300 bg-white/50')}>
+                        {currentData.overall.totalQuestions > 0
+                          ? `Promedio de ${currentData.overall.totalQuestions} preguntas`
+                          : 'Sin datos'}
+                      </Badge>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className={cn(
+                "col-span-2 max-md:flex max-md:h-full max-md:min-h-0 max-md:flex-col lg:col-span-1",
                 theme === 'dark' 
                   ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg'
                   : currentData.patterns.securityIssues === 0 
@@ -2787,11 +2915,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md'
                     : 'bg-gradient-to-br from-red-50 to-rose-50 border-gray-200 shadow-md'
               )}>
-                <CardContent className="p-3 md:py-5 md:px-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
+                <CardContent className="p-2 md:py-5 md:px-5 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col">
+                  <div className="md:hidden flex flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-1.5">
                       <p className={cn(
-                        "text-xl md:text-2xl font-bold",
+                        "text-base font-bold tabular-nums leading-none",
                         currentData.patterns.securityIssues === 0 
                           ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
                           : currentData.patterns.securityIssues <= 2
@@ -2800,41 +2928,90 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                       )}>
                         {currentData.patterns.securityIssues}
                       </p>
-                      <p className={cn("text-xs md:text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Intento de fraude</p>
-                    </div>
-                    <Shield className={cn(
-                      "h-6 w-6 md:h-8 md:w-8 flex-shrink-0",
-                      currentData.patterns.securityIssues === 0 
-                        ? 'text-green-500'
-                        : currentData.patterns.securityIssues <= 2
-                        ? 'text-yellow-500'
-                        : 'text-red-500'
-                    )} />
-                  </div>
-                  <div className="mt-2">
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        theme === 'dark' ? 'border-zinc-600' : 'border-gray-300',
+                      <Shield className={cn(
+                        "h-4 w-4 shrink-0",
                         currentData.patterns.securityIssues === 0 
-                          ? theme === 'dark' ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-green-50 text-green-800 border-green-200'
+                          ? 'text-green-500'
                           : currentData.patterns.securityIssues <= 2
-                          ? theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-700' : 'bg-yellow-50 text-yellow-800 border-yellow-200'
-                          : theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-700' : 'bg-red-50 text-red-800 border-red-200'
-                      )}
-                    >
-                      {currentData.patterns.securityIssues === 0 
-                        ? 'Sin incidentes' 
-                        : currentData.patterns.securityIssues === 1
-                        ? '1 evaluación con incidentes'
-                        : `${currentData.patterns.securityIssues} evaluaciones con incidentes`
-                      }
-                    </Badge>
+                          ? 'text-yellow-500'
+                          : 'text-red-500'
+                      )} aria-hidden />
+                    </div>
+                    <p className={cn("mt-1 line-clamp-1 text-[10px] font-medium", theme === 'dark' ? 'text-zinc-400' : 'text-gray-600')}>
+                      Intento de fraude
+                    </p>
+                    <div className="mt-2 flex flex-1 flex-col justify-end">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          'flex min-h-[2.25rem] w-full items-center justify-center px-1.5 py-1 text-center text-[10px] font-normal leading-tight',
+                          currentData.patterns.securityIssues === 0 
+                            ? theme === 'dark' ? 'border-green-700 bg-green-950/40 text-green-200' : 'border-green-200 bg-green-50/90 text-green-900'
+                            : currentData.patterns.securityIssues <= 2
+                            ? theme === 'dark' ? 'border-yellow-700 bg-yellow-950/40 text-yellow-200' : 'border-yellow-200 bg-yellow-50/90 text-yellow-900'
+                            : theme === 'dark' ? 'border-red-700 bg-red-950/40 text-red-200' : 'border-red-200 bg-red-50/90 text-red-900'
+                        )}
+                      >
+                        <span className="line-clamp-2">
+                          {currentData.patterns.securityIssues === 0 
+                            ? 'Sin incidentes' 
+                            : currentData.patterns.securityIssues === 1
+                            ? '1 con incidentes'
+                            : `${currentData.patterns.securityIssues} con incidentes`}
+                        </span>
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="hidden md:block">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className={cn(
+                          "text-base md:text-2xl font-bold",
+                          currentData.patterns.securityIssues === 0 
+                            ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                            : currentData.patterns.securityIssues <= 2
+                            ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
+                            : theme === 'dark' ? 'text-red-400' : 'text-red-700'
+                        )}>
+                          {currentData.patterns.securityIssues}
+                        </p>
+                        <p className={cn("text-xs md:text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Intento de fraude</p>
+                      </div>
+                      <Shield className={cn(
+                        "h-4 w-4 md:h-8 md:w-8 flex-shrink-0",
+                        currentData.patterns.securityIssues === 0 
+                          ? 'text-green-500'
+                          : currentData.patterns.securityIssues <= 2
+                          ? 'text-yellow-500'
+                          : 'text-red-500'
+                      )} />
+                    </div>
+                    <div className="mt-2">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          theme === 'dark' ? 'border-zinc-600' : 'border-gray-300',
+                          currentData.patterns.securityIssues === 0 
+                            ? theme === 'dark' ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-green-50 text-green-800 border-green-200'
+                            : currentData.patterns.securityIssues <= 2
+                            ? theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-700' : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                            : theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-700' : 'bg-red-50 text-red-800 border-red-200'
+                        )}
+                      >
+                        {currentData.patterns.securityIssues === 0 
+                          ? 'Sin incidentes' 
+                          : currentData.patterns.securityIssues === 1
+                          ? '1 evaluación con incidentes'
+                          : `${currentData.patterns.securityIssues} evaluaciones con incidentes`
+                        }
+                      </Badge>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className={cn(
+                "col-span-2 max-md:flex max-md:h-full max-md:min-h-0 max-md:flex-col lg:col-span-1",
                 theme === 'dark' 
                   ? 'bg-zinc-800/80 border-zinc-700/50 shadow-lg'
                   : currentData.patterns.luckPercentage < 20 
@@ -2843,11 +3020,11 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-gray-200 shadow-md'
                     : 'bg-gradient-to-br from-orange-50 to-red-50 border-gray-200 shadow-md'
               )}>
-                <CardContent className="p-3 md:py-5 md:px-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
+                <CardContent className="p-2 md:py-5 md:px-5 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col">
+                  <div className="md:hidden flex flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-1.5">
                       <p className={cn(
-                        "text-xl md:text-2xl font-bold",
+                        "text-base font-bold tabular-nums leading-none",
                         currentData.patterns.luckPercentage < 20
                           ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
                           : currentData.patterns.luckPercentage <= 40
@@ -2856,36 +3033,83 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                       )}>
                         {currentData.patterns.luckPercentage}%
                       </p>
-                      <p className={cn("text-xs md:text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Porcentaje de Suerte</p>
-                    </div>
-                    <Zap className={cn(
-                      "h-6 w-6 md:h-8 md:w-8 flex-shrink-0",
-                      currentData.patterns.luckPercentage < 20
-                        ? 'text-green-500'
-                        : currentData.patterns.luckPercentage <= 40
-                        ? 'text-yellow-500'
-                        : 'text-orange-500'
-                    )} />
-                  </div>
-                  <div className="mt-2">
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        theme === 'dark' ? 'border-zinc-600' : 'border-gray-300',
+                      <Zap className={cn(
+                        "h-4 w-4 shrink-0",
                         currentData.patterns.luckPercentage < 20
-                          ? theme === 'dark' ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-green-50 text-green-800 border-green-200'
+                          ? 'text-green-500'
                           : currentData.patterns.luckPercentage <= 40
-                          ? theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-700' : 'bg-yellow-50 text-yellow-800 border-yellow-200'
-                          : theme === 'dark' ? 'bg-orange-900/30 text-orange-300 border-orange-700' : 'bg-orange-50 text-orange-800 border-orange-200'
-                      )}
-                    >
-                      {currentData.patterns.luckPercentage < 20
-                        ? 'Excelente análisis' 
-                        : currentData.patterns.luckPercentage <= 40
-                        ? 'Respuestas reflexivas'
-                        : 'Muchas respuestas rápidas'
-                      }
-                    </Badge>
+                          ? 'text-yellow-500'
+                          : 'text-orange-500'
+                      )} aria-hidden />
+                    </div>
+                    <p className={cn("mt-1 line-clamp-1 text-[10px] font-medium", theme === 'dark' ? 'text-zinc-400' : 'text-gray-600')}>
+                      Porcentaje de suerte
+                    </p>
+                    <div className="mt-2 flex flex-1 flex-col justify-end">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          'flex min-h-[2.25rem] w-full items-center justify-center px-1.5 py-1 text-center text-[10px] font-normal leading-tight',
+                          currentData.patterns.luckPercentage < 20
+                            ? theme === 'dark' ? 'border-green-700 bg-green-950/40 text-green-200' : 'border-green-200 bg-green-50/90 text-green-900'
+                            : currentData.patterns.luckPercentage <= 40
+                            ? theme === 'dark' ? 'border-yellow-700 bg-yellow-950/40 text-yellow-200' : 'border-yellow-200 bg-yellow-50/90 text-yellow-900'
+                            : theme === 'dark' ? 'border-orange-700 bg-orange-950/40 text-orange-200' : 'border-orange-200 bg-orange-50/90 text-orange-900'
+                        )}
+                      >
+                        <span className="line-clamp-2">
+                          {currentData.patterns.luckPercentage < 20
+                            ? 'Excelente análisis' 
+                            : currentData.patterns.luckPercentage <= 40
+                            ? 'Respuestas reflexivas'
+                            : 'Respuestas rápidas'}
+                        </span>
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="hidden md:block">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className={cn(
+                          "text-base md:text-2xl font-bold",
+                          currentData.patterns.luckPercentage < 20
+                            ? theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                            : currentData.patterns.luckPercentage <= 40
+                            ? theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
+                            : theme === 'dark' ? 'text-orange-400' : 'text-orange-700'
+                        )}>
+                          {currentData.patterns.luckPercentage}%
+                        </p>
+                        <p className={cn("text-xs md:text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Porcentaje de Suerte</p>
+                      </div>
+                      <Zap className={cn(
+                        "h-4 w-4 md:h-8 md:w-8 flex-shrink-0",
+                        currentData.patterns.luckPercentage < 20
+                          ? 'text-green-500'
+                          : currentData.patterns.luckPercentage <= 40
+                          ? 'text-yellow-500'
+                          : 'text-orange-500'
+                      )} />
+                    </div>
+                    <div className="mt-2">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          theme === 'dark' ? 'border-zinc-600' : 'border-gray-300',
+                          currentData.patterns.luckPercentage < 20
+                            ? theme === 'dark' ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-green-50 text-green-800 border-green-200'
+                            : currentData.patterns.luckPercentage <= 40
+                            ? theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-700' : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                            : theme === 'dark' ? 'bg-orange-900/30 text-orange-300 border-orange-700' : 'bg-orange-50 text-orange-800 border-orange-200'
+                        )}
+                      >
+                        {currentData.patterns.luckPercentage < 20
+                          ? 'Excelente análisis' 
+                          : currentData.patterns.luckPercentage <= 40
+                          ? 'Respuestas reflexivas'
+                          : 'Muchas respuestas rápidas'}
+                      </Badge>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -3097,103 +3321,100 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                     subjects={currentData.subjects}
                     subjectsWithTopics={currentData.subjectsWithTopics}
                     theme={theme}
-                  />
+                    improvementSuggestions={
+                      analysisData && analysisData.recommendations.length > 0 ? (
+                        <Accordion type="single" collapsible className="w-full" defaultValue="">
+                          <AccordionItem
+                            value="improvement-suggestions"
+                            className={cn(
+                              "border rounded-lg overflow-hidden",
+                              theme === 'dark' ? 'border-violet-700/40 bg-zinc-800/80' : 'border-violet-200 bg-white/90'
+                            )}
+                          >
+                            <AccordionTrigger
+                              className={cn(
+                                "px-4 py-4 hover:no-underline",
+                                theme === 'dark' ? 'text-white' : 'text-gray-900'
+                              )}
+                            >
+                              <div className="flex items-start gap-2">
+                                <Sparkles className="h-5 w-5 text-violet-500 flex-shrink-0 mt-0.5" />
+                                <div className="space-y-1">
+                                  <div className={cn("font-semibold text-left text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                    Sugerencias de mejora
+                                  </div>
+                                  <p
+                                    className={cn(
+                                      "text-sm max-w-2xl",
+                                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                                    )}
+                                  >
+                                    Sugerencias generadas a partir de tus materias con menor rendimiento.
+                                  </p>
+                                </div>
+                              </div>
+                            </AccordionTrigger>
 
-                  {analysisData && analysisData.recommendations.length > 0 && (
-                    <Card
-                      className={cn(
-                        theme === 'dark'
-                          ? 'bg-zinc-800/80 border-violet-700/40 shadow-lg'
-                          : 'bg-white/90 border-violet-200 shadow-md'
-                      )}
-                    >
-                      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                          <CardTitle
-                            className={cn(
-                              'flex items-center gap-2 text-lg',
-                              theme === 'dark' ? 'text-white' : 'text-gray-900'
-                            )}
-                          >
-                            <Sparkles className="h-5 w-5 text-violet-500 flex-shrink-0" />
-                            {geminiService.isAvailable()
-                              ? 'Recomendaciones personalizadas (IA)'
-                              : 'Sugerencias de mejora'}
-                          </CardTitle>
-                          <CardDescription className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
-                            {geminiService.isAvailable()
-                              ? 'Según tu rendimiento consolidado. Se guardan localmente hasta 3 días si tus porcentajes no cambian, para reducir consultas a la IA. Usa «Actualizar» solo si quieres nuevas ideas.'
-                              : 'Sugerencias generadas a partir de tus materias con menor rendimiento.'}
-                          </CardDescription>
-                        </div>
-                        {geminiService.isAvailable() && user?.uid && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0"
-                            onClick={handleRefreshAIRecommendations}
-                            disabled={loadingAI}
-                            aria-busy={loadingAI}
-                          >
-                            {loadingAI ? (
-                              <>
-                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                Generando…
-                              </>
-                            ) : (
-                              <>
-                                <RefreshCw className="h-4 w-4 mr-2" />
-                                Actualizar consejos IA
-                              </>
-                            )}
-                          </Button>
-                        )}
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {analysisData.recommendations.map((rec, idx) => (
-                          <div
-                            key={`${rec.subject}-${rec.topic}-${idx}`}
-                            className={cn(
-                              'rounded-lg border p-4',
-                              theme === 'dark' ? 'border-zinc-600 bg-zinc-900/40' : 'border-gray-200 bg-gray-50/80'
-                            )}
-                          >
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <Badge
+                            <AccordionContent>
+                              <div
                                 className={cn(
-                                  rec.priority === 'Alta'
-                                    ? 'bg-red-600'
-                                    : rec.priority === 'Media'
-                                      ? 'bg-amber-600'
-                                      : 'bg-slate-600'
+                                  "px-4 py-4 space-y-4",
+                                  theme === 'dark'
+                                    ? 'bg-zinc-800/80 border-x border-violet-700/40'
+                                    : 'bg-white/90 border-x border-violet-200'
                                 )}
                               >
-                                {rec.priority}
-                              </Badge>
-                              <span className={cn('font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                                {rec.subject}
-                              </span>
-                              <span className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                                · {rec.topic}
-                              </span>
-                            </div>
-                            <p className={cn('text-sm mb-3', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                              {rec.explanation}
-                            </p>
-                            <ul className={cn('text-sm list-disc list-inside mb-2', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                              {rec.resources.map((r, j) => (
-                                <li key={j}>{r}</li>
-                              ))}
-                            </ul>
-                            <p className={cn('text-xs', theme === 'dark' ? 'text-violet-400' : 'text-violet-700')}>
-                              Tiempo estimado: {rec.timeEstimate}
-                            </p>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
+                                <div className="space-y-4">
+                                  {analysisData.recommendations.map((rec, idx) => (
+                                    <div
+                                      key={`${rec.subject}-${rec.topic}-${idx}`}
+                                      className={cn(
+                                        'rounded-lg border p-4',
+                                        theme === 'dark'
+                                          ? 'border-zinc-600 bg-zinc-900/40'
+                                          : 'border-gray-200 bg-gray-50/80'
+                                      )}
+                                    >
+                                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                                        <Badge
+                                          className={cn(
+                                            rec.priority === 'Alta'
+                                              ? 'bg-red-600'
+                                              : rec.priority === 'Media'
+                                                ? 'bg-amber-600'
+                                                : 'bg-slate-600'
+                                          )}
+                                        >
+                                          {rec.priority}
+                                        </Badge>
+                                        <span className={cn('font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                                          {rec.subject}
+                                        </span>
+                                        <span className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                          · {rec.topic}
+                                        </span>
+                                      </div>
+                                      <p className={cn('text-sm mb-3', theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
+                                        {rec.explanation}
+                                      </p>
+                                      <ul className={cn('text-sm list-disc list-inside mb-2', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                                        {rec.resources.map((r, j) => (
+                                          <li key={j}>{r}</li>
+                                        ))}
+                                      </ul>
+                                      <p className={cn('text-xs', theme === 'dark' ? 'text-violet-400' : 'text-violet-700')}>
+                                        Tiempo estimado: {rec.timeEstimate}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      ) : null
+                    }
+                  />
                 </>
               );
             })()}

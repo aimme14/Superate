@@ -26,14 +26,17 @@ export default function InnovativeHero() {
   const [isVisible, setIsVisible] = useState(false)
   const { theme } = useThemeContext()
   const isMobile = useIsMobile()
+  const displayedPhrase = motivationalPhrases[currentPhrase]
 
   useEffect(() => {
     setIsVisible(true)
+
     const interval = setInterval(() => {
       setCurrentPhrase((prev) => (prev + 1) % motivationalPhrases.length)
-    }, 3000)
+    }, isMobile ? 5000 : 3000)
+
     return () => clearInterval(interval)
-  }, [])
+  }, [isMobile])
 
   return (
     <section
@@ -87,7 +90,7 @@ export default function InnovativeHero() {
           isMobile ? "min-h-0 items-start py-6" : "items-center min-h-[70vh] py-10"
         )}
       >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 items-center w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8 sm:gap-12 items-center w-full">
           {/* Contenido principal */}
           <motion.div
             initial={{ opacity: 0, x: -50 }}
@@ -131,21 +134,39 @@ export default function InnovativeHero() {
 
               {/* Frase motivacional rotativa */}
               <div className="h-6 sm:h-8 flex items-center">
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={currentPhrase}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.5 }}
-                    className={cn(
-                      "text-[0.68rem] leading-snug sm:text-xl font-medium",
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
-                    )}
-                  >
-                    {motivationalPhrases[currentPhrase]}
-                  </motion.p>
-                </AnimatePresence>
+                {isMobile ? (
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={currentPhrase}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className={cn(
+                        "text-[0.68rem] leading-snug sm:text-xl font-medium",
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                      )}
+                    >
+                      {displayedPhrase}
+                    </motion.p>
+                  </AnimatePresence>
+                ) : (
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={currentPhrase}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.5 }}
+                      className={cn(
+                        "text-[0.68rem] leading-snug sm:text-xl font-medium",
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                      )}
+                    >
+                      {displayedPhrase}
+                    </motion.p>
+                  </AnimatePresence>
+                )}
               </div>
             </div>
 
@@ -161,7 +182,7 @@ export default function InnovativeHero() {
                 cuales son tus fortalezas y debilidades con el objetico de crear un <span className={cn("font-semibold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>plan personalizado</span> potenciando tus conocimientos al maximo.
               </p>
 
-              <div className="grid grid-cols-2 gap-3 pt-3 sm:gap-4 sm:pt-4">
+              <div className="hidden md:grid grid-cols-2 gap-3 pt-3 sm:gap-4 sm:pt-4">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                   <span className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Análisis de tus conocimientos</span>
@@ -196,9 +217,58 @@ export default function InnovativeHero() {
             initial={{ opacity: 0, x: 50 }}
             animate={isVisible ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative"
+            className="relative max-md:-mt-4"
           >
             <div className="relative w-full max-w-lg mx-auto">
+              {isMobile && (
+                <>
+                  <div
+                    className={cn(
+                      "absolute left-2 top-1 z-10 max-w-[110px] rounded-lg px-2 py-1.5 text-[10px] leading-tight",
+                      theme === "dark" ? "bg-zinc-900/70 text-zinc-200" : "bg-white/90 text-gray-700 border border-gray-200"
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                      Análisis de tus conocimientos
+                    </span>
+                  </div>
+                  <div
+                    className={cn(
+                      "absolute right-2 top-1 z-10 max-w-[110px] rounded-lg px-2 py-1.5 text-[10px] leading-tight text-right",
+                      theme === "dark" ? "bg-zinc-900/70 text-zinc-200" : "bg-white/90 text-gray-700 border border-gray-200"
+                    )}
+                  >
+                    <span className="inline-flex items-center justify-end gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-purple-500 shrink-0" />
+                      Retroalimentación inteligente
+                    </span>
+                  </div>
+                  <div
+                    className={cn(
+                      "absolute bottom-1 left-2 z-10 max-w-[110px] rounded-lg px-2 py-1.5 text-[10px] leading-tight",
+                      theme === "dark" ? "bg-zinc-900/70 text-zinc-200" : "bg-white/90 text-gray-700 border border-gray-200"
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                      Rutas de aprendizaje
+                    </span>
+                  </div>
+                  <div
+                    className={cn(
+                      "absolute bottom-1 right-2 z-10 max-w-[110px] rounded-lg px-2 py-1.5 text-[10px] leading-tight text-right",
+                      theme === "dark" ? "bg-zinc-900/70 text-zinc-200" : "bg-white/90 text-gray-700 border border-gray-200"
+                    )}
+                  >
+                    <span className="inline-flex items-center justify-end gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-pink-500 shrink-0" />
+                      Progreso garantizado
+                    </span>
+                  </div>
+                </>
+              )}
+
               {/* Círculo principal: en móvil sin rotación para reducir lag */}
               <motion.div
                 animate={isMobile ? { rotate: 0 } : { rotate: 360 }}
@@ -207,16 +277,16 @@ export default function InnovativeHero() {
                     ? { duration: 0 }
                     : { duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }
                 }
-                className="relative w-56 h-56 sm:w-80 sm:h-80 mx-auto"
+                className="relative w-44 h-44 sm:w-80 sm:h-80 mx-auto"
               >
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 opacity-20"></div>
-                <div className="absolute inset-4 rounded-full bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 opacity-20"></div>
-                <div className={cn("absolute inset-8 rounded-full shadow-2xl flex items-center justify-center", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}>
+                <div className={cn("absolute inset-0 rounded-full", isMobile ? "bg-gradient-to-r from-emerald-400/25 via-teal-400/25 to-cyan-400/25" : "bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 opacity-20")}></div>
+                <div className={cn("absolute rounded-full", isMobile ? "inset-2.5 bg-gradient-to-r from-purple-400/20 via-pink-400/20 to-red-400/20" : "inset-4 bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 opacity-20")}></div>
+                <div className={cn("absolute shadow-2xl flex items-center justify-center", isMobile ? "inset-7 rounded-[999px] border" : "inset-8 rounded-full", theme === 'dark' ? 'bg-zinc-800 border-zinc-700/70' : 'bg-white border-gray-200')}>
                   {isMobile ? (
                     <div className="text-center">
-                      <Brain className={cn("w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
-                      <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
-                      <div className={cn("text-sm", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Potenciada</div>
+                      <Brain className={cn("w-10 h-10 mx-auto mb-2", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')} />
+                      <div className={cn("text-[1.35rem] leading-none font-extrabold tracking-tight", theme === 'dark' ? 'text-white' : 'text-gray-800')}>IA</div>
+                      <div className={cn("text-[10px] mt-1 font-semibold tracking-wide uppercase", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Potenciada</div>
                     </div>
                   ) : (
                     <motion.div
@@ -233,70 +303,98 @@ export default function InnovativeHero() {
               </motion.div>
 
               {/* Elementos orbitales */}
-              {[
-                { icon: Target, label: "Objetivos", angle: 0, color: "bg-blue-500" },
-                { icon: TrendingUp, label: "Progreso", angle: 72, color: "bg-green-500" },
-                { icon: Award, label: "Logros", angle: 144, color: "bg-yellow-500" },
-                { icon: Zap, label: "Fortalezas", angle: 216, color: "bg-purple-500" },
-                { icon: Lightbulb, label: "Insights", angle: 288, color: "bg-pink-500" },
-              ].map((item, index) => (
-                <motion.div
-                  key={index}
-                  className={cn("absolute w-12 h-12 sm:w-16 sm:h-16 rounded-full shadow-lg flex items-center justify-center", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
-                  style={{
-                    top: "50%",
-                    left: "50%",
-                    transformOrigin: "0 0",
-                  }}
-                  animate={{
-                    rotate: [item.angle, item.angle + 360],
-                    x: [
-                      120 * Math.cos((item.angle * Math.PI) / 180) - 32,
-                      120 * Math.cos(((item.angle + 360) * Math.PI) / 180) - 32,
-                    ],
-                    y: [
-                      120 * Math.sin((item.angle * Math.PI) / 180) - 32,
-                      120 * Math.sin(((item.angle + 360) * Math.PI) / 180) - 32,
-                    ],
-                  }}
-                  transition={{
-                    duration: 15,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "linear",
-                    delay: index * 0.5,
-                  }}
-                >
-                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${item.color} flex items-center justify-center`}>
-                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                  </div>
-                </motion.div>
-              ))}
+              {!isMobile && (
+                <>
+                  {[
+                    { icon: Target, label: "Objetivos", angle: 0, color: "bg-blue-500" },
+                    { icon: TrendingUp, label: "Progreso", angle: 72, color: "bg-green-500" },
+                    { icon: Award, label: "Logros", angle: 144, color: "bg-yellow-500" },
+                    { icon: Zap, label: "Fortalezas", angle: 216, color: "bg-purple-500" },
+                    { icon: Lightbulb, label: "Insights", angle: 288, color: "bg-pink-500" },
+                  ].map((item, index) => (
+                    <motion.div
+                      key={index}
+                      className={cn("absolute w-12 h-12 sm:w-16 sm:h-16 rounded-full shadow-lg flex items-center justify-center", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')}
+                      style={{
+                        top: "50%",
+                        left: "50%",
+                        transformOrigin: "0 0",
+                      }}
+                      animate={{
+                        rotate: [item.angle, item.angle + 360],
+                        x: [
+                          120 * Math.cos((item.angle * Math.PI) / 180) - 32,
+                          120 * Math.cos(((item.angle + 360) * Math.PI) / 180) - 32,
+                        ],
+                        y: [
+                          120 * Math.sin((item.angle * Math.PI) / 180) - 32,
+                          120 * Math.sin(((item.angle + 360) * Math.PI) / 180) - 32,
+                        ],
+                      }}
+                      transition={{
+                        duration: 15,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "linear",
+                        delay: index * 0.5,
+                      }}
+                    >
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${item.color} flex items-center justify-center`}>
+                        <item.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                      </div>
+                    </motion.div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <div className={cn("space-y-3", isMobile ? "mt-3" : "mt-6")}>
+              <div className="flex items-center justify-center gap-2.5 md:gap-3">
+                <div className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium md:px-4 md:py-2 md:text-sm", theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-white text-gray-700 border border-gray-200')}>
+                  <Target className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                  Objetivos
+                </div>
+                <div className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium md:px-4 md:py-2 md:text-sm", theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-white text-gray-700 border border-gray-200')}>
+                  <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                  Progreso
+                </div>
+                <div className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium md:px-4 md:py-2 md:text-sm", theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-white text-gray-700 border border-gray-200')}>
+                  <Zap className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                  Fortalezas
+                </div>
+              </div>
+              <p className={cn("text-center text-[11px] leading-relaxed md:text-sm", theme === 'dark' ? 'text-zinc-400' : 'text-gray-600')}>
+                Proyecto impulsado por la Secretaría de Educación.
+              </p>
             </div>
 
             {/* Estadísticas flotantes */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={isVisible ? { opacity: 1, scale: 1 } : {}}
-              transition={{ duration: 0.6, delay: 1 }}
-              className={cn("absolute -top-3 -right-3 rounded-2xl shadow-xl p-3 border sm:-top-4 sm:-right-4 sm:p-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-emerald-100')}
-            >
-              <div className="text-center">
-                <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')}>98%</div>
-                <div className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Precisión IA</div>
-              </div>
-            </motion.div>
+            {!isMobile && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={isVisible ? { opacity: 1, scale: 1 } : {}}
+                  transition={{ duration: 0.6, delay: 1 }}
+                  className={cn("absolute -top-3 -right-3 rounded-2xl shadow-xl p-3 border sm:-top-4 sm:-right-4 sm:p-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-emerald-100')}
+                >
+                  <div className="text-center">
+                    <div className={cn("text-xl sm:text-2xl font-bold", theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')}>98%</div>
+                    <div className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Precisión IA</div>
+                  </div>
+                </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={isVisible ? { opacity: 1, scale: 1 } : {}}
-              transition={{ duration: 0.6, delay: 1.2 }}
-              className={cn("absolute -bottom-3 -left-3 rounded-2xl shadow-xl p-3 border sm:-bottom-4 sm:-left-4 sm:p-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-purple-100')}
-            >
-              <div className="text-center">
-                <div className={cn("text-1xl font-bold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>SOLO TU PUEDES</div>
-                <div className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Cambiar tu futuro</div>
-              </div>
-            </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={isVisible ? { opacity: 1, scale: 1 } : {}}
+                  transition={{ duration: 0.6, delay: 1.2 }}
+                  className={cn("absolute -left-4 top-[62%] rounded-2xl shadow-xl p-3 border sm:-left-6 sm:p-4", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-purple-100')}
+                >
+                  <div className="text-center">
+                    <div className={cn("text-1xl font-bold", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>SOLO TU PUEDES</div>
+                    <div className={cn("text-xs", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Cambiar tu futuro</div>
+                  </div>
+                </motion.div>
+              </>
+            )}
           </motion.div>
         </div>
       </div>

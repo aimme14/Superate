@@ -7,6 +7,7 @@
 import { getStudentDatabase } from '../utils/firestoreHelpers';
 import { geminiClient } from '../config/gemini.config';
 import { jsonrepair } from 'jsonrepair';
+import { geminiCentralizedService } from './geminiService';
 
 export const TIP_CATEGORIES = [
   'Estrategia',
@@ -229,9 +230,15 @@ export async function generateAndSaveTips(options?: {
   }
 
   const prompt = buildTipsPrompt(count, categories);
-  const result = await geminiClient.generateContent(prompt, [], {
-    timeout: 120000,
-    retries: 2,
+  const result = await geminiCentralizedService.generateContent({
+    userId: 'system:tips-icfes',
+    prompt,
+    processName: 'tips_icfes',
+    images: [],
+    options: {
+      timeout: 120000,
+      retries: 2,
+    },
   });
 
   let cleanedText = result.text

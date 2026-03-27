@@ -161,7 +161,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       {/* Header con logo y gradiente */}
       <div
         className={cn(
-          'animate-in fade-in slide-in-from-top-2 duration-300',
+          'fade-in duration-200',
           isMobile
             ? "relative overflow-hidden rounded-none px-4 pt-3 pb-2 text-white shadow-2xl"
             : "relative overflow-hidden rounded-none px-5 pt-5 pb-2 text-white shadow-2xl",
@@ -182,7 +182,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   src={institutionLogo || '/assets/agustina.png'} 
                   alt={`Logo de ${institutionName}`}
                   className={cn(
-                    "object-contain rounded-lg bg-white/20 backdrop-blur-sm shadow-lg border border-white/30",
+                    "object-contain rounded-lg bg-white/15 shadow-sm border border-white/30",
                     isMobile ? "w-14 h-14 p-1.5" : "w-20 h-20 p-2"
                   )}
                   onError={(e) => {
@@ -203,12 +203,12 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2">
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center border-2 border-white/40 shadow-lg">
+              <div className="bg-white/15 rounded-lg p-3 text-center border-2 border-white/40 shadow-sm">
                 <Building2 className="h-6 w-6 mx-auto mb-1 text-white" />
                 <div className="text-lg font-bold text-white">{stats.totalCampuses}</div>
                 <div className="text-[10px] opacity-90 text-white font-medium">Sedes</div>
               </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center border-2 border-white/40 shadow-lg">
+              <div className="bg-white/15 rounded-lg p-3 text-center border-2 border-white/40 shadow-sm">
                 <Crown className="h-6 w-6 mx-auto mb-1 text-white" />
                 <div className="text-lg font-bold text-white">{stats.totalPrincipals}</div>
                 <div className="text-[10px] opacity-90 text-white font-medium">Coordinadores</div>
@@ -242,7 +242,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   setMobileMenuOpen(false)
                 }}
                 className={cn(
-                  "w-full h-12 flex flex-row items-center justify-start gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                  "w-full h-12 flex flex-row items-center justify-start gap-2 bg-gradient-to-br text-white shadow-md transition-colors duration-150",
                   btn.color
                 )}
               >
@@ -253,7 +253,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
             <Button
               asChild
               className={cn(
-                "w-full h-12 flex flex-row items-center justify-start gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                "w-full h-12 flex flex-row items-center justify-start gap-2 bg-gradient-to-br text-white shadow-md transition-colors duration-150",
                 theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700'
               )}
             >
@@ -272,13 +272,13 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       </Sheet>
 
       {/* Botones de acción */}
-      <div className="hidden md:grid md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="hidden md:grid md:grid-cols-4 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 fade-in duration-200">
         {dashboardButtons.map((btn) => (
           <div key={btn.label}>
             <Button
               onClick={() => setActiveTab(btn.tab)}
               className={cn(
-                "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+                "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-md transition-colors duration-150",
                 btn.color
               )}
             >
@@ -291,7 +291,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           <Button
             asChild
             className={cn(
-              "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-lg transition-all",
+              "w-full h-18 flex flex-row items-center justify-center gap-2 bg-gradient-to-br text-white shadow-md transition-colors duration-150",
               theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700'
             )}
           >
@@ -374,7 +374,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       {isMobile && (
         <div className="fixed bottom-3 left-1/2 z-30 -translate-x-1/2">
           <div className={cn(
-            "flex items-center gap-1 rounded-xl border px-2 py-1.5 shadow-xl backdrop-blur",
+            "flex items-center gap-1 rounded-xl border px-2 py-1.5 shadow-md",
             theme === 'dark' ? 'border-zinc-700 bg-zinc-900/90' : 'border-gray-300 bg-white/90'
           )}>
             <Button
@@ -1811,7 +1811,7 @@ function CampusesTab({ theme, stats, currentRector }: any) {
           {stats.campusOverview.map((campus: any) => (
             <div
               key={campus.id}
-              className={cn("p-6 rounded-xl border-2 transition-all", 
+              className={cn("p-6 rounded-xl border-2 transition-colors duration-150", 
                 theme === 'dark' 
                   ? 'border-zinc-700 hover:border-blue-600 bg-zinc-800' 
                   : 'border-gray-300 hover:border-blue-600 bg-gray-200'
@@ -1854,7 +1854,7 @@ function CampusesTab({ theme, stats, currentRector }: any) {
                 <div
                   style={{ width: `${campus.average}%` }}
                   className={cn(
-                    "absolute h-full rounded-full transition-all duration-500",
+                    "absolute h-full rounded-full transition-[width] duration-500",
                     theme === 'dark'
                       ? "bg-gradient-to-r from-blue-800 to-slate-800"
                       : "bg-gradient-to-r from-blue-700 to-slate-700"
@@ -2108,7 +2108,7 @@ function StudentsTab({ theme, students }: any) {
                       key={student.id || student.uid}
                       onClick={() => handleStudentClick(student)}
                       className={cn(
-                        "p-2 rounded-lg border cursor-pointer transition-all",
+                        "p-2 rounded-lg border cursor-pointer transition-colors duration-150",
                         theme === 'dark' 
                           ? 'border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-600' 
                           : 'border-gray-300 bg-gray-200 hover:bg-gray-300 hover:border-gray-400'
@@ -2947,7 +2947,7 @@ function ResultsTab({ theme, stats, staticData }: any) {
                 <div className="relative w-full bg-gray-200 dark:bg-zinc-700 rounded-full h-3 overflow-hidden">
                   <div
                     style={{ width: `${metric.value}%` }}
-                    className={cn("absolute h-full rounded-full transition-all duration-500", 
+                    className={cn("absolute h-full rounded-full transition-[width] duration-500", 
                       metric.color === 'blue' 
                         ? (theme === 'dark' ? 'bg-gradient-to-r from-blue-800 to-blue-900' : 'bg-gradient-to-r from-blue-700 to-blue-800')
                         : (theme === 'dark' ? 'bg-gradient-to-r from-slate-700 to-slate-800' : 'bg-gradient-to-r from-slate-600 to-slate-700')

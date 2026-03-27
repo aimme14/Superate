@@ -558,6 +558,7 @@ class GeminiClient {
             imagesAnalyzed: visualMeta.imagesAnalyzed,
             hasVisualReferences: visualMeta.hasVisualReferences,
             visualKeywordsFound: visualMeta.visualKeywordsFound,
+            usageMetadata: response.usageMetadata || null,
             timestamp: new Date(),
           },
         };

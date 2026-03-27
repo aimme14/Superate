@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect } from "react"
-import { motion } from "framer-motion"
 import { AlertCircle } from "lucide-react"
 
 const InnovativeHero = lazy(() => import("../inovativeGero"))
@@ -68,10 +67,8 @@ export function Home() {
           )}
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={cn("backdrop-blur-sm rounded-xl p-4 sm:p-6 shadow-lg", theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-white/80 border border-blue-200/50')}
+            <div
+              className={cn("rounded-xl p-4 sm:p-6 shadow-md", theme === 'dark' ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border border-blue-200/50')}
             >
               <div className="flex items-start space-x-4">
                 <AlertCircle className="w-6 h-6 text-blue-500 mt-1 flex-shrink-0" />
@@ -83,7 +80,7 @@ export function Home() {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </section>
 
@@ -97,7 +94,7 @@ export function Home() {
         >
           <div className="container mx-auto px-4">
             {/* Título Principal */}
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10 sm:mb-16">
+            <div className="text-center mb-10 sm:mb-16">
               <h2 className={cn("text-3xl sm:text-4xl font-bold mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 Módulos de{" "}
                 <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
@@ -111,7 +108,7 @@ export function Home() {
                 <Intento />
                 <Prueba />
               </Suspense>
-            </motion.div>
+            </div>
           </div>
         </section>
       </main>

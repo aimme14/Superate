@@ -9,8 +9,8 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait",
-  "theme_color": "#18181b",
-  "background_color": "#ffffff",
+  "theme_color": "#05070d",
+  "background_color": "#05070d",
   "categories": ["education", "productivity"],
   "prefer_related_applications": false,
   "icons": [

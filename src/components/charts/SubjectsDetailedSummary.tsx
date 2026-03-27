@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import { BookOpen, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface SubjectAnalysis {
   name: string;
@@ -35,6 +36,7 @@ interface SubjectsDetailedSummaryProps {
   subjects: SubjectAnalysis[];
   subjectsWithTopics?: SubjectWithTopics[];
   theme?: 'light' | 'dark';
+  improvementSuggestions?: ReactNode;
 }
 
 // Función helper para mapear nombres de pruebas a nombres descriptivos (solo para visualización del estudiante)
@@ -53,7 +55,7 @@ function getTestDisplayName(testName: string): string {
   return testNameMap[testName] || testName;
 }
 
-export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 'light' }: SubjectsDetailedSummaryProps) {
+export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 'light', improvementSuggestions }: SubjectsDetailedSummaryProps) {
   
   // Función para generar resumen general del estudiante
   const generateGeneralSummary = (): string => {
@@ -229,6 +231,13 @@ export function SubjectsDetailedSummary({ subjects, subjectsWithTopics, theme = 
           </p>
         </CardContent>
       </Card>
+
+      {/* Sugerencias de mejora (insertadas entre resumen general y análisis detallado) */}
+      {improvementSuggestions && (
+        <div>
+          {improvementSuggestions}
+        </div>
+      )}
 
       {/* Análisis Detallado por Materia */}
       <Card className={cn(

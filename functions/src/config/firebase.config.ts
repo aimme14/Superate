@@ -21,7 +21,8 @@ import * as path from 'path';
  * configuradas automáticamente. En desarrollo local, necesitas configurar
  * la variable de entorno GOOGLE_APPLICATION_CREDENTIALS
  */
-if (!admin.apps.length) {
+const hasDefaultApp = admin.apps.some((app) => app?.name === '[DEFAULT]');
+if (!hasDefaultApp) {
   try {
     // Verificar si estamos en desarrollo local o en Cloud Functions
     const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
