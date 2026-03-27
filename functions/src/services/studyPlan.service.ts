@@ -53,17 +53,6 @@ export interface StudentWeakness {
 }
 
 /**
- * Información semántica de búsqueda web por tema (sin URLs)
- * Generada por la IA para definir QUÉ buscar, no DÓNDE buscar
- */
-export interface TopicWebSearchInfo {
-  searchIntent: string; // Intención pedagógica de búsqueda (ej: "artículo explicativo sobre ecuaciones cuadráticas")
-  searchKeywords: string[]; // Palabras clave específicas para buscar recursos web educativos
-  expectedContentTypes: string[]; // Tipos de contenido esperados (ej: ["artículo explicativo", "guía paso a paso", "contenido académico introductorio"])
-  educationalLevel: string; // Nivel educativo (ej: "secundaria", "preparación ICFES")
-}
-
-/**
  * Información semántica para búsqueda de videos en YouTube
  * Generada por Gemini antes de realizar la búsqueda en YouTube API
  * Gemini NO genera enlaces ni IDs de video, solo criterios pedagógicos de búsqueda
@@ -91,7 +80,6 @@ export interface StudyPlanResponse {
     description: string; // Descripción del tema
     level: string; // Nivel de dificultad
     keywords: string[]; // Keywords para buscar videos en YouTube
-    webSearchInfo?: TopicWebSearchInfo; // Información semántica para buscar recursos web (sin URLs)
   }>;
   practice_exercises: Array<{
     question: string;
@@ -132,6 +120,8 @@ export interface StudyPlanGenerationResult {
  * Servicio principal de Plan de Estudio
  */
 class StudyPlanService {
+  private static readonly TARGET_EXERCISE_COUNT = 10;
+
   /**
    * Obtiene una instancia de Firestore para el proyecto superate-6c730
    * donde están almacenados los resultados de los estudiantes
@@ -522,62 +512,6 @@ ${sampleQuestions}`;
 - Incluye términos que encuentren contenido útil de **cualquier canal** (no solo canales específicos): el tema + "aprender inglés", "inglés explicado en español", "gramática inglés", "comprensión lectora inglés", "ICFES inglés", "clase inglés bachillerato".
 - Puedes mencionar canales conocidos como referencia opcional, pero **prioriza palabras clave genéricas** para que YouTube devuelva videos útiles de diversos canales educativos.` : '';
 
-    // Instrucciones específicas de webSearchInfo por materia (alineadas a Icfes Saber 11°)
-    const normalizedSubjectForWeb = this.normalizeSubjectName(subject);
-    const webSearchMathSection =
-      normalizedSubjectForWeb === 'matemáticas' || normalizedSubjectForWeb === 'matematicas'
-        ? `
-**RECURSOS WEB PARA MATEMÁTICAS (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
-- Busca páginas web con **material para bachillerato o secundaria (grados 6 a 11)** anclado al tema (ej. geometría, álgebra, estadística). Competencias Icfes: interpretación y representación, formulación y ejecución, argumentación.
-- En **searchIntent** y **searchKeywords** incluye SIEMPRE: el tema específico (ej. "geometría", "ecuaciones cuadráticas"), **"ejercicios resueltos"**, **"descripción de temas"**, "bachillerato" o "secundaria", "estudiantes", "guía" o "explicación".
-- En **expectedContentTypes** incluye: "descripción de temas", "ejercicios resueltos", "guía paso a paso", "página web con explicación clara", "contenido con ejemplos entendibles", "material de práctica para secundaria".
-- Ejemplo para geometría: searchIntent = "Páginas web con material de geometría para bachillerato/secundaria (6-11): descripción de temas, ejercicios resueltos, explicaciones para estudiantes"; searchKeywords = ["geometría", "ejercicios resueltos", "descripción temas", "bachillerato", "secundaria estudiantes"].`
-        : '';
-
-    const webSearchLecturaSection =
-      normalizedSubjectForWeb.includes('lectura') && normalizedSubjectForWeb.includes('crítica')
-        ? `
-**RECURSOS WEB PARA LECTURA CRÍTICA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
-- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos, cómo interpretar y analizar textos, definición de palabras.
-- Textos literarios cortos (cuentos, fragmentos de novelas, poemas, narraciones). Infografías, gráficas y tablas. Conectores lógicos (sin embargo, por tanto, además). Tipos de texto (argumentativo, expositivo, narrativo), intención comunicativa.
-- Incluye en **searchKeywords** términos como: "Cuadernillo lectura crítica Saber 11 pdf", "Textos argumentativos cortos con preguntas", "Ejercicios inferencia lectura crítica", "Conectores lógicos ejercicios pdf", "Comprensión lectora inferencial y crítica".`
-        : '';
-
-    const webSearchCienciasSocialesSection =
-      normalizedSubjectForWeb.includes('ciencias sociales') || normalizedSubjectForWeb.includes('competencias ciudadanas')
-        ? `
-**RECURSOS WEB PARA CIENCIAS SOCIALES (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
-- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Historia de Colombia (independencia, Constitución 1991), Revolución Francesa e Industrial, guerras mundiales, Guerra Fría. Regiones naturales, economía (PIB, oferta y demanda), ramas del poder, democracia, Competencias ciudadanas, mecanismos de participación. "Ciencias sociales ICFES Saber 11 preguntas resueltas", "Competencias ciudadanas".`
-        : '';
-
-    const webSearchPhysicsChemistrySection =
-      normalizedSubjectForWeb === 'física'
-        ? `
-**RECURSOS WEB PARA FÍSICA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
-- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Cinemática (MRU, MRUA, caída libre), Dinámica (Leyes de Newton), trabajo/energía/potencia, ondas y sonido, Electricidad y circuitos (Ley de Coulomb, Ley de Ohm), electromagnetismo, presión y fluidos. "Física ICFES Saber 11 preguntas tipo ICFES".`
-        : normalizedSubjectForWeb === 'quimica'
-          ? `
-**RECURSOS WEB PARA QUÍMICA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
-- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Estequiometría, tabla periódica, enlace iónico/covalente/metálico, polaridad, geometría molecular (VSEPR), fuerzas intermoleculares, soluciones, ácidos y bases pH, hidrocarburos, grupos funcionales, nomenclatura. "Balanceo de ecuaciones químicas ejercicios", "Química orgánica básica ejercicios nomenclatura".`
-          : '';
-
-    const webSearchBiologiaSection =
-      normalizedSubjectForWeb === 'biología' || normalizedSubjectForWeb === 'biologia'
-        ? `
-**RECURSOS WEB PARA BIOLOGÍA (OBLIGATORIO en webSearchInfo) - Criterios Icfes Saber 11°:**
-- Material para **bachillerato y secundaria (grados 6 a 11)**: descripción de temas, ejercicios resueltos. Célula y organelos, tipos de células (animal, vegetal, procariota, eucariota), transporte celular (ósmosis, difusión), mitosis y meiosis. Genética y herencia, ADN y ARN, genes y cromosomas, leyes de Mendel, mutaciones, teorías de evolución, selección natural, adaptación. Ecosistemas, cadenas y redes tróficas, niveles tróficos, ciclos biogeoquímicos (agua, carbono, nitrógeno), biodiversidad, impacto ambiental. Sistemas digestivo, respiratorio, circulatorio, nervioso y endocrino, reproducción humana. Fotosíntesis y respiración celular, cloroplastos y mitocondrias. Bacterias, virus, hongos. Interpretación de gráficos y experimentos, variables dependientes e independientes. "Biología ICFES Saber 11 preguntas tipo ICFES", "Célula mitosis meiosis", "Ecosistemas cadenas tróficas ciclos biogeoquímicos", "Fotosíntesis y respiración celular resumen".`
-        : '';
-
-    const webSearchEnglishSection =
-      normalizedSubjectForWeb === 'inglés'
-        ? `
-**RECURSOS WEB PARA INGLÉS (OBLIGATORIO en webSearchInfo):**
-- **CRÍTICO**: Busca **contenido en ESPAÑOL que explica inglés** (no páginas solo en inglés). Material para aprender inglés explicado en español, para secundaria/ICFES.
-- En **searchIntent** indica: páginas web **en español** que explican inglés (gramática y comprensión lectora) para el tema/debilidad.
-- En **searchKeywords** incluye siempre: "inglés explicado en español", "gramática inglés secundaria", "aprender inglés español", y el tema específico.
-- En **expectedContentTypes** incluye: "página en español que explica inglés", "gramática inglés explicada en español", "guía paso a paso en español", "material para aprender inglés en español".`
-        : '';
-
     return `Eres un experto en educación secundaria y preparación ICFES Saber 11. Diseñas planes de estudio personalizados basados en el desempeño real del estudiante.
 
 --- Datos del estudiante ---
@@ -625,13 +559,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después. Es
       "name": "Nombre del tema a estudiar",
       "description": "Descripción detallada del tema y por qué es importante (debes explicar el tema y por qué es importante para el estudiante)",
       "level": "Básico|Intermedio|Avanzado",
-      "keywords": ["keyword1", "keyword2", "keyword3"],
-      "webSearchInfo": {
-        "searchIntent": "Páginas web con material sobre [TEMA DE LA DEBILIDAD] para bachillerato o secundaria (grados 6 a 11): descripción de temas, ejercicios resueltos, explicaciones y guías para estudiantes. Contenido anclado al tema.",
-        "searchKeywords": ["[tema específico, ej. geometría, ecuaciones cuadráticas]", "ejercicios resueltos", "descripción de temas", "bachillerato", "secundaria estudiantes", "guía", "explicación"],
-        "expectedContentTypes": ["descripción de temas", "ejercicios resueltos", "página web con explicación clara", "guía paso a paso", "contenido con ejemplos entendibles", "material de práctica", "resumen conceptual accesible", "libro o guía de estudio para secundaria"],
-        "educationalLevel": "Bachillerato o secundaria (grados 6 a 11), estudiantes"
-      }
+      "keywords": ["keyword1", "keyword2", "keyword3"]
     }
   ]
 }
@@ -641,27 +569,19 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después. Es
 **diagnostic_summary:** Máximo 50 palabras; menciona las debilidades principales.
 **study_plan_summary:** 100-150 palabras; estrategia de mejora y recursos (videos, ejercicios).
 
-**practice_exercises:** EXACTAMENTE 20 ejercicios. Genera este array ANTES que topics. Estilo ICFES (selección múltiple). Campos: question (texto con contexto si aplica), options (array de 4 strings con formato "A) Texto", "B) Texto", ...), correctAnswer (solo letra "A"|"B"|"C"|"D"), explanation (detallada), topic (coincide con debilidad). Enfocado en competencias, no memorización.
+**practice_exercises:** EXACTAMENTE ${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios. Genera este array ANTES que topics. Estilo ICFES (selección múltiple). Campos: question (texto con contexto si aplica), options (array de 4 strings con formato "A) Texto", "B) Texto", ...), correctAnswer (solo letra "A"|"B"|"C"|"D"), explanation (detallada), topic (coincide con debilidad). Enfocado en competencias, no memorización.
 
 **topics:** Mínimo 3, idealmente 5-8. Cada uno relacionado con una debilidad.
 Por topic: **name**, **description**, **level** (Básico|Intermedio|Avanzado), **keywords** (3-5 para videos; específicas, no genéricas). ${keywordsInstruction} ${englishChannelsSection}
 
-**webSearchInfo** (OBLIGATORIO por topic). Público: bachillerato o secundaria (grados 6-11). Sin URLs ni sitios específicos. **searchIntent:** material sobre el tema con descripción de temas, ejercicios resueltos, guías para estudiantes. **searchKeywords:** tema específico + "ejercicios resueltos" + "descripción de temas" + bachillerato/secundaria + estudiantes. **expectedContentTypes:** "descripción de temas", "ejercicios resueltos", "página web con explicación clara", "guía paso a paso", "contenido con ejemplos entendibles", "material de práctica para secundaria". **educationalLevel:** "Bachillerato o secundaria (grados 6 a 11), estudiantes".
-${webSearchMathSection}
-${webSearchLecturaSection}
-${webSearchPhysicsChemistrySection}
-${webSearchBiologiaSection}
-${webSearchCienciasSocialesSection}
-${webSearchEnglishSection}
-
 --- Restricciones ---
 
-Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE 20 ejercicios. No incluir video_resources ni study_links (se generan después). En webSearchInfo solo información semántica, sin URLs.
+Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE ${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios. No incluir video_resources ni study_links (se generan después).
 CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dentro de cualquier string usa \\\" para comillas y \\n para saltos de línea. (3) Devuelve un único objeto; sin texto antes ni después.
 
 --- Orden en el JSON ---
 
-1. student_info 2. diagnostic_summary 3. study_plan_summary 4. practice_exercises (20 ejercicios; genera primero) 5. topics`;
+1. student_info 2. diagnostic_summary 3. study_plan_summary 4. practice_exercises (${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios; genera primero) 5. topics`;
   }
 
   /**
@@ -1235,8 +1155,8 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         console.error(`\n🔧 SOLUCIÓN: Los ejercicios NO están en la respuesta.`);
         console.error(`   El plan se guardará sin ejercicios, pero esto afectará la utilidad del plan.`);
         console.error(`   Recomendación: Verificar límites de tokens de Gemini o dividir la generación en dos pasos.`);
-      } else if (parsed.practice_exercises.length !== 20) {
-        console.warn(`⚠️ Advertencia: Se esperaban 20 ejercicios, pero se recibieron ${parsed.practice_exercises.length}`);
+      } else if (parsed.practice_exercises.length !== StudyPlanService.TARGET_EXERCISE_COUNT) {
+        console.warn(`⚠️ Advertencia: Se esperaban ${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios, pero se recibieron ${parsed.practice_exercises.length}`);
         console.warn(`   El plan de estudio seguirá guardándose, pero puede estar incompleto.`);
       } else {
         console.log(`✅ Se generaron correctamente ${parsed.practice_exercises.length} ejercicios de práctica`);
