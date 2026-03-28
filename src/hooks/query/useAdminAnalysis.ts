@@ -130,7 +130,7 @@ const getInstitutionResults = async (_institutionId: string, studentIds: string[
             totalQuestions: r.score.totalQuestions ?? 0,
           },
           timestamp: r.timestamp ?? 0,
-          completed: r.completed !== false,
+          completed: true,
         })
       }
     } catch (error) {

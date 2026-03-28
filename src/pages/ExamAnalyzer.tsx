@@ -29,6 +29,8 @@ interface ExamResult {
   examTitle: string;
   answers: { [key: string]: string };
   score: ExamScore;
+  /** Fase lógica (p. ej. desde studentSummaries) */
+  phase?: string;
   topic: string;
   timeExpired: boolean;
   lockedByTabChange: boolean;
@@ -91,6 +93,7 @@ const ExamAnalyzer = () => {
           examTitle: r.examTitle,
           answers: r.answers || {},
           score: r.score as ExamScore,
+          phase: typeof r.phase === 'string' ? r.phase : undefined,
           topic: r.topic || '',
           timeExpired: r.timeExpired === true,
           lockedByTabChange: r.lockedByTabChange === true,
