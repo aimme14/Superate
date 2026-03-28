@@ -2,7 +2,7 @@ import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { Progress } from "#/ui/progress"
@@ -23,7 +23,8 @@ import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { dbService } from "@/services/firebase/db.service";
 import { getPhaseName } from "@/utils/firestoreHelpers";
-import { fetchExamResultDocument, saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
+import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
+import { validateExamPresentationGate } from "@/services/quiz/validateExamPresentationGate";
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -63,7 +64,9 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   // Estados principales
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
-  const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken
+  const [examState, setExamState] = useState('loading') // loading, awaiting_validation, welcome, active, completed, already_taken
+  const [validationChecking, setValidationChecking] = useState(false)
+  const gradeIdRef = useRef<string | undefined>(undefined)
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
@@ -98,7 +101,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           const gradeId = studentData.gradeId || studentData.grade;
 
           if (gradeId) {
-            // Verificar acceso a la fase
+            gradeIdRef.current = gradeId;
             const accessCheck = await checkPhaseAccess(userId, gradeId, phase);
             if (!accessCheck.canAccess) {
               setExamState('blocked');
@@ -108,157 +111,9 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               });
               return;
             }
-
-            // Verificar si el examen ya fue completado y si debe estar bloqueado
-            const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service');
-            const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(userId, phase);
-            
-            let isSubjectCompleted = false;
-            let allSubjectsCompleted = false;
-            
-            if (progressResult.success && progressResult.data) {
-              const progress = progressResult.data;
-              // Normalizar nombres para comparación (case-insensitive y sin espacios extra)
-              const normalizedSubject = subject.trim();
-              const completedSubjects = (progress.subjectsCompleted || []).map((s: string) => s.trim());
-              
-              // Comparación case-insensitive
-              isSubjectCompleted = completedSubjects.some(
-                (s: string) => s.toLowerCase() === normalizedSubject.toLowerCase()
-              );
-              allSubjectsCompleted = completedSubjects.length >= 7; // Total de materias (>= por si hay más)
-              
-              console.log(`[DynamicQuizForm] Verificando bloqueo para "${subject}" - Fase ${phase}:`, {
-                normalizedSubject,
-                isSubjectCompleted,
-                allSubjectsCompleted,
-                completedCount: completedSubjects.length,
-                completedSubjects,
-                progressData: progress
-              });
-            } else {
-              console.log(`[DynamicQuizForm] No se pudo obtener progreso para ${subject} - Fase ${phase}`);
-            }
-            
-            // VERIFICACIÓN CRÍTICA: Consultar directamente los exámenes guardados en Firestore
-            // Ruta: results/estudiante/fase/examen
-            // Esta es la fuente de verdad para verificar si un examen está completado
-            // Funciona para TODAS las materias
-            try {
-              const { getFirestore, collection, getDocs } = await import('firebase/firestore');
-              const { firebaseApp } = await import('@/services/db');
-              const db = getFirestore(firebaseApp);
-              const { getPhaseName } = await import('@/utils/firestoreHelpers');
-              
-              const phaseName = getPhaseName(phase);
-              const resultsRef = collection(db, 'results', userId, phaseName);
-              const resultsSnapshot = await getDocs(resultsRef);
-              
-              // Verificar si hay algún examen completado para esta materia
-              const normalizedSubject = subject.trim().toLowerCase();
-              
-              // Mapeo de códigos de materia a nombres (para detectar exámenes antiguos sin campo subject)
-              const subjectCodeMap: Record<string, string> = {
-                'IN': 'inglés',
-                'MA': 'matemáticas',
-                'LE': 'lenguaje',
-                'CS': 'ciencias sociales',
-                'BI': 'biologia',
-                'QU': 'quimica',
-                'FI': 'física'
-              };
-              
-              console.log(`[DynamicQuizForm] 🔍 Verificando Firestore para ${subject} - Fase ${phase}:`, {
-                totalDocs: resultsSnapshot.docs.length
-              });
-              
-              resultsSnapshot.docs.forEach(doc => {
-                const examData = doc.data();
-                const examSubject = (examData.subject || '').trim().toLowerCase();
-                const examCompleted = examData.completed === true;
-                
-                // FALLBACK: Si no hay campo subject, intentar detectar por el ID del documento
-                // Los IDs de exámenes dinámicos siguen el patrón: <CODIGO_MATERIA><GRADO><NUMERO>
-                let detectedSubject = examSubject;
-                if (!examSubject && doc.id) {
-                  const docIdUpper = doc.id.toUpperCase();
-                  // Buscar si el ID empieza con algún código de materia conocido
-                  for (const [code, subjectName] of Object.entries(subjectCodeMap)) {
-                    if (docIdUpper.startsWith(code)) {
-                      detectedSubject = subjectName;
-                      console.log(`[DynamicQuizForm] 🔍 Examen sin campo subject detectado por ID: ${doc.id} -> ${subjectName} (código: ${code})`);
-                      break;
-                    }
-                  }
-                }
-                
-                // Si el examen está completado y es de la materia correcta
-                if (examCompleted && detectedSubject === normalizedSubject) {
-                  isSubjectCompleted = true;
-                  console.log(`[DynamicQuizForm] ✅ Examen completado encontrado en Firestore: ${subject} - Fase ${phase} - Doc ID: ${doc.id}`, {
-                    detectedBy: examData.subject ? 'subject field' : 'document ID'
-                  });
-                  
-                  // Si el examen no tiene el campo subject, actualizarlo (sin await, se ejecuta en background)
-                  if (!examData.subject && gradeId) {
-                    console.log(`[DynamicQuizForm] 🔄 Actualizando examen antiguo: agregando campo subject a ${doc.id}`);
-                    import('firebase/firestore').then(({ updateDoc, doc: docFn }) => {
-                      const examRef = docFn(db, 'results', userId, phaseName, doc.id);
-                      updateDoc(examRef, {
-                        subject: subject
-                      }).then(() => {
-                        console.log(`[DynamicQuizForm] ✅ Campo subject agregado a ${doc.id}`);
-                      }).catch((error) => {
-                        console.error(`[DynamicQuizForm] ❌ Error actualizando examen:`, error);
-                      });
-                    }).catch((error) => {
-                      console.error(`[DynamicQuizForm] ❌ Error importando updateDoc:`, error);
-                    });
-                  }
-                  
-                  // Intentar sincronizar el progreso
-                  if (gradeId) {
-                    phaseAuthorizationService.updateStudentPhaseProgress(
-                      userId,
-                      gradeId,
-                      phase,
-                      subject,
-                      true
-                    ).then(() => {
-                      console.log(`[DynamicQuizForm] ✅ Progreso sincronizado para ${subject} - Fase ${phase}`);
-                    }).catch((error) => {
-                      console.error(`[DynamicQuizForm] ❌ Error sincronizando progreso:`, error);
-                    });
-                  }
-                }
-              });
-            } catch (error) {
-              console.error(`[DynamicQuizForm] ❌ Error consultando exámenes guardados:`, error);
-            }
-            
-            // Verificar si la siguiente fase está autorizada
-            const nextPhase: 'first' | 'second' | 'third' | null = phase === 'first' ? 'second' : phase === 'second' ? 'third' : null;
-            let nextPhaseAuthorized = false;
-            if (nextPhase) {
-              const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, nextPhase);
-              nextPhaseAuthorized = nextPhaseAccess.success && nextPhaseAccess.data.canAccess;
-            }
-            
-            // Si el examen ya fue completado Y no todas las materias están completadas Y la siguiente fase no está autorizada
-            if (isSubjectCompleted && !allSubjectsCompleted && !nextPhaseAuthorized) {
-              console.log(`[DynamicQuizForm] BLOQUEANDO examen: ${subject} - Fase ${phase}`);
-              setExamState('blocked');
-              notifyError({
-                title: 'Examen Finalizado',
-                message: 'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.'
-              });
-              return;
-            } else if (isSubjectCompleted) {
-              console.log(`[DynamicQuizForm] Examen completado pero NO bloqueado:`, {
-                allSubjectsCompleted,
-                nextPhaseAuthorized
-              });
-            }
+            // Validación de intentos previos: solo al pulsar "Comprobar acceso" (runValidationFromSummary)
+          } else {
+            gradeIdRef.current = undefined;
           }
         }
         
@@ -280,19 +135,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         const quiz = quizResult.data;
         setQuizData(quiz);
         setTimeLeft(quiz.timeLimit * 60);
-
-        // Verificar si ya se presentó este examen específico (por examId)
-        // Esto es adicional, pero el bloqueo principal ya se verificó arriba
-        const existingExam = await fetchExamResultDocument(userId, quiz.id, phase, {
-          subject: quiz.subject,
-          examTitle: quiz.title,
-        });
-        if (existingExam) {
-          setExistingExamData(existingExam);
-          setExamState('already_taken');
-        } else {
-          setExamState('welcome');
-        }
+        setExamState('awaiting_validation');
 
       } catch (error) {
         console.error('Error cargando cuestionario:', error);
@@ -302,6 +145,45 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
     loadQuiz();
   }, [userId, subject, phase, grade]);
+
+  const runValidationFromSummary = useCallback(async () => {
+    if (!userId || !quizData) return;
+    const gradeId = gradeIdRef.current;
+    if (!gradeId) {
+      notifyError({ title: 'Datos incompletos', message: 'No se encontró el grado del estudiante.' });
+      return;
+    }
+    setValidationChecking(true);
+    try {
+      const outcome = await validateExamPresentationGate({
+        userId,
+        gradeId,
+        phase,
+        subjectLabel: subject,
+        quizId: quizData.id,
+      });
+      if (outcome.type === 'blocked') {
+        setExamState('blocked');
+        notifyError({
+          title: 'Examen finalizado',
+          message:
+            'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.',
+        });
+        return;
+      }
+      if (outcome.type === 'already_taken') {
+        setExistingExamData(outcome.examSnapshot);
+        setExamState('already_taken');
+        return;
+      }
+      setExamState('welcome');
+    } catch (err) {
+      console.error('[DynamicQuizForm] Validación:', err);
+      notifyError({ title: 'Error', message: 'No se pudo comprobar el acceso. Intenta de nuevo.' });
+    } finally {
+      setValidationChecking(false);
+    }
+  }, [userId, quizData, phase, subject, notifyError]);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: string) => {
@@ -777,6 +659,36 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
 
 
+  const AwaitingValidationScreen = () => {
+    if (!quizData) return null;
+    return (
+      <div className="max-w-2xl mx-auto">
+        <Card className={cn("shadow-lg", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader className="text-center">
+            <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : '')}>
+              Cuestionario listo: {quizData.title}
+            </CardTitle>
+            <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : '')}>
+              Comprueba en el servidor si puedes presentar este intento (una sola consulta al confirmar).
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-center">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={validationChecking}
+              onClick={() => void runValidationFromSummary()}
+              className="text-sm"
+            >
+              {validationChecking ? 'Comprobando…' : 'Comprobar acceso al examen'}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  };
+
   // Pantalla de carga
   const LoadingScreen = () => (
     <div className="max-w-2xl mx-auto">
@@ -871,7 +783,10 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
                 <div>
                   <span className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Fecha:</span>
                   <div className={cn("font-medium", theme === 'dark' ? 'text-white' : '')}>
-                    {new Date(existingExamData.endTime).toLocaleDateString('es-ES', {
+                    {new Date(
+                      existingExamData.endTime ||
+                        (typeof existingExamData.timestamp === 'number' ? existingExamData.timestamp : Date.now())
+                    ).toLocaleDateString('es-ES', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
@@ -1775,6 +1690,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     <div className={cn("min-h-screen", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
       {examState === 'loading' && <LoadingScreen />}
       {examState === 'error' && <ErrorScreen />}
+      {examState === 'awaiting_validation' && <AwaitingValidationScreen />}
       {examState === 'welcome' && <WelcomeScreen />}
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}

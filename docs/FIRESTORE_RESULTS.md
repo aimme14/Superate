@@ -31,5 +31,15 @@ Si se usa **Firebase Admin SDK** en el backend para obtener las estadísticas, l
 
 ## Desempeño y lecturas (cliente estudiante)
 
-- `fetchEvaluations` / `useStudentEvaluations` **solo** leen `userLookup` + `studentSummaries/{studentId}` (2 documentos) y reconstruyen `ExamResult[]` desde `examSnapshot` por fase y materia. El resumen debe mantenerse actualizado en backend al presentar cada examen.
+- `fetchEvaluationsFromStudentSummary` / `useStudentEvaluations` **solo** leen `userLookup` + `studentSummaries/{studentId}` (2 documentos) y reconstruyen `ExamResult[]` desde `examSnapshot` por fase y materia. El resumen debe mantenerse actualizado en backend al presentar cada examen.
 - Si no hay institución, no existe el resumen o hay error de lectura, la lista de evaluaciones queda **vacía** hasta que exista un resumen válido.
+
+### Punto 8 (legacy vs fuente actual)
+
+- **Legacy:** el documento raíz `results/{uid}` con todos los exámenes embebidos **no** debe usarse en el cliente para listar o analizar intentos.
+- **Fuente correcta en UI:** reconstruir desde **`studentSummaries`** (vía `fetchEvaluationsFromStudentSummary`). La colección **`results/{uid}/{fase}/…`** sigue siendo la ruta de **escritura** al guardar cada examen y la base del resumen que actualiza el backend.
+- **Admin (pantallas que listan por estudiante):** informes por fase y el diálogo de detalle en análisis usan la misma reconstrucción desde resumen, no lecturas directas a subcolecciones de `results` por estudiante.
+
+## Desempeño y lecturas (cliente administrador — total global)
+
+- El total **“Pruebas presentadas”** sigue pudiendo leer **`examRegistry/examCounter`** (preferido). El fallback que escanea `results/` es costoso y solo aplica si ese contador no existe; no sustituye al resumen por estudiante anterior.

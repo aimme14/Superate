@@ -1,11 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { collection, getDocs, getFirestore } from 'firebase/firestore'
-import { firebaseApp } from '@/services/firebase/db.service'
 import { getFilteredStudents } from '@/controllers/student.controller'
 import { getAllInstitutions } from '@/controllers/institution.controller'
-import { getAllPhases, getPhaseType } from '@/utils/firestoreHelpers'
-
-const db = getFirestore(firebaseApp)
+import { fetchEvaluationsFromStudentSummary } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
 
 export interface ExamResult {
   userId: string
@@ -116,42 +112,31 @@ export interface StudentAnalysis {
  */
 const getInstitutionResults = async (_institutionId: string, studentIds: string[]): Promise<ExamResult[]> => {
   const allResults: ExamResult[] = []
-  const phases = getAllPhases()
-
   for (const studentId of studentIds) {
     try {
-      for (const phaseName of phases) {
-        const phaseRef = collection(db, 'results', studentId, phaseName)
-        const phaseSnap = await getDocs(phaseRef)
-        
-        phaseSnap.docs.forEach(doc => {
-          const examData = doc.data()
-          const phase = getPhaseType(phaseName) || phaseName
-          
-          if (examData.completed && examData.score) {
-            allResults.push({
-              userId: studentId,
-              examId: doc.id,
-              examTitle: examData.examTitle,
-              subject: examData.subject,
-              phase,
-              score: {
-                percentage: examData.score.percentage || 0,
-                overallPercentage: examData.score.overallPercentage || 0,
-                correctAnswers: examData.score.correctAnswers || 0,
-                totalQuestions: examData.score.totalQuestions || 0,
-              },
-              timestamp: examData.timestamp || 0,
-              completed: examData.completed || false,
-            })
-          }
+      const list = await fetchEvaluationsFromStudentSummary(studentId)
+      for (const r of list) {
+        if (!r.score || r.completed === false) continue
+        allResults.push({
+          userId: studentId,
+          examId: r.examId,
+          examTitle: r.examTitle,
+          subject: r.subject,
+          phase: r.phase,
+          score: {
+            percentage: r.score.percentage ?? 0,
+            overallPercentage: r.score.overallPercentage ?? 0,
+            correctAnswers: r.score.correctAnswers ?? 0,
+            totalQuestions: r.score.totalQuestions ?? 0,
+          },
+          timestamp: r.timestamp ?? 0,
+          completed: r.completed !== false,
         })
       }
     } catch (error) {
       console.error(`Error obteniendo resultados para estudiante ${studentId}:`, error)
     }
   }
-
   return allResults
 }
 
@@ -371,43 +356,28 @@ export const useStudentAnalysis = (studentId: string, enabled: boolean = true) =
   return useQuery({
     queryKey: ['admin', 'student-analysis', studentId],
     queryFn: async () => {
-      const phases = getAllPhases()
-      const results: ExamResult[] = []
+      const raw = await fetchEvaluationsFromStudentSummary(studentId)
+      const results: ExamResult[] = raw.map((r) => ({
+        userId: studentId,
+        examId: r.examId,
+        examTitle: r.examTitle,
+        subject: r.subject,
+        phase: r.phase,
+        score: {
+          percentage: r.score?.percentage ?? 0,
+          overallPercentage: r.score?.overallPercentage ?? 0,
+          correctAnswers: r.score?.correctAnswers ?? 0,
+          totalQuestions: r.score?.totalQuestions ?? 0,
+        },
+        timestamp: r.timestamp ?? 0,
+        completed: r.completed !== false,
+        tabChangeCount: r.tabChangeCount ?? 0,
+        lockedByTabChange: r.lockedByTabChange === true,
+        questionDetails: r.questionDetails ?? [],
+        timeSpent: r.timeSpent ?? 0,
+      })) as any[]
 
       try {
-        for (const phaseName of phases) {
-          const phaseRef = collection(db, 'results', studentId, phaseName)
-          const phaseSnap = await getDocs(phaseRef)
-          
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data()
-            const phase = getPhaseType(phaseName) || phaseName
-            
-            if (examData.completed && examData.score) {
-              results.push({
-                userId: studentId,
-                examId: doc.id,
-                examTitle: examData.examTitle,
-                subject: examData.subject,
-                phase,
-                score: {
-                  percentage: examData.score.percentage || 0,
-                  overallPercentage: examData.score.overallPercentage || 0,
-                  correctAnswers: examData.score.correctAnswers || 0,
-                  totalQuestions: examData.score.totalQuestions || 0,
-                },
-                timestamp: examData.timestamp || 0,
-                completed: examData.completed || false,
-                // Datos adicionales para métricas
-                tabChangeCount: examData.tabChangeCount || 0,
-                lockedByTabChange: examData.lockedByTabChange || false,
-                questionDetails: examData.questionDetails || [],
-                timeSpent: examData.timeSpent || 0,
-              } as any)
-            }
-          })
-        }
-
         const phaseStats = {
           phase1: { count: 0, total: 0 },
           phase2: { count: 0, total: 0 },
@@ -836,16 +806,6 @@ export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', yea
           // Materias requeridas para completar una fase (7 materias del ICFES)
           const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
           
-          // Mapear fase seleccionada a nombre de fase en Firestore
-          const phaseMap: { [key: string]: string } = {
-            'first': 'fase I',
-            'second': 'Fase II',
-            'third': 'fase III',
-            'Fase I': 'fase I',
-            'Fase II': 'Fase II',
-            'Fase III': 'fase III'
-          }
-          
           // Función para normalizar nombres de materias
           const normalizeSubjectName = (subject: string): string => {
             const normalized = subject.trim().toLowerCase()
@@ -873,52 +833,44 @@ export const useStudentsRanking = (jornada?: 'mañana' | 'tarde' | 'única', yea
             return subjectMap[normalized] || subject.trim()
           }
 
-          // Determinar las fases a procesar
-          let phasesToProcess: string[] = []
+          type PhaseKey = 'first' | 'second' | 'third'
+          let phaseKeys: PhaseKey[] = []
           if (phase === 'all') {
-            phasesToProcess = ['fase I', 'Fase II', 'fase III']
-          } else if (phase) {
-            const phaseName = phaseMap[phase] || 'fase III'
-            phasesToProcess = [phaseName]
+            phaseKeys = ['first', 'second', 'third']
+          } else if (phase === 'first' || phase === 'second' || phase === 'third') {
+            phaseKeys = [phase]
           } else {
-            phasesToProcess = ['fase III'] // Por defecto Fase III
+            phaseKeys = ['third']
           }
 
-          // Obtener resultados de todas las fases necesarias directamente de Firestore
           const phaseResults: Array<{ userId: string; subject: string; score: { overallPercentage: number } }> = []
           const resultsByStudent = new Map<string, { scores: number[], subjects: Set<string> }>()
-          
+
           for (const studentId of studentIds) {
-            for (const phaseName of phasesToProcess) {
-              try {
-                const phaseRef = collection(db, 'results', studentId, phaseName)
-                const phaseSnap = await getDocs(phaseRef)
-                
-                phaseSnap.docs.forEach(doc => {
-                  const examData = doc.data()
-                  if (examData.completed && examData.score && examData.subject) {
-                    const normalizedSubject = normalizeSubjectName(examData.subject)
-                    
-                    phaseResults.push({
-                      userId: studentId,
-                      subject: normalizedSubject,
-                      score: {
-                        overallPercentage: examData.score.overallPercentage || 0,
-                      },
-                    })
-                    
-                    // Agrupar por estudiante y registrar materias
-                    if (!resultsByStudent.has(studentId)) {
-                      resultsByStudent.set(studentId, { scores: [], subjects: new Set() })
-                    }
-                    const studentData = resultsByStudent.get(studentId)!
-                    studentData.scores.push(examData.score.overallPercentage || 0)
-                    studentData.subjects.add(normalizedSubject)
-                  }
+            try {
+              const list = await fetchEvaluationsFromStudentSummary(studentId)
+              const filtered = list.filter((r) => {
+                if (!r.score || !r.subject || r.completed === false) return false
+                const pk = r.phase as string | undefined
+                return pk ? phaseKeys.includes(pk as PhaseKey) : false
+              })
+              for (const examData of filtered) {
+                const normalizedSubject = normalizeSubjectName(examData.subject!)
+                const overall = examData.score?.overallPercentage ?? 0
+                phaseResults.push({
+                  userId: studentId,
+                  subject: normalizedSubject,
+                  score: { overallPercentage: overall },
                 })
-              } catch (error) {
-                console.error(`Error obteniendo resultados para estudiante ${studentId} en ${phaseName}:`, error)
+                if (!resultsByStudent.has(studentId)) {
+                  resultsByStudent.set(studentId, { scores: [], subjects: new Set() })
+                }
+                const studentData = resultsByStudent.get(studentId)!
+                studentData.scores.push(overall)
+                studentData.subjects.add(normalizedSubject)
               }
+            } catch (error) {
+              console.error(`Error obteniendo resultados para estudiante ${studentId}:`, error)
             }
           }
 

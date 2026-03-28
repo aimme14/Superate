@@ -26,7 +26,6 @@ const LoginSection = ({ theme }: ThemeContextProps) => {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.2 }}
-          whileHover={{ scale: 1.01 }}
           className="relative"
         >
           {/* Efecto de brillo sutil en el borde */}
@@ -43,10 +42,9 @@ const LoginSection = ({ theme }: ThemeContextProps) => {
               'backdrop-blur-xl backdrop-saturate-150',
               'border border-white/10',
               'shadow-2xl',
-              'transition-all duration-300',
               theme === 'dark'
-                ? 'bg-zinc-900/70 hover:bg-zinc-900/80 hover:shadow-purple-900/50'
-                : 'bg-white/80 hover:bg-white/90 hover:shadow-purple-500/30'
+                ? 'bg-zinc-900/70'
+                : 'bg-white/80'
             )}
           >
             {/* Overlay de gradiente sutil */}

@@ -1,4 +1,4 @@
-import ExamForm from "@/sections/quizSociales/fromExamSociales"
+import ExamForm from "@/sections/quizSociales/fromExamSocialesNew"
 import HeaderLectura from "@/sections/quiz/Header"
 
 const QuizSociales = () => {

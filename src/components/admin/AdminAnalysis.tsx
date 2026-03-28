@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { fetchEvaluationsFromStudentSummary } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -44,12 +45,8 @@ import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { useQuery } from '@tanstack/react-query'
-import { collection, getDocs, getFirestore } from 'firebase/firestore'
-import { firebaseApp } from '@/services/firebase/db.service'
 import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
 import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
-
-const db = getFirestore(firebaseApp)
 
 interface AdminAnalysisProps extends ThemeContextProps {}
 
@@ -1249,172 +1246,142 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: any) {
     return subjectMap[normalized] || subject
   }
 
-  // Obtener datos de materias con temas para la fase seleccionada (para Resumen)
-  const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
-    queryKey: ['student-subjects-data', studentId, selectedPhase],
+  const { data: dialogEvaluations, isLoading: evaluationsLoading } = useQuery({
+    queryKey: ['student-dialog-evaluations', studentId],
     queryFn: async () => {
-      if (!studentId) return { subjects: [], subjectsWithTopics: [] }
-      
-      const phases = [
-        { key: 'first', name: 'fase I' },
-        { key: 'second', name: 'Fase II' },
-        { key: 'third', name: 'fase III' }
-      ]
-      
-      const selectedPhases = selectedPhase === 'all' 
-        ? phases 
-        : selectedPhase === 'phase1' 
-          ? [phases[0]]
-          : selectedPhase === 'phase2'
-          ? [phases[1]]
-          : [phases[2]]
-      
-      const subjectTopicGroups: { [subject: string]: { [topic: string]: any[] } } = {}
-      const subjectScores: { [subject: string]: number } = {}
-      const subjectTotals: { [subject: string]: { correct: number; total: number } } = {}
-      
-      for (const phase of selectedPhases) {
-        try {
-          const phaseRef = collection(db, 'results', studentId, phase.name)
-          const phaseSnap = await getDocs(phaseRef)
-          
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data()
-            if (examData.completed && examData.score && examData.subject) {
-              const subject = normalizeSubjectName(examData.subject)
-              const percentage = examData.score.overallPercentage || 0
-              
-              if (!subjectScores[subject] || percentage > subjectScores[subject]) {
-                subjectScores[subject] = percentage
-              }
-              
-              if (!subjectTotals[subject]) {
-                subjectTotals[subject] = { correct: 0, total: 0 }
-              }
-              subjectTotals[subject].correct += examData.score.correctAnswers || 0
-              subjectTotals[subject].total += examData.score.totalQuestions || 0
-              
-              if (examData.questionDetails && Array.isArray(examData.questionDetails)) {
-                examData.questionDetails.forEach((question: any) => {
-                  const topic = question.topic || 'General'
-                  if (!subjectTopicGroups[subject]) {
-                    subjectTopicGroups[subject] = {}
-                  }
-                  if (!subjectTopicGroups[subject][topic]) {
-                    subjectTopicGroups[subject][topic] = []
-                  }
-                  subjectTopicGroups[subject][topic].push(question)
-                })
-              }
-            }
-          })
-        } catch (error) {
-          console.error(`Error obteniendo datos para fase ${phase.name}:`, error)
-        }
-      }
-      
-      const subjectsWithTopics: any[] = []
-      Object.entries(subjectTopicGroups).forEach(([subject, topics]) => {
-        const topicData = Object.entries(topics).map(([topicName, questions]) => {
-          const correct = questions.filter((q: any) => q.isCorrect).length
-          const total = questions.length
-          const percentage = total > 0 ? Math.round((correct / total) * 100) : 0
-          return { name: topicName, percentage, correct, total }
-        })
-        
-        const strengths = topicData.filter(t => t.percentage >= 65).map(t => t.name)
-        const weaknesses = topicData.filter(t => t.percentage < 50).map(t => t.name)
-        const neutrals = topicData.filter(t => t.percentage >= 50 && t.percentage < 65).map(t => t.name)
-        
-        subjectsWithTopics.push({
-          name: subject,
-          percentage: Math.round(subjectScores[subject] || 0),
-          topics: topicData,
-          strengths,
-          weaknesses,
-          neutrals
-        })
-      })
-      
-      const subjects = Object.entries(subjectScores).map(([name, percentage]) => {
-        const totals = subjectTotals[name] || { correct: 0, total: 0 }
-        return {
-          name,
-          percentage: Math.round(percentage),
-          score: Math.round(percentage),
-          maxScore: 100,
-          correct: totals.correct,
-          total: totals.total,
-          strengths: subjectsWithTopics.find(s => s.name === name)?.strengths || [],
-          weaknesses: subjectsWithTopics.find(s => s.name === name)?.weaknesses || [],
-          improvement: ''
-        }
-      })
-      
-      return { subjects, subjectsWithTopics }
+      if (!studentId) return []
+      return fetchEvaluationsFromStudentSummary(studentId)
     },
     enabled: isOpen && !!studentId,
     staleTime: 5 * 60 * 1000,
   })
 
-  // Obtener datos de las 3 fases para el gráfico de evolución (para Diagnóstico)
-  const { data: phasesData, isLoading: phasesLoading } = useQuery({
-    queryKey: ['student-phases-data', studentId],
-    queryFn: async () => {
-      if (!studentId) return { phase1: null, phase2: null, phase3: null }
-      
-      const phases = [
-        { key: 'phase1', name: 'fase I' },
-        { key: 'phase2', name: 'Fase II' },
-        { key: 'phase3', name: 'fase III' }
-      ]
-      
-      const phaseResults: { [key: string]: any[] } = { phase1: [], phase2: [], phase3: [] }
-      
-      for (const phase of phases) {
-        try {
-          const phaseRef = collection(db, 'results', studentId, phase.name)
-          const phaseSnap = await getDocs(phaseRef)
-          
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data()
-            if (examData.completed && examData.score && examData.subject) {
-              phaseResults[phase.key].push({
-                subject: normalizeSubjectName(examData.subject),
-                percentage: examData.score.overallPercentage || 0
-              })
-            }
-          })
-        } catch (error) {
-          console.error(`Error obteniendo datos para fase ${phase.name}:`, error)
-        }
+  const subjectsData = useMemo(() => {
+    if (!dialogEvaluations?.length) return { subjects: [] as any[], subjectsWithTopics: [] as any[] }
+
+    const phaseKeys: Array<'first' | 'second' | 'third'> =
+      selectedPhase === 'all'
+        ? ['first', 'second', 'third']
+        : selectedPhase === 'phase1'
+          ? ['first']
+          : selectedPhase === 'phase2'
+            ? ['second']
+            : ['third']
+
+    const subjectTopicGroups: { [subject: string]: { [topic: string]: any[] } } = {}
+    const subjectScores: { [subject: string]: number } = {}
+    const subjectTotals: { [subject: string]: { correct: number; total: number } } = {}
+
+    for (const examData of dialogEvaluations) {
+      if (!examData.phase || !phaseKeys.includes(examData.phase as 'first' | 'second' | 'third')) continue
+      if (examData.completed === false || !examData.score || !examData.subject) continue
+
+      const subject = normalizeSubjectName(examData.subject)
+      const percentage = examData.score.overallPercentage || 0
+
+      if (!subjectScores[subject] || percentage > subjectScores[subject]) {
+        subjectScores[subject] = percentage
       }
-      
-      // Procesar datos por fase
-      const processPhaseData = (results: any[]) => {
-        const subjectScores: { [subject: string]: number } = {}
-        results.forEach(result => {
-          const subject = result.subject
-          if (!subjectScores[subject] || result.percentage > subjectScores[subject]) {
-            subjectScores[subject] = result.percentage
+
+      if (!subjectTotals[subject]) {
+        subjectTotals[subject] = { correct: 0, total: 0 }
+      }
+      subjectTotals[subject].correct += examData.score.correctAnswers || 0
+      subjectTotals[subject].total += examData.score.totalQuestions || 0
+
+      if (examData.questionDetails && Array.isArray(examData.questionDetails)) {
+        examData.questionDetails.forEach((question: any) => {
+          const topic = question.topic || 'General'
+          if (!subjectTopicGroups[subject]) {
+            subjectTopicGroups[subject] = {}
           }
+          if (!subjectTopicGroups[subject][topic]) {
+            subjectTopicGroups[subject][topic] = []
+          }
+          subjectTopicGroups[subject][topic].push(question)
         })
-        
-        return Object.entries(subjectScores).map(([name, percentage]) => ({
-          name,
-          percentage: Math.round(percentage)
-        }))
       }
-      
+    }
+
+    const subjectsWithTopics: any[] = []
+    Object.entries(subjectTopicGroups).forEach(([subject, topics]) => {
+      const topicData = Object.entries(topics).map(([topicName, questions]) => {
+        const correct = questions.filter((q: any) => q.isCorrect).length
+        const total = questions.length
+        const percentage = total > 0 ? Math.round((correct / total) * 100) : 0
+        return { name: topicName, percentage, correct, total }
+      })
+
+      const strengths = topicData.filter(t => t.percentage >= 65).map(t => t.name)
+      const weaknesses = topicData.filter(t => t.percentage < 50).map(t => t.name)
+      const neutrals = topicData.filter(t => t.percentage >= 50 && t.percentage < 65).map(t => t.name)
+
+      subjectsWithTopics.push({
+        name: subject,
+        percentage: Math.round(subjectScores[subject] || 0),
+        topics: topicData,
+        strengths,
+        weaknesses,
+        neutrals
+      })
+    })
+
+    const subjects = Object.entries(subjectScores).map(([name, percentage]) => {
+      const totals = subjectTotals[name] || { correct: 0, total: 0 }
       return {
-        phase1: phaseResults.phase1.length > 0 ? { phase: 'phase1' as const, subjects: processPhaseData(phaseResults.phase1) } : null,
-        phase2: phaseResults.phase2.length > 0 ? { phase: 'phase2' as const, subjects: processPhaseData(phaseResults.phase2) } : null,
-        phase3: phaseResults.phase3.length > 0 ? { phase: 'phase3' as const, subjects: processPhaseData(phaseResults.phase3) } : null
+        name,
+        percentage: Math.round(percentage),
+        score: Math.round(percentage),
+        maxScore: 100,
+        correct: totals.correct,
+        total: totals.total,
+        strengths: subjectsWithTopics.find(s => s.name === name)?.strengths || [],
+        weaknesses: subjectsWithTopics.find(s => s.name === name)?.weaknesses || [],
+        improvement: ''
       }
-    },
-    enabled: isOpen && !!studentId,
-    staleTime: 5 * 60 * 1000,
-  })
+    })
+
+    return { subjects, subjectsWithTopics }
+  }, [dialogEvaluations, selectedPhase])
+
+  const phasesData = useMemo(() => {
+    if (!dialogEvaluations?.length) return { phase1: null, phase2: null, phase3: null }
+
+    const byPhase = (key: 'first' | 'second' | 'third') =>
+      dialogEvaluations
+        .filter((e) => e.phase === key && e.completed !== false && e.score && e.subject)
+        .map((e) => ({
+          subject: normalizeSubjectName(e.subject!),
+          percentage: e.score!.overallPercentage || 0
+        }))
+
+    const processPhaseData = (results: { subject: string; percentage: number }[]) => {
+      const subjectScores: { [subject: string]: number } = {}
+      results.forEach(result => {
+        const subject = result.subject
+        if (!subjectScores[subject] || result.percentage > subjectScores[subject]) {
+          subjectScores[subject] = result.percentage
+        }
+      })
+      return Object.entries(subjectScores).map(([name, percentage]) => ({
+        name,
+        percentage: Math.round(percentage)
+      }))
+    }
+
+    const p1 = byPhase('first')
+    const p2 = byPhase('second')
+    const p3 = byPhase('third')
+
+    return {
+      phase1: p1.length > 0 ? { phase: 'phase1' as const, subjects: processPhaseData(p1) } : null,
+      phase2: p2.length > 0 ? { phase: 'phase2' as const, subjects: processPhaseData(p2) } : null,
+      phase3: p3.length > 0 ? { phase: 'phase3' as const, subjects: processPhaseData(p3) } : null
+    }
+  }, [dialogEvaluations])
+
+  const subjectsLoading = evaluationsLoading
+  const phasesLoading = evaluationsLoading
 
   if (!student) return null
 

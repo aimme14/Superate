@@ -32,10 +32,7 @@ import { useNotification } from '@/hooks/ui/useNotification'
 import { studentSummaryService } from '@/services/studentSummary/studentSummary.service'
 import { getUserById } from '@/controllers/user.controller'
 import { getInstitutionById } from '@/controllers/institution.controller'
-import { collection, getDocs, getFirestore } from 'firebase/firestore'
-import { firebaseApp } from '@/services/firebase/db.service'
-
-const db = getFirestore(firebaseApp)
+import { fetchEvaluationsFromStudentSummary } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
 
 interface StudentPhaseReportsProps extends ThemeContextProps {}
 
@@ -311,41 +308,26 @@ export default function StudentPhaseReports({ theme }: StudentPhaseReportsProps)
     return subjectMap[normalized] || subject
   }
 
-  // Función helper para obtener evaluaciones de una fase específica
+  /** Evaluaciones por fase desde studentSummaries (misma fuente que el estudiante). */
   const getPhaseEvaluations = async (studentId: string, phase: 'first' | 'second' | 'third'): Promise<any[]> => {
-    const phaseVariants: Record<string, string[]> = {
-      first: ['fase I', 'Fase I', 'Fase 1', 'fase 1', 'first'],
-      second: ['Fase II', 'fase II', 'Fase 2', 'fase 2', 'second'],
-      third: ['fase III', 'Fase III', 'Fase 3', 'fase 3', 'third'],
+    try {
+      const all = await fetchEvaluationsFromStudentSummary(studentId)
+      return all
+        .filter(
+          (e) =>
+            e.phase === phase &&
+            e.completed !== false &&
+            e.subject
+        )
+        .map((e) => ({
+          ...e,
+          examId: e.examId,
+          phase,
+        }))
+    } catch (error: any) {
+      logger.warn(`⚠️ Error leyendo resumen de evaluaciones:`, error?.message)
+      return []
     }
-
-    const evaluations: any[] = []
-    const phaseNames = phaseVariants[phase] || []
-
-    for (const phaseName of phaseNames) {
-      try {
-        const phaseRef = collection(db, "results", studentId, phaseName)
-        const phaseSnap = await getDocs(phaseRef)
-        
-        if (!phaseSnap.empty) {
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data()
-            const isCompleted = examData.isCompleted !== false && examData.completed !== false
-            if (isCompleted && examData.subject) {
-              evaluations.push({
-                ...examData,
-                examId: doc.id,
-                phase: phase,
-              })
-            }
-          })
-        }
-      } catch (error: any) {
-        logger.warn(`⚠️ Error buscando en fase ${phaseName}:`, error.message)
-      }
-    }
-
-    return evaluations
   }
 
   // Verificar fases disponibles cuando se selecciona un estudiante

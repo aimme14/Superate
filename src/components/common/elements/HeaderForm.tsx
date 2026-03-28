@@ -65,12 +65,11 @@ const HeaderText = ({ title, description, theme }: HeaderTextProps) => {
   return (
     <CardHeader className="space-y-1 pb-2 pt-3 px-6">
       <CardTitle className={cn(
-        'text-3xl font-bold text-center',
-        'bg-gradient-to-r bg-clip-text text-transparent',
-        'tracking-tight',
-        theme === 'dark' 
-          ? 'from-purple-800 via-purple-100 to-indigo-200' 
-          : 'from-purple-700 via-purple-600 to-indigo-700'
+        'text-3xl font-bold text-center tracking-tight',
+        /* Móvil: texto sólido (mejor fluidez). Desktop: gradiente como antes */
+        theme === 'dark'
+          ? 'text-zinc-100 md:bg-gradient-to-r md:bg-clip-text md:text-transparent md:from-purple-800 md:via-purple-100 md:to-indigo-200'
+          : 'text-purple-800 md:bg-gradient-to-r md:bg-clip-text md:text-transparent md:from-purple-700 md:via-purple-600 md:to-indigo-700'
       )}>
         {title}
       </CardTitle>

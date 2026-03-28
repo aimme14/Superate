@@ -2,7 +2,7 @@ import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -11,7 +11,8 @@ import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
-import { fetchExamResultDocument, saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
+import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
+import { validateExamPresentationGate } from "@/services/quiz/validateExamPresentationGate";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -172,7 +173,9 @@ const ExamWithFirebase = () => {
   // Estados principales
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
-  const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions
+  const [examState, setExamState] = useState('loading') // loading, awaiting_validation, welcome, active, completed, already_taken, no_questions
+  const [validationChecking, setValidationChecking] = useState(false)
+  const gradeIdRef = useRef<string | undefined>(undefined)
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
@@ -221,7 +224,7 @@ const ExamWithFirebase = () => {
           const gradeId = studentData.gradeId || studentData.grade;
 
           if (gradeId) {
-            // Verificar acceso a la fase
+            gradeIdRef.current = gradeId;
             const accessCheck = await checkPhaseAccess(userId, gradeId, currentPhase);
             if (!accessCheck.canAccess) {
               if (isMounted) {
@@ -233,231 +236,8 @@ const ExamWithFirebase = () => {
               }
               return;
             }
-
-            // Verificar si el examen ya fue completado y si debe estar bloqueado
-            const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service');
-            const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(userId, currentPhase);
-            
-            let isSubjectCompleted = false;
-            let allSubjectsCompleted = false;
-            
-            if (progressResult.success && progressResult.data) {
-              const progress = progressResult.data;
-              // Normalizar nombres para comparación (case-insensitive)
-              const normalizedSubject = currentSubject.trim();
-              const completedSubjects = (progress.subjectsCompleted || []).map((s: string) => s.trim());
-              isSubjectCompleted = completedSubjects.some(
-                (s: string) => s.toLowerCase() === normalizedSubject.toLowerCase()
-              );
-              allSubjectsCompleted = completedSubjects.length >= 7; // Total de materias
-              
-              console.log(`[fromExamMatematicas] Verificando bloqueo para ${currentSubject} - Fase ${currentPhase}:`, {
-                normalizedSubject,
-                isSubjectCompleted,
-                allSubjectsCompleted,
-                completedCount: completedSubjects.length,
-                completedSubjects
-              });
-            }
-            
-            // VERIFICACIÓN CRÍTICA: Consultar directamente Firestore (results/estudiante/fase/examen)
-            // Esta es la fuente de verdad para verificar si un examen está completado
-            // Funciona para TODAS las materias
-            try {
-              const { getFirestore, collection, getDocs } = await import('firebase/firestore');
-              const { firebaseApp } = await import('@/services/db');
-              const db = getFirestore(firebaseApp);
-              const { getPhaseName } = await import('@/utils/firestoreHelpers');
-              
-              const phaseName = getPhaseName(currentPhase);
-              const resultsRef = collection(db, 'results', userId, phaseName);
-              const resultsSnapshot = await getDocs(resultsRef);
-              
-              const normalizedSubject = currentSubject.trim().toLowerCase();
-              
-              // Mapeo de códigos de materia a nombres (para detectar exámenes antiguos sin campo subject)
-              const subjectCodeMap: Record<string, string> = {
-                'IN': 'inglés',
-                'MA': 'matemáticas',
-                'LE': 'lenguaje',
-                'CS': 'ciencias sociales',
-                'BI': 'biologia',
-                'QU': 'quimica',
-                'FI': 'física'
-              };
-              
-              console.log(`[fromExamMatematicas] 🔍 Verificando Firestore para ${currentSubject} - Fase ${currentPhase}:`, {
-                totalDocs: resultsSnapshot.docs.length,
-                normalizedSubject,
-                phaseName
-              });
-              
-              // Log de todos los documentos encontrados para debugging
-              if (resultsSnapshot.docs.length > 0) {
-                console.log(`[fromExamMatematicas] 📄 Documentos encontrados en Firestore (${resultsSnapshot.docs.length} total):`, 
-                  resultsSnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    return {
-                      id: doc.id,
-                      subject: data.subject,
-                      completed: data.completed,
-                      phase: data.phase,
-                      score: data.score
-                    };
-                  })
-                );
-              }
-              
-              // Reiniciar isSubjectCompleted para esta verificación
-              let foundCompletedExam = false;
-              
-              resultsSnapshot.docs.forEach(doc => {
-                const examData = doc.data();
-                const examSubject = (examData.subject || '').trim().toLowerCase();
-                const examCompleted = examData.completed === true;
-                
-                console.log(`[fromExamMatematicas] 🔍 Analizando documento ${doc.id}:`, {
-                  examSubject: examSubject || '(vacío)',
-                  examCompleted,
-                  normalizedSubject,
-                  hasSubject: !!examData.subject,
-                  rawData: {
-                    subject: examData.subject,
-                    completed: examData.completed,
-                    phase: examData.phase,
-                    score: examData.score
-                  }
-                });
-                
-                // FALLBACK: Si no hay campo subject, intentar detectar por el ID del documento
-                let detectedSubject = examSubject;
-                if (!examSubject && doc.id) {
-                  const docIdUpper = doc.id.toUpperCase();
-                  for (const [code, subjectName] of Object.entries(subjectCodeMap)) {
-                    if (docIdUpper.startsWith(code)) {
-                      detectedSubject = subjectName;
-                      console.log(`[fromExamMatematicas] 🔍 Examen sin campo subject detectado por ID: ${doc.id} -> ${subjectName} (código: ${code})`);
-                      break;
-                    }
-                  }
-                }
-                
-                // CRÍTICO: Solo considerar el examen como completado si:
-                // 1. El examen tiene completed === true (estricto)
-                // 2. El examen es de la materia correcta (detectedSubject === normalizedSubject)
-                // 3. NO considerar exámenes que no están completados
-                const isCorrectSubject = detectedSubject === normalizedSubject;
-                const shouldCount = examCompleted && isCorrectSubject;
-                
-                console.log(`[fromExamMatematicas] 📊 Evaluación del documento ${doc.id}:`, {
-                  examCompleted,
-                  detectedSubject,
-                  normalizedSubject,
-                  isCorrectSubject,
-                  shouldCount,
-                  willMarkAsCompleted: shouldCount
-                });
-                
-                if (shouldCount) {
-                  foundCompletedExam = true;
-                  isSubjectCompleted = true;
-                  console.log(`[fromExamMatematicas] ✅ Examen completado encontrado en Firestore: ${currentSubject} - Fase ${currentPhase} - Doc ID: ${doc.id}`, {
-                    examData: {
-                      subject: examData.subject,
-                      completed: examData.completed,
-                      score: examData.score,
-                      detectedSubject
-                    }
-                  });
-                  
-                  // Si el examen no tiene el campo subject, actualizarlo (sin await, se ejecuta en background)
-                  if (!examData.subject && gradeId) {
-                    console.log(`[fromExamMatematicas] 🔄 Actualizando examen antiguo: agregando campo subject a ${doc.id}`);
-                    import('firebase/firestore').then(({ updateDoc, doc: docFn }) => {
-                      const examRef = docFn(db, 'results', userId, phaseName, doc.id);
-                      updateDoc(examRef, {
-                        subject: currentSubject
-                      }).then(() => {
-                        console.log(`[fromExamMatematicas] ✅ Campo subject agregado a ${doc.id}`);
-                      }).catch((error) => {
-                        console.error(`[fromExamMatematicas] ❌ Error actualizando examen:`, error);
-                      });
-                    }).catch((error) => {
-                      console.error(`[fromExamMatematicas] ❌ Error importando updateDoc:`, error);
-                    });
-                  }
-                }
-              });
-              
-              // Log final de la verificación
-              console.log(`[fromExamMatematicas] 📊 Resumen de verificación Firestore para ${currentSubject}:`, {
-                totalDocs: resultsSnapshot.docs.length,
-                foundCompletedExam,
-                isSubjectCompleted,
-                normalizedSubject,
-                phaseName
-              });
-              
-              // CRÍTICO: Si no se encontró ningún examen completado, FORZAR isSubjectCompleted = false
-              // Esto previene bloqueos incorrectos cuando hay documentos pero ninguno está realmente completado
-              if (!foundCompletedExam) {
-                isSubjectCompleted = false;
-                console.log(`[fromExamMatematicas] ✅✅✅ NO se encontró examen completado para ${currentSubject} - Fase ${currentPhase}. FORZANDO isSubjectCompleted = false`);
-              } else {
-                console.log(`[fromExamMatematicas] ⚠️⚠️⚠️ Se encontró examen completado para ${currentSubject} - Fase ${currentPhase}. isSubjectCompleted = true`);
-              }
-            } catch (error) {
-              console.error(`[fromExamMatematicas] ❌ Error consultando Firestore:`, error);
-              // En caso de error, asumir que NO está completado para evitar bloqueos incorrectos
-              isSubjectCompleted = false;
-            }
-            
-            // Verificar si la siguiente fase está autorizada
-            const nextPhase: 'first' | 'second' | 'third' | null = currentPhase === 'first' ? 'second' : currentPhase === 'second' ? 'third' : null;
-            let nextPhaseAuthorized = false;
-            if (nextPhase) {
-              const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, nextPhase);
-              nextPhaseAuthorized = nextPhaseAccess.success && nextPhaseAccess.data.canAccess;
-            }
-            
-            // CRÍTICO: Solo bloquear si el examen YA fue completado (isSubjectCompleted = true)
-            // Si isSubjectCompleted = false, el examen debe estar disponible
-            // Bloquear solo si: examen completado AND no todas las materias completadas AND siguiente fase no autorizada
-            if (isSubjectCompleted && !allSubjectsCompleted && !nextPhaseAuthorized) {
-              console.log(`[fromExamMatematicas] BLOQUEANDO examen: ${currentSubject} - Fase ${currentPhase}`, {
-                isSubjectCompleted,
-                allSubjectsCompleted,
-                nextPhaseAuthorized,
-                reason: 'Examen completado, esperando otras materias o autorización de siguiente fase'
-              });
-              if (isMounted) {
-                setExamState('blocked');
-                notifyError({
-                  title: 'Examen bloqueado',
-                  message: 'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.'
-                });
-              }
-              return;
-            } else if (!isSubjectCompleted) {
-              // Si el examen NO está completado, debe estar disponible (no bloquear)
-              console.log(`[fromExamMatematicas] ✅ Examen NO completado para ${currentSubject} - Fase ${currentPhase}, debe estar disponible`, {
-                isSubjectCompleted,
-                allSubjectsCompleted,
-                nextPhaseAuthorized,
-                message: 'Continuando con la carga del cuestionario...'
-              });
-              // NO retornar aquí - continuar con la carga del cuestionario
-            } else {
-              // Examen completado pero todas las materias completadas o siguiente fase autorizada
-              console.log(`[fromExamMatematicas] Examen completado pero NO bloqueado:`, {
-                isSubjectCompleted,
-                allSubjectsCompleted,
-                nextPhaseAuthorized,
-                reason: allSubjectsCompleted ? 'Todas las materias completadas' : 'Siguiente fase autorizada',
-                message: 'Continuando con la carga del cuestionario...'
-              });
-              // NO retornar aquí - continuar con la carga del cuestionario
-            }
+          } else {
+            gradeIdRef.current = undefined;
           }
         }
         
@@ -500,57 +280,9 @@ const ExamWithFirebase = () => {
         
         if (isMounted) {
           setQuizData(quiz);
-          // Calcular tiempo límite: 2 minutos por pregunta
           const timeLimitMinutes = quiz.questions.length * 2;
           setTimeLeft(timeLimitMinutes * 60);
-        }
-
-        // Verificar si ya se presentó este examen
-        // CRÍTICO: Solo considerar el examen como "ya presentado" si está completado
-        // Si el examen existe pero no está completado, permitir continuar
-        const existingExam = await fetchExamResultDocument(userId, quiz.id, currentPhase, {
-          subject: currentSubject,
-          examTitle: quiz.title,
-        });
-        if (existingExam) {
-          // Verificar si el examen está realmente completado
-          const isCompleted = existingExam.completed === true;
-          const examSubject = (existingExam.subject || '').trim().toLowerCase();
-          const normalizedSubject = currentSubject.trim().toLowerCase();
-          const isCorrectSubject = examSubject === normalizedSubject || !examSubject; // Permitir si no tiene subject (exámenes antiguos)
-          
-          console.log(`[fromExamMatematicas] Examen encontrado:`, {
-            examId: quiz.id,
-            isCompleted,
-            examSubject,
-            normalizedSubject,
-            isCorrectSubject,
-            shouldBlock: isCompleted && isCorrectSubject
-          });
-          
-          // Solo bloquear si el examen está completado Y es de la materia correcta
-          if (isCompleted && isCorrectSubject) {
-            console.log(`[fromExamMatematicas] Examen ya completado - mostrando pantalla de examen terminado`);
-            if (isMounted) {
-              setExistingExamData(existingExam);
-              setExamState('already_taken');
-            }
-          } else {
-            // El examen existe pero no está completado, o no es de la materia correcta
-            // Permitir continuar o reanudar
-            console.log(`[fromExamMatematicas] Examen encontrado pero NO completado o materia incorrecta - permitiendo continuar`, {
-              isCompleted,
-              isCorrectSubject
-            });
-            if (isMounted) {
-              setExamState('welcome');
-            }
-          }
-        } else {
-          console.log('Examen disponible, mostrando pantalla de bienvenida');
-          if (isMounted) {
-            setExamState('welcome');
-          }
+          setExamState('awaiting_validation');
         }
 
         // Limpiar el timeout ya que la carga fue exitosa
@@ -591,6 +323,44 @@ const ExamWithFirebase = () => {
       }
     };
   }, [userId]);
+
+  const runValidationFromSummary = useCallback(async () => {
+    if (!userId || !quizData) return;
+    const gradeId = gradeIdRef.current;
+    if (!gradeId) {
+      notifyError({ title: 'Datos incompletos', message: 'No se encontró el grado del estudiante.' });
+      return;
+    }
+    setValidationChecking(true);
+    try {
+      const outcome = await validateExamPresentationGate({
+        userId,
+        gradeId,
+        phase: currentPhase,
+        subjectLabel: currentSubject,
+        quizId: quizData.id,
+      });
+      if (outcome.type === 'blocked') {
+        setExamState('blocked');
+        notifyError({
+          title: 'Examen bloqueado',
+          message: 'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.',
+        });
+        return;
+      }
+      if (outcome.type === 'already_taken') {
+        setExistingExamData(outcome.examSnapshot);
+        setExamState('already_taken');
+        return;
+      }
+      setExamState('welcome');
+    } catch (err) {
+      console.error('[fromExamMatematicas] Validación:', err);
+      notifyError({ title: 'Error', message: 'No se pudo comprobar el acceso. Intenta de nuevo.' });
+    } finally {
+      setValidationChecking(false);
+    }
+  }, [userId, quizData, currentPhase, currentSubject, notifyError]);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: string) => {
@@ -1043,6 +813,36 @@ const ExamWithFirebase = () => {
     setExamState('active')
   }
 
+  const AwaitingValidationScreen = () => {
+    if (!quizData) return null;
+    return (
+      <div className="max-w-2xl mx-auto">
+        <Card className={cn("shadow-lg", appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader className="text-center">
+            <CardTitle className={cn("text-xl", appTheme === 'dark' ? 'text-white' : '')}>
+              Cuestionario listo: {quizData.title}
+            </CardTitle>
+            <CardDescription className={cn(appTheme === 'dark' ? 'text-gray-400' : '')}>
+              Confirma en el servidor si puedes presentar este intento (una consulta al pulsar el botón).
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-center">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={validationChecking}
+              onClick={() => void runValidationFromSummary()}
+              className="text-sm"
+            >
+              {validationChecking ? 'Comprobando…' : 'Comprobar acceso al examen'}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  };
+
   // Pantalla de carga
   const LoadingScreen = () => (
     <div className="max-w-2xl mx-auto">
@@ -1055,7 +855,7 @@ const ExamWithFirebase = () => {
           </div>
           <CardTitle className={cn("text-xl", appTheme === 'dark' ? 'text-white' : '')}>Generando cuestionario...</CardTitle>
           <CardDescription className={cn(appTheme === 'dark' ? 'text-gray-400' : '')}>
-            Estamos preparando tu evaluación personalizada de {examConfig.subject}
+            Estamos preparando tu evaluación personalizada de {currentSubject}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -1188,7 +988,10 @@ const ExamWithFirebase = () => {
                 <div>
                   <span className={cn(appTheme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Fecha:</span>
                   <div className={cn("font-medium", appTheme === 'dark' ? 'text-white' : '')}>
-                    {new Date(existingExamData.endTime).toLocaleDateString('es-ES', {
+                    {new Date(
+                      existingExamData.endTime ||
+                        (typeof existingExamData.timestamp === 'number' ? existingExamData.timestamp : Date.now())
+                    ).toLocaleDateString('es-ES', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
@@ -2223,6 +2026,7 @@ const ExamWithFirebase = () => {
       style={appTheme === 'dark' ? {} : getQuizBackgroundStyle(theme)}
     >
       {examState === 'loading' && <LoadingScreen />}
+      {examState === 'awaiting_validation' && <AwaitingValidationScreen />}
       {examState === 'error' && <ErrorScreen />}
       {examState === 'blocked' && <BlockedScreen />}
       {examState === 'no_questions' && <NoQuestionsScreen />}

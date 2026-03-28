@@ -4,19 +4,15 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, TrendingUp, ArrowUp, Target, Award, Minus, ArrowDown, CheckCircle2, AlertTriangle, Loader2, Home } from "lucide-react";
 import { Link } from "react-router-dom";
-import { doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { firebaseApp } from "@/services/firebase/db.service";
 import { CartesianGrid, Bar, ResponsiveContainer, XAxis, YAxis, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Tooltip } from "recharts";
 import { useUserInstitution } from "@/hooks/query/useUserInstitution";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
-import { getAllPhases, getPhaseType } from "@/utils/firestoreHelpers";
+import { fetchEvaluationsFromStudentSummary } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
 import { phase1AIAnalysisService, Phase1ConsolidatedAnalysis } from "@/services/phase/phase1AIAnalysis.service";
 import { StudentNav } from "@/components/student/StudentNav";
 import { Brain, Sparkles, Loader2 as Loader2Icon } from "lucide-react";
-
-const db = getFirestore(firebaseApp);
 
 // Interfaces para tipar los datos
 interface ExamScore {
@@ -51,10 +47,6 @@ interface ExamResult {
     isCorrect: boolean;
     answered: boolean;
   }>;
-}
-
-interface UserResults {
-  [examId: string]: ExamResult;
 }
 
 // Mapeo de temas a materias principales
@@ -92,36 +84,24 @@ const ExamAnalyzer = () => {
       }
 
       try {
-        // Obtener resultados de todas las subcolecciones de fases
-        const phases = getAllPhases();
-        const evaluationsArray: any[] = [];
-
-        // Leer de las subcolecciones de fases
-        for (const phaseName of phases) {
-          const phaseRef = collection(db, "results", user.uid, phaseName);
-          const phaseSnap = await getDocs(phaseRef);
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data();
-            evaluationsArray.push({
-              ...examData,
-              examId: doc.id,
-              phase: getPhaseType(phaseName) || phaseName,
-            });
-          });
-        }
-
-        // También leer de la estructura antigua para compatibilidad
-        const oldDocRef = doc(db, "results", user.uid);
-        const oldDocSnap = await getDoc(oldDocRef);
-        if (oldDocSnap.exists()) {
-          const oldData = oldDocSnap.data() as UserResults;
-          Object.entries(oldData).forEach(([examId, examData]) => {
-            evaluationsArray.push({
-              ...examData,
-              examId,
-            });
-          });
-        }
+        const raw = await fetchEvaluationsFromStudentSummary(user.uid);
+        const evaluationsArray: ExamResult[] = raw.map((r) => ({
+          userId: r.userId,
+          examId: r.examId,
+          examTitle: r.examTitle,
+          answers: r.answers || {},
+          score: r.score as ExamScore,
+          topic: r.topic || '',
+          timeExpired: r.timeExpired === true,
+          lockedByTabChange: r.lockedByTabChange === true,
+          tabChangeCount: r.tabChangeCount ?? 0,
+          startTime: r.startTime || '',
+          endTime: r.endTime || '',
+          timeSpent: r.timeSpent ?? 0,
+          completed: r.completed !== false,
+          timestamp: typeof r.timestamp === 'number' ? r.timestamp : 0,
+          questionDetails: (r.questionDetails || []) as ExamResult['questionDetails'],
+        }));
 
         evaluationsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setEvaluations(evaluationsArray);
