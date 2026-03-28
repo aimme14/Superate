@@ -4,9 +4,10 @@
 
 La colección **`results`** almacena los resultados de las pruebas presentadas por los estudiantes:
 
-- **Ruta:** `results / {userId} / {phaseName} / {examId}`
+- **Ruta:** `results / {userId} / {phaseName} / {docId}`
 - **phaseName:** `fase I`, `Fase II` o `fase III`
-- Cada documento en una subcolección de fase representa un examen completado.
+- **docId:** slug de materia (`matematicas`, `lenguaje`, `ciencias_sociales`, `biologia`, `quimica`, `fisica`, `ingles`) — **como máximo 7 documentos por fase**, un intento por materia. El ID del cuestionario generado se guarda en el campo `examId` dentro del documento.
+- Cada documento en una subcolección de fase representa el resultado completado de esa materia en esa fase (un reintento sobrescribe el mismo doc y elimina duplicados previos con el mismo slug al guardar).
 
 El **dashboard del administrador** muestra el total de "Pruebas presentadas" usando:
 
@@ -27,3 +28,8 @@ Si el dashboard muestra 0 pruebas cuando sí hay exámenes guardados, revisar:
 2. Que no exista un error en consola o en los logs del backend al ejecutar el conteo (por ejemplo, permisos denegados).
 
 Si se usa **Firebase Admin SDK** en el backend para obtener las estadísticas, las reglas de seguridad de cliente no aplican a esas lecturas; en ese caso, el fallo suele ser por entorno (proyecto distinto) o por error de red/servicio.
+
+## Desempeño y lecturas (cliente estudiante)
+
+- `fetchEvaluations` / `useStudentEvaluations` **solo** leen `userLookup` + `studentSummaries/{studentId}` (2 documentos) y reconstruyen `ExamResult[]` desde `examSnapshot` por fase y materia. El resumen debe mantenerse actualizado en backend al presentar cada examen.
+- Si no hay institución, no existe el resumen o hay error de lectura, la lista de evaluaciones queda **vacía** hasta que exista un resumen válido.

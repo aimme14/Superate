@@ -13,7 +13,9 @@
     "diagnose-phase": "tsx src/scripts/diagnosePhaseProgress.ts",
     "migrate-videos": "npm run migrate-videos --prefix functions",
     "migrate-weblinks": "npm run migrate-weblinks --prefix functions",
-    "migrate-youtube-grade": "npm run migrate-youtube-grade --prefix functions"
+    "migrate-youtube-grade": "npm run migrate-youtube-grade --prefix functions",
+    "firebase:deploy:studentProgressSummary": "firebase deploy --only functions:default:onExamResultWriteStudentProgressSummary,firestore:rules",
+    "rebuild-student-summary": "npm run rebuild-student-summary --prefix functions"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

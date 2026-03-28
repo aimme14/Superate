@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react'
 
 const MIN_SPLASH_MS = 3000
 
-/**
- * Mantiene visible la bienvenida al menos MIN_SPLASH_MS y hasta que termine auth.loading.
- */
-export function useInitialAuthSplash(loading: boolean) {
+/** Pantalla de bienvenida fija (~3s), sin acoplarse a auth ni a lecturas de red. */
+export function useInitialAuthSplash() {
   const [minTimeElapsed, setMinTimeElapsed] = useState(false)
 
   useEffect(() => {
@@ -13,6 +11,5 @@ export function useInitialAuthSplash(loading: boolean) {
     return () => window.clearTimeout(id)
   }, [])
 
-  const showSplash = loading || !minTimeElapsed
-  return { showSplash }
+  return { showSplash: !minTimeElapsed }
 }

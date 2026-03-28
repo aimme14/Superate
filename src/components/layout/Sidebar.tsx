@@ -74,13 +74,15 @@ const SidebarItem = ({ item, isMobile, toggle }: SidebarItemProps) => {
       void queryClient.prefetchQuery({
         queryKey: ['students', 'by-teacher', user.uid],
         queryFn: () => getStudentsByTeacher(user.uid!),
-        staleTime: 5 * 60 * 1000,
+        staleTime: Infinity,
+        gcTime: Infinity,
       })
     } else if (user.role === 'principal') {
       void queryClient.prefetchQuery({
         queryKey: ['students', 'by-principal', user.uid],
         queryFn: () => getStudentsByPrincipal(user.uid!),
-        staleTime: 5 * 60 * 1000,
+        staleTime: Infinity,
+        gcTime: Infinity,
       })
     }
   }, [user?.uid, user?.role, queryClient])

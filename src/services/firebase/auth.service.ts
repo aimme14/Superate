@@ -61,6 +61,14 @@ class AuthService {
   }
 
   /**
+   * Fuerza un nuevo ID token para incluir custom claims actualizados (Auth + reglas).
+   */
+  async refreshIdToken(): Promise<void> {
+    const u = this.auth.currentUser
+    if (u) await u.getIdToken(true)
+  }
+
+  /**
    * Crea una autenticación por medio de la verificación de credenciales.
    * @param {string} email - El email del usuario.
    * @param {string} password - La contraseña del usuario.

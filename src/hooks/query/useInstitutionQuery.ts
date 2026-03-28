@@ -40,8 +40,8 @@ export const useInstitutions = () => {
       }
       throw new Error(result.error.message)
     },
-    staleTime: 24 * 60 * 60 * 1000, // 24h: reduce lecturas al navegar/entrar
-    gcTime: 45 * 60 * 1000, // memoria: alineado con listados admin
+    staleTime: Infinity,
+    gcTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
@@ -60,11 +60,11 @@ export const useInstitution = (id: string, enabled: boolean = true) => {
       throw new Error(result.error.message)
     },
     enabled: enabled && !!id,
-    staleTime: 24 * 60 * 60 * 1000, // 24h: reduce lecturas al navegar/entrar
+    staleTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-    gcTime: 10 * 60 * 1000, // 10 min en memoria
+    gcTime: Infinity,
   })
 }
 

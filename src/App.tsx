@@ -10,7 +10,6 @@ import RoleProtectedRoute from "@/layouts/RoleProtectedRoute";
 import RootLayout from "@/layouts/Root";
 import StudentLayout from "@/layouts/StudentLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PrefetchInstitutions } from "@/components/common/PrefetchInstitutions";
 import { LazyRouteBoundary } from "@/components/common/RouteLoadingFallback";
 
 // Bundle inicial reducido: páginas por ruta
@@ -56,7 +55,6 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <PrefetchInstitutions />
         <BrowserRouter>
           <Routes>
             <Route

@@ -7,17 +7,16 @@
  * - gcTime: datos en memoria → carga instantánea al volver.
  */
 export const RUTA_PREPARACION_CACHE = {
-  /** 10 min: datos frescos; evita refetch mientras el estudiante usa la ruta. */
-  staleTimeMs: 10 * 60 * 1000,
-  /** 10 min: datos en memoria para carga rápida al volver. */
-  gcTimeMs: 10 * 60 * 1000,
+  /** Alineado a sesión hasta cerrar sesión (invalidación explícita al enviar examen, etc.). */
+  staleTimeMs: Number.POSITIVE_INFINITY,
+  gcTimeMs: Number.POSITIVE_INFINITY,
 } as const;
 
 /**
  * Caché "hasta refresh" para la lista de Ruta académica simulacros.
  * - Primera entrada: se hace la petición y se guarda en caché.
  * - Navegación (Ruta académica ↔ Plan de estudio ↔ Simulacros IA, etc.): solo caché, sin nueva petición.
- * - Solo al refrescar la página (F5): se vuelve a consultar (el caché se pierde al recargar).
+ * - Con persistencia React Query + localStorage, al reabrir la app sigue la caché hasta cerrar sesión.
  */
 export const RUTA_ACADEMICA_SIMULACROS_CACHE = {
   /** Nunca considerar los datos obsoletos durante la sesión. */

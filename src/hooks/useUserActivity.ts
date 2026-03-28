@@ -2,17 +2,23 @@ import { useEffect, useRef } from 'react'
 import { useAuthContext } from '@/context/AuthContext'
 import { dbService } from '@/services/firebase/db.service'
 
+type UseUserActivityOptions = {
+  /** Si es false, no registra actividad ni escribe en Firestore (p. ej. durante la portada inicial). */
+  enabled?: boolean
+}
+
 /**
  * Hook para actualizar la última actividad del usuario
  * OPTIMIZADO: Actualiza solo cada 5 minutos para evitar exceder cuota de Firebase
  */
-export const useUserActivity = () => {
+export const useUserActivity = (options?: UseUserActivityOptions) => {
+  const enabled = options?.enabled !== false
   const { user, isAuth } = useAuthContext()
   const lastUpdateRef = useRef<number>(0)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    if (!isAuth || !user?.uid) return
+    if (!enabled || !isAuth || !user?.uid) return
 
     const updateActivity = async () => {
       try {
@@ -75,6 +81,6 @@ export const useUserActivity = () => {
         window.removeEventListener(event, handleActivity)
       })
     }
-  }, [user?.uid, isAuth])
+  }, [user?.uid, isAuth, enabled])
 }
 

@@ -1,7 +1,7 @@
-import { useAuthContext } from "@/context/AuthContext"
+import { useAuthContext, CURRENT_USER_QUERY_KEY } from "@/context/AuthContext"
 import { UserRole } from "@/interfaces/context.interface"
-import { getUserById } from "@/controllers/user.controller"
-import { dbService } from "@/services/firebase/db.service"
+import { institutionKeys } from "@/hooks/query/useInstitutionQuery"
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState } from 'react'
 
 /**
@@ -9,53 +9,40 @@ import { useEffect, useState } from 'react'
  */
 export const useRole = () => {
   const { user } = useAuthContext()
+  const queryClient = useQueryClient()
   const [isUserActive, setIsUserActive] = useState<boolean>(true)
   const [isInstitutionActive, setIsInstitutionActive] = useState<boolean>(true)
 
   const userRole: UserRole | undefined = user?.role
 
-  // Validar estado activo del usuario y su institución
+  /** Estado activo solo desde caché de React Query (sin lecturas de red en el arranque). */
   useEffect(() => {
-    const validateStatus = async () => {
-      if (!user?.uid) {
-        setIsUserActive(false)
-        setIsInstitutionActive(false)
-        return
-      }
-
-      try {
-        const userResult = await getUserById(user.uid)
-        
-        if (userResult.success && userResult.data) {
-          const userData = userResult.data as any
-          const userActive = userData.isActive === true
-          setIsUserActive(userActive)
-          
-          // Verificar institución si existe
-          if (userData.institutionId || userData.inst) {
-            const institutionId = userData.institutionId || userData.inst
-            const institutionResult = await dbService.getInstitutionById(institutionId)
-            
-            if (institutionResult.success && institutionResult.data) {
-              const institutionActive = institutionResult.data.isActive === true
-              setIsInstitutionActive(institutionActive)
-            } else {
-              setIsInstitutionActive(true) // Si no se puede verificar, asumir activa
-            }
-          } else {
-            setIsInstitutionActive(true) // Si no tiene institución, no aplica
-          }
-        } else {
-          setIsUserActive(false)
-        }
-      } catch (error) {
-        console.error('Error validando estado del usuario:', error)
-        setIsUserActive(false)
-      }
+    if (!user?.uid) {
+      setIsUserActive(false)
+      setIsInstitutionActive(false)
+      return
     }
-    
-    validateStatus()
-  }, [user])
+
+    const cached = queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, user.uid]) as Record<string, unknown> | undefined
+    if (cached) {
+      setIsUserActive(cached.isActive === true)
+      const iid = (cached.institutionId ?? cached.inst) as string | undefined
+      if (iid) {
+        const inst = queryClient.getQueryData(institutionKeys.detail(iid)) as { isActive?: boolean } | undefined
+        if (inst && typeof inst.isActive === 'boolean') {
+          setIsInstitutionActive(inst.isActive === true)
+        } else {
+          setIsInstitutionActive(true)
+        }
+      } else {
+        setIsInstitutionActive(true)
+      }
+      return
+    }
+
+    setIsUserActive(true)
+    setIsInstitutionActive(true)
+  }, [user?.uid, queryClient])
 
   // Permisos por rol
   const permissions = {

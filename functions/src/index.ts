@@ -6,6 +6,7 @@
  */
 
 import * as functions from 'firebase-functions';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { justificationService } from './services/justification.service';
 import { questionService } from './services/question.service';
 import { geminiService } from './services/gemini.service';
@@ -15,6 +16,8 @@ import { vocabularyService } from './services/vocabulary.service';
 import { getRandomTips } from './services/tipsICFES.service';
 import { getRandomEjercicios } from './services/ejerciciosIA.service';
 import { APIResponse } from './types/question.types';
+import { rebuildStudentProgressSummary } from './services/studentProgressSummary.service';
+import { syncClaimsForUid, syncClaimsForInstitutionMembers } from './services/authClaims.service';
 
 // =============================
 // CONFIGURACIÓN REGIONAL
@@ -1534,3 +1537,106 @@ export const deleteVocabularyExamples = functions
       res.status(500).json(response);
     }
   });
+
+// =============================
+// TRIGGER: resumen de progreso por estudiante (denormalizado bajo institución)
+// =============================
+
+/**
+ * Al crear/actualizar/borrar un resultado en results/{uid}/{fase}/{examId},
+ * recalcula superate/auth/institutions/{instId}/studentSummaries/{uid}
+ */
+export const onExamResultWriteStudentProgressSummary = onDocumentWritten(
+  {
+    document: 'results/{studentId}/{phaseName}/{examId}',
+    region: REGION,
+  },
+  async (event) => {
+    const studentId = event.params.studentId as string;
+    try {
+      await rebuildStudentProgressSummary(studentId);
+    } catch (err) {
+      console.error('[onExamResultWriteStudentProgressSummary]', err);
+      throw err;
+    }
+  }
+);
+
+// =============================
+// Custom claims (Auth): sincronizar con Firestore para reglas sin lecturas extra
+// =============================
+
+/** userLookup creado/actualizado/eliminado */
+export const onUserLookupWriteSyncClaims = onDocumentWritten(
+  { document: 'superate/auth/userLookup/{uid}', region: REGION },
+  async (event) => {
+    const uid = event.params.uid as string;
+    try {
+      await syncClaimsForUid(uid);
+    } catch (err) {
+      console.error('[onUserLookupWriteSyncClaims]', err);
+      throw err;
+    }
+  }
+);
+
+/** Cuenta admin en superate/auth/users */
+export const onAuthUsersWriteSyncClaims = onDocumentWritten(
+  { document: 'superate/auth/users/{uid}', region: REGION },
+  async (event) => {
+    const uid = event.params.uid as string;
+    try {
+      await syncClaimsForUid(uid);
+    } catch (err) {
+      console.error('[onAuthUsersWriteSyncClaims]', err);
+      throw err;
+    }
+  }
+);
+
+/** Institución activa/inactiva o borrada: refrescar claims de todos los miembros */
+export const onInstitutionWriteSyncClaims = onDocumentWritten(
+  { document: 'superate/auth/institutions/{institutionId}', region: REGION },
+  async (event) => {
+    const institutionId = event.params.institutionId as string;
+    try {
+      const change = event.data;
+      if (!change) return;
+      if (!change.after.exists) {
+        await syncClaimsForInstitutionMembers(institutionId);
+        return;
+      }
+      const before = change.before.exists ? change.before.data() : null;
+      const after = change.after.data();
+      const beforeActive = before?.isActive === true;
+      const afterActive = after?.isActive === true;
+      if (change.before.exists && beforeActive === afterActive) {
+        return;
+      }
+      await syncClaimsForInstitutionMembers(institutionId);
+    } catch (err) {
+      console.error('[onInstitutionWriteSyncClaims]', err);
+      throw err;
+    }
+  }
+);
+
+function roleDocTrigger(subcoll: string) {
+  return onDocumentWritten(
+    { document: `superate/auth/institutions/{institutionId}/${subcoll}/{uid}`, region: REGION },
+    async (event) => {
+      const uid = event.params.uid as string;
+      try {
+        await syncClaimsForUid(uid);
+      } catch (err) {
+        console.error(`[syncClaims ${subcoll}]`, err);
+        throw err;
+      }
+    }
+  );
+}
+
+export const onRectorWriteSyncClaims = roleDocTrigger('rectores');
+export const onCoordinadorWriteSyncClaims = roleDocTrigger('coordinadores');
+export const onProfesorWriteSyncClaims = roleDocTrigger('profesores');
+export const onEstudianteWriteSyncClaims = roleDocTrigger('estudiantes');

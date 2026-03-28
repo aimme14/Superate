@@ -6,18 +6,13 @@ import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
 import { useNavigate } from "react-router-dom"
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
-import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
-import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
+import { fetchExamResultDocument, saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { shuffleArray } from "@/utils/arrayUtils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
-
-const db = getFirestore(firebaseApp);
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -39,39 +34,6 @@ interface Question {
   }[];
   correctAnswer: string;
 }
-
-// Verifica si el usuario ya presentó el examen
-const checkExamStatus = async (userId: string, examId: string, phase?: 'first' | 'second' | 'third') => {
-  // Si se proporciona la fase, buscar solo en esa subcolección
-  if (phase) {
-    const phaseName = getPhaseName(phase);
-    const docRef = doc(db, "results", userId, phaseName, examId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return docSnap.data();
-    }
-  } else {
-    // Si no se proporciona fase, buscar en todas las subcolecciones
-    const phases = getAllPhases();
-    for (const phaseName of phases) {
-      const docRef = doc(db, "results", userId, phaseName, examId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return docSnap.data();
-      }
-    }
-  }
-  
-  // También verificar estructura antigua para compatibilidad
-  const oldDocRef = doc(db, "results", userId);
-  const oldDocSnap = await getDoc(oldDocRef);
-  if (oldDocSnap.exists()) {
-    const data = oldDocSnap.data();
-    return data[examId] || null;
-  }
-  
-  return null;
-};
 
 // Guarda los resultados del examen y los registra en el contador del admin (servicio unificado)
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
@@ -255,7 +217,9 @@ const ExamWithFirebase = () => {
 
     const fetchExamStatus = async () => {
       try {
-        const existingExam = await checkExamStatus(userId, examData.id);
+        const existingExam = await fetchExamResultDocument(userId, examData.id, undefined, {
+          examTitle: examData.title,
+        });
         if (existingExam) {
           setExistingExamData(existingExam)
           setExamState('already_taken')

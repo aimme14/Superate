@@ -15,6 +15,7 @@ import { Toaster } from '#/ui/toaster'
 import { GlobalQueryErrorToaster } from '@/components/common/GlobalQueryErrorToaster'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
 import { PwaLifecycleToaster } from '@/components/common/PwaLifecycleToaster'
+import { PrefetchInstitutions } from '@/components/common/PrefetchInstitutions'
 import { AuthBootScreen } from '@/components/common/AuthBootScreen'
 import { useInitialAuthSplash } from '@/hooks/ui/useInitialAuthSplash'
 import Footer from '#/layout/Footer'
@@ -23,17 +24,15 @@ import Navbar from '#/layout/Navbar'
 type SplashPhase = 'splash' | 'fade' | 'app'
 
 const RootLayout = () => {
-  const { user, isAuth, loading } = useAuthContext()
-  const { showSplash } = useInitialAuthSplash(loading)
+  const { user, isAuth } = useAuthContext()
+  const { showSplash } = useInitialAuthSplash()
   const [splashPhase, setSplashPhase] = useState<SplashPhase>('splash')
-  const [bootChunksReady, setBootChunksReady] = useState(false)
-  const [dashboardChunkReady, setDashboardChunkReady] = useState(false)
   const location = useLocation()
   const [openSidebar, setOpenSidebar] = useState(true)
   const isExpanded = !isAuth || (user?.displayName === 'aimme')
   
-  // Rastrear actividad del usuario para sesiones activas
-  useUserActivity()
+  // Actividad en Firestore solo cuando la portada terminó (evita escrituras durante la bienvenida)
+  useUserActivity({ enabled: splashPhase === 'app' })
   
   // Detectar si estamos en la ruta de quiz
   const isQuizRoute = location.pathname.startsWith('/quiz')
@@ -50,37 +49,22 @@ const RootLayout = () => {
     }
   }, [isQuizRoute, isExpanded])
 
-  // Precargar chunks principales mientras mostramos la bienvenida.
-  // Esto evita que justo al quitar la capa aparezcan placeholders de Suspense (`LazyRouteBoundary`).
-  useEffect(() => {
-    // Siempre es probable que el start_url sea "/"
-    Promise.all([
-      import('@/pages/HomePage').catch(() => undefined),
-      import('@/pages/LoginPage').catch(() => undefined)
-    ])
-      .then(() => setBootChunksReady(true))
-      .catch(() => setBootChunksReady(true))
-  }, [])
-
-  // Si al terminar auth el usuario SÍ está autenticado, precargamos dashboard.
-  useEffect(() => {
-    if (loading) return
-    if (!isAuth) return
-    void import('@/pages/dashboard')
-      .then(() => setDashboardChunkReady(true))
-      .catch(() => setDashboardChunkReady(true))
-  }, [loading, isAuth])
-
-  // Al terminar tiempo/auth: fade-out y luego mostrar solo la app (sin parpadeo)
+  // Portada: solo temporizador; sin precargar JS ni esperar chunks (la precarga va después).
   useEffect(() => {
     if (!showSplash && splashPhase === 'splash') {
-      // Espera a que los chunks necesarios ya estén listos para evitar el skeleton de Suspense.
-      const needsDashboard = isAuth
-      const okDashboard = needsDashboard ? dashboardChunkReady : true
-      if (!bootChunksReady || !okDashboard) return
       setSplashPhase('fade')
     }
-  }, [showSplash, splashPhase, bootChunksReady, dashboardChunkReady, isAuth])
+  }, [showSplash, splashPhase])
+
+  // Tras cerrar la portada: precargar rutas frecuentes para suavizar Suspense (ya no bloquea el splash).
+  useEffect(() => {
+    if (splashPhase !== 'app') return
+    void Promise.all([
+      import('@/pages/HomePage').catch(() => undefined),
+      import('@/pages/LoginPage').catch(() => undefined),
+      isAuth ? import('@/pages/dashboard').catch(() => undefined) : Promise.resolve(undefined),
+    ])
+  }, [splashPhase, isAuth])
 
   const onSplashFadeComplete = useCallback(() => {
     setSplashPhase('app')
@@ -139,6 +123,7 @@ const RootLayout = () => {
 
   return (
     <>
+      {splashPhase === 'app' && <PrefetchInstitutions />}
       {splashPhase !== 'app' && (
         <AuthBootScreen
           exiting={splashPhase === 'fade'}

@@ -7,14 +7,11 @@ import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { firebaseApp } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
-import { getPhaseName, getAllPhases } from "@/utils/firestoreHelpers";
-import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
+import { fetchExamResultDocument, saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -25,8 +22,6 @@ import ImageGallery from "@/components/common/ImageGallery";
 import DOMPurify from 'dompurify';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-
-const db = getFirestore(firebaseApp);
 
 // Función para limpiar HTML y mostrar solo texto
 const stripHtmlTags = (html: string): string => {
@@ -171,40 +166,6 @@ interface QuestionTimeData {
 }
 
 
-// Verifica si el usuario ya presentó el examen
-const checkExamStatus = async (userId: string, examId: string, phase?: 'first' | 'second' | 'third') => {
-  // Si se proporciona la fase, buscar solo en esa subcolección
-  if (phase) {
-    const phaseName = getPhaseName(phase);
-    const docRef = doc(db, "results", userId, phaseName, examId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return docSnap.data();
-    }
-  } else {
-    // Si no se proporciona fase, buscar en todas las subcolecciones
-    const phases = getAllPhases();
-    for (const phaseName of phases) {
-      const docRef = doc(db, "results", userId, phaseName, examId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return docSnap.data();
-      }
-    }
-  }
-  
-  // También verificar estructura antigua para compatibilidad
-  const oldDocRef = doc(db, "results", userId);
-  const oldDocSnap = await getDoc(oldDocRef);
-  if (oldDocSnap.exists()) {
-    const data = oldDocSnap.data();
-    return data[examId] || null;
-  }
-  
-  return null;
-};
-
-// Guarda los resultados del examen
 // Guarda los resultados del examen y los registra en el contador del admin (servicio unificado)
 const saveExamResults = async (userId: string, examId: string, examData: any) => {
   const result = await saveExamResultsAndRegister(userId, examId, examData);
@@ -328,7 +289,10 @@ const ExamWithFirebase = () => {
         }
 
         // Verificar si ya se presentó este examen
-        const existingExam = await checkExamStatus(userId, quiz.id, quiz.phase as 'first' | 'second' | 'third' | undefined);
+        const existingExam = await fetchExamResultDocument(userId, quiz.id, quiz.phase as 'first' | 'second' | 'third' | undefined, {
+          subject: examConfig.subject,
+          examTitle: quiz.title,
+        });
         if (existingExam) {
           console.log('Examen ya presentado:', existingExam);
           if (isMounted) {

@@ -8,13 +8,16 @@ import ErrorAPI, { Unauthorized } from "@/errors/index"
 import { normalizeError } from "@/errors/handler"
 import { User as UserFB } from "firebase/auth"
 
+/** Payload de login: usuario de Auth + documento de Firestore ya validado (sin lecturas extra en el cliente). */
+export type LoginSuccessPayload = { firebaseUser: UserFB; profile: Record<string, unknown> }
+
 /**
  * Maneja el proceso de inicio de sesión del usuario.
  * @param {Request} req - Objeto de solicitud Express. Debe contener email y password en el body.
  * @argument photoURL - Hace parte del profile del usuario autenticado (lo usamos para la verificacion de email)
  * @returns {Promise<void>} - Envía el usuario autenticado o un mensaje de error.
  */
-export const login = async ({ email, password }: { email: string, password: string }): Promise<Result<UserFB>> => {
+export const login = async ({ email, password }: { email: string, password: string }): Promise<Result<LoginSuccessPayload>> => {
   try {
     console.log('🔐 Intentando login para:', email)
     
@@ -67,7 +70,10 @@ export const login = async ({ email, password }: { email: string, password: stri
       // pero no es un requisito para iniciar sesión
       
       console.log('✅ Login completado exitosamente')
-      return success(result.data)
+      return success({
+        firebaseUser: result.data,
+        profile: userData.data,
+      })
     } else {
       console.log('❌ No se pudieron obtener los datos del usuario:', userData.success ? 'Sin datos' : userData.error)
       // Si el usuario no existe en Firestore pero sí en Firebase Auth, significa que fue eliminado

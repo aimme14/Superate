@@ -18,6 +18,7 @@ import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
 import { geminiService } from '@/services/ai/gemini.service';
 import { getPhaseName } from '@/utils/firestoreHelpers';
+import { fetchExamResultDocument } from '@/services/firebase/examResults.service';
 
 /**
  * Análisis consolidado de Fase I generado por IA
@@ -90,11 +91,11 @@ class Phase1AIAnalysisService {
       const phase1Snap = await getDocs(phase1Ref);
       
       const results: any[] = [];
-      phase1Snap.docs.forEach(doc => {
-        const data = doc.data();
+      phase1Snap.docs.forEach(docSnap => {
+        const data = docSnap.data();
         results.push({
           ...data,
-          examId: doc.id,
+          examId: (data.examId as string) || docSnap.id,
         });
       });
 
@@ -115,17 +116,13 @@ class Phase1AIAnalysisService {
     try {
       console.log(`🔍 Analizando examen Fase I: ${examId} para estudiante ${studentId}`);
 
-      const phase1Name = getPhaseName('first');
-      const examRef = doc(this.db, 'results', studentId, phase1Name, examId);
-      const examSnap = await getDoc(examRef);
+      const examData = await fetchExamResultDocument(studentId, examId, 'first');
 
-      if (!examSnap.exists()) {
+      if (!examData) {
         return failure(new ErrorAPI({ 
           message: 'No se encontró el examen especificado' 
         }));
       }
-
-      const examData = examSnap.data();
       const questionDetails = examData.questionDetails || [];
       const subject = examData.subject || 'Desconocida';
       const score = examData.score?.overallPercentage || examData.score?.percentage || 0;
