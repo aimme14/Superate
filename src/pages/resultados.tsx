@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useStudentEvaluations, type ExamResult } from "@/hooks/query/useStudentEvaluations";
-import { questionService, Question } from "@/services/firebase/question.service";
+import { useQuestionByIdOrCode } from "@/hooks/query/useQuestionByIdOrCode";
 import ImageGallery from "@/components/common/ImageGallery";
 import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -137,7 +137,8 @@ export default function EvaluationsTab() {
   const { data: evaluations = [], isLoading: loading } = useStudentEvaluations();
   const [selectedExam, setSelectedExam] = useState<ExamResult | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  /** Id estable para la query (mismo string = caché de sesión en React Query). */
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const [selectedQuestionDetail, setSelectedQuestionDetail] = useState<{
     questionId: number | string;
     questionText: string;
@@ -148,7 +149,11 @@ export default function EvaluationsTab() {
     answered: boolean;
   } | null>(null);
   const [showQuestionView, setShowQuestionView] = useState(false);
-  const [loadingQuestion, setLoadingQuestion] = useState(false);
+
+  const questionQuery = useQuestionByIdOrCode(activeQuestionId, showQuestionView);
+  const fullQuestion = questionQuery.data;
+  /** Primera carga sin caché; si ya está en React Query, no muestra spinner al reabrir. */
+  const loadingFullQuestion = questionQuery.isPending && !fullQuestion;
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>(() => {
     const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
     return {
@@ -224,8 +229,7 @@ export default function EvaluationsTab() {
     setShowDetails(false);
   };
 
-  // Función para visualizar una pregunta completa
-  const handleViewQuestion = async (questionDetail: {
+  const handleViewQuestion = (questionDetail: {
     questionId: number | string;
     questionText: string;
     userAnswer: string | null;
@@ -234,31 +238,14 @@ export default function EvaluationsTab() {
     isCorrect: boolean;
     answered: boolean;
   }) => {
-    setLoadingQuestion(true);
     setSelectedQuestionDetail(questionDetail);
+    setActiveQuestionId(String(questionDetail.questionId));
     setShowQuestionView(true);
-
-    try {
-      // Intentar obtener la pregunta completa desde Firebase
-      const result = await questionService.getQuestionByIdOrCode(String(questionDetail.questionId));
-      if (result.success) {
-        setSelectedQuestion(result.data);
-      } else {
-        console.error('Error al obtener la pregunta:', result.error);
-        // Si no se puede obtener, usar solo los datos que tenemos
-        setSelectedQuestion(null);
-      }
-    } catch (error) {
-      console.error('Error al cargar la pregunta:', error);
-      setSelectedQuestion(null);
-    } finally {
-      setLoadingQuestion(false);
-    }
   };
 
   const hideQuestionView = () => {
     setShowQuestionView(false);
-    setSelectedQuestion(null);
+    setActiveQuestionId(null);
     setSelectedQuestionDetail(null);
   };
 
@@ -643,14 +630,19 @@ export default function EvaluationsTab() {
       <ExamDetailsModal />
 
       {/* Modal para visualizar pregunta completa */}
-      <Dialog open={showQuestionView} onOpenChange={setShowQuestionView}>
+      <Dialog
+        open={showQuestionView}
+        onOpenChange={(open) => {
+          if (!open) hideQuestionView();
+        }}
+      >
         <DialogContent className={cn("max-w-[95vw] max-h-[95vh] overflow-hidden p-0", theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-gray-50')}>
-          {loadingQuestion ? (
+          {loadingFullQuestion ? (
             <div className="flex items-center justify-center p-8">
               <div className={cn("animate-spin rounded-full h-8 w-8 border-b-2", theme === 'dark' ? 'border-purple-400' : 'border-purple-600')}></div>
               <span className={cn("ml-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Cargando pregunta...</span>
             </div>
-          ) : selectedQuestion && selectedQuestionDetail ? (
+          ) : fullQuestion && selectedQuestionDetail ? (
             <div className={cn("flex flex-col h-full", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-50')}>
               {/* Botón de cerrar fijo */}
               <Button
@@ -678,10 +670,10 @@ export default function EvaluationsTab() {
                           <h2 className={cn("text-lg font-bold", theme === 'dark' ? 'text-white' : '')}>{selectedExam?.examTitle || 'Examen'}</h2>
                           <div className="flex items-center gap-2 text-sm mt-1">
                             <span className={cn("px-2 py-1 rounded-full text-xs font-medium", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
-                              {selectedQuestion.subject}
+                              {fullQuestion.subject}
                             </span>
                             <span className={cn("px-2 py-1 rounded-full text-xs font-medium", theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>
-                              {selectedQuestion.topic}
+                              {fullQuestion.topic}
                             </span>
                           </div>
                         </div>
@@ -695,15 +687,15 @@ export default function EvaluationsTab() {
                           <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : '')}>Pregunta</CardTitle>
                           <div className="flex items-center gap-2 text-sm">
                             <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
-                              {selectedQuestion.topic}
+                              {fullQuestion.topic}
                             </span>
                             <span className={cn(
                               "px-2 py-1 rounded-full",
-                              selectedQuestion.level === 'Fácil' ? (theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700') :
-                                selectedQuestion.level === 'Medio' ? (theme === 'dark' ? 'bg-yellow-900/50 text-yellow-300' : 'bg-yellow-100 text-yellow-700') :
+                              fullQuestion.level === 'Fácil' ? (theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700') :
+                                fullQuestion.level === 'Medio' ? (theme === 'dark' ? 'bg-yellow-900/50 text-yellow-300' : 'bg-yellow-100 text-yellow-700') :
                                   (theme === 'dark' ? 'bg-red-900/50 text-red-300' : 'bg-red-100 text-red-700')
                             )}>
-                              {selectedQuestion.level}
+                              {fullQuestion.level}
                             </span>
                           </div>
                         </div>
@@ -711,41 +703,41 @@ export default function EvaluationsTab() {
                       <CardContent>
                         <div className="prose prose-lg max-w-none">
                           {/* Texto informativo */}
-                          {selectedQuestion.informativeText && (
+                          {fullQuestion.informativeText && (
                             <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
                               <div
                                 className={cn("leading-relaxed prose max-w-none", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
-                                dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(selectedQuestion.informativeText)) }}
+                                dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(fullQuestion.informativeText)) }}
                               />
                             </div>
                           )}
 
                           {/* Imágenes informativas */}
-                          {selectedQuestion.informativeImages && selectedQuestion.informativeImages.length > 0 && (
+                          {fullQuestion.informativeImages && fullQuestion.informativeImages.length > 0 && (
                             <div className="mb-4">
-                              <ImageGallery images={selectedQuestion.informativeImages} />
+                              <ImageGallery images={fullQuestion.informativeImages} />
                             </div>
                           )}
 
                           {/* Imágenes de la pregunta */}
-                          {selectedQuestion.questionImages && selectedQuestion.questionImages.length > 0 && (
+                          {fullQuestion.questionImages && fullQuestion.questionImages.length > 0 && (
                             <div className="mb-4">
-                              <ImageGallery images={selectedQuestion.questionImages} />
+                              <ImageGallery images={fullQuestion.questionImages} />
                             </div>
                           )}
 
                           {/* Texto de la pregunta */}
-                          {selectedQuestion.questionText && (
+                          {fullQuestion.questionText && (
                             <div
                               className={cn("leading-relaxed text-lg font-medium prose max-w-none", theme === 'dark' ? 'text-white' : 'text-gray-900')}
-                              dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(selectedQuestion.questionText)) }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(fullQuestion.questionText)) }}
                             />
                           )}
                         </div>
                         
                         {/* RadioGroup de opciones con marcado de respuestas */}
                         <div className="space-y-4 mt-6">
-                          {selectedQuestion.options.map((option) => {
+                          {fullQuestion.options.map((option) => {
                             const isUserAnswer = selectedQuestionDetail.userAnswer === option.id;
                             const isCorrectAnswer = option.isCorrect;
                             const isUserCorrect = isUserAnswer && isCorrectAnswer;
@@ -840,7 +832,7 @@ export default function EvaluationsTab() {
                         </div>
                       </CardContent>
                       {/* Justificación de la respuesta (legacy) */}
-                      {selectedQuestion.justification && (
+                      {fullQuestion.justification && (
                         <CardContent className="pt-0">
                           <div className={cn("mt-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200')}>
                             <h4 className={cn("text-sm font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-700')}>
@@ -849,14 +841,14 @@ export default function EvaluationsTab() {
                             </h4>
                             <div
                               className={cn("prose prose-sm max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
-                              dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(selectedQuestion.justification)) }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeMathHtml(renderMathInHtml(fullQuestion.justification)) }}
                             />
                           </div>
                         </CardContent>
                       )}
 
                       {/* Justificación generada por IA */}
-                      {selectedQuestion.aiJustification && (
+                      {fullQuestion.aiJustification && (
                         <CardContent className="pt-0">
                           <div className={cn("mt-4 pt-4 border-t", theme === 'dark' ? 'border-zinc-700' : 'border-gray-200')}>
                             <div className={cn("flex items-center gap-2 mb-3", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -874,7 +866,7 @@ export default function EvaluationsTab() {
                                   ¿Por qué la respuesta correcta es {selectedQuestionDetail.correctAnswer.toUpperCase()}?
                                 </h5>
                                 <MathText 
-                                  text={selectedQuestion.aiJustification.correctAnswerExplanation}
+                                  text={fullQuestion.aiJustification.correctAnswerExplanation}
                                   className={cn("text-sm leading-relaxed", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                                 />
                               </div>
@@ -887,7 +879,7 @@ export default function EvaluationsTab() {
                                     ¿Por qué tu respuesta {selectedQuestionDetail.userAnswer.toUpperCase()} no es correcta?
                                   </h5>
                                   {(() => {
-                                    const userAnswerExplanation = selectedQuestion.aiJustification.incorrectAnswersExplanation?.find(
+                                    const userAnswerExplanation = fullQuestion.aiJustification.incorrectAnswersExplanation?.find(
                                       exp => exp.optionId === selectedQuestionDetail.userAnswer
                                     )
                                     if (userAnswerExplanation) {
@@ -908,14 +900,14 @@ export default function EvaluationsTab() {
                               )}
 
                               {/* Explicaciones de todas las respuestas incorrectas (si el estudiante respondió correctamente) */}
-                              {selectedQuestionDetail.isCorrect && selectedQuestion.aiJustification.incorrectAnswersExplanation && selectedQuestion.aiJustification.incorrectAnswersExplanation.length > 0 && (
+                              {selectedQuestionDetail.isCorrect && fullQuestion.aiJustification.incorrectAnswersExplanation && fullQuestion.aiJustification.incorrectAnswersExplanation.length > 0 && (
                                 <div>
                                   <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
                                     <AlertCircle className="h-4 w-4 text-orange-500" />
                                     ¿Por qué las otras opciones no son correctas?
                                   </h5>
                                   <div className="space-y-3">
-                                    {selectedQuestion.aiJustification.incorrectAnswersExplanation.map((explanation, idx) => (
+                                    {fullQuestion.aiJustification.incorrectAnswersExplanation.map((explanation, idx) => (
                                       <div 
                                         key={idx} 
                                         className={cn("p-3 rounded border", theme === 'dark' ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white border-gray-200')}
@@ -934,14 +926,14 @@ export default function EvaluationsTab() {
                               )}
 
                               {/* Conceptos clave */}
-                              {selectedQuestion.aiJustification.keyConcepts && selectedQuestion.aiJustification.keyConcepts.length > 0 && (
+                              {fullQuestion.aiJustification.keyConcepts && fullQuestion.aiJustification.keyConcepts.length > 0 && (
                                 <div>
                                   <h5 className={cn("font-semibold mb-2 flex items-center gap-2", theme === 'dark' ? 'text-purple-300' : 'text-purple-700')}>
                                     <BookOpen className="h-4 w-4 text-blue-500" />
                                     Conceptos clave para recordar
                                   </h5>
                                   <ul className={cn("list-disc list-inside space-y-1", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-                                    {selectedQuestion.aiJustification.keyConcepts.map((concept, idx) => (
+                                    {fullQuestion.aiJustification.keyConcepts.map((concept, idx) => (
                                       <li key={idx} className="text-sm">{concept}</li>
                                     ))}
                                   </ul>

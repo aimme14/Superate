@@ -44,5 +44,17 @@ export const ESTUDIANTE_SESSION_CACHE = {
   refetchOnReconnect: false,
 } as const;
 
+/**
+ * Preguntas completas (bank) al abrir «Ver pregunta» en Resultados u otras vistas.
+ * Misma sesión: una lectura por id; repetir la misma pregunta no vuelve a Firestore.
+ */
+export const QUESTION_BANK_SESSION_CACHE = {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  refetchOnWindowFocus: false,
+  refetchOnMount: false,
+  refetchOnReconnect: false,
+} as const;
+
 /** Preguntas Simulacros IA/ICFES: refresco cada 30 min para rotar preguntas. */
 export const SIMULACRO_QUESTIONS_CACHE_MS = 30 * 60 * 1000;

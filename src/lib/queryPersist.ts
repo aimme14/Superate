@@ -21,6 +21,8 @@ function shouldDehydrateQuery(query: { queryKey: readonly unknown[] }): boolean 
   if (key === 'simulacros') return true
   if (key === 'study-plan-data') return true
   if (key === 'student-evaluations') return true
+  /** Preguntas del banco (Resultados «Ver pregunta»); persiste entre visitas hasta cerrar sesión. */
+  if (key === 'question-bank') return true
   if (key === 'students') return true
   if (key === 'teacher-students') return true
   if (key === 'student-subjects-data' || key === 'student-phases-data') return true
