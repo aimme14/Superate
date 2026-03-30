@@ -6,6 +6,10 @@ import { useEffect, useMemo } from "react"
 import { useNotification } from "@/hooks/ui/useNotification"
 import { useCurrentUser } from "@/hooks/query/useCurrentUser"
 import { useInstitution } from "@/hooks/query/useInstitutionQuery"
+import type { User } from "@/interfaces/db.interface"
+
+/** Perfil Firestore puede incluir `inst` legacy además de `institutionId`. */
+type UserWithLegacyInst = User & { inst?: string }
 
 function ProtectedRoute() {
   const { isAuth, loading, signout, user } = useAuthContext()
@@ -21,7 +25,7 @@ function ProtectedRoute() {
 
   const institutionId = useMemo(() => {
     if (!userData) return ""
-    const d = userData as Record<string, unknown>
+    const d = userData as UserWithLegacyInst
     const id = d.institutionId ?? d.inst
     return id != null && id !== "" ? String(id) : ""
   }, [userData])
