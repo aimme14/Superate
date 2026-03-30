@@ -26,6 +26,13 @@ const storage = getStorage(firebaseApp)
 const AI_TOOLS_COLLECTION = 'AI_Tools'
 const AI_TOOLS_ICONS_PATH = 'AI_Tools_icons'
 
+/** Documentos de caché AI_Tools/consolidado_* (no son herramientas listables). */
+const CONSOLIDADO_DOC_ID_PREFIX = 'consolidado_'
+
+function isListableAIToolDocId(docId: string): boolean {
+  return !docId.startsWith(CONSOLIDADO_DOC_ID_PREFIX)
+}
+
 /**
  * Cabecera Cache-Control en Storage: el navegador guarda el archivo y reduce descargas repetidas (egress).
  * Sin `immutable` para que, si se resube en la misma ruta, tras expirar el max-age se actualice; nuevas subidas aplican al instante.
@@ -295,7 +302,9 @@ class AIToolsService {
     try {
       const colRef = collection(db, AI_TOOLS_COLLECTION)
       const snapshot = await getDocs(colRef)
-      const list = snapshot.docs.map((d) => parseAIToolDoc(d.id, d.data() as Record<string, unknown>))
+      const list = snapshot.docs
+        .filter((d) => isListableAIToolDocId(d.id))
+        .map((d) => parseAIToolDoc(d.id, d.data() as Record<string, unknown>))
       list.sort((a, b) => {
         const byName = a.nombre.localeCompare(b.nombre, 'es')
         if (byName !== 0) return byName
@@ -332,7 +341,8 @@ class AIToolsService {
       }
 
       const snapshot = await getDocs(q)
-      const items = snapshot.docs.map((d) => parseAIToolDoc(d.id, d.data() as Record<string, unknown>))
+      const toolDocs = snapshot.docs.filter((d) => isListableAIToolDocId(d.id))
+      const items = toolDocs.map((d) => parseAIToolDoc(d.id, d.data() as Record<string, unknown>))
       const last = snapshot.docs[snapshot.docs.length - 1]
       const hasMore = snapshot.docs.length === pageSize
 

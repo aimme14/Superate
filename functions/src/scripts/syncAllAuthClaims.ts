@@ -1,5 +1,6 @@
 /**
- * Backfill: aplica custom claims a todos los userLookup y users (admin).
+ * Backfill: aplica custom claims a todos los userLookup y users (admin),
+ * y repasa Firebase Auth por cuentas sin claimsRev en el token.
  *
  * Uso (desde carpeta functions, tras build):
  *   npm run build && node lib/scripts/syncAllAuthClaims.js
@@ -50,6 +51,26 @@ async function main(): Promise<void> {
     await syncClaimsForUid(d.id);
     console.log('  OK', d.id);
   }
+
+  // Cuentas en Auth sin claimsRev (p. ej. creadas antes del backfill)
+  const authClient = admin.auth();
+  let nextPageToken: string | undefined;
+  let scanned = 0;
+  let missingRev = 0;
+  do {
+    const page = await authClient.listUsers(1000, nextPageToken);
+    for (const u of page.users) {
+      scanned++;
+      const rev = (u.customClaims as Record<string, unknown> | undefined)?.claimsRev;
+      if (rev == null) {
+        missingRev++;
+        await syncClaimsForUid(u.uid);
+        console.log('  Auth sin claimsRev → OK', u.uid);
+      }
+    }
+    nextPageToken = page.pageToken;
+  } while (nextPageToken);
+  console.log(`Firebase Auth: ${scanned} usuarios revisados, ${missingRev} sin claimsRev corregidos`);
 
   console.log('✅ syncAllAuthClaims terminado');
 }

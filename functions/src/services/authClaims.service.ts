@@ -12,6 +12,9 @@ const ROLE_TO_COLLECTION: Record<string, string> = {
   student: 'estudiantes',
 };
 
+/** Versión de esquema de claims en el token (subir si cambian campos obligatorios). */
+export const CLAIMS_SCHEMA_REV = 1;
+
 export interface SuperateAuthClaims {
   role: string;
   admin: boolean;
@@ -29,73 +32,83 @@ async function setDeniedClaims(uid: string): Promise<void> {
     active: false,
     institutionId: '',
     institutionActive: false,
-    claimsRev: Date.now(),
+    claimsRev: CLAIMS_SCHEMA_REV,
   };
   await auth.setCustomUserClaims(uid, claims as unknown as { [key: string]: unknown });
 }
 
 /**
+ * Calcula claims desde Firestore (misma lógica que sync, sin escribir).
+ * - Admin en `superate/auth/users/{uid}` con role admin.
+ * - Resto vía userLookup + doc jerárquico + institución.
+ * @returns `null` si no hay usuario reconocible en ninguna estructura (beforeSignIn: no bloquear).
+ */
+export async function computeSuperateClaims(uid: string): Promise<SuperateAuthClaims | null> {
+  const usersSnap = await db.doc(`superate/auth/users/${uid}`).get();
+  if (usersSnap.exists) {
+    const d = usersSnap.data() as { role?: string; isActive?: boolean } | undefined;
+    if (d?.role === 'admin') {
+      const ok = d.isActive === true;
+      return {
+        role: 'admin',
+        admin: true,
+        active: ok,
+        institutionId: '',
+        institutionActive: true,
+        claimsRev: CLAIMS_SCHEMA_REV,
+      };
+    }
+  }
+
+  const lookupSnap = await db.doc(`superate/auth/userLookup/${uid}`).get();
+  if (!lookupSnap.exists) {
+    return null;
+  }
+
+  const lookup = lookupSnap.data() as { institutionId?: string; role?: string };
+  const institutionId = typeof lookup.institutionId === 'string' ? lookup.institutionId.trim() : '';
+  const role = typeof lookup.role === 'string' ? lookup.role.trim() : '';
+  if (!institutionId || !role) {
+    return null;
+  }
+
+  const coll = ROLE_TO_COLLECTION[role];
+  if (!coll) {
+    return null;
+  }
+
+  const institutionSnap = await db.doc(`superate/auth/institutions/${institutionId}`).get();
+  const institutionActive = institutionSnap.exists && institutionSnap.data()?.isActive === true;
+
+  const roleSnap = await db.doc(
+    `superate/auth/institutions/${institutionId}/${coll}/${uid}`
+  ).get();
+  const memberActive = roleSnap.exists && roleSnap.data()?.isActive === true;
+
+  const active = memberActive === true && institutionActive === true;
+
+  return {
+    role,
+    admin: false,
+    active,
+    institutionId,
+    institutionActive,
+    claimsRev: CLAIMS_SCHEMA_REV,
+  };
+}
+
+/**
  * Recalcula y aplica custom claims para un uid a partir de Firestore.
+ * Si no hay datos válidos, aplica claims denegados (scripts / triggers).
  */
 export async function syncClaimsForUid(uid: string): Promise<void> {
   try {
-    const usersSnap = await db.doc(`superate/auth/users/${uid}`).get();
-    if (usersSnap.exists) {
-      const d = usersSnap.data() as { role?: string; isActive?: boolean } | undefined;
-      if (d?.role === 'admin') {
-        const ok = d.isActive === true;
-        const claims: SuperateAuthClaims = {
-          role: 'admin',
-          admin: true,
-          active: ok,
-          institutionId: '',
-          institutionActive: true,
-          claimsRev: Date.now(),
-        };
-        await auth.setCustomUserClaims(uid, claims as unknown as { [key: string]: unknown });
-        return;
-      }
-    }
-
-    const lookupSnap = await db.doc(`superate/auth/userLookup/${uid}`).get();
-    if (!lookupSnap.exists) {
+    const computed = await computeSuperateClaims(uid);
+    if (computed === null) {
       await setDeniedClaims(uid);
       return;
     }
-
-    const lookup = lookupSnap.data() as { institutionId?: string; role?: string };
-    const institutionId = typeof lookup.institutionId === 'string' ? lookup.institutionId.trim() : '';
-    const role = typeof lookup.role === 'string' ? lookup.role.trim() : '';
-    if (!institutionId || !role) {
-      await setDeniedClaims(uid);
-      return;
-    }
-
-    const coll = ROLE_TO_COLLECTION[role];
-    if (!coll) {
-      await setDeniedClaims(uid);
-      return;
-    }
-
-    const institutionSnap = await db.doc(`superate/auth/institutions/${institutionId}`).get();
-    const institutionActive = institutionSnap.exists && institutionSnap.data()?.isActive === true;
-
-    const roleSnap = await db.doc(
-      `superate/auth/institutions/${institutionId}/${coll}/${uid}`
-    ).get();
-    const memberActive = roleSnap.exists && roleSnap.data()?.isActive === true;
-
-    const active = memberActive === true && institutionActive === true;
-
-    const claims: SuperateAuthClaims = {
-      role,
-      admin: false,
-      active,
-      institutionId,
-      institutionActive,
-      claimsRev: Date.now(),
-    };
-    await auth.setCustomUserClaims(uid, claims as unknown as { [key: string]: unknown });
+    await auth.setCustomUserClaims(uid, computed as unknown as { [key: string]: unknown });
   } catch (e) {
     console.error('[syncClaimsForUid]', uid, e);
     throw e;

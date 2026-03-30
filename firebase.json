@@ -1,4 +1,13 @@
 {
+  "auth": {
+    "blockingFunctions": {
+      "triggers": {
+        "beforeSignIn": {
+          "functionName": "setUserClaims"
+        }
+      }
+    }
+  },
   "functions": [
     {
       "source": "functions",

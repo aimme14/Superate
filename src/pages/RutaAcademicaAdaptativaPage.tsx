@@ -1,12 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useQueries } from "@tanstack/react-query";
 import {
   BookOpen,
   BookOpen as BookOpenIcon,
   FileText,
   FileCheck,
-  Video,
   Calculator,
   FlaskConical,
   Globe,
@@ -14,9 +12,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useSimulacros, simulacroDetailKey } from "@/hooks/query/useSimulacros";
-import { simulacrosService } from "@/services/firebase/simulacros.service";
-import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
+import { useSimulacros } from "@/hooks/query/useSimulacros";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,18 +21,7 @@ import type { Simulacro } from "@/interfaces/simulacro.interface";
 import { SIMULACRO_MATERIAS, isMateriaCon4Secciones } from "@/interfaces/simulacro.interface";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
-
-function buildViewerUrl(simulacroId: string, tipo: string): string {
-  return `/viewer/pdf?simulacroId=${encodeURIComponent(simulacroId)}&tipo=${tipo}`;
-}
-
-const videoLinkClass = (theme: "light" | "dark") =>
-  cn(
-    "inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-    theme === "dark"
-      ? "border border-zinc-500 text-gray-100 hover:bg-zinc-600 hover:border-zinc-400 hover:text-white"
-      : "border border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"
-  );
+import { buildSimulacroViewerPdfPath } from "@/utils/simulacroViewerUrl";
 
 export default function RutaAcademicaAdaptativaPage() {
   const { theme } = useThemeContext();
@@ -106,29 +91,6 @@ export default function RutaAcademicaAdaptativaPage() {
   };
 
   const selectedList = selectedMateria ? (byMateria.get(selectedMateria) ?? []) : [];
-  const visibleIds = useMemo(() => selectedList.map((s) => s.id), [selectedList]);
-
-  const detailQueries = useQueries({
-    queries: visibleIds.map((id) => ({
-      queryKey: simulacroDetailKey(id),
-      queryFn: async (): Promise<Simulacro | null> => {
-        const res = await simulacrosService.getById(id);
-        if (res.success) return res.data;
-        throw new Error(res.error?.message ?? "Error al cargar simulacro");
-      },
-      enabled: id.length > 0,
-      ...ESTUDIANTE_SESSION_CACHE,
-    })),
-  });
-
-  const detailsById = useMemo(() => {
-    const map = new Map<string, Simulacro>();
-    visibleIds.forEach((id, index) => {
-      const data = detailQueries[index]?.data;
-      if (data) map.set(id, data);
-    });
-    return map;
-  }, [visibleIds, detailQueries]);
 
   return (
     <div
@@ -307,7 +269,7 @@ export default function RutaAcademicaAdaptativaPage() {
                               {sim.icfes.seccion1DocumentoUrl && (
                                 <Button variant="outline" size="sm" asChild>
                                   <Link
-                                    to={buildViewerUrl(sim.id, "icfes1doc")}
+                                    to={buildSimulacroViewerPdfPath(sim, "icfes1doc")}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={cn(
@@ -324,7 +286,7 @@ export default function RutaAcademicaAdaptativaPage() {
                               {sim.icfes.seccion2DocumentoUrl && (
                                 <Button variant="outline" size="sm" asChild>
                                   <Link
-                                    to={buildViewerUrl(sim.id, "icfes2doc")}
+                                    to={buildSimulacroViewerPdfPath(sim, "icfes2doc")}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={cn(
@@ -344,7 +306,7 @@ export default function RutaAcademicaAdaptativaPage() {
                               {sim.pdfSimulacroUrl && (
                                 <Button variant="outline" size="sm" asChild>
                                   <Link
-                                    to={buildViewerUrl(sim.id, "documento")}
+                                    to={buildSimulacroViewerPdfPath(sim, "documento")}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={cn(
@@ -361,7 +323,7 @@ export default function RutaAcademicaAdaptativaPage() {
                               {sim.pdfSimulacroSeccion2Url && (
                                 <Button variant="outline" size="sm" asChild>
                                   <Link
-                                    to={buildViewerUrl(sim.id, "documento2")}
+                                    to={buildSimulacroViewerPdfPath(sim, "documento2")}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={cn(
@@ -404,7 +366,7 @@ export default function RutaAcademicaAdaptativaPage() {
                                 {sim.icfes.seccion1HojaUrl && (
                                   <Button variant="outline" size="sm" asChild>
                                     <Link
-                                      to={buildViewerUrl(sim.id, "icfes1hoja")}
+                                      to={buildSimulacroViewerPdfPath(sim, "icfes1hoja")}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className={cn(
@@ -421,7 +383,7 @@ export default function RutaAcademicaAdaptativaPage() {
                                 {sim.icfes.seccion2HojaUrl && (
                                   <Button variant="outline" size="sm" asChild>
                                     <Link
-                                      to={buildViewerUrl(sim.id, "icfes2hoja")}
+                                      to={buildSimulacroViewerPdfPath(sim, "icfes2hoja")}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className={cn(
@@ -441,7 +403,7 @@ export default function RutaAcademicaAdaptativaPage() {
                                 {sim.pdfHojaRespuestasUrl && (
                                   <Button variant="outline" size="sm" asChild>
                                     <Link
-                                      to={buildViewerUrl(sim.id, "hoja")}
+                                      to={buildSimulacroViewerPdfPath(sim, "hoja")}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className={cn(
@@ -458,7 +420,7 @@ export default function RutaAcademicaAdaptativaPage() {
                                 {sim.pdfHojaRespuestasSeccion2Url && (
                                   <Button variant="outline" size="sm" asChild>
                                     <Link
-                                      to={buildViewerUrl(sim.id, "hoja2")}
+                                      to={buildSimulacroViewerPdfPath(sim, "hoja2")}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className={cn(
@@ -477,58 +439,6 @@ export default function RutaAcademicaAdaptativaPage() {
                           </div>
                         </div>
                       )}
-
-                      {/* 3. Videos: cargados en segundo plano; sección solo si hay videos */}
-                      {(() => {
-                        const detail = detailsById.get(sim.id);
-                        const videos = detail?.videos ?? [];
-                        const icfesVideos = detail?.icfesVideos ?? [];
-                        const hasVideos = videos.length > 0 || icfesVideos.length > 0;
-                        if (!hasVideos) return null;
-                        return (
-                          <div
-                            className={cn(
-                              "mt-4 pt-3 border-t",
-                              theme === "dark" ? "border-zinc-500/40" : "border-gray-200"
-                            )}
-                          >
-                            <p
-                              className={cn(
-                                "text-sm font-medium mb-2",
-                                theme === "dark" ? "text-gray-300" : "text-gray-600"
-                              )}
-                            >
-                              Videos
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {videos.map((v) => (
-                                <a
-                                  key={v.id}
-                                  href={v.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={videoLinkClass(theme)}
-                                >
-                                  <Video className="h-4 w-4 flex-shrink-0" />
-                                  {v.titulo || "Ver video"}
-                                </a>
-                              ))}
-                              {icfesVideos.map((v) => (
-                                <a
-                                  key={v.id}
-                                  href={v.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={videoLinkClass(theme)}
-                                >
-                                  <Video className="h-4 w-4 flex-shrink-0" />
-                                  {v.titulo || "Ver video"}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
                     </li>
                   ))}
                 </ul>

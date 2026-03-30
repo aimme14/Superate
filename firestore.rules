@@ -195,7 +195,7 @@ service cloud.firestore {
         (request.resource.data.isActive == true || request.resource.data.isActive == false);
       
       allow delete: if isAdminOrToken();
-    }
+    , }
     
     // NUEVA ESTRUCTURA JER��RQUICA: Profesores
     match /superate/auth/institutions/{institutionId}/profesores/{profesorId} {
@@ -329,6 +329,12 @@ service cloud.firestore {
 
     // Centro de Herramientas IA: AI_Tools/{toolId}
     match /AI_Tools/{toolId} {
+      allow read: if canAccessOrToken();
+      allow create, update, delete: if isAdminOrToken();
+    }
+
+    // Tips ICFES: documentos sueltos + caché consolidado_1 (lectura desde app estudiante)
+    match /TipsIA/{docId} {
       allow read: if canAccessOrToken();
       allow create, update, delete: if isAdminOrToken();
     }

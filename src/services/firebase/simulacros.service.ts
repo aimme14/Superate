@@ -32,6 +32,8 @@ const db = getFirestore(firebaseApp)
 const storage = getStorage(firebaseApp)
 
 const SIMULACROS_COLLECTION = 'Simulacros'
+/** Vista denormalizada (Cloud Function): una lectura para Ruta académica simulacros. */
+const CONSOLIDADO_SHARD_1_ID = 'consolidado_1'
 const VIDEOS_SUBCOLLECTION = 'Videos'
 const ICFES_SUBCOLLECTION = 'ICFES'
 /** Documento placeholder bajo ICFES para que Videos sea subcolección (path con 5 segmentos) */
@@ -88,6 +90,30 @@ function parseSimulacroDoc(id: string, data: Record<string, unknown>): Simulacro
     pdfHojaRespuestasSeccion2Url: data.pdfHojaRespuestasSeccion2Url != null ? String(data.pdfHojaRespuestasSeccion2Url) : undefined,
     icfes,
   }
+}
+
+/**
+ * Aplana `data` del documento consolidado (materia → grado → ordenKey → campos).
+ */
+function flattenConsolidadoTree(data: unknown): Simulacro[] {
+  if (!data || typeof data !== 'object') return []
+  const tree = data as Record<string, Record<string, Record<string, Record<string, unknown>>>>
+  const out: Simulacro[] = []
+  for (const materia of Object.keys(tree)) {
+    const gradoMap = tree[materia]
+    if (!gradoMap || typeof gradoMap !== 'object') continue
+    for (const grado of Object.keys(gradoMap)) {
+      const ordenMap = gradoMap[grado]
+      if (!ordenMap || typeof ordenMap !== 'object') continue
+      for (const ordenKey of Object.keys(ordenMap)) {
+        const raw = ordenMap[ordenKey]
+        if (!raw || typeof raw !== 'object') continue
+        const syntheticId = `consolidado:${materia}:${grado}:${ordenKey}`
+        out.push(parseSimulacroDoc(syntheticId, raw as Record<string, unknown>))
+      }
+    }
+  }
+  return out
 }
 
 function parseVideoDoc(id: string, data: Record<string, unknown>): SimulacroVideo {
@@ -360,6 +386,35 @@ class SimulacrosService {
       SimulacrosService.instance = new SimulacrosService()
     }
     return SimulacrosService.instance
+  }
+
+  /**
+   * Una sola lectura: `Simulacros/consolidado_1` (payload en `data`).
+   * Usado por Ruta académica simulacros; requiere haber ejecutado el job de consolidación en backend.
+   */
+  async getConsolidadoShard1(): Promise<Result<Simulacro[]>> {
+    try {
+      const ref = doc(db, SIMULACROS_COLLECTION, CONSOLIDADO_SHARD_1_ID)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) {
+        return failure(
+          new ErrorAPI({
+            message:
+              'No existe Simulacros/consolidado_1. Ejecuta la Cloud Function rebuildSimulacrosConsolidatedHttp (o npm run rebuild-simulacros-consolidado) y vuelve a intentar.',
+            statusCode: 404,
+          })
+        )
+      }
+      const top = snap.data() as { data?: unknown }
+      if (!top.data) {
+        return success([])
+      }
+      const list = flattenConsolidadoTree(top.data)
+      return success(list)
+    } catch (e) {
+      console.error('❌ Error al leer consolidado_1:', e)
+      return failure(new ErrorAPI(normalizeError(e, 'leer consolidado_1')))
+    }
   }
 
   /** Lista todos los simulacros ordenados por numeroOrden y luego por createdAt. */

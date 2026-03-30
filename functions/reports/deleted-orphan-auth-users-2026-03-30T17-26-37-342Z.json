@@ -1,0 +1,31 @@
+{
+  "report": "C:\\Users\\JOSUE.WIN-88BHFO68NK9\\Documents\\Superate\\functions\\reports\\reconcile-auth-users-2026-03-30T17-24-06-330Z.json",
+  "totalOrphansInReport": 19,
+  "deletedCount": 19,
+  "notFoundCount": 0,
+  "errorCount": 0,
+  "deleted": [
+    "0gkh7eGsh0aBAP9NWOAPWEikK8G2",
+    "1tMp1ZGV4JgTHoWQQGrS5ykTlwN2",
+    "1yay8n0f92X7PyyAyiuDj2HYNzu2",
+    "3OrwtePju3Q7icNZ1qRLEwdrxNx1",
+    "6nAik8uehZMqBP8Ll12NgObq1NA2",
+    "9f94BuUpXNNpNUEoDE7n7r0fxE63",
+    "FAGi0pMyCpfbJM87WFDTAtzpQH52",
+    "LjaFNaU4dINYP9RitkBTsQaZhXZ2",
+    "SpaOS963LvTz2HQDjeBOT1hUIDV2",
+    "UNy6PMlxbcXgV9XUDpt0KELC8Dx1",
+    "aDEsG69pkUTUOXWJOoCEEZ45yki1",
+    "bWwwI3U3vvY6MWhgJjniGPAjlVQ2",
+    "f62eco77O7bAYwPFPffsDMA0t2R2",
+    "fAPt8BpXegRk7GMDTi8XAPXxiA53",
+    "fxfoPZyUqndqyXBRIbTPkVFCvw93",
+    "gJ4cJ3MgsoROL76NeUsUvGqYqrt1",
+    "p6Sgno8PoafybrwJhzqjxgJRqWv2",
+    "rJJHwulsnpWRluDWq8SYcuGzRrT2",
+    "rwlaQl7p9SW7hT55mK3JBUIbgB93"
+  ],
+  "notFound": [],
+  "errors": [],
+  "executedAt": "2026-03-30T17:26:37.341Z"
+}

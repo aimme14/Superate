@@ -1,4 +1,6 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { clearIndexedDbPersistence, getFirestore } from 'firebase/firestore'
+import { firebaseApp } from '@/services/db'
 import { clearRutaPreparacionCache } from '@/lib/rutaPreparacionLocalCache'
 
 /** Clave en localStorage para la caché persistida. Usar para limpiar en logout. */
@@ -56,12 +58,24 @@ export const persistOptions = {
   dehydrateOptions: { shouldDehydrateQuery },
 } as const
 
+/** Intenta vaciar IndexedDB de Firestore al cerrar sesión (best-effort; puede fallar si hay listeners activos). */
+function scheduleClearFirestoreIndexedDb(): void {
+  void (async () => {
+    try {
+      await clearIndexedDbPersistence(getFirestore(firebaseApp))
+    } catch {
+      // Ignorar: pestaña compartida, Firestore en uso, etc.
+    }
+  })()
+}
+
 /** Limpia la caché persistida (llamar en logout). */
 export function clearPersistedCache(): void {
   try {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(PERSIST_CACHE_KEY)
       clearRutaPreparacionCache()
+      scheduleClearFirestoreIndexedDb()
     }
   } catch {
     // Ignorar si storage no disponible (SSR, privado, etc.)

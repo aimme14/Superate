@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "lookupsCreatedPhase1": 0,
+    "totalAuthUsers": 0,
+    "alreadyHealthy": 0,
+    "admins": 0,
+    "createdLookupPhase2": 0,
+    "orphanUsers": 0,
+    "ambiguousUsers": 0
+  },
+  "orphanReport": [],
+  "ambiguousReport": []
+}

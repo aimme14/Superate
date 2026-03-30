@@ -47,7 +47,7 @@ export function runRutaPreparacionPrefetch(
   void queryClient.prefetchQuery({
     queryKey: SIMULACROS_QUERY_KEY,
     queryFn: async () => {
-      const res = await simulacrosService.getAll();
+      const res = await simulacrosService.getConsolidadoShard1();
       if (res.success) return res.data;
       throw new Error(res.error?.message ?? "Error al cargar simulacros");
     },

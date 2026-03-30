@@ -1,0 +1,90 @@
+{
+  "summary": {
+    "lookupsCreatedPhase1": 0,
+    "totalAuthUsers": 41,
+    "alreadyHealthy": 22,
+    "admins": 1,
+    "createdLookupPhase2": 0,
+    "orphanUsers": 19,
+    "ambiguousUsers": 0
+  },
+  "orphanReport": [
+    {
+      "uid": "0gkh7eGsh0aBAP9NWOAPWEikK8G2",
+      "email": "amilo@gmail.com"
+    },
+    {
+      "uid": "1tMp1ZGV4JgTHoWQQGrS5ykTlwN2",
+      "email": "docente1@gmail.com"
+    },
+    {
+      "uid": "1yay8n0f92X7PyyAyiuDj2HYNzu2",
+      "email": "coordinador1.2.1@gmail.com"
+    },
+    {
+      "uid": "3OrwtePju3Q7icNZ1qRLEwdrxNx1",
+      "email": "romerojosueoff@gmail.com"
+    },
+    {
+      "uid": "6nAik8uehZMqBP8Ll12NgObq1NA2",
+      "email": "coordinador2.2.2@gmail.com"
+    },
+    {
+      "uid": "9f94BuUpXNNpNUEoDE7n7r0fxE63",
+      "email": "coordinador2.1.2@gmail.com"
+    },
+    {
+      "uid": "FAGi0pMyCpfbJM87WFDTAtzpQH52",
+      "email": "docente1.2@gmail.com"
+    },
+    {
+      "uid": "LjaFNaU4dINYP9RitkBTsQaZhXZ2",
+      "email": "rector2@mail.com"
+    },
+    {
+      "uid": "SpaOS963LvTz2HQDjeBOT1hUIDV2",
+      "email": "aylopezm@ufpso.edu.co"
+    },
+    {
+      "uid": "UNy6PMlxbcXgV9XUDpt0KELC8Dx1",
+      "email": "rector2@gmail.com"
+    },
+    {
+      "uid": "aDEsG69pkUTUOXWJOoCEEZ45yki1",
+      "email": "lopezaimme.colpre@gmail.com"
+    },
+    {
+      "uid": "bWwwI3U3vvY6MWhgJjniGPAjlVQ2",
+      "email": "rector1@mail.com"
+    },
+    {
+      "uid": "f62eco77O7bAYwPFPffsDMA0t2R2",
+      "email": "coordinador1.1.1@gmail.com"
+    },
+    {
+      "uid": "fAPt8BpXegRk7GMDTi8XAPXxiA53",
+      "email": "lopezmanosalvaaimme@gmail.com"
+    },
+    {
+      "uid": "fxfoPZyUqndqyXBRIbTPkVFCvw93",
+      "email": "pedro@gmail.com"
+    },
+    {
+      "uid": "gJ4cJ3MgsoROL76NeUsUvGqYqrt1",
+      "email": "estudiante2.2@gmail.com"
+    },
+    {
+      "uid": "p6Sgno8PoafybrwJhzqjxgJRqWv2",
+      "email": "doncete2@gmail.com"
+    },
+    {
+      "uid": "rJJHwulsnpWRluDWq8SYcuGzRrT2",
+      "email": "gara@gmail.com"
+    },
+    {
+      "uid": "rwlaQl7p9SW7hT55mK3JBUIbgB93",
+      "email": "docente2.2@gmail.com"
+    }
+  ],
+  "ambiguousReport": []
+}

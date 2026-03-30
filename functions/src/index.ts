@@ -13,18 +13,23 @@ import { geminiService } from './services/gemini.service';
 import { studyPlanService } from './services/studyPlan.service';
 import { studentSummaryService } from './services/studentSummary.service';
 import { vocabularyService } from './services/vocabulary.service';
-import { getRandomTips } from './services/tipsICFES.service';
+import { getTipsFromConsolidado1 } from './services/tipsICFES.service';
 import { getRandomEjercicios } from './services/ejerciciosIA.service';
 import { APIResponse } from './types/question.types';
 import { rebuildStudentProgressSummary } from './services/studentProgressSummary.service';
-import { syncClaimsForUid, syncClaimsForInstitutionMembers } from './services/authClaims.service';
+import { beforeUserSignedIn } from 'firebase-functions/v2/identity';
+import {
+  computeSuperateClaims,
+  syncClaimsForUid,
+  syncClaimsForInstitutionMembers,
+} from './services/authClaims.service';
+import { rebuildSimulacrosConsolidated } from './services/simulacrosConsolidated.service';
 
 // =============================
 // CONFIGURACIÓN REGIONAL
 // =============================
 
 const REGION = 'us-central1'; // Cambia según tu región
-const MAX_TIPS_LIMIT = 20;
 
 // =============================
 // ENDPOINTS DE JUSTIFICACIONES
@@ -748,8 +753,8 @@ export const getRandomEjerciciosIA = functions
   });
 
 /**
- * Obtiene tips aleatorios para "Tips para Romperla en el ICFES".
- * GET /getTipsICFES?limit=10 (limit opcional, máximo 20)
+ * Tips desde TipsIA/consolidado_1 (caché de lectura). GET /getTipsICFES
+ * (query `limit` ignorado; compatibilidad con clientes antiguos).
  */
 export const getTipsICFES = functions
   .region(REGION)
@@ -774,9 +779,7 @@ export const getTipsICFES = functions
     }
 
     try {
-      const limitParam = req.query.limit;
-      const limit = limitParam != null ? Math.min(MAX_TIPS_LIMIT, Math.max(1, parseInt(String(limitParam), 10) || 10)) : 10;
-      const tips = await getRandomTips(limit);
+      const tips = await getTipsFromConsolidado1();
       const response: APIResponse = {
         success: true,
         data: tips,
@@ -1538,6 +1541,79 @@ export const deleteVocabularyExamples = functions
     }
   });
 
+/**
+ * Reconstruye Simulacros/consolidado_meta + Simulacros/consolidado_1..N (agrupación materia → grado → orden).
+ * POST manual / bajo demanda.
+ *
+ * Opcional: variable de entorno CONSOLIDATE_SIMULACROS_SECRET; si está definida, enviar el mismo valor en
+ * header X-Admin-Secret, query ?secret= o body JSON { "secret": "..." }.
+ */
+export const rebuildSimulacrosConsolidatedHttp = functions
+  .region(REGION)
+  .runWith({
+    timeoutSeconds: 300,
+    memory: '512MB',
+  })
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Secret');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      const response: APIResponse = {
+        success: false,
+        error: { message: 'Método no permitido. Usa POST' },
+      };
+      res.status(405).json(response);
+      return;
+    }
+
+    const configuredSecret = process.env.CONSOLIDATE_SIMULACROS_SECRET;
+    if (configuredSecret) {
+      const hdr = req.headers['x-admin-secret'];
+      const headerSecret = typeof hdr === 'string' ? hdr : Array.isArray(hdr) ? hdr[0] : '';
+      const q = typeof req.query.secret === 'string' ? req.query.secret : '';
+      const body =
+        typeof req.body === 'object' && req.body !== null ? (req.body as { secret?: string }) : {};
+      const bodySecret = typeof body.secret === 'string' ? body.secret : '';
+      if (
+        headerSecret !== configuredSecret &&
+        q !== configuredSecret &&
+        bodySecret !== configuredSecret
+      ) {
+        const response: APIResponse = {
+          success: false,
+          error: { message: 'No autorizado' },
+        };
+        res.status(403).json(response);
+        return;
+      }
+    }
+
+    try {
+      const result = await rebuildSimulacrosConsolidated();
+      const response: APIResponse = {
+        success: result.success,
+        data: result,
+        metadata: { timestamp: new Date() },
+      };
+      res.status(200).json(response);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error interno';
+      console.error('rebuildSimulacrosConsolidatedHttp:', error);
+      const response: APIResponse = {
+        success: false,
+        error: { message },
+      };
+      res.status(500).json(response);
+    }
+  });
+
 // =============================
 // TRIGGER: resumen de progreso por estudiante (denormalizado bajo institución)
 // =============================
@@ -1640,3 +1716,32 @@ export const onRectorWriteSyncClaims = roleDocTrigger('rectores');
 export const onCoordinadorWriteSyncClaims = roleDocTrigger('coordinadores');
 export const onProfesorWriteSyncClaims = roleDocTrigger('profesores');
 export const onEstudianteWriteSyncClaims = roleDocTrigger('estudiantes');
+
+// =============================
+// AUTH BLOCKING: claims en el token al iniciar sesión (Identity Platform)
+// Registrado en firebase.json → auth.blockingFunctions.triggers.beforeSignIn
+// =============================
+
+/**
+ * Antes de completar el sign-in: calcula custom claims desde Firestore y los inyecta en el token.
+ * Tolerante a errores: ante fallo o usuario no reconocido, customClaims vacíos (no bloquea login).
+ */
+export const setUserClaims = beforeUserSignedIn(
+  { region: REGION },
+  (async (user: any, _context: any) => {
+    const uid = user?.uid;
+    if (!uid) {
+      return { customClaims: {} };
+    }
+    try {
+      const claims = await computeSuperateClaims(uid);
+      if (claims === null) {
+        return { customClaims: {} };
+      }
+      return { customClaims: { ...claims } };
+    } catch (err) {
+      console.error('[setUserClaims]', uid, err);
+      return { customClaims: {} };
+    }
+  }) as any
+);

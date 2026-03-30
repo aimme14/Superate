@@ -41,6 +41,59 @@ export interface TipICFES {
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 20;
 
+const TIPS_IA_COLLECTION = 'TipsIA';
+const TIPS_CONSOLIDADO_DOC_ID = 'consolidado_1';
+
+function toCreatedAtMsAdmin(v: unknown): number {
+  if (typeof v === 'number' && !Number.isNaN(v)) return v;
+  if (
+    v &&
+    typeof v === 'object' &&
+    typeof (v as { toMillis?: () => number }).toMillis === 'function'
+  ) {
+    return (v as { toMillis: () => number }).toMillis();
+  }
+  return 0;
+}
+
+/**
+ * Normaliza un elemento de `items` en TipsIA/consolidado_1 al tipo expuesto al cliente.
+ */
+export function mapConsolidadoItemToTipICFES(raw: unknown, index: number): TipICFES {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const tip: TipICFES = {
+    id: `consolidado-${index}`,
+    title: String(o.title ?? ''),
+    description: String(o.description ?? ''),
+    subject: String(o.subject ?? 'General'),
+    topic: String(o.topic ?? 'General'),
+    level: String(o.level ?? 'Medio'),
+    category: String(o.category ?? 'General'),
+    tags: Array.isArray(o.tags) ? o.tags.map((t) => String(t)) : [],
+    createdBy: String(o.createdBy ?? ''),
+    createdAt: toCreatedAtMsAdmin(o.createdAt),
+    active: o.active !== false,
+  };
+  if (typeof o.example === 'string' && o.example.trim()) tip.example = o.example.trim();
+  if (typeof o.recommendation === 'string' && o.recommendation.trim()) {
+    tip.recommendation = o.recommendation.trim();
+  }
+  return tip;
+}
+
+/**
+ * Tips desde el documento de caché TipsIA/consolidado_1 (una sola lectura en servidor).
+ */
+export async function getTipsFromConsolidado1(): Promise<TipICFES[]> {
+  const db = getStudentDatabase();
+  const snap = await db.collection(TIPS_IA_COLLECTION).doc(TIPS_CONSOLIDADO_DOC_ID).get();
+  if (!snap.exists) return [];
+  const data = snap.data();
+  const items = data?.items;
+  if (!Array.isArray(items)) return [];
+  return items.map((item, i) => mapConsolidadoItemToTipICFES(item, i));
+}
+
 /**
  * Obtiene hasta `limit` tips aleatorios desde Firestore (TipsIA).
  */

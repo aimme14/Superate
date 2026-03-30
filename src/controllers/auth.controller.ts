@@ -6,7 +6,7 @@ import { getRegistrationConfig } from "@/controllers/admin.controller"
 import { RegisterFormProps } from "@/schemas/auth.schema"
 import ErrorAPI, { Unauthorized } from "@/errors/index"
 import { normalizeError } from "@/errors/handler"
-import { User as UserFB } from "firebase/auth"
+import { User as UserFB, getIdTokenResult } from "firebase/auth"
 
 /** Payload de login: usuario de Auth + documento de Firestore ya validado (sin lecturas extra en el cliente). */
 export type LoginSuccessPayload = { firebaseUser: UserFB; profile: Record<string, unknown> }
@@ -70,6 +70,17 @@ export const login = async ({ email, password }: { email: string, password: stri
       // pero no es un requisito para iniciar sesión
       
       console.log('✅ Login completado exitosamente')
+
+      // Forzar refresh del ID token si el blocking function aún no inyectó claimsRev en este ciclo
+      try {
+        const tokenResult = await getIdTokenResult(result.data)
+        if (!tokenResult.claims.claimsRev) {
+          await result.data.getIdToken(true)
+        }
+      } catch (tokenErr) {
+        console.warn('⚠️ No se pudo refrescar token tras login:', tokenErr)
+      }
+
       return success({
         firebaseUser: result.data,
         profile: userData.data,

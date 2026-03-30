@@ -2,76 +2,93 @@ import { useThemeContext } from "@/context/ThemeContext"
 import Skeleton from "#/common/skeletons/SkeletonLarge"
 import { useAuthContext } from "@/context/AuthContext"
 import { Navigate, Outlet, useNavigate } from "react-router-dom"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo } from "react"
 import { useNotification } from "@/hooks/ui/useNotification"
-import { getUserById } from "@/controllers/user.controller"
-import { dbService } from "@/services/firebase/db.service"
+import { useCurrentUser } from "@/hooks/query/useCurrentUser"
+import { useInstitution } from "@/hooks/query/useInstitutionQuery"
 
 function ProtectedRoute() {
-  const [showSkeleton, setShowSkeleton] = useState(true)
   const { isAuth, loading, signout, user } = useAuthContext()
   const { theme } = useThemeContext()
   const navigate = useNavigate()
   const { notifyError } = useNotification()
 
-  useEffect(() => {
-    // Esperar a que la verificación de autenticación termine completamente
-    if (!loading) {
-      setShowSkeleton(false)
-    }
-  }, [loading])
+  const {
+    data: userData,
+    isLoading: isLoadingUser,
+    isError: isUserError,
+  } = useCurrentUser(user?.uid)
 
-  // Validar que el usuario esté activo
-  useEffect(() => {
-    const validateUserStatus = async () => {
-      if (!loading && isAuth && user?.uid) {
-        try {
-          const userResult = await getUserById(user.uid)
-          
-          if (userResult.success && userResult.data) {
-            const userData = userResult.data as any
-            const isActive = userData.isActive === true
-            
-            if (!isActive) {
-              notifyError({
-                title: 'Acceso denegado',
-                message: 'Tu cuenta ha sido desactivada. Por favor, contacta al administrador del sistema.'
-              })
-              await signout()
-              navigate('/auth/login', { replace: true })
-              return
-            }
-            
-            // Verificar institución si existe
-            if (userData.institutionId || userData.inst) {
-              const institutionId = userData.institutionId || userData.inst
-              const institutionResult = await dbService.getInstitutionById(institutionId)
-              
-              if (institutionResult.success && institutionResult.data) {
-                const institutionIsActive = institutionResult.data.isActive === true
-                
-                if (!institutionIsActive) {
-                  notifyError({
-                    title: 'Acceso denegado',
-                    message: 'La institución asociada a tu cuenta ha sido desactivada. Por favor, contacta al administrador del sistema.'
-                  })
-                  await signout()
-                  navigate('/auth/login', { replace: true })
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error validando estado del usuario:', error)
-        }
-      }
-    }
-    
-    validateUserStatus()
-  }, [loading, isAuth, user, signout, navigate, notifyError])
+  const institutionId = useMemo(() => {
+    if (!userData) return ""
+    const d = userData as Record<string, unknown>
+    const id = d.institutionId ?? d.inst
+    return id != null && id !== "" ? String(id) : ""
+  }, [userData])
 
-  if (showSkeleton) return <Skeleton theme={theme} />
-  if (!isAuth) return <Navigate to='/auth/login' replace />
+  const { data: institution, isLoading: isLoadingInstitution } = useInstitution(
+    institutionId,
+    Boolean(institutionId)
+  )
+
+  useEffect(() => {
+    if (loading || !isAuth || !user?.uid) return
+    if (isLoadingUser) return
+    if (isUserError) {
+      console.error("Error validando estado del usuario: no se pudo cargar el perfil")
+      return
+    }
+    if (!userData) return
+
+    const isActive = (userData as { isActive?: boolean }).isActive === true
+    if (!isActive) {
+      void (async () => {
+        notifyError({
+          title: "Acceso denegado",
+          message:
+            "Tu cuenta ha sido desactivada. Por favor, contacta al administrador del sistema.",
+        })
+        await signout()
+        navigate("/auth/login", { replace: true })
+      })()
+      return
+    }
+
+    if (!institutionId) return
+    if (isLoadingInstitution) return
+    if (!institution) return
+
+    const institutionIsActive = institution.isActive === true
+    if (!institutionIsActive) {
+      void (async () => {
+        notifyError({
+          title: "Acceso denegado",
+          message:
+            "La institución asociada a tu cuenta ha sido desactivada. Por favor, contacta al administrador del sistema.",
+        })
+        await signout()
+        navigate("/auth/login", { replace: true })
+      })()
+    }
+  }, [
+    loading,
+    isAuth,
+    user?.uid,
+    isLoadingUser,
+    isUserError,
+    userData,
+    institutionId,
+    isLoadingInstitution,
+    institution,
+    signout,
+    navigate,
+    notifyError,
+  ])
+
+  if (loading) return <Skeleton theme={theme} />
+  if (!isAuth) return <Navigate to="/auth/login" replace />
+  if (user?.uid && isLoadingUser) return <Skeleton theme={theme} />
+
   return <Outlet />
 }
 

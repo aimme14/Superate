@@ -11,11 +11,14 @@
     "init-db": "tsx src/scripts/runInitialization.ts",
     "setup-storage": "node setup-firebase-storage.js",
     "diagnose-phase": "tsx src/scripts/diagnosePhaseProgress.ts",
+    "measure-simulacros": "tsx src/scripts/measureSimulacrosCollection.ts",
+    "rebuild-simulacros-consolidado": "powershell -ExecutionPolicy Bypass -File ./scripts/rebuild-simulacros-consolidado.ps1",
     "migrate-videos": "npm run migrate-videos --prefix functions",
     "migrate-weblinks": "npm run migrate-weblinks --prefix functions",
     "migrate-youtube-grade": "npm run migrate-youtube-grade --prefix functions",
     "firebase:deploy:studentProgressSummary": "firebase deploy --only functions:default:onExamResultWriteStudentProgressSummary,firestore:rules",
-    "rebuild-student-summary": "npm run rebuild-student-summary --prefix functions"
+    "rebuild-student-summary": "npm run rebuild-student-summary --prefix functions",
+    "rebuild-tips-ia-consolidado": "npm run rebuild-tips-ia-consolidado --prefix functions"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

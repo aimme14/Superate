@@ -7,20 +7,20 @@ import {
   ESTUDIANTE_SESSION_CACHE,
 } from "@/config/rutaPreparacionCache";
 
-export const SIMULACROS_QUERY_KEY = ["simulacros", "with-videos"] as const;
+/** Ruta académica simulacros: una lectura a `Simulacros/consolidado_1`. */
+export const SIMULACROS_QUERY_KEY = ["simulacros", "ruta-academica", "consolidado-1"] as const;
 export const SIMULACROS_LIST_QUERY_KEY = ["simulacros", "list"] as const;
 export const simulacroDetailKey = (id: string) => ["simulacros", "detail", id] as const;
 
 /**
- * Hook para obtener la lista de simulacros sin videos (Ruta académica simulacros).
- * Los videos se cargan bajo demanda al expandir la sección de cada simulacro (useSimulacroDetails).
- * Caché "hasta refresh": primera entrada hace la petición; al navegar se usa solo caché.
+ * Lista para Ruta académica simulacros: **una sola lectura** a `Simulacros/consolidado_1`.
+ * Caché de sesión: primera entrada hace la petición; al cambiar de pestaña solo se filtra en memoria.
  */
 export function useSimulacros() {
   return useQuery({
     queryKey: SIMULACROS_QUERY_KEY,
     queryFn: async (): Promise<Simulacro[]> => {
-      const res = await simulacrosService.getAll();
+      const res = await simulacrosService.getConsolidadoShard1();
       if (res.success) {
         return res.data;
       }

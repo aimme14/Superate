@@ -25,7 +25,9 @@ import { HerramientasIASection } from "@/components/studyPlan/HerramientasIASect
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav"
 import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton"
 import type { TipICFES } from "@/interfaces/tipsICFES.interface"
-import { aiToolsService, type AIToolData } from "@/services/firebase/aiTools.service"
+import type { AIToolData } from "@/services/firebase/aiTools.service"
+import { fetchAIToolsConsolidado1 } from "@/services/firebase/aiToolsConsolidado.service"
+import { fetchTipsIAConsolidado1 } from "@/services/firebase/tipsIAConsolidado.service"
 import type {
   ExamResult,
   SubjectAnalysis,
@@ -43,8 +45,7 @@ import {
 } from './promedio/utils'
 import { logger } from '@/utils/logger'
 import {
-  mergeRutaPreparacionCache,
-  readRutaPreparacionCache,
+  clearCachedHerramientasIA,
   clearCachedIcfesTips,
 } from '@/lib/rutaPreparacionLocalCache'
 import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
@@ -1549,78 +1550,47 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     return () => clearTimeout(t);
   }, [activeTab]);
 
-  // Cargar tips ICFES: primero caché local (misma sesión / mismo dispositivo hasta cerrar sesión), luego red una sola vez
-  const FUNCTIONS_URL_TIPS = import.meta.env.VITE_CLOUD_FUNCTIONS_URL || 'https://us-central1-superate-ia.cloudfunctions.net';
-  const loadIcfesTips = React.useCallback(() => {
-    if (user?.uid) clearCachedIcfesTips(user.uid);
-    setTipsError(false);
-    setLoadingTips(true);
-    setIcfesTips(null);
-  }, [user?.uid]);
+  // Tips ICFES: Firestore TipsIA/consolidado_1 + caché persistente del SDK (IndexedDB); reintento fuerza servidor
+  const fetchIcfesTips = React.useCallback(
+    async (opts?: { forceServer?: boolean }) => {
+      setLoadingTips(true);
+      setTipsError(false);
+      try {
+        if (user?.uid) clearCachedIcfesTips(user.uid);
+        const tips = await fetchTipsIAConsolidado1(opts);
+        setIcfesTips(tips);
+      } catch (err) {
+        logger.warn('Error cargando tips ICFES:', err);
+        setTipsError(true);
+        setIcfesTips([]);
+      } finally {
+        setLoadingTips(false);
+      }
+    },
+    [user?.uid]
+  );
+
   useEffect(() => {
     if (activeTab !== 'study-plan' || !shouldLoadSecondary || icfesTips !== null || !user?.uid) return;
-    const cached = readRutaPreparacionCache(user.uid);
-    if (cached?.icfesTips !== undefined) {
-      setIcfesTips(cached.icfesTips);
-      setTipsError(false);
-      setLoadingTips(false);
-      return;
-    }
-    let cancelled = false;
-    setLoadingTips(true);
-    setTipsError(false);
-    fetch(`${FUNCTIONS_URL_TIPS}/getTipsICFES?limit=10`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((result: { success?: boolean; data?: TipICFES[] }) => {
-        if (cancelled) return;
-        if (result.success && Array.isArray(result.data)) {
-          setIcfesTips(result.data);
-          mergeRutaPreparacionCache(user.uid, { icfesTips: result.data });
-        } else {
-          setIcfesTips([]);
-          mergeRutaPreparacionCache(user.uid, { icfesTips: [] });
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setIcfesTips([]);
-          setTipsError(true);
-          logger.warn('Error cargando tips ICFES:', err);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTips(false);
-      });
-    return () => { cancelled = true; };
-  }, [activeTab, shouldLoadSecondary, icfesTips, FUNCTIONS_URL_TIPS, user?.uid]);
+    void fetchIcfesTips();
+  }, [activeTab, shouldLoadSecondary, icfesTips, user?.uid, fetchIcfesTips]);
 
-  // Herramientas IA: caché local hasta cerrar sesión; red solo si no hay caché o reintento forzado
+  const loadIcfesTips = React.useCallback(() => {
+    void fetchIcfesTips({ forceServer: true });
+  }, [fetchIcfesTips]);
+
+  // Herramientas IA: AI_Tools/consolidado_1 + caché persistente del SDK (IndexedDB), como TipsIA
   const loadHerramientasIA = React.useCallback(async (opts?: { forceNetwork?: boolean }) => {
     const uid = user?.uid;
-    if (uid && !opts?.forceNetwork) {
-      const cached = readRutaPreparacionCache(uid);
-      if (cached?.herramientasIA !== undefined) {
-        setHerramientasIA(cached.herramientasIA);
-        setHerramientasIAError(false);
-        setLoadingHerramientasIA(false);
-        return;
-      }
-    }
+    if (uid) clearCachedHerramientasIA(uid);
     setHerramientasIAError(false);
     setLoadingHerramientasIA(true);
     try {
-      const res = await aiToolsService.getAll();
-      if (res.success) {
-        const active = res.data.filter((t) => t.isActive);
-        setHerramientasIA(active);
-        if (uid) mergeRutaPreparacionCache(uid, { herramientasIA: active });
-      } else {
-        setHerramientasIA([]);
-        setHerramientasIAError(true);
-      }
+      const tools = await fetchAIToolsConsolidado1({
+        forceServer: opts?.forceNetwork === true,
+      });
+      const active = tools.filter((t) => t.isActive);
+      setHerramientasIA(active);
     } catch {
       setHerramientasIA([]);
       setHerramientasIAError(true);
@@ -3637,7 +3607,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                           {!loadingTips && (!icfesTips || icfesTips.length === 0) && (
                             <div className={cn("flex flex-col items-center justify-center gap-3 py-6 rounded-lg border text-center", theme === 'dark' ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-200 bg-gray-50')}>
                               <p className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
-                                {tipsError ? 'No se pudieron cargar los tips. Revisa que la función getTipsICFES esté desplegada.' : 'No hay tips disponibles en este momento.'}
+                                {tipsError ? 'No se pudieron cargar los tips. Comprueba conexión y que exista TipsIA/consolidado_1.' : 'No hay tips disponibles en este momento.'}
                               </p>
                               <Button type="button" variant="outline" size="sm" onClick={loadIcfesTips} className={theme === 'dark' ? 'border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25' : ''}>
                                 Reintentar
