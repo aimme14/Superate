@@ -2,6 +2,8 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { clearIndexedDbPersistence, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/db'
 import { clearRutaPreparacionCache } from '@/lib/rutaPreparacionLocalCache'
+import { clearPdfViewerCache } from '@/lib/pdfViewerCache'
+import { clearViewerPdfHandoffKeys } from '@/utils/simulacroViewerUrl'
 
 /** Clave en localStorage para la caché persistida. Usar para limpiar en logout. */
 export const PERSIST_CACHE_KEY = 'superate-query-cache'
@@ -75,6 +77,8 @@ export function clearPersistedCache(): void {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(PERSIST_CACHE_KEY)
       clearRutaPreparacionCache()
+      void clearPdfViewerCache()
+      clearViewerPdfHandoffKeys()
       scheduleClearFirestoreIndexedDb()
     }
   } catch {

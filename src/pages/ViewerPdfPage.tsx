@@ -6,6 +6,13 @@ import 'react-pdf/dist/Page/TextLayer.css'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  getCachedPdfBlob,
+  pdfCacheKeySimulacro,
+  pdfCacheKeyUrl,
+  setCachedPdfBlob,
+} from '@/lib/pdfViewerCache'
+import { viewerPdfHandoffKey } from '@/utils/simulacroViewerUrl'
 import { simulacrosService } from '@/services/firebase/simulacros.service'
 
 // Worker de PDF.js (sin esto el PDF no carga)
@@ -58,7 +65,10 @@ function getPdfUrlFromSimulacro(
 
 export default function ViewerPdfPage() {
   const [searchParams] = useSearchParams()
-  const simulacroId = searchParams.get('simulacroId')
+  /** `simulacroid` por si el navegador normaliza mayúsculas en la query. */
+  const simulacroId =
+    searchParams.get('simulacroId') ?? searchParams.get('simulacroid') ?? null
+  const sid = searchParams.get('sid')
   const tipo = searchParams.get('tipo') as PdfTipo | null
   const urlParam = searchParams.get('url')
 
@@ -80,17 +90,107 @@ export default function ViewerPdfPage() {
     return null
   }, [urlParam])
 
-  // Si tenemos simulacroId + tipo, obtener la URL desde Firestore (evita URLs largas/truncadas en la barra)
+  /**
+   * Carga el PDF: primero IndexedDB (misma clave = sin Firestore ni red);
+   * si no hay caché, descarga y guarda para la próxima vez.
+   */
   useEffect(() => {
-    if (simulacroId && tipo && PDF_TIPO_KEYS.includes(tipo)) {
-      setLoadingFetch(true)
-      setError(null)
-      setPdfBlob(null)
-      simulacrosService
-        .getById(simulacroId)
-        .then((res) => {
+    let cancelled = false
+
+    const applyFetchError = (err: unknown, context: 'storage' | 'url') => {
+      const msg = err instanceof Error ? err.message : String(err ?? '')
+      if (msg.includes('400')) {
+        setError(
+          context === 'storage'
+            ? 'El servidor rechazó la petición (400). Revisa el archivo en Firebase Storage.'
+            : 'El servidor rechazó la petición (400).'
+        )
+      } else if (msg.includes('403') || msg.includes('CORS')) {
+        setError(
+          context === 'storage'
+            ? 'No se pudo cargar el PDF. Comprueba permisos (CORS) del bucket.'
+            : 'No se pudo cargar el PDF (permisos/CORS).'
+        )
+      } else {
+        setError(context === 'storage' ? 'No se pudo cargar el PDF. Comprueba la conexión.' : 'No se pudo cargar el PDF.')
+      }
+    }
+
+    async function load() {
+      /** Consolidado: URL en localStorage (id sintético; handoff comparte pestaña nueva con target=_blank). */
+      if (sid && tipo && PDF_TIPO_KEYS.includes(tipo)) {
+        setLoadingFetch(true)
+        setError(null)
+        setPdfBlob(null)
+
+        const cacheKey = pdfCacheKeySimulacro(sid, tipo)
+        const fromCache = await getCachedPdfBlob(cacheKey)
+        if (cancelled) return
+        if (fromCache) {
+          setPdfBlob(fromCache)
+          setError(null)
+          setLoadingFetch(false)
+          return
+        }
+
+        const handoffKey = viewerPdfHandoffKey(sid, tipo)
+        let handoffUrl: string | null = null
+        try {
+          handoffUrl = localStorage.getItem(handoffKey)
+        } catch {
+          handoffUrl = null
+        }
+        if (!handoffUrl) {
+          setError(
+            'No se encontró el enlace al PDF. Abre el documento desde el listado de simulacros (no uses un marcador de una sesión anterior).'
+          )
+          setLoadingFetch(false)
+          return
+        }
+
+        try {
+          const fetchRes = await fetch(handoffUrl, { mode: 'cors' })
+          if (cancelled) return
+          if (!fetchRes.ok) throw new Error(`Error ${fetchRes.status}`)
+          const blob = await fetchRes.blob()
+          if (cancelled) return
+          void setCachedPdfBlob(cacheKey, blob)
+          setPdfBlob(blob)
+          setError(null)
+          try {
+            localStorage.removeItem(handoffKey)
+          } catch {
+            // ignore
+          }
+        } catch (err) {
+          if (!cancelled) applyFetchError(err, 'url')
+        } finally {
+          if (!cancelled) setLoadingFetch(false)
+        }
+        return
+      }
+
+      if (simulacroId && tipo && PDF_TIPO_KEYS.includes(tipo)) {
+        setLoadingFetch(true)
+        setError(null)
+        setPdfBlob(null)
+
+        const cacheKey = pdfCacheKeySimulacro(simulacroId, tipo)
+        const fromCache = await getCachedPdfBlob(cacheKey)
+        if (cancelled) return
+        if (fromCache) {
+          setPdfBlob(fromCache)
+          setError(null)
+          setLoadingFetch(false)
+          return
+        }
+
+        try {
+          const res = await simulacrosService.getById(simulacroId)
+          if (cancelled) return
           if (!res.success || !res.data) {
             setError('Simulacro no encontrado.')
+            setLoadingFetch(false)
             return
           }
           const url = getPdfUrlFromSimulacro(
@@ -112,65 +212,76 @@ export default function ViewerPdfPage() {
           )
           if (!url) {
             setError('Este PDF no está disponible para este simulacro.')
+            setLoadingFetch(false)
             return
           }
-          return fetch(url, { mode: 'cors' })
-        })
-        .then((fetchRes) => {
-          if (!fetchRes) return
+          const fetchRes = await fetch(url, { mode: 'cors' })
+          if (cancelled) return
           if (!fetchRes.ok) throw new Error(`Error ${fetchRes.status}`)
-          return fetchRes.blob()
-        })
-        .then((blob) => {
-          if (blob) {
-            setPdfBlob(blob)
-            setError(null)
-          }
-        })
-        .catch((err) => {
-          const msg = err?.message ?? ''
-          if (msg.includes('400')) {
-            setError('El servidor rechazó la petición (400). Revisa el archivo en Firebase Storage.')
-          } else if (msg.includes('403') || msg.includes('CORS')) {
-            setError('No se pudo cargar el PDF. Comprueba permisos (CORS) del bucket.')
-          } else {
-            setError('No se pudo cargar el PDF. Comprueba la conexión.')
-          }
-        })
-        .finally(() => setLoadingFetch(false))
-      return
-    }
-    if (pdfUrl) {
-      setLoadingFetch(true)
-      setError(null)
-      setPdfBlob(null)
-      fetch(pdfUrl, { mode: 'cors' })
-        .then((res) => {
-          if (!res.ok) throw new Error(`Error ${res.status}`)
-          return res.blob()
-        })
-        .then((blob) => {
+          const blob = await fetchRes.blob()
+          if (cancelled) return
+          void setCachedPdfBlob(cacheKey, blob)
           setPdfBlob(blob)
           setError(null)
-        })
-        .catch((err) => {
-          const msg = err?.message ?? ''
-          if (msg.includes('400')) setError('El servidor rechazó la petición (400).')
-          else if (msg.includes('403') || msg.includes('CORS')) setError('No se pudo cargar el PDF (permisos/CORS).')
-          else setError('No se pudo cargar el PDF.')
-        })
-        .finally(() => setLoadingFetch(false))
-      return
+        } catch (err) {
+          if (!cancelled) applyFetchError(err, 'storage')
+        } finally {
+          if (!cancelled) setLoadingFetch(false)
+        }
+        return
+      }
+
+      if (pdfUrl) {
+        setLoadingFetch(true)
+        setError(null)
+        setPdfBlob(null)
+
+        const cacheKey = pdfCacheKeyUrl(pdfUrl)
+        const fromCache = await getCachedPdfBlob(cacheKey)
+        if (cancelled) return
+        if (fromCache) {
+          setPdfBlob(fromCache)
+          setError(null)
+          setLoadingFetch(false)
+          return
+        }
+
+        try {
+          const fetchRes = await fetch(pdfUrl, { mode: 'cors' })
+          if (cancelled) return
+          if (!fetchRes.ok) throw new Error(`Error ${fetchRes.status}`)
+          const blob = await fetchRes.blob()
+          if (cancelled) return
+          void setCachedPdfBlob(cacheKey, blob)
+          setPdfBlob(blob)
+          setError(null)
+        } catch (err) {
+          if (!cancelled) applyFetchError(err, 'url')
+        } finally {
+          if (!cancelled) setLoadingFetch(false)
+        }
+        return
+      }
+
+      setLoadingFetch(false)
+      if (!pdfUrl && !(sid && tipo) && !(simulacroId && tipo)) {
+        setError('Falta el enlace al documento. Usa el listado de simulacros.')
+      }
     }
-    setLoadingFetch(false)
-    if (!simulacroId || !tipo) setError('Falta el enlace al documento. Usa el listado de simulacros.')
-  }, [simulacroId, tipo, pdfUrl])
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [sid, simulacroId, tipo, pdfUrl])
 
   const file = useMemo(() => (pdfBlob ? pdfBlob : null), [pdfBlob])
 
   useEffect(() => {
-    if (!simulacroId && !tipo && !urlParam) setError('Falta la URL o el documento. Usa el listado de simulacros.')
-  }, [simulacroId, tipo, urlParam])
+    if (!sid && !simulacroId && !tipo && !urlParam) {
+      setError('Falta la URL o el documento. Usa el listado de simulacros.')
+    }
+  }, [sid, simulacroId, tipo, urlParam])
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages)
@@ -181,7 +292,7 @@ export default function ViewerPdfPage() {
     setError('No se pudo cargar el PDF. Comprueba la URL o los permisos (CORS).')
   }
 
-  if (!simulacroId && !tipo && !urlParam) {
+  if (!sid && !simulacroId && !tipo && !urlParam) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="text-center text-gray-600">
