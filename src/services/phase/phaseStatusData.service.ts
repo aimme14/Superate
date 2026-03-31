@@ -107,23 +107,6 @@ export async function countUniqueCompletedSubjectsInPhase(
   return new Set(rows.map((r) => r.subject)).size;
 }
 
-/** Construye un mapa de materias con examen completado por fase */
-function buildCompletedByPhase(
-  phaseResults: Record<PhaseType, { subject: string; completed: boolean }[]>
-): Record<PhaseType, Set<string>> {
-  const map: Record<PhaseType, Set<string>> = {
-    first: new Set(),
-    second: new Set(),
-    third: new Set(),
-  };
-  for (const phase of ["first", "second", "third"] as PhaseType[]) {
-    for (const { subject } of phaseResults[phase] || []) {
-      map[phase].add(subject);
-    }
-  }
-  return map;
-}
-
 /** Crea el estado por defecto para una fase */
 function defaultPhaseState(phase: PhaseType): PhaseState {
   return {
@@ -169,7 +152,6 @@ export async function fetchPhaseStatusForStudent(
   const phaseStatesBySubject: Record<string, Record<PhaseType, PhaseState>> = {};
 
   for (const subject of ALL_SUBJECTS) {
-    const normSubject = normalizeSubject(subject);
     phaseStatesBySubject[subject] = {
       first: defaultPhaseState("first"),
       second: defaultPhaseState("second"),
