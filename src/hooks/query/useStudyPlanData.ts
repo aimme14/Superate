@@ -1,7 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { dbService } from "@/services/firebase/db.service";
-import { studyPlanAuthorizationService } from "@/services/studyPlan/studyPlanAuthorization.service";
-import type { SubjectName, StudyPlanPhase } from "@/interfaces/studyPlan.interface";
+import type { StudyPlanPhase } from "@/interfaces/studyPlan.interface";
 import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
 import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 
@@ -125,17 +124,10 @@ async function fetchStudyPlanData(
     return { subjectAuthorizations: authorizations, studyPlans: plans, studentGrade };
   }
 
-  const authPromises = subjectsWithWeaknesses.map(async (subject) => {
-    try {
-      const authResult = await studyPlanAuthorizationService.isStudyPlanAuthorized(
-        gradeId,
-        studyPlanPhase,
-        subject.name as SubjectName
-      );
-      return { name: subject.name, authorized: authResult.success ? authResult.data : false };
-    } catch {
-      return { name: subject.name, authorized: false };
-    }
+  // Sin autorización por admin: si hay debilidades en Fase I, el estudiante ya completó
+  // el examen de esa materia; el backend valida resultados al generar.
+  subjectsWithWeaknesses.forEach((s) => {
+    authorizations[s.name] = true;
   });
 
   const planPromises = subjectsWithWeaknesses.map(async (subject) => {
@@ -153,12 +145,8 @@ async function fetchStudyPlanData(
     }
   });
 
-  const [authResults, planResults] = await Promise.all([
-    Promise.all(authPromises),
-    Promise.all(planPromises),
-  ]);
+  const planResults = await Promise.all(planPromises);
 
-  authResults.forEach((r) => (authorizations[r.name] = r.authorized));
   planResults.forEach((r) => {
     if (r.plan) plans[r.name] = r.plan;
   });

@@ -93,14 +93,25 @@ service cloud.firestore {
           (request.auth.token.role == 'student' || request.auth.token.role == 'teacher' || request.auth.token.role == 'principal' || request.auth.token.role == 'rector')));
     }
     function isAdminOrToken() {
-      return tokenIsAdmin() || (!hasClaimsRev() && isAdmin());
+      // Permitir fallback a Firestore aunque existan claimsRev (claims desactualizados).
+      return tokenIsAdmin() || isAdmin();
     }
     function sameInstitutionMemberOrToken(institutionId) {
       return tokenSameInstitutionActive(institutionId) ||
-        (!hasClaimsRev() && sameInstitutionMemberActive(institutionId));
+        sameInstitutionMemberActive(institutionId);
+    }
+    // Lee el doc de institución sin depender de userLookup (solo el cliente admin puede escribir userLookup).
+    // Si el uid tiene doc bajo esta institución, puede leer metadatos de la institución (enrichUserData, dashboard).
+    function isMemberOfInstitutionByPath(institutionId) {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/estudiantes/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/profesores/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/coordinadores/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/rectores/$(request.auth.uid))
+      );
     }
     function canAccessOrToken() {
-      return tokenCanAccess() || (!hasClaimsRev() && canAccess());
+      return tokenCanAccess() || canAccess();
     }
     
     // Funci?n auxiliar para verificar si el usuario es administrador
@@ -133,7 +144,13 @@ service cloud.firestore {
 
     // superate/auth/users: solo cuentas administrador. Nadie m?s lee ni escribe esta ruta salvo admin activo.
     match /superate/auth/users/{userId} {
-      allow read, create, update, delete: if isAdminOrToken();
+      // UID como ID de documento, o legacy: ID = email (mismo correo que el token).
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdminOrToken() ||
+        (resource != null && resource.data.role == 'admin' && resource.data.email == request.auth.token.email)
+      );
+      allow create, update, delete: if isAdminOrToken();
     }
 
     // superate/auth/userLookup: ?ndice uid ? institutionId + rol (el cliente lee el propio al resolver sesi?n).
@@ -147,6 +164,8 @@ service cloud.firestore {
     
     // NUEVA ESTRUCTURA JER��RQUICA: Rectores
     match /superate/auth/institutions/{institutionId}/rectores/{rectorId} {
+      // Bootstrap: leer el propio doc por uid sin userLookup ni claims (el id del doc es único globalmente)
+      allow read: if isAuthenticated() && request.auth.uid == rectorId;
       // Los rectores activos pueden leer su propia informaci?n
       allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == rectorId;
       
@@ -173,6 +192,7 @@ service cloud.firestore {
     
     // NUEVA ESTRUCTURA JER��RQUICA: Coordinadores
     match /superate/auth/institutions/{institutionId}/coordinadores/{coordinadorId} {
+      allow read: if isAuthenticated() && request.auth.uid == coordinadorId;
       // Los coordinadores activos pueden leer su propia informaci?n
       allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == coordinadorId;
       
@@ -195,10 +215,11 @@ service cloud.firestore {
         (request.resource.data.isActive == true || request.resource.data.isActive == false);
       
       allow delete: if isAdminOrToken();
-    , }
+    }
     
     // NUEVA ESTRUCTURA JER��RQUICA: Profesores
     match /superate/auth/institutions/{institutionId}/profesores/{profesorId} {
+      allow read: if isAuthenticated() && request.auth.uid == profesorId;
       // Los profesores activos pueden leer su propia informaci?n
       allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == profesorId;
       
@@ -225,6 +246,7 @@ service cloud.firestore {
     
     // NUEVA ESTRUCTURA JER��RQUICA: Estudiantes
     match /superate/auth/institutions/{institutionId}/estudiantes/{estudianteId} {
+      allow read: if isAuthenticated() && request.auth.uid == estudianteId;
       // Los estudiantes activos pueden leer su propia informaci?n
       allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == estudianteId;
       
@@ -254,7 +276,7 @@ service cloud.firestore {
       // Los admins pueden leer todas las instituciones (activas e inactivas)
       // Los usuarios regulares solo pueden leer instituciones activas
       // Miembro de institución primero: evita lecturas en users/ por isAdmin() para la mayoría de usuarios.
-      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
+      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken() || isMemberOfInstitutionByPath(institutionId);
       
       // Solo admins activos pueden crear, actualizar o eliminar instituciones
       // Al crear, isActive debe estar presente
@@ -313,6 +335,15 @@ service cloud.firestore {
       allow read: if true;
       
       // Solo admins activos pueden actualizar la configuraci?n de registro
+      allow write: if isAdminOrToken();
+    }
+
+    // Configuraci?n del sistema - Autorizaci?n global de fases
+    match /superate/auth/system/Autorizacion_fases {
+      // Lectura: cualquier usuario autenticado puede leer la configuración global.
+      // (Evita bloqueos del admin/estudiantes si su clasificación de claims difiere.)
+      allow read: if isAuthenticated();
+      // Escritura: solo administradores.
       allow write: if isAdminOrToken();
     }
     

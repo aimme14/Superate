@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { getAuth } from 'firebase/auth'
 import { getUserById } from '@/controllers/user.controller'
 import type { User } from '@/interfaces/db.interface'
 
@@ -16,25 +17,29 @@ const STALE_TIME_MS = Infinity
  * se lanza el error real. `retry: false` evita multiplicar lecturas en fallo.
  * @param uid - UID del usuario (p. ej. user?.uid del contexto de auth)
  */
-export function useCurrentUser(uid: string | undefined) {
+export function useCurrentUser(uid: string | undefined, enabled: boolean = true) {
   return useQuery({
     queryKey: currentUserQueryKey(uid ?? ''),
     queryFn: async (): Promise<User> => {
       if (!uid) {
         throw new Error('currentUser: uid no disponible')
       }
-      const result = await getUserById(uid)
+      const auth = getAuth()
+      const email =
+        auth.currentUser?.uid === uid ? auth.currentUser.email ?? null : null
+      const result = await getUserById(uid, email ? { authEmail: email } : undefined)
       if (!result.success) {
         throw result.error
       }
       return result.data
     },
-    enabled: Boolean(uid),
+    enabled: Boolean(uid) && enabled,
     staleTime: STALE_TIME_MS,
     gcTime: Infinity,
-    retry: false,
+    retry: 1,
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    refetchOnMount: false,
+    refetchOnReconnect: true,
+    // Si el estado hidratado trae error, forzamos una lectura al montar para recuperarse.
+    refetchOnMount: 'always',
   })
 }

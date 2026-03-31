@@ -1,4 +1,5 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import type { Persister } from '@tanstack/query-persist-client-core'
 import { clearIndexedDbPersistence, getFirestore } from 'firebase/firestore'
 import { firebaseApp } from '@/services/db'
 import { clearRutaPreparacionCache } from '@/lib/rutaPreparacionLocalCache'
@@ -8,12 +9,19 @@ import { clearViewerPdfHandoffKeys } from '@/utils/simulacroViewerUrl'
 /** Clave en localStorage para la caché persistida. Usar para limpiar en logout. */
 export const PERSIST_CACHE_KEY = 'superate-query-cache'
 
+/**
+ * Cambiar al invalidar el formato de caché o tras cambios que rompan compatibilidad con datos guardados.
+ * Evita hidratar estados corruptos y fuerza un esquema coherente con `persistQueryClientRestore`.
+ */
+export const QUERY_CACHE_BUSTER = 'superate-2026-03-v2'
+
 /** Sin límite de tiempo: la caché se mantiene hasta cerrar sesión o borrar datos del sitio. */
 const PERSIST_MAX_AGE_MS = Infinity
 
 /**
  * Persistimos queries útiles al reabrir la app (misma sesión Auth en el navegador).
  * No persistimos rutas admin (datos sensibles / listados amplios).
+ * `currentUser` se persiste con buster + refetch al montar; el perfil depende de reglas Firestore correctas.
  */
 function shouldDehydrateQuery(query: { queryKey: readonly unknown[] }): boolean {
   const key = query.queryKey[0]
@@ -48,14 +56,26 @@ const noopStorage: Storage = {
   length: 0,
 }
 
-export const persister = createSyncStoragePersister({
+const syncPersister = createSyncStoragePersister({
   storage: typeof window !== 'undefined' ? window.localStorage : noopStorage,
   key: PERSIST_CACHE_KEY,
   throttleTime: 1000,
 })
 
+/**
+ * El core de persistencia usa `await persister.restoreClient()` / `persistClient` / `removeClient`.
+ * El persister síncrono devuelve valores inmediatos; envolverlos en `Promise.resolve` garantiza
+ * `Promisable<T>` y evita incompatibilidades con versiones mezcladas de `@tanstack/query-*`.
+ */
+export const persister: Persister = {
+  persistClient: (persistedClient) => Promise.resolve(syncPersister.persistClient(persistedClient)),
+  restoreClient: () => Promise.resolve(syncPersister.restoreClient()),
+  removeClient: () => Promise.resolve(syncPersister.removeClient()),
+}
+
 export const persistOptions = {
   persister,
+  buster: QUERY_CACHE_BUSTER,
   maxAge: PERSIST_MAX_AGE_MS as number,
   dehydrateOptions: { shouldDehydrateQuery },
 } as const

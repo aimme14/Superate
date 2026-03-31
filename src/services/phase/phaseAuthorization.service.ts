@@ -20,10 +20,12 @@ import {
   StudentPhaseProgress, 
   GradePhaseCompletion,
   PhaseType,
-  PhaseStatus 
+  PhaseStatus,
+  GlobalPhaseAuthorization,
 } from '@/interfaces/phase.interface';
 import { getPhaseName } from '@/utils/firestoreHelpers';
 import { logger } from '@/utils/logger';
+import { globalPhaseAuthorizationService } from '@/services/phase/globalPhaseAuthorization.service';
 
 /**
  * Servicio para gestionar la autorización de fases evaluativas por grado
@@ -492,20 +494,19 @@ class PhaseAuthorizationService {
    */
   async canStudentAccessPhase(
     studentId: string,
-    gradeId: string,
+    _gradeId: string,
     phase: PhaseType
   ): Promise<Result<{ canAccess: boolean; reason?: string }>> {
     try {
-      // Verificar autorización de la fase
-      const authResult = await this.isPhaseAuthorized(gradeId, phase);
-      if (!authResult.success) {
-        return failure(authResult.error);
-      }
+      // Config global compartida (Evita lecturas por grado).
+      const flags: GlobalPhaseAuthorization = await globalPhaseAuthorizationService.getFlags();
+      const flagKey = phase === 'first' ? 'faseI' : phase === 'second' ? 'faseII' : 'faseIII';
+      const phaseGloballyEnabled = flags[flagKey];
 
-      if (!authResult.data) {
+      if (!phaseGloballyEnabled) {
         return success({
           canAccess: false,
-          reason: 'La fase no ha sido autorizada por el administrador para tu grado',
+          reason: `La ${phase === 'first' ? 'Fase I' : phase === 'second' ? 'Fase II' : 'Fase III'} no está habilitada actualmente`,
         });
       }
 

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/ui/use-mobile";
 import { STUDENT_HOME, isStudentHomePath } from "@/constants/routes";
 import { useAuthContext } from "@/context/AuthContext";
+import { useRole } from "@/hooks/core/useRole";
 import { fetchEvaluations } from "@/hooks/query/useStudentEvaluations";
 import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 import {
@@ -115,9 +116,10 @@ export function StudentMobileQuickNav({ theme }: StudentMobileQuickNavProps) {
   const { pathname } = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuthContext();
+  const { isStudent } = useRole();
   const items = buildQuickItems(queryClient, user?.uid);
 
-  if (!isMobile) return null;
+  if (!isMobile || !isStudent) return null;
 
   return (
     <div

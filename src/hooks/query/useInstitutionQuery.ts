@@ -44,7 +44,9 @@ export const useInstitutions = () => {
     gcTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    refetchOnMount: false,
+    // true: si el prefetch falló y se limpió la caché, al abrir pantallas que usan la lista se reintenta.
+    refetchOnMount: true,
+    retry: 1,
   })
 }
 

@@ -7,7 +7,7 @@ import '@/services/db'
 
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import queryClient from '@/lib/queryClient'
-import { persistOptions } from '@/lib/queryPersist'
+import { clearPersistedCache, persistOptions } from '@/lib/queryPersist'
 import ReactDOM from 'react-dom/client'
 import React from 'react'
 import App from './App'
@@ -15,7 +15,13 @@ import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={persistOptions}
+      onError={() => {
+        clearPersistedCache()
+      }}
+    >
       <App />
     </PersistQueryClientProvider>
   </React.StrictMode>

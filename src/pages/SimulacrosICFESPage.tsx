@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Play,
   ChevronLeft,
@@ -37,8 +37,10 @@ import {
 } from "@/services/firebase/ejerciciosIA.service";
 import { dbService } from "@/services/firebase/db.service";
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
-import { SIMULACRO_QUESTIONS_CACHE_MS } from "@/config/rutaPreparacionCache";
-import { consumePrefetchedSimulacrosICFES } from "@/utils/simulacrosICFESPrefetch";
+import {
+  readSimulacrosICFESCache,
+  writeSimulacrosICFESCache,
+} from "@/utils/simulacrosICFESPrefetch";
 import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 import { renderMathInHtml } from "@/utils/renderMathInHtml";
 import { MathText } from "@/utils/renderMath";
@@ -167,13 +169,6 @@ export default function SimulacrosICFESPage() {
   const [studentGrade, setStudentGrade] = useState<string>("1");
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
-  const prefetchedRef = useRef<{
-    questions: Question[];
-    grade: string;
-    subject: string;
-    fetchedAt: number;
-  } | null>(null);
-
   useEffect(() => {
     if (!user?.uid) return;
     dbService.getUserById(user.uid).then((res) => {
@@ -206,84 +201,16 @@ export default function SimulacrosICFESPage() {
     });
   }, [user?.uid]);
 
-  useEffect(() => {
-    if (mode !== "setup" || !studentGrade) return;
-    if (subjectFilter === "IN") {
-      const gradeIA = mapGradeToIAFormat(studentGrade);
-      getRandomEjercicios({
-        grade: gradeIA,
-        subject: "IN",
-        limit: EXERCISES_LIMIT,
-      })
-        .then((result) => {
-          if (result.success && (result.data?.length ?? 0) > 0) {
-            prefetchedRef.current = {
-              questions: (result.data ?? []).map((ex, i) =>
-                ejercicioIAToQuestion(ex, i)
-              ),
-              grade: studentGrade,
-              subject: subjectFilter,
-              fetchedAt: Date.now(),
-            };
-          }
-        })
-        .catch(() => {});
-    } else {
-      const subject =
-        subjectFilter && subjectFilter !== "all" ? subjectFilter : undefined;
-      const filters = { grade: studentGrade, subjectCode: subject };
-      questionService
-        .getRandomQuestions(filters, EXERCISES_LIMIT)
-        .then((result) => {
-          if (result.success && (result.data?.length ?? 0) > 0) {
-            prefetchedRef.current = {
-              questions: result.data ?? [],
-              grade: studentGrade,
-              subject: subjectFilter,
-              fetchedAt: Date.now(),
-            };
-          }
-        })
-        .catch(() => {});
-    }
-  }, [mode, studentGrade, subjectFilter]);
-
   const fetchQuestions = useCallback(async () => {
-    // 1) Consumir prefetch global (tanda "all" cargada al dashboard)
-    const globalPrefetched = consumePrefetchedSimulacrosICFES(
-      studentGrade,
-      subjectFilter
-    );
-    if (globalPrefetched && globalPrefetched.length > 0) {
-      setQuestions(globalPrefetched);
+    const cached = readSimulacrosICFESCache(studentGrade, subjectFilter);
+    if (cached && cached.length > 0) {
+      setQuestions(cached);
       setCurrentIndex(0);
       setSelectedAnswers({});
       setTimeRemaining(SECONDS_PER_QUESTION);
       setMode("running");
       return;
     }
-
-    // 2) Consumir prefetch local de la página (por materia, al estar en setup)
-    const prefetched = prefetchedRef.current;
-    const notExpired =
-      prefetched &&
-      Date.now() - prefetched.fetchedAt < SIMULACRO_QUESTIONS_CACHE_MS;
-    const filtersMatch =
-      notExpired &&
-      prefetched.grade === studentGrade &&
-      prefetched.subject === subjectFilter &&
-      prefetched.questions.length > 0;
-
-    if (filtersMatch) {
-      setQuestions(prefetched.questions);
-      setCurrentIndex(0);
-      setSelectedAnswers({});
-      setTimeRemaining(SECONDS_PER_QUESTION);
-      setMode("running");
-      prefetchedRef.current = null;
-      return;
-    }
-    if (prefetched && !notExpired) prefetchedRef.current = null;
 
     setLoading(true);
     setError(null);
@@ -309,6 +236,7 @@ export default function SimulacrosICFESPage() {
       const questionsFromIA = result.data.map((ex, i) =>
         ejercicioIAToQuestion(ex, i)
       );
+      writeSimulacrosICFESCache(studentGrade, subjectFilter, questionsFromIA);
       setQuestions(questionsFromIA);
       setCurrentIndex(0);
       setSelectedAnswers({});
@@ -339,6 +267,7 @@ export default function SimulacrosICFESPage() {
       );
       return;
     }
+    writeSimulacrosICFESCache(studentGrade, subjectFilter, data);
     setQuestions(data);
     setCurrentIndex(0);
     setSelectedAnswers({});

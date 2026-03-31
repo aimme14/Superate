@@ -7,6 +7,7 @@ import {
   CollectionReference,
   getFirestore,
   collection,
+  collectionGroup,
   updateDoc,
   deleteDoc,
   Firestore,
@@ -15,6 +16,7 @@ import {
   getDoc,
   query,
   where,
+  documentId,
   doc,
   writeBatch,
 } from "firebase/firestore"
@@ -75,38 +77,55 @@ class DatabaseService {
    * @param {string} id - El identificador del usuario, corresponde al uid del usuario en cuestión (auth).
    * @returns {Promise<Result<any>>} Un usuario.
    */
-  async getUserById(id: string): Promise<Result<any>> {
+  /**
+   * @param opts.authEmail - Email de Firebase Auth (mismo usuario). Si el doc admin se guardó con ID = email
+   * en lugar del UID, el fallback intenta leer superate/auth/users/{email} (requiere reglas alineadas).
+   */
+  async getUserById(id: string, opts?: { authEmail?: string | null }): Promise<Result<any>> {
     try {
-      // PRIMERO: Buscar en la nueva estructura jerárquica
+      // PRIMERO: Buscar en estructura antigua (admin).
+      // Importante para bootstrap del login/admin cuando el usuario no vive en la estructura nueva.
+      try {
+        const docRef = doc(this.getCollection('users'), id)
+        const docSnap = await getDoc(docRef)
+
+        if (docSnap.exists()) {
+          const userData = { id: docSnap.id, ...docSnap.data() } as any
+          return success(userData)
+        }
+
+        // Legacy: documento admin creado con ID = correo en lugar del UID de Authentication
+        const authEmail = opts?.authEmail?.trim()
+        if (authEmail && authEmail.includes('@') && authEmail !== id) {
+          const byEmailRef = doc(this.getCollection('users'), authEmail)
+          const byEmailSnap = await getDoc(byEmailRef)
+          if (byEmailSnap.exists()) {
+            const raw = byEmailSnap.data() as Record<string, unknown>
+            if (raw.role === 'admin') {
+              const docEm = String(raw.email ?? '').toLowerCase()
+              const tokenEm = authEmail.toLowerCase()
+              if (docEm && tokenEm && docEm === tokenEm) {
+                return success({ id, ...raw, uid: id })
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        // permission-denied en users/{uid}: seguir con nueva estructura (estudiante/docente).
+        // El doc admin puede no existir o las reglas pueden diferir; no bloquear login.
+        if (e?.code === 'permission-denied') {
+          logger.warn('getUserById: lectura users/{uid} denegada, probando nueva estructura:', e?.message)
+        }
+        // Otros errores: intentar nueva estructura.
+      }
+
+      // SEGUNDO: Buscar en la nueva estructura jerárquica.
       const newStructureResult = await this.getUserByIdFromNewStructure(id)
       if (newStructureResult.success) {
         return newStructureResult
       }
 
-      // SEGUNDO: Si no se encuentra en nueva estructura, buscar en estructura antigua
-      // SOLO para admin (los admins no tienen institutionId y no están en nueva estructura)
-      try {
-        const docRef = doc(this.getCollection('users'), id)
-        const docSnap = await getDoc(docRef)
-        
-        if (!docSnap.exists()) {
-          return failure(new NotFound({ message: 'Usuario no encontrado' }))
-        }
-        
-        const userData = { id: docSnap.id, ...docSnap.data() } as any
-        
-        // Verificar que sea admin - si no es admin, no debería estar en estructura antigua
-        if (userData.role !== 'admin') {
-          return failure(new NotFound({ 
-            message: 'Usuario no encontrado. Este usuario debería estar en la nueva estructura jerárquica.' 
-          }))
-        }
-        
-        return success(userData)
-      } catch (oldStructureError: any) {
-        // Si falla la búsqueda en estructura antigua, retornar el error de la nueva estructura
-        return newStructureResult
-      }
+      return failure(newStructureResult.error)
     } catch (e: any) { 
       return failure(new ErrorAPI(normalizeError(e, 'obtener usuario'))) 
     }
@@ -152,6 +171,29 @@ class DatabaseService {
     try {
       const institutionId = credentials.institutionId || credentials.inst
       const role = credentials.role
+
+      // Administradores solo en superate/auth/users/{uid} (sin institutionId).
+      if (role === 'admin') {
+        const now = new Date().toISOString()
+        const cleanUserData = Object.fromEntries(
+          Object.entries({
+            ...credentials,
+            id: auth.uid,
+            uid: auth.uid,
+            email: auth.email ?? credentials.email,
+            name: credentials.name ?? auth.displayName ?? '',
+            role: 'admin',
+            grade: credentials.grade ?? 'N/A',
+            inst: credentials.inst ?? 'Sistema',
+            createdAt: credentials.createdAt ?? now,
+            updatedAt: now,
+            isActive: credentials.isActive !== false,
+            createdBy: credentials.createdBy ?? 'system',
+          }).filter(([, v]) => v !== undefined)
+        ) as Record<string, unknown>
+        await setDoc(doc(this.getCollection('users'), auth.uid), cleanUserData)
+        return success(cleanUserData)
+      }
 
       // Validar que tenga institutionId y rol válido (requerido para nueva estructura)
       if (!institutionId) {
@@ -1995,7 +2037,10 @@ class DatabaseService {
         campusName,
         gradeName,
       })
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === 'permission-denied') {
+        return success(user)
+      }
       logger.warn('Error al enriquecer datos del usuario:', user?.id, error)
       return failure(new ErrorAPI(normalizeError(error, 'enriquecer datos del usuario')))
     }
@@ -2826,6 +2871,42 @@ class DatabaseService {
   }
 
   /**
+   * Localiza el documento de usuario bajo institutions/.../{subcollection}/{uid} sin listar todas las instituciones.
+   * Requiere reglas que permitan leer el propio doc por uid (bootstrap sin userLookup).
+   */
+  private async findUserDocViaCollectionGroup(uid: string): Promise<Result<any>> {
+    // Orden: mayoría de usuarios son estudiantes; menos consultas fallidas en vacío.
+    const subcollections = ['estudiantes', 'profesores', 'coordinadores', 'rectores'] as const
+    for (const sub of subcollections) {
+      try {
+        const q = query(collectionGroup(this.db, sub), where(documentId(), '==', uid))
+        const snap = await getDocs(q)
+        if (snap.empty) continue
+        const d = snap.docs[0]
+        const userData = { id: d.id, ...d.data() } as any
+        const parts = d.ref.path.split('/')
+        const instIdx = parts.indexOf('institutions')
+        const institutionId = instIdx >= 0 && parts.length > instIdx + 1 ? parts[instIdx + 1] : ''
+        if (institutionId) {
+          await this.setUserLookup(uid, institutionId, this.getRoleFromCollectionName(sub))
+        }
+        return success(userData)
+      } catch (e: any) {
+        if (e?.code === 'failed-precondition') {
+          return failure(
+            new ErrorAPI({
+              message: `Falta índice de Firestore (collection group "${sub}"). Ejecuta: firebase deploy --only firestore:indexes`,
+              statusCode: 503,
+            })
+          )
+        }
+        logger.warn('findUserDocViaCollectionGroup', sub, e?.message)
+      }
+    }
+    return failure(new NotFound({ message: 'Usuario no encontrado (collection group)' }))
+  }
+
+  /**
    * Obtiene un usuario por ID desde la nueva estructura jerárquica.
    * Optimizado: primero consulta el índice userLookup (2 lecturas); si no existe, hace fallback
    * y rellena el lookup para la próxima vez.
@@ -2851,43 +2932,14 @@ class DatabaseService {
         }
       }
 
-      // 2) Fallback: buscar en todas las instituciones (retrocompatibilidad y migración gradual)
-      const institutionsResult = await this.getAllInstitutions()
-      if (!institutionsResult.success) {
-        return failure(institutionsResult.error)
+      // 2) Fallback sin listar la colección institutions: los estudiantes/docentes no tienen permiso
+      // para getDocs(institutions). Usamos collection group por id de documento (uid único).
+      const fromGroup = await this.findUserDocViaCollectionGroup(id)
+      if (fromGroup.success) {
+        return fromGroup
       }
 
-      const roles = ['rectores', 'coordinadores', 'profesores', 'estudiantes']
-
-      for (const institution of institutionsResult.data) {
-        const institutionId = institution.id
-        for (const roleCollection of roles) {
-          try {
-            const userCollection = collection(
-              this.db,
-              'superate',
-              'auth',
-              'institutions',
-              institutionId,
-              roleCollection
-            )
-            const userDocRef = doc(userCollection, id)
-            const docSnap = await getDoc(userDocRef)
-
-            if (docSnap.exists()) {
-              const userData = { id: docSnap.id, ...docSnap.data() } as any
-              // Rellenar lookup para la próxima vez (migración gradual)
-              await this.setUserLookup(id, institutionId, this.getRoleFromCollectionName(roleCollection))
-              return success(userData)
-            }
-          } catch (error: any) {
-            logger.warn('Error al buscar usuario en fallback:', roleCollection, institutionId, error?.message)
-            continue
-          }
-        }
-      }
-
-      return failure(new NotFound({ message: 'Usuario no encontrado en nueva estructura' }))
+      return failure(fromGroup.error ?? new NotFound({ message: 'Usuario no encontrado en nueva estructura' }))
     } catch (e: any) {
       logger.error('Error al obtener usuario de nueva estructura:', e?.message)
       return failure(new ErrorAPI(normalizeError(e, 'obtener usuario de nueva estructura')))

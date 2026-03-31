@@ -1,11 +1,7 @@
-import { ReactNode, useEffect } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { ReactNode } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useRole } from '@/hooks/core/useRole'
 import { UserRole } from '@/interfaces/context.interface'
-import { useAuthContext } from '@/context/AuthContext'
-import { useNotification } from '@/hooks/ui/useNotification'
-import { getUserById } from '@/controllers/user.controller'
-import { dbService } from '@/services/firebase/db.service'
 
 interface RoleProtectedRouteProps {
   children: ReactNode
@@ -21,59 +17,11 @@ export default function RoleProtectedRoute({
   allowedRoles, 
   fallbackPath = '/dashboard' 
 }: RoleProtectedRouteProps) {
-  const { userRole, isStudent } = useRole()
-  const { user, signout } = useAuthContext()
-  const navigate = useNavigate()
-  const { notifyError } = useNotification()
+  const { userRole, isStudent, isRolePending } = useRole()
 
-  // Validar que el usuario esté activo
-  useEffect(() => {
-    const validateUserStatus = async () => {
-      if (user?.uid) {
-        try {
-          const userResult = await getUserById(user.uid)
-          
-          if (userResult.success && userResult.data) {
-            const userData = userResult.data as any
-            const isActive = userData.isActive === true
-            
-            if (!isActive) {
-              notifyError({
-                title: 'Acceso denegado',
-                message: 'Tu cuenta ha sido desactivada. Por favor, contacta al administrador del sistema.'
-              })
-              await signout()
-              navigate('/auth/login', { replace: true })
-              return
-            }
-            
-            // Verificar institución si existe
-            if (userData.institutionId || userData.inst) {
-              const institutionId = userData.institutionId || userData.inst
-              const institutionResult = await dbService.getInstitutionById(institutionId)
-              
-              if (institutionResult.success && institutionResult.data) {
-                const institutionIsActive = institutionResult.data.isActive === true
-                
-                if (!institutionIsActive) {
-                  notifyError({
-                    title: 'Acceso denegado',
-                    message: 'La institución asociada a tu cuenta ha sido desactivada. Por favor, contacta al administrador del sistema.'
-                  })
-                  await signout()
-                  navigate('/auth/login', { replace: true })
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error validando estado del usuario:', error)
-        }
-      }
-    }
-    
-    validateUserStatus()
-  }, [user, signout, navigate, notifyError])
+  if (isRolePending) {
+    return null
+  }
 
   // Si el usuario no tiene un rol válido, redirigir al dashboard por defecto
   if (!userRole) {
@@ -96,7 +44,8 @@ export default function RoleProtectedRoute({
  * Hook para verificar si el usuario tiene acceso a una ruta específica
  */
 export const useRoleAccess = (allowedRoles: UserRole[]) => {
-  const { userRole } = useRole()
+  const { userRole, isRolePending } = useRole()
+  if (isRolePending) return false
   return userRole ? allowedRoles.includes(userRole) : false
 }
 

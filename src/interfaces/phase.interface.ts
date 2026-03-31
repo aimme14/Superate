@@ -6,6 +6,15 @@ export type PhaseType = 'first' | 'second' | 'third';
 export type PhaseStatus = 'locked' | 'available' | 'completed' | 'in_progress';
 
 /**
+ * Habilitación global de fases (documento único en superate/auth/system/Autorizacion_fases)
+ */
+export interface GlobalPhaseAuthorization {
+  faseI: boolean;
+  faseII: boolean;
+  faseIII: boolean;
+}
+
+/**
  * Autorización de fase por grado
  */
 export interface PhaseAuthorization {

@@ -16,10 +16,10 @@ const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
 const DashboardPage = () => {
   const { theme } = useThemeContext()
   const { user, loading } = useAuthContext()
-  const { userRole, isStudent, isTeacher, isPrincipal, isRector, isAdmin } = useRole()
+  const { userRole, isStudent, isTeacher, isPrincipal, isRector, isAdmin, isRolePending } = useRole()
   
   // Si está cargando, mostrar skeleton
-  if (loading) {
+  if (loading || isRolePending) {
     return <Skeleton theme={theme} />
   }
 

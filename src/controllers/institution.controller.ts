@@ -2,6 +2,8 @@ import { Institution, Campus, Grade } from '@/interfaces/db.interface'
 import { Result, success, failure } from '@/interfaces/db.interface'
 import ErrorAPI from '@/errors'
 import { dbService } from '@/services/firebase/db.service'
+import { getAuth } from 'firebase/auth'
+import { firebaseApp } from '@/services/db'
 
 
 // Interfaces para las operaciones CRUD
@@ -49,6 +51,10 @@ export interface UpdateGradeData extends Partial<Omit<CreateGradeData, 'institut
 // Funciones CRUD para Instituciones
 export const getAllInstitutions = async (): Promise<Result<Institution[]>> => {
   try {
+    // Refrescar token para que las reglas vean claims (tokenIsAdmin) antes de listar institutions.
+    const auth = getAuth(firebaseApp)
+    await auth.currentUser?.getIdToken(true)
+
     const result = await dbService.getAllInstitutions()
     if (result.success) {
       return success(result.data as Institution[])

@@ -8,34 +8,37 @@ import { useRole } from '@/hooks/core/useRole'
  */
 export default function RoleBasedRedirect() {
   const { isAuth, loading } = useAuthContext()
-  const { userRole } = useRole()
+  const { userRole, isRolePending } = useRole()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!loading && isAuth && userRole) {
-      // Redirigir según el rol del usuario
-      switch (userRole) {
-        case 'student':
-          navigate('/dashboard', { replace: true })
-          break
-        case 'teacher':
-          navigate('/dashboard/teacher', { replace: true })
-          break
-        case 'principal':
-          navigate('/dashboard/principal', { replace: true })
-          break
-        case 'rector':
-          navigate('/dashboard/rector', { replace: true })
-          break
-        case 'admin':
-          navigate('/dashboard/admin', { replace: true })
-          break
-        default:
-          // Si no hay rol definido, ir al dashboard por defecto
-          navigate('/dashboard', { replace: true })
-      }
+    if (loading || !isAuth || isRolePending) return
+
+    if (!userRole) {
+      navigate('/dashboard', { replace: true })
+      return
     }
-  }, [isAuth, loading, userRole, navigate])
+
+    switch (userRole) {
+      case 'student':
+        navigate('/dashboard', { replace: true })
+        break
+      case 'teacher':
+        navigate('/dashboard/teacher', { replace: true })
+        break
+      case 'principal':
+        navigate('/dashboard/principal', { replace: true })
+        break
+      case 'rector':
+        navigate('/dashboard/rector', { replace: true })
+        break
+      case 'admin':
+        navigate('/dashboard/admin', { replace: true })
+        break
+      default:
+        navigate('/dashboard', { replace: true })
+    }
+  }, [isAuth, loading, userRole, isRolePending, navigate])
 
   // No renderizar nada, solo manejar la redirección
   return null

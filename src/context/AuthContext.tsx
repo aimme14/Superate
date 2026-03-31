@@ -7,7 +7,7 @@ import { txt } from "@/utils/format"
 import { AuthContext, User } from "@/interfaces/context.interface"
 
 import { authService as authFB } from "@/services/firebase/auth.service"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import type { User as FirebaseAuthUser } from "firebase/auth"
 import { useQueryClient } from "@tanstack/react-query"
 import { clearPersistedCache } from "@/lib/queryPersist"
@@ -65,6 +65,8 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
   const [loading, setLoading] = useState(true)
   const [isAuth, setIsAuth] = useState(false)
   const { handler } = useLoading()
+  /** uid actual de Auth para sincronizar con caché cuando hidrata después de observeAuth */
+  const authUidRef = useRef<string | null>(null)
 
   /**
    * Restaura sesión sin lecturas a Firestore: perfil desde caché persistida de React Query
@@ -73,6 +75,7 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
   useEffect(() => {
     return authFB.observeAuth((auth) => {
       if (!auth) {
+        authUidRef.current = null
         queryClient.clear()
         clearPersistedCache()
         setUser(undefined)
@@ -81,17 +84,38 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
         return
       }
 
-      const cached = queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, auth.uid]) as
-        | Record<string, unknown>
-        | undefined
-      if (cached) {
-        setUser(mapUserDocToContext(auth.uid, cached))
-      } else {
-        setUser(mapFirebaseToContextUser(auth))
+      authUidRef.current = auth.uid
+      const applyProfileFromCache = () => {
+        const cached = queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, auth.uid]) as
+          | Record<string, unknown>
+          | undefined
+        if (cached) {
+          setUser(mapUserDocToContext(auth.uid, cached))
+        } else {
+          setUser(mapFirebaseToContextUser(auth))
+        }
       }
+      applyProfileFromCache()
+      // PersistQueryClient hidrata después del primer tick: re-aplicar rol/institución
+      queueMicrotask(applyProfileFromCache)
       setIsAuth(true)
       setLoading(false)
     })
+  }, [queryClient])
+
+  /** Cuando el perfil currentUser se actualiza (fetch o hidratar), reflejar rol en el contexto */
+  useEffect(() => {
+    const unsub = queryClient.getQueryCache().subscribe((event) => {
+      if (event?.type !== 'updated' && event?.type !== 'added') return
+      const q = event.query
+      const key = q.queryKey
+      if (key[0] !== 'currentUser' || typeof key[1] !== 'string') return
+      const uid = key[1]
+      if (uid !== authUidRef.current) return
+      if (q.state.status !== 'success' || !q.state.data) return
+      setUser(mapUserDocToContext(uid, q.state.data as Record<string, unknown>))
+    })
+    return unsub
   }, [queryClient])
   /*--------------------------------------------------authentication--------------------------------------------------*/
   /**
@@ -175,7 +199,10 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       if (!enabled) return undefined
       const cached = queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, id])
       if (cached) return cached as any
-      const response = await getUserById(id)
+      const response = await getUserById(
+        id,
+        user?.uid === id && user?.email ? { authEmail: user.email } : undefined
+      )
       if (!response.success) throw response.error
       queryClient.setQueryData([...CURRENT_USER_QUERY_KEY, id], response.data)
       return response.data

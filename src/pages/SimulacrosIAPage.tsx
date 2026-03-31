@@ -27,9 +27,8 @@ import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNa
 import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 import { getRandomEjercicios, type EjercicioIA } from "@/services/firebase/ejerciciosIA.service";
 import {
-  prefetchSimulacrosIA,
-  consumePrefetchedSimulacrosIA,
-  clearPrefetchedSimulacrosIA,
+  readSimulacrosIACache,
+  writeSimulacrosIACache,
 } from "@/utils/simulacrosIAPrefetch";
 import { dbService } from "@/services/firebase/db.service";
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
@@ -99,30 +98,12 @@ export default function SimulacrosIAPage() {
     });
   }, [user?.uid]);
 
-  /** Prefetch al entrar: inicia de inmediato con grado por defecto, sin esperar getUserById */
-  useEffect(() => {
-    if (mode !== "setup") return;
-    const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : "all";
-    prefetchSimulacrosIA(DEFAULT_GRADE, subject);
-  }, [mode, subjectFilter]);
-
-  /** Actualiza prefetch cuando carga el grado real del usuario (puede diferir del default) */
-  useEffect(() => {
-    if (mode !== "setup" || !studentGrade || studentGrade === DEFAULT_GRADE) return;
-    const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : "all";
-    prefetchSimulacrosIA(studentGrade, subject);
-  }, [mode, studentGrade, subjectFilter]);
-
-  useEffect(() => {
-    return () => clearPrefetchedSimulacrosIA();
-  }, []);
-
   const fetchExercises = useCallback(async () => {
     const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : "all";
-    const prefetched = consumePrefetchedSimulacrosIA(studentGrade, subject);
+    const cached = readSimulacrosIACache(studentGrade, subject);
 
-    if (prefetched && prefetched.length > 0) {
-      setExercises(prefetched);
+    if (cached && cached.length > 0) {
+      setExercises(cached);
       setCurrentIndex(0);
       setSelectedAnswers({});
       setTimeRemaining(SECONDS_PER_QUESTION);
@@ -147,6 +128,7 @@ export default function SimulacrosIAPage() {
       setError("No hay ejercicios disponibles para los filtros seleccionados. Intenta con otra materia o Al azar.");
       return;
     }
+    writeSimulacrosIACache(studentGrade, subject, result.data);
     setExercises(result.data);
     setCurrentIndex(0);
     setSelectedAnswers({});

@@ -1,87 +1,64 @@
 /**
- * Prefetch de Simulacros ICFES: una tanda de 10 preguntas "all" (todas las materias).
- * Se ejecuta al cargar el dashboard del estudiante (mismo momento que Simulacros IA).
- * Las preguntas se consideran válidas 30 min (misma política que IA).
+ * Caché en memoria para Simulacros ICFES (10 preguntas por tanda y filtros).
+ * Solo se escribe al pulsar "Iniciar simulacro"; no hay lecturas previas al banco.
+ * Reutiliza la misma tanda mientras no caduque (SIMULACRO_QUESTIONS_CACHE_MS).
  */
 
-import { questionService, type Question } from "@/services/firebase/question.service";
+import type { Question } from "@/services/firebase/question.service";
 import { SIMULACRO_QUESTIONS_CACHE_MS } from "@/config/rutaPreparacionCache";
 
 const EXERCISES_LIMIT = 10;
 
-/** Convierte grado "11"/"10" (display) al código del banco "1"/"0". */
-function gradeToQuestionBank(gradeInput: string): string {
-  const s = String(gradeInput).trim().toLowerCase();
-  if (s === "11" || s === "undécimo" || s === "undecimo") return "1";
-  if (s === "10" || s === "décimo" || s === "decimo") return "0";
-  if (["6", "7", "8", "9"].includes(s)) return s;
-  if (s.startsWith("11")) return "1";
-  if (s.startsWith("10")) return "0";
-  if (s.startsWith("9")) return "9";
-  if (s.startsWith("8")) return "8";
-  if (s.startsWith("7")) return "7";
-  if (s.startsWith("6")) return "6";
-  return "1";
+function normSubject(subject: string): string {
+  return subject && subject !== "all" ? subject : "all";
 }
 
-let cache: {
-  questions: Question[];
-  grade: string; // en formato banco ("1", "0", ...)
-  fetchedAt: number;
-} | null = null;
+function makeKey(grade: string, subject: string): string {
+  return `${grade}::${normSubject(subject)}`;
+}
 
-/**
- * Inicia prefetch de 10 preguntas "all" en segundo plano.
- * grade: grado en formato display ("11", "10") o banco ("1", "0").
- */
-export function prefetchSimulacrosICFES(grade: string): void {
-  const bankGrade = gradeToQuestionBank(grade);
-  const now = Date.now();
-  if (
-    cache &&
-    cache.grade === bankGrade &&
-    now - cache.fetchedAt < SIMULACRO_QUESTIONS_CACHE_MS
-  )
-    return;
+const store = new Map<
+  string,
+  { questions: Question[]; fetchedAt: number }
+>();
 
-  questionService
-    .getRandomQuestions({ grade: bankGrade }, EXERCISES_LIMIT)
-    .then((result) => {
-      if (result.success && (result.data?.length ?? 0) > 0) {
-        cache = {
-          questions: result.data!,
-          grade: bankGrade,
-          fetchedAt: Date.now(),
-        };
-      }
-    })
-    .catch(() => {});
+function isFresh(fetchedAt: number): boolean {
+  return Date.now() - fetchedAt < SIMULACRO_QUESTIONS_CACHE_MS;
 }
 
 /**
- * Consume el prefetch si coincide con grado y materia "all", y no ha pasado 30 min.
- * grade: en formato banco ("1", "0") como en la página.
- * subject: debe ser "all" para usar esta tanda.
+ * Devuelve una copia superficial de la tanda en caché si existe y no ha caducado.
  */
-export function consumePrefetchedSimulacrosICFES(
+export function readSimulacrosICFESCache(
   grade: string,
   subject: string
 ): Question[] | null {
-  if (subject !== "all") return null;
-  if (!cache) return null;
-  if (cache.grade !== grade) return null;
-  if (Date.now() - cache.fetchedAt >= SIMULACRO_QUESTIONS_CACHE_MS) {
-    cache = null;
+  const key = makeKey(grade, subject);
+  const entry = store.get(key);
+  if (!entry) return null;
+  if (!isFresh(entry.fetchedAt)) {
+    store.delete(key);
     return null;
   }
-  const questions = cache.questions;
-  cache = null;
-  return questions;
+  return entry.questions.slice();
 }
 
 /**
- * Limpia el prefetch (útil al desmontar o cambiar de vista).
+ * Guarda la tanda obtenida al iniciar (como mucho 10 ítems).
  */
-export function clearPrefetchedSimulacrosICFES(): void {
-  cache = null;
+export function writeSimulacrosICFESCache(
+  grade: string,
+  subject: string,
+  questions: Question[]
+): void {
+  const slice = questions.slice(0, EXERCISES_LIMIT);
+  if (slice.length === 0) return;
+  store.set(makeKey(grade, subject), {
+    questions: slice,
+    fetchedAt: Date.now(),
+  });
+}
+
+export function clearSimulacrosICFESCache(): void {
+  store.clear();
 }

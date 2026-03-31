@@ -19,6 +19,14 @@ export async function validateExamPresentationGate(params: {
 }): Promise<ExamGateOutcome> {
   const { userId, gradeId, phase, subjectLabel, quizId } = params
   const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service')
+
+  // Bloquear el acceso a la fase si está deshabilitada globalmente o si el estudiante
+  // aún no cumplió la fase anterior.
+  const currentPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, phase)
+  if (!currentPhaseAccess.success || !currentPhaseAccess.data?.canAccess) {
+    return { type: 'blocked' }
+  }
+
   const evaluations = await fetchEvaluationsFromStudentSummary(userId)
   const inPhase = evaluations.filter((e) => e.phase === phase && e.completed !== false)
   const normalizedSubject = subjectLabel.trim().toLowerCase()

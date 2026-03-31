@@ -28,6 +28,7 @@ import {
 } from "@/utils/rutaPreparacionPrefetch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/AuthContext";
+import { useRole } from "@/hooks/core/useRole";
 import { fetchEvaluations } from "@/hooks/query/useStudentEvaluations";
 import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 import { STUDENT_HOME, isStudentHomePath } from "@/constants/routes";
@@ -100,17 +101,18 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
   const { pathname } = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuthContext();
+  const { isStudent } = useRole();
 
   // Prefetch temprano de Ruta de preparación: se programa tras carga del dashboard (idle/delay).
   // Solo se ejecuta una vez por sesión; no compite con la carga inicial.
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!isStudent || !user?.uid) return;
     const cancel = scheduleRutaPreparacionPrefetch(queryClient, {
       grade: DEFAULT_GRADE_RUTA_PREPARACION,
       userId: user.uid,
     });
     return cancel;
-  }, [queryClient, user?.uid]);
+  }, [queryClient, user?.uid, isStudent]);
 
   const isActive = (href: string, isRutaArea?: boolean) => {
     if (href === STUDENT_HOME) return isStudentHomePath(pathname);
@@ -142,7 +144,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
       text: "Resultados",
       onPrefetch: () => {
         prefetchResultados();
-        if (user?.uid) {
+        if (isStudent && user?.uid) {
           void queryClient.prefetchQuery({
             queryKey: ["student-evaluations", user.uid],
             queryFn: () => fetchEvaluations(user.uid!),
@@ -223,9 +225,11 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
             prefetchPlanEstudioIA();
             prefetchSimulacrosIA();
             prefetchSimulacrosICFES();
-            runRutaPreparacionPrefetch(queryClient, {
-              grade: DEFAULT_GRADE_RUTA_PREPARACION,
-            });
+            if (isStudent) {
+              runRutaPreparacionPrefetch(queryClient, {
+                grade: DEFAULT_GRADE_RUTA_PREPARACION,
+              });
+            }
           }}
         />
         <NavItem

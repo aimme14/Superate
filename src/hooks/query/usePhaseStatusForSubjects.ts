@@ -5,6 +5,7 @@ import {
   ALL_SUBJECTS,
 } from "@/services/phase/phaseStatusData.service";
 import type { PhaseType } from "@/interfaces/phase.interface";
+import { useRole } from "@/hooks/core/useRole";
 
 export const phaseStatusKeys = {
   all: ["phase-status"] as const,
@@ -16,13 +17,19 @@ export const phaseStatusKeys = {
  * Una sola carga con caché React Query; SubjectPhaseStatus, Intento y PhaseDashboard lo reutilizan.
  */
 export function usePhaseStatusForSubjects(userId: string | undefined) {
+  const { isStudent } = useRole();
+
   const query = useQuery({
     queryKey: phaseStatusKeys.student(userId ?? ""),
     queryFn: () => fetchPhaseStatusForStudent(userId!),
-    enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 8 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    // Manual para estudiantes (solo por botón "Actualizar").
+    // Desactivado para no-estudiantes (evita lecturas/errores innecesarios en dashboard admin/staff).
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: 30 * 24 * 60 * 60 * 1000, // 30 días (costo mínimo)
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   const data = query.data;
@@ -30,7 +37,9 @@ export function usePhaseStatusForSubjects(userId: string | undefined) {
   return {
     phaseStatesBySubject: data?.phaseStatesBySubject ?? {},
     isPhase3Complete: data?.isPhase3Complete ?? false,
-    isLoading: query.isLoading,
+    isLoading: isStudent ? query.isLoading : false,
+    isFetching: query.isFetching,
+    isFetched: query.isFetched,
     isError: query.isError,
     refetch: query.refetch,
   };

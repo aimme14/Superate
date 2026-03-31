@@ -69,7 +69,6 @@ import {
   Shield,
   Link as LinkIcon,
   Eye,
-  Lock,
   Info,
   Copy,
   ExternalLink,
@@ -1080,7 +1079,6 @@ function PersonalizedStudyPlan({
         const hasWeaknesses = weaknesses.length > 0;
         const plan = studyPlans[subject.name];
         const isGenerating = generatingFor === subject.name;
-        const isAuthorized = subjectAuthorizations[subject.name] ?? false;
         const shouldShowButton = hasWeaknesses && canShowGenerateButton(subject.name) && !!studentGrade;
 
         return (
@@ -1150,15 +1148,10 @@ function PersonalizedStudyPlan({
                             <AlertTriangle className="h-3 w-3 inline mr-2" />
                             Asigna un grado al estudiante para generar el plan
                           </>
-                        ) : !isAuthorized ? (
-                          <>
-                            <Lock className="h-3 w-3 inline mr-2" />
-                            No autorizado
-                          </>
                         ) : (
                           <>
                             <Clock className="h-3 w-3 inline mr-2" />
-                            En espera 
+                            En espera
                           </>
                         )}
                       </div>
@@ -1448,9 +1441,7 @@ function PersonalizedStudyPlan({
                               <>
                                 <Clock className="h-5 w-5" />
                                 <p className={cn("text-sm font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                                  {isAuthorized
-                                    ? 'El plan de estudio estará disponible después de generar el plan de la materia anterior en el orden de cascada.'
-                                    : 'El plan de estudio no está autorizado para esta materia.'}
+                                  El plan de estudio estará disponible después de generar el plan de la materia anterior en el orden de cascada.
                                 </p>
                               </>
                             )}

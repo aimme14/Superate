@@ -16,14 +16,17 @@ export const getUsers = async (): Promise<Result<User[]>> => {
   } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener lista de usuarios'))) }
 }
 
+export type GetUserByIdOptions = { authEmail?: string | null }
+
 /**
  * Obtiene un usuario por su id, representa el uid del usuario en cuestión (auth).
  * @param {string} id - El identificador del usuario.
+ * @param opts - authEmail: para resolver admin cuyo doc en Firestore usa el email como ID de documento.
  * @returns {Promise<Result<User>>} Un usuario.
  */
-export const getUserById = async (id: string): Promise<Result<User>> => {
+export const getUserById = async (id: string, opts?: GetUserByIdOptions): Promise<Result<User>> => {
   try {
-    const result = await dbService.getUserById(id)
+    const result = await dbService.getUserById(id, opts)
     if (!result.success) throw result.error
     
     // Enriquecer los datos del usuario con nombres de institución, sede y grado

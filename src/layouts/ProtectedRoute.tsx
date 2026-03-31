@@ -2,7 +2,7 @@ import { useThemeContext } from "@/context/ThemeContext"
 import Skeleton from "#/common/skeletons/SkeletonLarge"
 import { useAuthContext } from "@/context/AuthContext"
 import { Navigate, Outlet, useNavigate } from "react-router-dom"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useNotification } from "@/hooks/ui/useNotification"
 import { useCurrentUser } from "@/hooks/query/useCurrentUser"
 import { useInstitution } from "@/hooks/query/useInstitutionQuery"
@@ -16,12 +16,13 @@ function ProtectedRoute() {
   const { theme } = useThemeContext()
   const navigate = useNavigate()
   const { notifyError } = useNotification()
+  const profileErrorLogged = useRef(false)
 
   const {
     data: userData,
     isLoading: isLoadingUser,
     isError: isUserError,
-  } = useCurrentUser(user?.uid)
+  } = useCurrentUser(user?.uid, isAuth && !loading && Boolean(user?.uid))
 
   const institutionId = useMemo(() => {
     if (!userData) return ""
@@ -39,9 +40,13 @@ function ProtectedRoute() {
     if (loading || !isAuth || !user?.uid) return
     if (isLoadingUser) return
     if (isUserError) {
-      console.error("Error validando estado del usuario: no se pudo cargar el perfil")
+      if (!profileErrorLogged.current) {
+        profileErrorLogged.current = true
+        console.error("Error validando estado del usuario: no se pudo cargar el perfil")
+      }
       return
     }
+    profileErrorLogged.current = false
     if (!userData) return
 
     const isActive = (userData as { isActive?: boolean }).isActive === true
@@ -91,7 +96,8 @@ function ProtectedRoute() {
 
   if (loading) return <Skeleton theme={theme} />
   if (!isAuth) return <Navigate to="/auth/login" replace />
-  if (user?.uid && isLoadingUser) return <Skeleton theme={theme} />
+  // No bloquear la app con skeleton mientras carga el perfil: las rutas hijas muestran su propio loading.
+  // Evita pantalla infinita si Firestore o la red fallan de forma intermitente.
 
   return <Outlet />
 }

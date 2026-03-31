@@ -3,6 +3,7 @@ import { UserRole } from "@/interfaces/context.interface"
 import { institutionKeys } from "@/hooks/query/useInstitutionQuery"
 import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState } from 'react'
+import { useCurrentUser } from '@/hooks/query/useCurrentUser'
 
 /**
  * Hook personalizado para manejar roles y permisos de usuario
@@ -13,7 +14,18 @@ export const useRole = () => {
   const [isUserActive, setIsUserActive] = useState<boolean>(true)
   const [isInstitutionActive, setIsInstitutionActive] = useState<boolean>(true)
 
-  const userRole: UserRole | undefined = user?.role
+  const { data: profile, isPending: isProfilePending, isFetching: isProfileFetching } = useCurrentUser(
+    user?.uid,
+    Boolean(user?.uid)
+  )
+
+  /** Rol desde contexto (login) o perfil Firestore (clave currentUser; evita dashboard equivocado tras F5). */
+  const userRole: UserRole | undefined =
+    user?.role ?? (profile as { role?: UserRole } | undefined)?.role
+
+  /** Mientras el usuario está autenticado pero aún no cargamos rol desde Firestore (p. ej. admin → estudiante). */
+  const isRolePending =
+    Boolean(user?.uid) && !user?.role && !profile?.role && (isProfilePending || isProfileFetching)
 
   /** Estado activo solo desde caché de React Query (sin lecturas de red en el arranque). */
   useEffect(() => {
@@ -23,7 +35,9 @@ export const useRole = () => {
       return
     }
 
-    const cached = queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, user.uid]) as Record<string, unknown> | undefined
+    const cached =
+      (profile as Record<string, unknown> | undefined) ??
+      (queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, user.uid]) as Record<string, unknown> | undefined)
     if (cached) {
       setIsUserActive(cached.isActive === true)
       const iid = (cached.institutionId ?? cached.inst) as string | undefined
@@ -42,7 +56,7 @@ export const useRole = () => {
 
     setIsUserActive(true)
     setIsInstitutionActive(true)
-  }, [user?.uid, queryClient])
+  }, [user?.uid, queryClient, profile])
 
   // Permisos por rol
   const permissions = {
@@ -185,6 +199,7 @@ export const useRole = () => {
 
   return {
     userRole,
+    isRolePending,
     permissions: userRole ? permissions[userRole] : permissions.student,
     hasPermission,
     isStudent,

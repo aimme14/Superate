@@ -16,7 +16,6 @@ import {
   BarChart3,
   Home,
   BookOpen,
-  Brain,
   Loader2,
   FileText,
   FolderOpen,
@@ -39,8 +38,7 @@ const RegistrationSettings = lazy(() => import('@/components/admin/RegistrationS
 
 // Lazy: cargar solo al abrir cada tab
 const QuestionBank = lazy(() => import('@/components/admin/QuestionBank'))
-const PhaseAuthorizationManagement = lazy(() => import('@/components/admin/PhaseAuthorizationManagement'))
-const StudyPlanAuthorizationManagement = lazy(() => import('@/components/admin/StudyPlanAuthorizationManagement'))
+const AdminGlobalPhaseSettings = lazy(() => import('@/components/admin/AdminGlobalPhaseSettings'))
 const AdminRecursos = lazy(() => import('@/components/admin/AdminRecursos'))
 const AdminHerramientasIA = lazy(() => import('@/components/admin/AdminHerramientasIA'))
 const AdminSimulacros = lazy(() => import('@/components/admin/AdminSimulacros'))
@@ -162,7 +160,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
                 type="button"
                 className={cn(
                   "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  ['questions', 'phases', 'study-plans', 'recursos', 'herramientas-ia', 'simulacros', 'temas-estudio'].includes(activeTab)
+                  ['questions', 'phases', 'recursos', 'herramientas-ia', 'simulacros', 'temas-estudio'].includes(activeTab)
                     ? theme === 'dark'
                       ? 'bg-teal-600/80 text-white'
                       : 'bg-primary text-primary-foreground'
@@ -202,16 +200,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               >
                 <Lock className="mr-2 h-4 w-4" />
                 Fases
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setActiveTab('study-plans')}
-                className={cn(
-                  "cursor-pointer rounded-sm px-2 py-2",
-                  activeTab === 'study-plans' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
-                )}
-              >
-                <Brain className="mr-2 h-4 w-4" />
-                Planes de Estudio
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setActiveTab('recursos')}
@@ -358,17 +346,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           }>
-            <PhaseAuthorizationManagement theme={theme} />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="study-plans">
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          }>
-            <StudyPlanAuthorizationManagement theme={theme} />
+            <AdminGlobalPhaseSettings theme={theme} />
           </Suspense>
         </TabsContent>
 

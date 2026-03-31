@@ -312,7 +312,7 @@ const ExamWithFirebase = () => {
         setExamState('blocked');
         notifyError({
           title: 'Examen bloqueado',
-          message: 'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.',
+          message: 'Este examen está bloqueado. Verifica que la fase esté habilitada y que hayas completado la fase anterior.',
         });
         return;
       }
@@ -975,7 +975,7 @@ const ExamWithFirebase = () => {
           </div>
           <CardTitle className={cn("text-2xl", appTheme === 'dark' ? 'text-red-400' : 'text-red-800')}>Examen Bloqueado</CardTitle>
           <CardDescription className={cn("text-lg", appTheme === 'dark' ? 'text-gray-400' : '')}>
-            Este examen ya fue completado
+            Este examen está bloqueado
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -983,7 +983,7 @@ const ExamWithFirebase = () => {
             <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertTitle className={cn(appTheme === 'dark' ? 'text-red-300' : 'text-red-800')}>Información</AlertTitle>
             <AlertDescription className={cn(appTheme === 'dark' ? 'text-red-200' : 'text-red-700')}>
-              Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.
+              Este examen está bloqueado. Verifica que la fase esté habilitada y que hayas completado la fase anterior.
             </AlertDescription>
           </Alert>
         </CardContent>

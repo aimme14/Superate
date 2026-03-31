@@ -17,16 +17,23 @@ export function PrefetchInstitutions() {
 
   useEffect(() => {
     if (!user?.role || !ROLES_THAT_USE_INSTITUTIONS.includes(user.role)) return
-    void queryClient.prefetchQuery({
-      queryKey: institutionKeys.lists(),
-      queryFn: async () => {
-        const result = await getAllInstitutions()
-        if (result.success) return result.data
-        throw new Error(result.error.message)
-      },
-      staleTime: Infinity,
-      gcTime: Infinity,
-    })
+    void queryClient
+      .prefetchQuery({
+        queryKey: institutionKeys.lists(),
+        queryFn: async () => {
+          const result = await getAllInstitutions()
+          if (result.success) return result.data
+          throw new Error(result.error.message)
+        },
+        staleTime: Infinity,
+        gcTime: Infinity,
+        retry: false,
+        meta: { suppressGlobalError: true },
+      })
+      .catch(() => {
+        // useInstitutions tiene refetchOnMount: false; si el prefetch deja error en caché, la UI no reintenta.
+        queryClient.removeQueries({ queryKey: institutionKeys.lists() })
+      })
   }, [user?.uid, user?.role, queryClient])
 
   return null

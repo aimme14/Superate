@@ -167,7 +167,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         notifyError({
           title: 'Examen finalizado',
           message:
-            'Este examen ya fue completado. Debes completar todas las demás materias de esta fase para poder volver a presentarlo, o esperar a que el administrador autorice la siguiente fase.',
+            'Este examen está bloqueado. Verifica que la fase esté habilitada y que hayas completado la fase anterior.',
         });
         return;
       }

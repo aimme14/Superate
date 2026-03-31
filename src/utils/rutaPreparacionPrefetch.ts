@@ -12,8 +12,6 @@ import {
 } from "@/config/rutaPreparacionCache";
 import { simulacrosService } from "@/services/firebase/simulacros.service";
 import { fetchEvaluations } from "@/hooks/query/useStudentEvaluations";
-import { prefetchSimulacrosIA } from "@/utils/simulacrosIAPrefetch";
-import { prefetchSimulacrosICFES } from "@/utils/simulacrosICFESPrefetch";
 
 /** Grado por defecto cuando aún no se conoce el del usuario (no bloquea la UI). */
 export const DEFAULT_GRADE_RUTA_PREPARACION = "11";
@@ -35,15 +33,14 @@ export interface RutaPreparacionPrefetchOptions {
 }
 
 /**
- * Ejecuta el prefetch de datos de Ruta de preparación (simulacros, Simulacros IA, opcional evaluaciones).
+ * Ejecuta el prefetch de datos de Ruta de preparación (lista simulacros PDF, opcional evaluaciones).
+ * Simulacros IA / ICFES no se precargan aquí: solo cargan al pulsar Iniciar.
  * No bloquea: se puede llamar en cualquier momento.
  */
 export function runRutaPreparacionPrefetch(
   queryClient: QueryClient,
   options: RutaPreparacionPrefetchOptions = {}
 ): void {
-  const grade = options.grade ?? DEFAULT_GRADE_RUTA_PREPARACION;
-
   void queryClient.prefetchQuery({
     queryKey: SIMULACROS_QUERY_KEY,
     queryFn: async () => {
@@ -53,8 +50,6 @@ export function runRutaPreparacionPrefetch(
     },
     ...RUTA_ACADEMICA_SIMULACROS_CACHE,
   });
-  prefetchSimulacrosIA(grade, "all");
-  prefetchSimulacrosICFES(grade);
 
   if (options.userId) {
     void queryClient.prefetchQuery({

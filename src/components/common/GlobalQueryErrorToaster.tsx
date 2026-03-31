@@ -20,6 +20,8 @@ export function GlobalQueryErrorToaster() {
       if (event?.type !== 'updated') return
       const query = event.query
       if (query.state.status !== 'error') return
+      const meta = query.meta as { suppressGlobalError?: boolean } | undefined
+      if (meta?.suppressGlobalError) return
       const error = query.state.error
       if (Date.now() - lastToastRef.current < TOAST_DEBOUNCE_MS) return
       lastToastRef.current = Date.now()

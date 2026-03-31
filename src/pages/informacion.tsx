@@ -1,17 +1,30 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuthContext } from "@/context/AuthContext"
-import { useQueryUser } from "@/hooks/query/useAuthQuery"
+import { useCurrentUser } from "@/hooks/query/useCurrentUser"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
+import type { User } from "@/interfaces/db.interface"
+
+/** Perfil Firestore enriquecido (nombres resueltos, legacy `inst`, etc.) */
+type UserProfileRow = User & {
+  representativePhone?: string
+  institutionName?: string
+  inst?: string
+  campusName?: string
+  campus?: string
+  gradeName?: string
+  grade?: string
+  academicYear?: number
+  userdoc?: string
+}
 
 export default function InfoTab() {
   const { user } = useAuthContext()
   const { theme } = useThemeContext()
-  const userId = user?.uid
-  const queryUser = useQueryUser()
-  const { data: userData } = queryUser.fetchUserById<any>(userId as string, !!userId)
+  const { data: raw } = useCurrentUser(user?.uid, Boolean(user?.uid))
+  const userData = raw as UserProfileRow | undefined
 
   const labelMobile = "max-md:text-xs"
   const inputMobile =

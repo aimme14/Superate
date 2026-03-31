@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck, Atom, Microscope, FlaskConical, Trophy } from 'lucide-react'
+import { BookOpen, Calculator, Play, RotateCcw, Sparkles, BookMarked, Leaf, BookCheck, Atom, Microscope, FlaskConical, Trophy, Lock } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Link, useNavigate } from "react-router-dom"
 import { useRole } from "@/hooks/core/useRole"
@@ -24,6 +24,7 @@ function FlipCard({
   isAI = false,
   theme = 'light',
   subject,
+  locked = false,
 }: {
   title: string
   link: string
@@ -36,6 +37,8 @@ function FlipCard({
   isAI?: boolean
   theme?: 'light' | 'dark'
   subject?: string
+  /** Si el estado no está cargado: el reverso muestra bloqueo al girar la tarjeta */
+  locked?: boolean
 }) {
   const navigate = useNavigate()
 
@@ -91,7 +94,7 @@ function FlipCard({
   const colorConfig = colorClasses[color] || colorClasses.blue;
 
   return (
-    <div className="min-h-[320px] sm:min-h-[340px] perspective-1000">
+    <div className="min-h-[320px] sm:min-h-[340px] perspective-1000 relative rounded-2xl">
       <motion.div
         className="relative w-full h-full transition-transform duration-500 transform-style-preserve-3d cursor-pointer"
         animate={{ rotateY: isFlipped ? 180 : 0 }}
@@ -149,60 +152,79 @@ function FlipCard({
         {/* Reverso de la tarjeta - Mejorado */}
         <div
           className={cn(
-            "absolute inset-0 w-full h-full backface-hidden rounded-2xl border-2 shadow-lg p-6 sm:p-8 flex flex-col justify-between transform rotateY-180 overflow-y-auto",
+            "absolute inset-0 w-full h-full backface-hidden rounded-2xl border-2 shadow-lg p-6 sm:p-8 flex flex-col transform rotateY-180 overflow-y-auto",
             theme === 'dark' 
               ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-zinc-700' 
               : 'bg-gradient-to-br from-white to-gray-50 border-gray-200',
             colorConfig.border
           )}
         >
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h4 className={cn("font-bold text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                {title} {subtitle}
-              </h4>
-              <button
-                onClick={onFlip}
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors",
-                  theme === 'dark' 
-                    ? 'hover:bg-zinc-700 text-gray-400 hover:text-white' 
-                    : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
-                )}
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            </div>
-            <p className={cn("text-sm sm:text-base leading-relaxed mb-4", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-              {description}
-            </p>
+          <div className="flex items-center justify-between mb-4 shrink-0 relative z-30">
+            <h4 className={cn("font-bold text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              {title} {subtitle}
+            </h4>
+            <button
+              type="button"
+              onClick={onFlip}
+              className={cn(
+                "p-1.5 rounded-lg transition-colors",
+                theme === 'dark' 
+                  ? 'hover:bg-zinc-700 text-gray-400 hover:text-white' 
+                  : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+              )}
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
           </div>
-          
-          {subject ? (
-            <div onClick={(e) => e.stopPropagation()} className="mt-auto">
-              <SubjectPhaseStatus 
-                subject={subject} 
-                theme={theme}
-                onPhaseSelect={handlePhaseSelect}
-              />
-            </div>
-          ) : (
-            <Link to={link} onClick={(e) => e.stopPropagation()} className="mt-auto">
-              <Button
-                className={cn(
-                  "w-full bg-gradient-to-r text-white py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-shadow duration-200 text-sm",
-                  colorConfig.gradient
-                )}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  console.log(`Iniciando prueba: ${title}`)
-                }}
+
+          <div className="relative flex-1 min-h-0 flex flex-col">
+            {locked && isFlipped && (
+              <div
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-xl bg-zinc-950/60 dark:bg-black/50 backdrop-blur-[2px]"
+                aria-hidden
               >
-                <Play className="w-4 h-4 mr-2" />
-                {isAI ? "Generar Plan" : "Presentar Prueba"}
-              </Button>
-            </Link>
-          )}
+                <Lock className="h-10 w-10 text-zinc-200/90 drop-shadow-md" strokeWidth={2} />
+                <span className="text-xs font-medium text-center px-3 text-zinc-200/90">
+                  Actualiza el estado de módulos para continuar
+                </span>
+              </div>
+            )}
+            <div
+              className={cn(
+                "flex flex-col flex-1 min-h-0 justify-between",
+                locked && isFlipped && "pointer-events-none opacity-40 grayscale"
+              )}
+            >
+              <p className={cn("text-sm sm:text-base leading-relaxed mb-4", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                {description}
+              </p>
+              {subject ? (
+                <div onClick={(e) => e.stopPropagation()} className="mt-auto">
+                  <SubjectPhaseStatus 
+                    subject={subject} 
+                    theme={theme}
+                    onPhaseSelect={handlePhaseSelect}
+                  />
+                </div>
+              ) : (
+                <Link to={link} onClick={(e) => e.stopPropagation()} className="mt-auto">
+                  <Button
+                    className={cn(
+                      "w-full bg-gradient-to-r text-white py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-shadow duration-200 text-sm",
+                      colorConfig.gradient
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      console.log(`Iniciando prueba: ${title}`)
+                    }}
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    {isAI ? "Generar Plan" : "Presentar Prueba"}
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -214,10 +236,12 @@ function NaturalSciencesCard({
   isFlipped,
   onFlip,
   theme = 'light',
+  locked = false,
 }: {
   isFlipped: boolean
   onFlip: () => void
   theme?: 'light' | 'dark'
+  locked?: boolean
 }) {
   const navigate = useNavigate()
   
@@ -251,7 +275,7 @@ function NaturalSciencesCard({
   }
 
   return (
-    <div className="min-h-[320px] sm:min-h-[340px] perspective-1000">
+    <div className="min-h-[320px] sm:min-h-[340px] perspective-1000 relative rounded-2xl">
       <motion.div
         className="relative w-full h-full transition-transform duration-500 transform-style-preserve-3d cursor-pointer"
         animate={{ rotateY: isFlipped ? 180 : 0 }}
@@ -301,25 +325,42 @@ function NaturalSciencesCard({
               : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
           )}
         >
-          <div className="flex-1 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className={cn("font-bold text-base sm:text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                Ciencias Naturales y ambientales
-              </h4>
-              <button
-                onClick={onFlip}
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors",
-                  theme === 'dark' 
-                    ? 'hover:bg-zinc-700 text-gray-400 hover:text-white' 
-                    : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
-                )}
+          <div className="flex items-center justify-between mb-4 shrink-0 relative z-30">
+            <h4 className={cn("font-bold text-base sm:text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              Ciencias Naturales y ambientales
+            </h4>
+            <button
+              type="button"
+              onClick={onFlip}
+              className={cn(
+                "p-1.5 rounded-lg transition-colors",
+                theme === 'dark' 
+                  ? 'hover:bg-zinc-700 text-gray-400 hover:text-white' 
+                  : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+              )}
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="relative flex-1 min-h-0 flex flex-col">
+            {locked && isFlipped && (
+              <div
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-xl bg-zinc-950/60 dark:bg-black/50 backdrop-blur-[2px]"
+                aria-hidden
               >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="flex flex-col gap-4 flex-1 justify-center">
+                <Lock className="h-10 w-10 text-zinc-200/90 drop-shadow-md" strokeWidth={2} />
+                <span className="text-xs font-medium text-center px-3 text-zinc-200/90">
+                  Actualiza el estado de módulos para continuar
+                </span>
+              </div>
+            )}
+            <div
+              className={cn(
+                "flex flex-col gap-4 flex-1 justify-center min-h-0",
+                locked && isFlipped && "pointer-events-none opacity-40 grayscale"
+              )}
+            >
               {subjects.map((subjectItem, index) => (
                 <div 
                   key={index} 
@@ -362,7 +403,7 @@ export default function InteractiveCards() {
   const { theme } = useThemeContext()
   const { user } = useAuthContext()
 
-  const { isPhase3Complete, isLoading: isChecking } = usePhaseStatusForSubjects(
+  const { isPhase3Complete, isLoading: isChecking, isFetched, isFetching, refetch } = usePhaseStatusForSubjects(
     isStudent ? user?.uid : undefined
   )
 
@@ -378,8 +419,11 @@ export default function InteractiveCards() {
     ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
     : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
 
-  // Si está cargando, mostrar un estado de carga
-  if (isChecking) {
+  const modulesLocked = isStudent && !isFetched
+  const showStudentFirstFetchLoading = isStudent && isFetching && !isFetched
+
+  // Carga global solo si no es estudiante (el estudiante ve la cuadrícula con overlay)
+  if ((isChecking || isFetching) && !isStudent) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className={cn(
@@ -475,69 +519,99 @@ export default function InteractiveCards() {
   }
 
   return (
-    <div className={gridClasses}>
-      {/* Lectura Crítica */}
-      <FlipCard
-        title="Lectura"
-        subtitle="Crítica"
-        icon={<BookOpen className="w-7 h-7" />}
-        description="" //aquí va lo que va en la reversa de la tarjeta de lectura crítica
-        color="purple"
-        isFlipped={flippedCards.reading}
-        onFlip={() => toggleCard("reading")}
-        link="/quiz?subject=Lenguaje&phase=first"
-        theme={theme}
-        subject="Lenguaje"
-      />
+    <div className="w-full">
+      {isStudent && !isFetched && (
+        <div className="flex justify-center px-4 pb-4 sm:pb-6">
+          <Button
+            onClick={() => void refetch()}
+            disabled={showStudentFirstFetchLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-70"
+          >
+            {showStudentFirstFetchLoading ? "Verificando…" : "Actualizar estado de módulos"}
+          </Button>
+        </div>
+      )}
+      <div className={cn(gridClasses, "relative")}>
+        {showStudentFirstFetchLoading && (
+          <div
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 rounded-xl bg-zinc-950/40 backdrop-blur-[1px]"
+            aria-busy
+            aria-live="polite"
+          >
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-400 border-t-transparent" />
+            <p className={cn("text-sm font-medium", theme === "dark" ? "text-gray-200" : "text-gray-800")}>
+              Verificando progreso…
+            </p>
+          </div>
+        )}
+        {/* Lectura Crítica */}
+        <FlipCard
+          title="Lectura"
+          subtitle="Crítica"
+          icon={<BookOpen className="w-7 h-7" />}
+          description="" //aquí va lo que va en la reversa de la tarjeta de lectura crítica
+          color="purple"
+          isFlipped={flippedCards.reading}
+          onFlip={() => toggleCard("reading")}
+          link="/quiz?subject=Lenguaje&phase=first"
+          theme={theme}
+          subject="Lenguaje"
+          locked={modulesLocked}
+        />
 
-      {/* Matemáticas */}
-      <FlipCard
-        title="Matemáticas"
-        subtitle="y razonamiento"
-        icon={<Calculator className="w-4 h-4" />}
-        description="" //aquí va lo que va en la reversa de la tarjeta de matemáticas
-        color="blue"
-        isFlipped={flippedCards.math}
-        onFlip={() => toggleCard("math")}
-        link="/quiz/quiz"
-        theme={theme}
-        subject="Matemáticas"
-      />
+        {/* Matemáticas */}
+        <FlipCard
+          title="Matemáticas"
+          subtitle="y razonamiento"
+          icon={<Calculator className="w-4 h-4" />}
+          description="" //aquí va lo que va en la reversa de la tarjeta de matemáticas
+          color="blue"
+          isFlipped={flippedCards.math}
+          onFlip={() => toggleCard("math")}
+          link="/quiz/quiz"
+          theme={theme}
+          subject="Matemáticas"
+          locked={modulesLocked}
+        />
 
-      {/* Ciencias Sociales */}
-      <FlipCard
-        title="Ciencias Sociales"
-        subtitle="y ciudadana"
-        icon={<BookMarked className="w-7 h-7" />}
-        description="" //aquí va lo que va en la reversa de la tarjeta de ciencias sociales
-        color="green"
-        isFlipped={flippedCards.social}
-        onFlip={() => toggleCard("social")}
-        link="/quiz?subject=Ciencias Sociales&phase=first"
-        theme={theme}
-        subject="Ciencias Sociales"
-      />
+        {/* Ciencias Sociales */}
+        <FlipCard
+          title="Ciencias Sociales"
+          subtitle="y ciudadana"
+          icon={<BookMarked className="w-7 h-7" />}
+          description="" //aquí va lo que va en la reversa de la tarjeta de ciencias sociales
+          color="green"
+          isFlipped={flippedCards.social}
+          onFlip={() => toggleCard("social")}
+          link="/quiz?subject=Ciencias Sociales&phase=first"
+          theme={theme}
+          subject="Ciencias Sociales"
+          locked={modulesLocked}
+        />
 
-      {/* Ciencias Naturales - Componente especial */}
-      <NaturalSciencesCard
-        isFlipped={flippedCards.natural}
-        onFlip={() => toggleCard("natural")}
-        theme={theme}
-      />
+        {/* Ciencias Naturales - Componente especial */}
+        <NaturalSciencesCard
+          isFlipped={flippedCards.natural}
+          onFlip={() => toggleCard("natural")}
+          theme={theme}
+          locked={modulesLocked}
+        />
 
-      {/* Inglés */}
-      <FlipCard
-        title="Inglés"
-        subtitle="e idiomas "
-        icon={<BookCheck className="w-7 h-7" />}
-        description="" //aquí va lo que va en la reversa de la tarjeta de inglés
-        color="emerald"
-        isFlipped={flippedCards.english}
-        onFlip={() => toggleCard("english")}
-        link="/quiz?subject=Inglés&phase=first"
-        theme={theme}
-        subject="Inglés"
-      />
+        {/* Inglés */}
+        <FlipCard
+          title="Inglés"
+          subtitle="e idiomas "
+          icon={<BookCheck className="w-7 h-7" />}
+          description="" //aquí va lo que va en la reversa de la tarjeta de inglés
+          color="emerald"
+          isFlipped={flippedCards.english}
+          onFlip={() => toggleCard("english")}
+          link="/quiz?subject=Inglés&phase=first"
+          theme={theme}
+          subject="Inglés"
+          locked={modulesLocked}
+        />
+      </div>
     </div>
   )
 }

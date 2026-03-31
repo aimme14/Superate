@@ -28,9 +28,20 @@ export const login = async ({ email, password }: { email: string, password: stri
     }
     
     console.log('✅ Login de Firebase Auth exitoso para UID:', result.data.uid)
-    
+
+    // Refrescar token antes de lecturas a Firestore: las reglas usan claims en isAdminOrToken()
+    // (p. ej. listados admin). El perfil por uid ya no depende de listar todas las instituciones.
+    try {
+      await result.data.getIdToken(true)
+      await getIdTokenResult(result.data)
+    } catch (tokenErr) {
+      console.warn('⚠️ No se pudo refrescar token antes de cargar perfil:', tokenErr)
+    }
+
     // Verificar el rol del usuario para determinar si requiere verificación de email
-    const userData = await dbService.getUserById(result.data.uid)
+    const userData = await dbService.getUserById(result.data.uid, {
+      authEmail: result.data.email ?? null,
+    })
     console.log('📊 Datos del usuario obtenidos:', userData)
     
     if (userData.success && userData.data) {
@@ -71,7 +82,7 @@ export const login = async ({ email, password }: { email: string, password: stri
       
       console.log('✅ Login completado exitosamente')
 
-      // Forzar refresh del ID token si el blocking function aún no inyectó claimsRev en este ciclo
+      // Asegurar claims actualizados tras validar perfil (idempotente si ya refrescamos arriba)
       try {
         const tokenResult = await getIdTokenResult(result.data)
         if (!tokenResult.claims.claimsRev) {
@@ -87,8 +98,16 @@ export const login = async ({ email, password }: { email: string, password: stri
       })
     } else {
       console.log('❌ No se pudieron obtener los datos del usuario:', userData.success ? 'Sin datos' : userData.error)
-      // Si el usuario no existe en Firestore pero sí en Firebase Auth, significa que fue eliminado
-      return failure(new ErrorAPI({ message: 'Usuario no encontrado', statusCode: 404 }))
+      if (!userData.success && userData.error) {
+        return failure(userData.error)
+      }
+      return failure(
+        new ErrorAPI({
+          message:
+            'No hay perfil en la base de datos para esta cuenta. Si eres administrador, debe existir el documento en Firestore en superate/auth/users con tu UID de Authentication.',
+          statusCode: 404,
+        })
+      )
     }
     
   } catch (e) { 
