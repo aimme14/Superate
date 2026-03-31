@@ -10,6 +10,8 @@ import { phaseAuthorizationService } from "@/services/phase/phaseAuthorization.s
 import { getPhaseName } from "@/utils/firestoreHelpers";
 import type { PhaseType } from "@/interfaces/phase.interface";
 import { logger } from "@/utils/logger";
+import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
+import { subjectLabelToSlug } from "@/utils/subjectResultDocId";
 
 const db = getFirestore(firebaseApp);
 
@@ -61,7 +63,7 @@ function detectSubjectFromDocId(docId: string): string | null {
 }
 
 /** Obtiene los documentos de exámenes completados por fase desde Firestore */
-async function getPhaseResultsDocs(
+export async function getPhaseResultsDocs(
   userId: string,
   phase: PhaseType
 ): Promise<{ subject: string; completed: boolean }[]> {
@@ -96,6 +98,15 @@ async function getPhaseResultsDocs(
   return results;
 }
 
+/** Cuenta materias distintas con examen completado en la fase (desde results/). */
+export async function countUniqueCompletedSubjectsInPhase(
+  userId: string,
+  phase: PhaseType
+): Promise<number> {
+  const rows = await getPhaseResultsDocs(userId, phase);
+  return new Set(rows.map((r) => r.subject)).size;
+}
+
 /** Construye un mapa de materias con examen completado por fase */
 function buildCompletedByPhase(
   phaseResults: Record<PhaseType, { subject: string; completed: boolean }[]>
@@ -127,7 +138,7 @@ function defaultPhaseState(phase: PhaseType): PhaseState {
 
 /**
  * Obtiene todos los datos de estado de fases para un estudiante.
- * Paraleliza: user, access×3, progress×3, results×3.
+ * Una lectura de studentSummaries (vía fetchStudentProgressSummaryByUserId) + access×3 sin lecturas extra + results×3.
  */
 export async function fetchPhaseStatusForStudent(
   userId: string
@@ -146,14 +157,14 @@ export async function fetchPhaseStatusForStudent(
 
   const phases: PhaseType[] = ["first", "second", "third"];
 
-  const [accessResults, progressResults, resultsByPhase] = await Promise.all([
+  const summaryPack = await fetchStudentProgressSummaryByUserId(userId);
+  const summary = summaryPack?.summary ?? null;
+
+  const [accessResults, resultsByPhase] = await Promise.all([
     Promise.all(
       phases.map((p) =>
-        phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, p)
+        phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, p, { summary })
       )
-    ),
-    Promise.all(
-      phases.map((p) => phaseAuthorizationService.getStudentPhaseProgress(userId, p))
     ),
     Promise.all(phases.map((p) => getPhaseResultsDocs(userId, p))),
   ]);
@@ -179,38 +190,27 @@ export async function fetchPhaseStatusForStudent(
     for (let i = 0; i < phases.length; i++) {
       const phase = phases[i];
       const access = accessResults[i];
-      const progress = progressResults[i];
       const state = phaseStatesBySubject[subject][phase];
 
       state.canAccess = access.success && access.data?.canAccess === true;
       state.reason = access.success ? access.data?.reason : undefined;
 
       const completedInFirestore = completedByPhase[phase].has(normSubject);
-      const progressData = progress?.success ? progress.data : null;
-      const completedSubjects = (progressData?.subjectsCompleted ?? []).map(
-        (s: string) => normalizeSubject(s)
-      );
-      const inProgressSubjects = (progressData?.subjectsInProgress ?? []).map(
-        (s: string) => normalizeSubject(s)
-      );
+      const slug = subjectLabelToSlug(subject);
+      const block = summary?.phases?.[phase];
+      const fromSummary = slug != null && block?.subjects?.[slug] != null;
+      const done = completedInFirestore || fromSummary;
 
-      state.isCompleted = completedSubjects.some((s) => s === normSubject);
-      state.isInProgress = inProgressSubjects.some((s) => s === normSubject);
-      state.allSubjectsCompleted = completedSubjects.length >= totalSubjects;
-
-      if (completedInFirestore) {
-        state.isExamCompleted = true;
-        state.isCompleted = true;
-      } else {
-        state.isExamCompleted = false;
-        if (state.isCompleted && !completedInFirestore) {
-          state.isCompleted = false;
-        }
-      }
+      state.isCompleted = done;
+      state.isExamCompleted = done;
+      state.isInProgress = false;
+      state.allSubjectsCompleted = block?.isComplete === true;
     }
   }
 
-  const phase3Completed = completedByPhase.third.size >= totalSubjects;
+  const phase3Completed =
+    summary?.phases?.third?.isComplete === true ||
+    completedByPhase.third.size >= totalSubjects;
 
   return {
     phaseStatesBySubject,

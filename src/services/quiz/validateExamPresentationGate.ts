@@ -1,9 +1,13 @@
 /**
- * Validación previa a presentar un examen: solo desde studentSummaries (fetchEvaluationsFromStudentSummary).
- * Sin lecturas a la colección results/ en el cliente.
+ * Validación previa a presentar un examen: una sola carga de studentSummaries
+ * (userLookup + resumen = 2 lecturas), sin leer results/ en el cliente.
  */
 
-import { fetchEvaluationsFromStudentSummary } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
+import {
+  examResultsFromSummaryData,
+  fetchStudentProgressSummaryByUserId,
+} from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
+import { subjectLabelToSlug } from '@/utils/subjectResultDocId'
 
 export type ExamGateOutcome =
   | { type: 'blocked' }
@@ -20,14 +24,17 @@ export async function validateExamPresentationGate(params: {
   const { userId, gradeId, phase, subjectLabel, quizId } = params
   const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service')
 
-  // Bloquear el acceso a la fase si está deshabilitada globalmente o si el estudiante
-  // aún no cumplió la fase anterior.
-  const currentPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, phase)
+  const pack = await fetchStudentProgressSummaryByUserId(userId)
+  const summary = pack?.summary ?? null
+
+  const currentPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, phase, {
+    summary,
+  })
   if (!currentPhaseAccess.success || !currentPhaseAccess.data?.canAccess) {
     return { type: 'blocked' }
   }
 
-  const evaluations = await fetchEvaluationsFromStudentSummary(userId)
+  const evaluations = summary ? examResultsFromSummaryData(summary, userId) : []
   const inPhase = evaluations.filter((e) => e.phase === phase && e.completed !== false)
   const normalizedSubject = subjectLabel.trim().toLowerCase()
   const subjectMatches = (examSubject: string | undefined) =>
@@ -35,21 +42,22 @@ export async function validateExamPresentationGate(params: {
 
   let isSubjectCompleted = inPhase.some((e) => subjectMatches(e.subject))
 
-  const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(userId, phase)
-  let allSubjectsCompleted = false
-  if (progressResult.success && progressResult.data) {
-    const completedSubjects = (progressResult.data.subjectsCompleted || []).map((s: string) => s.trim())
-    allSubjectsCompleted = completedSubjects.length >= 7
-    const fromProgress = completedSubjects.some((s) => s.toLowerCase() === normalizedSubject)
-    isSubjectCompleted = isSubjectCompleted || fromProgress
+  const blockCurrent = summary?.phases?.[phase]
+  const slug = subjectLabelToSlug(subjectLabel)
+  if (slug && blockCurrent?.subjects?.[slug] != null) {
+    isSubjectCompleted = true
   }
+
+  const allSubjectsCompleted = blockCurrent?.isComplete === true
 
   const nextPhase: 'first' | 'second' | 'third' | null =
     phase === 'first' ? 'second' : phase === 'second' ? 'third' : null
   let nextPhaseAuthorized = false
   if (nextPhase) {
-    const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, nextPhase)
-    nextPhaseAuthorized = nextPhaseAccess.success && nextPhaseAccess.data.canAccess
+    const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, nextPhase, {
+      summary,
+    })
+    nextPhaseAuthorized = nextPhaseAccess.success && nextPhaseAccess.data?.canAccess === true
   }
 
   if (isSubjectCompleted && !allSubjectsCompleted && !nextPhaseAuthorized) {

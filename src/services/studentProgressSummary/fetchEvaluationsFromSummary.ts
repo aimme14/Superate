@@ -49,12 +49,84 @@ function toMillis(v: unknown): number {
   return Date.now()
 }
 
-async function getInstitutionIdFromUserLookup(userId: string): Promise<string | null> {
+/** Resuelve institución desde userLookup (1 lectura). */
+export async function getInstitutionIdFromUserLookup(userId: string): Promise<string | null> {
   const ref = doc(db, 'superate', 'auth', 'userLookup', userId)
   const snap = await getDoc(ref)
   if (!snap.exists()) return null
   const id = snap.data()?.institutionId
   return typeof id === 'string' && id.trim() ? id.trim() : null
+}
+
+/**
+ * userLookup + studentSummaries en una sola pasada (2 lecturas).
+ * Fuente única para acceso a fase y listado de evaluaciones sin leer results/.
+ */
+export async function fetchStudentProgressSummaryByUserId(
+  userId: string
+): Promise<{ institutionId: string; summary: StudentProgressSummaryDoc | null } | null> {
+  try {
+    const institutionId = await getInstitutionIdFromUserLookup(userId)
+    if (!institutionId) return null
+
+    const summaryRef = doc(
+      db,
+      'superate',
+      'auth',
+      'institutions',
+      institutionId,
+      'studentSummaries',
+      userId
+    )
+    const summarySnap = await getDoc(summaryRef)
+    if (!summarySnap.exists()) {
+      return { institutionId, summary: null }
+    }
+    return {
+      institutionId,
+      summary: summarySnap.data() as StudentProgressSummaryDoc,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Construye ExamResult[] desde el documento ya cargado (sin lecturas extra).
+ */
+export function examResultsFromSummaryData(
+  data: Partial<StudentProgressSummaryDoc>,
+  userId: string
+): ExamResult[] {
+  const phases = data.phases
+  if (!phases || typeof phases !== 'object') return []
+
+  const out: ExamResult[] = []
+  const phaseKeys: ProgressPhaseKey[] = ['first', 'second', 'third']
+
+  for (const phaseKey of phaseKeys) {
+    const block = phases[phaseKey]
+    const subjects = block?.subjects
+    if (!subjects || typeof subjects !== 'object') continue
+
+    for (const [slug, cellUnknown] of Object.entries(subjects)) {
+      const cell = cellUnknown as SubjectProgressCell
+      const snap = cell?.examSnapshot
+      if (snap && typeof snap === 'object') {
+        out.push(
+          mapSnapshotToExamResult(
+            snap as Record<string, unknown>,
+            phaseKey,
+            slug,
+            cell.examId,
+            userId
+          )
+        )
+      }
+    }
+  }
+
+  return out
 }
 
 function mapSnapshotToExamResult(
@@ -93,51 +165,9 @@ function mapSnapshotToExamResult(
  */
 export async function fetchEvaluationsFromStudentSummary(userId: string): Promise<ExamResult[]> {
   try {
-    const institutionId = await getInstitutionIdFromUserLookup(userId)
-    if (!institutionId) return []
-
-    const summaryRef = doc(
-      db,
-      'superate',
-      'auth',
-      'institutions',
-      institutionId,
-      'studentSummaries',
-      userId
-    )
-    const summarySnap = await getDoc(summaryRef)
-    if (!summarySnap.exists()) return []
-
-    const data = summarySnap.data() as Partial<StudentProgressSummaryDoc>
-    const phases = data.phases
-    if (!phases || typeof phases !== 'object') return []
-
-    const out: ExamResult[] = []
-    const phaseKeys: ProgressPhaseKey[] = ['first', 'second', 'third']
-
-    for (const phaseKey of phaseKeys) {
-      const block = phases[phaseKey]
-      const subjects = block?.subjects
-      if (!subjects || typeof subjects !== 'object') continue
-
-      for (const [slug, cellUnknown] of Object.entries(subjects)) {
-        const cell = cellUnknown as SubjectProgressCell
-        const snap = cell?.examSnapshot
-        if (snap && typeof snap === 'object') {
-          out.push(
-            mapSnapshotToExamResult(
-              snap as Record<string, unknown>,
-              phaseKey,
-              slug,
-              cell.examId,
-              userId
-            )
-          )
-        }
-      }
-    }
-
-    return out
+    const pack = await fetchStudentProgressSummaryByUserId(userId)
+    if (!pack?.summary) return []
+    return examResultsFromSummaryData(pack.summary, userId)
   } catch {
     return []
   }

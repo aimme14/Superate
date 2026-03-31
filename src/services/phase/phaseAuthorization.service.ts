@@ -15,17 +15,19 @@ import { dbService } from '@/services/firebase/db.service';
 import { Result, success, failure } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
-import { 
-  PhaseAuthorization, 
-  StudentPhaseProgress, 
+import {
+  PhaseAuthorization,
   GradePhaseCompletion,
   PhaseType,
-  PhaseStatus,
   GlobalPhaseAuthorization,
 } from '@/interfaces/phase.interface';
 import { getPhaseName } from '@/utils/firestoreHelpers';
 import { logger } from '@/utils/logger';
 import { globalPhaseAuthorizationService } from '@/services/phase/globalPhaseAuthorization.service';
+import {
+  fetchStudentProgressSummaryByUserId,
+  type StudentProgressSummaryDoc,
+} from '@/services/studentProgressSummary/fetchEvaluationsFromSummary';
 
 /**
  * Servicio para gestionar la autorización de fases evaluativas por grado
@@ -177,155 +179,6 @@ class PhaseAuthorizationService {
     } catch (e) {
       logger.error('❌ Error obteniendo autorizaciones:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener autorizaciones')));
-    }
-  }
-
-  /**
-   * Actualiza el progreso de un estudiante en una fase
-   */
-  async updateStudentPhaseProgress(
-    studentId: string,
-    gradeId: string,
-    phase: PhaseType,
-    subject: string,
-    completed: boolean
-  ): Promise<Result<StudentPhaseProgress>> {
-    try {
-      logger.log(`💾 Actualizando progreso:`, {
-        studentId,
-        gradeId: `"${gradeId}"`,
-        phase,
-        subject,
-        completed
-      });
-
-      const progressId = `${studentId}_${phase}`;
-      const progressRef = doc(this.getCollection('studentPhaseProgress'), progressId);
-      const progressSnap = await getDoc(progressRef);
-
-      let progress: StudentPhaseProgress;
-
-      if (progressSnap.exists()) {
-        const data = progressSnap.data();
-        const subjectsCompleted = new Set<string>((data.subjectsCompleted || []) as string[]);
-        const subjectsInProgress = new Set<string>((data.subjectsInProgress || []) as string[]);
-
-        // Normalizar el subject antes de agregarlo (convertir códigos a nombres)
-        const normalizedSubject = this.normalizeSubjectCode(subject);
-        logger.log(`   🔄 Normalizando subject: "${subject}" -> "${normalizedSubject}"`);
-
-        if (completed) {
-          subjectsCompleted.add(normalizedSubject);
-          subjectsInProgress.delete(normalizedSubject);
-          // También eliminar versiones no normalizadas
-          subjectsInProgress.delete(subject);
-        } else {
-          subjectsInProgress.add(normalizedSubject);
-          subjectsCompleted.delete(normalizedSubject);
-          // También eliminar versiones no normalizadas
-          subjectsCompleted.delete(subject);
-        }
-
-        progress = {
-          studentId,
-          gradeId, // Mantener el gradeId actualizado
-          phase,
-          status: this.calculatePhaseStatus(
-            Array.from(subjectsCompleted) as string[],
-            Array.from(subjectsInProgress) as string[]
-          ),
-          completedAt: completed && subjectsCompleted.size === 7 
-            ? new Date().toISOString() 
-            : data.completedAt,
-          subjectsCompleted: Array.from(subjectsCompleted) as string[],
-          subjectsInProgress: Array.from(subjectsInProgress) as string[],
-          overallScore: data.overallScore,
-          createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-          updatedAt: new Date().toISOString(),
-        };
-
-        logger.log(`📝 Progreso actualizado (existente):`, {
-          studentId,
-          gradeId: `"${progress.gradeId}"`,
-          completadas: progress.subjectsCompleted.length,
-          enProgreso: progress.subjectsInProgress.length,
-          status: progress.status
-        });
-      } else {
-        // Normalizar el subject antes de crear el registro
-        const normalizedSubject = this.normalizeSubjectCode(subject);
-        logger.log(`   🔄 Normalizando subject (nuevo): "${subject}" -> "${normalizedSubject}"`);
-
-        progress = {
-          studentId,
-          gradeId,
-          phase,
-          status: completed ? 'completed' : 'in_progress',
-          completedAt: completed ? new Date().toISOString() : undefined,
-          subjectsCompleted: completed ? [normalizedSubject] : [],
-          subjectsInProgress: completed ? [] : [normalizedSubject],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        logger.log(`📝 Progreso creado (nuevo):`, {
-          studentId,
-          gradeId: `"${progress.gradeId}"`,
-          phase,
-          subject,
-          completed
-        });
-      }
-
-      await setDoc(progressRef, {
-        ...progress,
-        createdAt: Timestamp.fromDate(new Date(progress.createdAt)),
-        updatedAt: Timestamp.now(),
-      });
-
-      logger.log(`✅ Progreso guardado exitosamente en Firebase`);
-
-      return success(progress);
-    } catch (e) {
-      logger.error('❌ Error actualizando progreso:', e);
-      return failure(new ErrorAPI(normalizeError(e, 'actualizar progreso')));
-    }
-  }
-
-  /**
-   * Obtiene el progreso de un estudiante en una fase
-   */
-  async getStudentPhaseProgress(
-    studentId: string,
-    phase: PhaseType
-  ): Promise<Result<StudentPhaseProgress | null>> {
-    try {
-      const progressId = `${studentId}_${phase}`;
-      const progressRef = doc(this.getCollection('studentPhaseProgress'), progressId);
-      const progressSnap = await getDoc(progressRef);
-
-      if (!progressSnap.exists()) {
-        return success(null);
-      }
-
-      const data = progressSnap.data();
-      const progress: StudentPhaseProgress = {
-        studentId,
-        gradeId: data.gradeId,
-        phase,
-        status: data.status,
-        completedAt: data.completedAt,
-        subjectsCompleted: data.subjectsCompleted || [],
-        subjectsInProgress: data.subjectsInProgress || [],
-        overallScore: data.overallScore,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
-      };
-
-      return success(progress);
-    } catch (e) {
-      logger.error('❌ Error obteniendo progreso:', e);
-      return failure(new ErrorAPI(normalizeError(e, 'obtener progreso')));
     }
   }
 
@@ -490,15 +343,16 @@ class PhaseAuthorizationService {
   }
 
   /**
-   * Verifica si un estudiante puede acceder a una fase
+   * Verifica si un estudiante puede acceder a una fase.
+   * Fase II/III: requiere `phases[anterior].isComplete` en studentSummaries (pasar `summary` para evitar lecturas duplicadas).
    */
   async canStudentAccessPhase(
     studentId: string,
     _gradeId: string,
-    phase: PhaseType
+    phase: PhaseType,
+    options?: { summary?: StudentProgressSummaryDoc | null }
   ): Promise<Result<{ canAccess: boolean; reason?: string }>> {
     try {
-      // Config global compartida (Evita lecturas por grado).
       const flags: GlobalPhaseAuthorization = await globalPhaseAuthorizationService.getFlags();
       const flagKey = phase === 'first' ? 'faseI' : phase === 'second' ? 'faseII' : 'faseIII';
       const phaseGloballyEnabled = flags[flagKey];
@@ -510,30 +364,24 @@ class PhaseAuthorizationService {
         });
       }
 
-      // Si es la primera fase, siempre está disponible si está autorizada
       if (phase === 'first') {
         return success({ canAccess: true });
       }
 
-      // Para fase 2 y 3, verificar que completó la fase anterior
       const previousPhase: PhaseType = phase === 'second' ? 'first' : 'second';
-      const progressResult = await this.getStudentPhaseProgress(studentId, previousPhase);
-
-      if (!progressResult.success) {
-        return failure(progressResult.error);
+      let summary = options?.summary;
+      if (summary === undefined) {
+        const pack = await fetchStudentProgressSummaryByUserId(studentId);
+        summary = pack?.summary ?? null;
       }
 
-      if (!progressResult.data || progressResult.data.status !== 'completed') {
+      const prevComplete = summary?.phases?.[previousPhase]?.isComplete === true;
+      if (!prevComplete) {
         return success({
           canAccess: false,
           reason: `Debes completar la ${previousPhase === 'first' ? 'primera' : 'segunda'} fase antes de acceder a esta`,
         });
       }
-
-      // Para fase 2 y 3, verificar que todos los estudiantes del grado completaron la fase anterior
-      // Esto se puede optimizar con un campo en la autorización
-      // Por ahora, asumimos que si el estudiante completó, puede acceder
-      // El administrador debe verificar antes de autorizar
 
       return success({ canAccess: true });
     } catch (e) {
@@ -615,52 +463,24 @@ class PhaseAuthorizationService {
   }
 
   /**
-   * Calcula el estado de una fase basado en las materias completadas
-   */
-  private calculatePhaseStatus(
-    subjectsCompleted: string[],
-    subjectsInProgress: string[]
-  ): PhaseStatus {
-    const totalSubjects = 7; // Matemáticas, Lenguaje, Ciencias Sociales, Biología, Química, Física, Inglés
-
-    if (subjectsCompleted.length === totalSubjects) {
-      return 'completed';
-    }
-
-    if (subjectsCompleted.length > 0 || subjectsInProgress.length > 0) {
-      return 'in_progress';
-    }
-
-    return 'available';
-  }
-
-  /**
-   * Método de diagnóstico para verificar datos de progreso
+   * Diagnóstico: estado de fase desde studentSummaries (misma fuente que el gate).
    */
   async diagnoseStudentProgress(studentId: string, phase: PhaseType): Promise<void> {
     try {
-      const progressId = `${studentId}_${phase}`;
-      const progressRef = doc(this.getCollection('studentPhaseProgress'), progressId);
-      const progressSnap = await getDoc(progressRef);
-
+      const pack = await fetchStudentProgressSummaryByUserId(studentId);
       logger.log(`🔍 DIAGNÓSTICO - Estudiante: ${studentId}, Fase: ${phase}`);
-      
-      if (progressSnap.exists()) {
-        const data = progressSnap.data();
-        logger.log(`📋 Datos encontrados:`, {
-          studentId: data.studentId,
-          gradeId: `"${data.gradeId}"`,
-          phase: data.phase,
-          status: data.status,
-          subjectsCompleted: data.subjectsCompleted || [],
-          subjectsInProgress: data.subjectsInProgress || [],
-          completedAt: data.completedAt,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt
-        });
-      } else {
-        logger.log(`⚠️ No se encontró registro de progreso`);
+
+      if (!pack?.summary) {
+        logger.log(`⚠️ Sin documento en studentSummaries`);
+        return;
       }
+
+      const block = pack.summary.phases?.[phase];
+      logger.log(`📋 Resumen (studentSummaries):`, {
+        isComplete: block?.isComplete,
+        submittedCount: block?.submittedCount,
+        subjectKeys: block?.subjects ? Object.keys(block.subjects) : [],
+      });
     } catch (e) {
       logger.error('❌ Error en diagnóstico:', e);
     }

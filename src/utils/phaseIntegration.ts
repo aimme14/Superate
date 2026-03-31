@@ -4,6 +4,7 @@
 
 import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { phaseAuthorizationService } from '@/services/phase/phaseAuthorization.service';
+import { countUniqueCompletedSubjectsInPhase } from '@/services/phase/phaseStatusData.service';
 import { dbService } from '@/services/firebase/db.service';
 import { PhaseType } from '@/interfaces/phase.interface';
 import { getPhaseName } from '@/utils/firestoreHelpers';
@@ -70,69 +71,34 @@ export async function processExamResults(
           return { success: false, error: 'Error al analizar resultados' };
         }
 
-        // Actualizar progreso del estudiante
-        await phaseAuthorizationService.updateStudentPhaseProgress(
-          userId,
-          gradeId,
-          'first',
-          subject,
-          true // completed
-        );
+        // Progreso por fase vive en studentSummaries (trigger backend). Aquí solo comprobamos results/.
+        const completedCount = await countUniqueCompletedSubjectsInPhase(userId, 'first');
+        if (completedCount >= 7) {
+          console.log(`🎉 Todas las materias de Fase I completadas. Creando carpeta "Fase II"...`);
 
-        // Verificar si todas las materias de Fase I están completadas
-        // Si es así, crear la carpeta "Fase II" automáticamente
-        const progressResult = await phaseAuthorizationService.getStudentPhaseProgress(userId, 'first');
-        if (progressResult.success && progressResult.data) {
-          const progress = progressResult.data;
-          const completedSubjects = progress.subjectsCompleted || [];
-          
-          // Lista de todas las materias del sistema
-          const ALL_SUBJECTS = [
-            'Matemáticas',
-            'Lenguaje',
-            'Ciencias Sociales',
-            'Biologia',
-            'Quimica',
-            'Física',
-            'Inglés'
-          ];
-          
-          // Normalizar nombres para comparación (case-insensitive)
-          const normalizedCompleted = completedSubjects.map((s: string) => s.trim().toLowerCase());
-          const allCompleted = ALL_SUBJECTS.every(subject => 
-            normalizedCompleted.includes(subject.trim().toLowerCase())
-          );
-          
-          if (allCompleted) {
-            console.log(`🎉 Todas las materias de Fase I completadas. Creando carpeta "Fase II"...`);
-            
-            // Crear la carpeta "Fase II" creando un documento placeholder
-            try {
-              const { collection, doc, setDoc, getFirestore } = await import('firebase/firestore');
-              const { firebaseApp } = await import('@/services/db');
-              const db = getFirestore(firebaseApp);
-              const phase2Name = getPhaseName('second');
-              
-              // Crear un documento placeholder para que se cree la carpeta "Fase II"
-              const placeholderDocId = `_phase2_initialized_${Date.now()}`;
-              const phase2Ref = doc(collection(db, 'results', userId, phase2Name), placeholderDocId);
-              
-              await setDoc(phase2Ref, {
-                initialized: true,
-                createdAt: new Date().toISOString(),
-                message: 'Carpeta Fase II inicializada automáticamente al completar todas las materias de Fase I',
-                phase: 'second',
-                timestamp: Date.now()
-              });
-              
-              console.log(`✅ Carpeta "Fase II" creada exitosamente en: results/${userId}/${phase2Name}`);
-            } catch (error) {
-              console.error('❌ Error creando carpeta "Fase II":', error);
-              // No fallar el proceso si hay error al crear la carpeta
-            }
-          } else {
-            console.log(`📊 Progreso Fase I: ${completedSubjects.length}/${ALL_SUBJECTS.length} materias completadas`);
+          try {
+            const { collection, doc, setDoc, getFirestore } = await import('firebase/firestore');
+            const { firebaseApp } = await import('@/services/db');
+            const db = getFirestore(firebaseApp);
+            const phase2Name = getPhaseName('second');
+
+            const placeholderDocId = `_phase2_initialized_${Date.now()}`;
+            const phase2Ref = doc(collection(db, 'results', userId, phase2Name), placeholderDocId);
+
+            await setDoc(phase2Ref, {
+              initialized: true,
+              createdAt: new Date().toISOString(),
+              message: 'Carpeta Fase II inicializada automáticamente al completar todas las materias de Fase I',
+              phase: 'second',
+              timestamp: Date.now(),
+            });
+
+            console.log(`✅ Carpeta "Fase II" creada exitosamente en: results/${userId}/${phase2Name}`);
+          } catch (error) {
+            console.error('❌ Error creando carpeta "Fase II":', error);
           }
+        } else {
+          console.log(`📊 Progreso Fase I: ${completedCount}/7 materias con examen completado`);
         }
 
         console.log(`✅ Fase 1 procesada exitosamente para ${subject}`);
@@ -152,14 +118,6 @@ export async function processExamResults(
 
         if (!phase1Snap.exists()) {
           console.warn('⚠️ No se encontró análisis de Fase 1, no se puede analizar progreso');
-          // Aún así actualizar progreso
-          await phaseAuthorizationService.updateStudentPhaseProgress(
-            userId,
-            gradeId,
-            'second',
-            subject,
-            true
-          );
           break;
         }
 
@@ -205,15 +163,6 @@ export async function processExamResults(
           }
         }
 
-        // Actualizar progreso del estudiante
-        await phaseAuthorizationService.updateStudentPhaseProgress(
-          userId,
-          gradeId,
-          'second',
-          subject,
-          true
-        );
-
         console.log(`✅ Fase 2 procesada exitosamente para ${subject}`);
         break;
 
@@ -231,15 +180,6 @@ export async function processExamResults(
           console.error('❌ Error generando resultado ICFES:', phase3Result.error);
           return { success: false, error: 'Error al generar resultado ICFES' };
         }
-
-        // Actualizar progreso del estudiante
-        await phaseAuthorizationService.updateStudentPhaseProgress(
-          userId,
-          gradeId,
-          'third',
-          subject,
-          true
-        );
 
         console.log(`✅ Fase 3 procesada exitosamente para ${subject}`);
         break;
