@@ -326,7 +326,7 @@ function NaturalSciencesCard({
           )}
         >
           <div className="flex items-center justify-between mb-4 shrink-0 relative z-30">
-            <h4 className={cn("font-bold text-base sm:text-lg", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            <h4 className={cn("font-bold text-base sm:text-lg leading-tight break-words pr-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
               Ciencias Naturales y ambientales
             </h4>
             <button
@@ -357,7 +357,7 @@ function NaturalSciencesCard({
             )}
             <div
               className={cn(
-                "flex flex-col gap-4 flex-1 justify-center min-h-0",
+                "flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto pr-1",
                 locked && isFlipped && "pointer-events-none opacity-40 grayscale"
               )}
             >
@@ -365,10 +365,10 @@ function NaturalSciencesCard({
                 <div 
                   key={index} 
                   onClick={(e) => e.stopPropagation()} 
-                  className="space-y-2"
+                  className="space-y-2 shrink-0"
                 >
                   <div className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg",
+                    "flex items-center gap-3 p-3 rounded-lg min-h-[56px]",
                     theme === 'dark' ? 'bg-zinc-700/50' : 'bg-gray-100'
                   )}>
                     <div className={cn(
@@ -377,7 +377,7 @@ function NaturalSciencesCard({
                     )}>
                       {subjectItem.icon}
                     </div>
-                    <span className={cn("text-sm sm:text-base font-medium", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                    <span className={cn("text-sm sm:text-base font-medium leading-tight", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                       {subjectItem.name}
                     </span>
                   </div>

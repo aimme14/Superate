@@ -923,55 +923,28 @@ class QuizGeneratorService {
       return [];
     }
 
-    const values = new Set<string>();
     const cleaned = grade.toString().trim();
     if (!cleaned) {
       return [];
     }
 
-    values.add(cleaned);
-
     const codeFromInput = this.toGradeCode(cleaned);
     if (codeFromInput) {
-      values.add(codeFromInput);
-      const name = GRADE_CODE_TO_NAME[codeFromInput];
-      if (name) {
-        values.add(name);
-      }
-      const numeric = this.gradeCodeToNumeric(codeFromInput);
-      if (numeric) {
-        values.add(numeric);
-        values.add(`${numeric}°`);
-      }
+      // El banco guarda grade en código canónico (6,7,8,9,0,1).
+      // Consultar únicamente por ese valor evita búsquedas ambiguas/lentas.
+      return [codeFromInput];
     }
 
     const numericFromInput = this.extractNumericGrade(cleaned);
     if (numericFromInput) {
-      values.add(numericFromInput);
-      values.add(`${numericFromInput}°`);
       const codeFromNumeric = this.numericToGradeCode(numericFromInput);
       if (codeFromNumeric) {
-        values.add(codeFromNumeric);
-        const name = GRADE_CODE_TO_NAME[codeFromNumeric];
-        if (name) {
-          values.add(name);
-        }
+        return [codeFromNumeric];
       }
     }
 
-    Object.entries(GRADE_MAPPING).forEach(([name, code]) => {
-      if (name.toLowerCase() === cleaned.toLowerCase()) {
-        values.add(name);
-        values.add(code);
-        const numeric = this.gradeCodeToNumeric(code);
-        if (numeric) {
-          values.add(numeric);
-          values.add(`${numeric}°`);
-        }
-      }
-    });
-
-    return Array.from(values).filter(Boolean);
+    // Si no se pudo mapear, usar el valor original como último recurso.
+    return [cleaned];
   }
 
   private toGradeCode(value: string): string | null {
@@ -1016,22 +989,6 @@ class QuizGeneratorService {
       case '8':
       case '9':
         return numeric;
-      default:
-        return null;
-    }
-  }
-
-  private gradeCodeToNumeric(code: string): string | null {
-    switch (code) {
-      case '0':
-        return '10';
-      case '1':
-        return '11';
-      case '6':
-      case '7':
-      case '8':
-      case '9':
-        return code;
       default:
         return null;
     }

@@ -92,12 +92,23 @@ export async function fetchExamResultDocument(
     }
   }
 
-  const oldDocRef = doc(db, 'results', userId)
-  const oldDocSnap = await getDoc(oldDocRef)
-  if (oldDocSnap.exists()) {
-    const raw = oldDocSnap.data() as Record<string, unknown>
-    const entry = raw[quizExamId]
-    if (entry && typeof entry === 'object') return entry as DocumentData
+  // Compatibilidad legacy: antes se guardaba en results/{userId} como objeto plano.
+  // En reglas actuales esa ruta puede estar denegada; no debe romper la carga del quiz.
+  try {
+    const oldDocRef = doc(db, 'results', userId)
+    const oldDocSnap = await getDoc(oldDocRef)
+    if (oldDocSnap.exists()) {
+      const raw = oldDocSnap.data() as Record<string, unknown>
+      const entry = raw[quizExamId]
+      if (entry && typeof entry === 'object') return entry as DocumentData
+    }
+  } catch (error) {
+    const code = (error as { code?: string })?.code
+    if (code === 'permission-denied') {
+      console.warn('[examResults] Lectura legacy results/{userId} denegada por reglas. Se omite fallback legacy.')
+    } else {
+      throw error
+    }
   }
   return null
 }

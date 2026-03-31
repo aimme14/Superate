@@ -20,6 +20,7 @@ import { dbService } from "@/services/firebase/db.service";
 import { checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { processExamResults } from "@/utils/phaseIntegration";
+import { gradeLabelToBankCode } from "@/utils/gradeMapping";
 import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
 import { GroupedQuestionNotice } from "@/components/quiz/GroupedQuestionNotice";
 import ImageGallery from "@/components/common/ImageGallery";
@@ -132,19 +133,6 @@ const saveExamResults = async (userId: string, examId: string, examData: any) =>
   return { success: true as const, id: result.data.id };
 };
 
-// Función para mapear el grado del usuario al código que usa el banco de preguntas
-const mapGradeToCode = (gradeName: string): string => {
-  const gradeMap: { [key: string]: string } = {
-    '6°1': '6', '6°2': '6', '6°3': '6',
-    '7°1': '7', '7°2': '7', '7°3': '7',
-    '8°1': '8', '8°2': '8', '8°3': '8',
-    '9°1': '9', '9°2': '9', '9°3': '9',
-    '10°1': '0', '10°2': '0', '10°3': '0',
-    '11°1': '1', '11°2': '1', '11°3': '1'
-  };
-  return gradeMap[gradeName] || '1'; // Default a undécimo si no se encuentra
-};
-
 // Configuración del examen de Matemáticas
 const examConfig = {
   subject: "Matemáticas",
@@ -154,6 +142,8 @@ const examConfig = {
   description: "Evaluación de habilidades matemáticas y resolución de problemas",
   module: "Módulo de Matemáticas",
 };
+
+const VALIDATION_SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6 horas
 
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
@@ -195,6 +185,46 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+
+  const buildValidationCacheKey = useCallback(() => {
+    if (!userId) return null;
+    return `quiz_validation_ok:${userId}:${currentPhase}:${currentSubject}`;
+  }, [userId, currentPhase, currentSubject]);
+
+  const hasRecentValidation = useCallback((key: string | null) => {
+    if (!key) return false;
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return false;
+      const ts = Number(raw);
+      if (!Number.isFinite(ts)) return false;
+      if (Date.now() - ts > VALIDATION_SESSION_TTL_MS) {
+        sessionStorage.removeItem(key);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const markValidationAsRecent = useCallback((key: string | null) => {
+    if (!key) return;
+    try {
+      sessionStorage.setItem(key, String(Date.now()));
+    } catch {
+      // Ignorar errores de storage y continuar flujo normal
+    }
+  }, []);
+
+  const clearValidationCache = useCallback((key: string | null) => {
+    if (!key) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Sin impacto funcional
+    }
+  }, []);
 
   // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
@@ -246,7 +276,7 @@ const ExamWithFirebase = () => {
         console.log('Grado del usuario (nombre):', userGradeName);
         
         // Mapear el grado al código que usa el banco de preguntas
-        const userGrade = mapGradeToCode(userGradeName);
+        const userGrade = gradeLabelToBankCode(userGradeName) ?? '1';
         console.log('Grado del usuario (código):', userGrade);
         
         // SEGUNDO: Generar el cuestionario solo si no está bloqueado
@@ -278,10 +308,58 @@ const ExamWithFirebase = () => {
         const quiz = quizResult.data;
         console.log('Cuestionario generado exitosamente:', quiz);
         
-        if (isMounted) {
-          setQuizData(quiz);
-          const timeLimitMinutes = quiz.questions.length * 2;
-          setTimeLeft(timeLimitMinutes * 60);
+        if (!isMounted) return;
+
+        setQuizData(quiz);
+        const timeLimitMinutes = quiz.questions.length * 2;
+        setTimeLeft(timeLimitMinutes * 60);
+
+        const validationKey = buildValidationCacheKey();
+        if (hasRecentValidation(validationKey)) {
+          setExamState('welcome');
+        } else if (gradeIdRef.current) {
+          setValidationChecking(true);
+          try {
+            const outcome = await validateExamPresentationGate({
+              userId,
+              gradeId: gradeIdRef.current,
+              phase: currentPhase,
+              subjectLabel: currentSubject,
+              quizId: quiz.id,
+            });
+
+            if (!isMounted) return;
+
+            if (outcome.type === 'blocked') {
+              clearValidationCache(validationKey);
+              setExamState('blocked');
+              notifyError({
+                title: 'Examen bloqueado',
+                message: 'Este examen está bloqueado. Verifica que la fase esté habilitada y que hayas completado la fase anterior.',
+              });
+              return;
+            }
+
+            if (outcome.type === 'already_taken') {
+              clearValidationCache(validationKey);
+              setExistingExamData(outcome.examSnapshot);
+              setExamState('already_taken');
+              return;
+            }
+
+            markValidationAsRecent(validationKey);
+            setExamState('welcome');
+          } catch (err) {
+            console.error('[fromExamMatematicas] Validación automática:', err);
+            if (isMounted) {
+              setExamState('awaiting_validation');
+            }
+          } finally {
+            if (isMounted) {
+              setValidationChecking(false);
+            }
+          }
+        } else {
           setExamState('awaiting_validation');
         }
 
@@ -322,7 +400,7 @@ const ExamWithFirebase = () => {
         clearTimeout(timeoutId);
       }
     };
-  }, [userId]);
+  }, [userId, currentPhase, currentSubject, hasRecentValidation, buildValidationCacheKey, clearValidationCache, markValidationAsRecent, notifyError]);
 
   const runValidationFromSummary = useCallback(async () => {
     if (!userId || !quizData) return;
@@ -341,6 +419,7 @@ const ExamWithFirebase = () => {
         quizId: quizData.id,
       });
       if (outcome.type === 'blocked') {
+        clearValidationCache(buildValidationCacheKey());
         setExamState('blocked');
         notifyError({
           title: 'Examen bloqueado',
@@ -349,10 +428,12 @@ const ExamWithFirebase = () => {
         return;
       }
       if (outcome.type === 'already_taken') {
+        clearValidationCache(buildValidationCacheKey());
         setExistingExamData(outcome.examSnapshot);
         setExamState('already_taken');
         return;
       }
+      markValidationAsRecent(buildValidationCacheKey());
       setExamState('welcome');
     } catch (err) {
       console.error('[fromExamMatematicas] Validación:', err);
@@ -360,7 +441,7 @@ const ExamWithFirebase = () => {
     } finally {
       setValidationChecking(false);
     }
-  }, [userId, quizData, currentPhase, currentSubject, notifyError]);
+  }, [userId, quizData, currentPhase, currentSubject, notifyError, buildValidationCacheKey, clearValidationCache, markValidationAsRecent]);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: string) => {
@@ -576,21 +657,30 @@ const ExamWithFirebase = () => {
     }
   }
 
-  // Función para entrar en pantalla completa
-  const enterFullscreen = async () => {
+  // Función para entrar en pantalla completa (requiere gesto del usuario; puede fallar en iframes o si el usuario deniega)
+  const enterFullscreen = async (): Promise<boolean> => {
     try {
-      const el = document.documentElement;
+      const el = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void>;
+        msRequestFullscreen?: () => void;
+      };
 
       if (el.requestFullscreen) {
         await el.requestFullscreen();
-      } else if ((el as any).webkitRequestFullscreen) {
-        await (el as any).webkitRequestFullscreen();
-      } else if ((el as any).msRequestFullscreen) {
-        (el as any).msRequestFullscreen();
+      } else if (el.webkitRequestFullscreen) {
+        await el.webkitRequestFullscreen();
+      } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
       }
+      return true;
     } catch (error) {
       console.error("Error entering fullscreen:", error);
     }
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.msFullscreenElement
+    );
   };
 
   // Función para salir de pantalla completa
@@ -806,11 +896,22 @@ const ExamWithFirebase = () => {
 
   // Iniciar examen y entrar en pantalla completa
   const startExam = async () => {
-    // Restablecer contador de intentos de fraude al iniciar el examen
     setTabChangeCount(0);
     setShowTabChangeWarning(false);
-    await enterFullscreen()
-    setExamState('active')
+    const entered = await enterFullscreen();
+    setExamState('active');
+    if (!entered) {
+      setTimeout(() => {
+        const fullscreenElement =
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.msFullscreenElement;
+        if (!fullscreenElement) {
+          setIsFullscreen(false);
+          setShowFullscreenExit(true);
+        }
+      }, 100);
+    }
   }
 
   const AwaitingValidationScreen = () => {
@@ -1172,6 +1273,11 @@ const ExamWithFirebase = () => {
       }
     } catch (error) {
       console.error('Error guardando examen:', error)
+      setExamLocked(false)
+      notifyError({
+        title: 'No se pudo enviar el examen',
+        message: 'Comprueba tu conexión e inténtalo de nuevo. Si el problema continúa, avisa a tu institución.',
+      })
     }
   }
 

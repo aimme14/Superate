@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Question } from "@/services/firebase/question.service";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { processExamResults } from "@/utils/phaseIntegration";
+import { gradeLabelToBankCode } from "@/utils/gradeMapping";
 import ImageGallery from "@/components/common/ImageGallery";
 import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { validateExamPresentationGate } from "@/services/quiz/validateExamPresentationGate";
@@ -64,19 +65,6 @@ const stripHtmlTags = (html: string): string => {
   
   return text
 }
-
-// Función para mapear el grado del usuario al código que usa el banco de preguntas
-const mapGradeToCode = (gradeName: string): string => {
-  const gradeMap: { [key: string]: string } = {
-    '6°1': '6', '6°2': '6', '6°3': '6',
-    '7°1': '7', '7°2': '7', '7°3': '7',
-    '8°1': '8', '8°2': '8', '8°3': '8',
-    '9°1': '9', '9°2': '9', '9°3': '9',
-    '10°1': '0', '10°2': '0', '10°3': '0',
-    '11°1': '1', '11°2': '1', '11°3': '1'
-  };
-  return gradeMap[gradeName] || '1'; // Default a undécimo si no se encuentra
-};
 
 // Configuración del examen de Inglés
 const examConfig = {
@@ -193,7 +181,7 @@ const ExamWithFirebase = () => {
         console.log('Grado del usuario (nombre):', userGradeName);
         
         // Mapear el grado al código que usa el banco de preguntas
-        const userGrade = mapGradeToCode(userGradeName);
+        const userGrade = gradeLabelToBankCode(userGradeName) ?? '1';
         console.log('Grado del usuario (código):', userGrade);
         
         // SEGUNDO: Generar el cuestionario solo si no está bloqueado

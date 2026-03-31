@@ -1,5 +1,5 @@
 import { useToast } from "@/hooks/ui/use-toast"
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 
 interface NotificationProps {
   type?: "success" | "warning" | "error" | "info" | "default"
@@ -28,14 +28,30 @@ export const useNotification = () => {
     })
   }, [toast])
 
-  return {
-    notifySuccess: (props: Omit<NotificationProps, "type">) =>
-      notify({ ...props, type: "success" }),
-    notifyWarning: (props: Omit<NotificationProps, "type">) =>
-      notify({ ...props, type: "warning" }),
-    notifyError: (props: Omit<NotificationProps, "type">) =>
-      notify({ ...props, type: "error" }),
-    notifyInfo: (props: Omit<NotificationProps, "type">) =>
-      notify({ ...props, type: "default" })
-  }
+  const notifySuccess = useCallback(
+    (props: Omit<NotificationProps, "type">) => notify({ ...props, type: "success" }),
+    [notify]
+  )
+
+  const notifyWarning = useCallback(
+    (props: Omit<NotificationProps, "type">) => notify({ ...props, type: "warning" }),
+    [notify]
+  )
+
+  const notifyError = useCallback(
+    (props: Omit<NotificationProps, "type">) => notify({ ...props, type: "error" }),
+    [notify]
+  )
+
+  const notifyInfo = useCallback(
+    (props: Omit<NotificationProps, "type">) => notify({ ...props, type: "default" }),
+    [notify]
+  )
+
+  return useMemo(() => ({
+    notifySuccess,
+    notifyWarning,
+    notifyError,
+    notifyInfo,
+  }), [notifySuccess, notifyWarning, notifyError, notifyInfo])
 }

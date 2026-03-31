@@ -138,7 +138,8 @@ function defaultPhaseState(phase: PhaseType): PhaseState {
 
 /**
  * Obtiene todos los datos de estado de fases para un estudiante.
- * Una lectura de studentSummaries (vía fetchStudentProgressSummaryByUserId) + access×3 sin lecturas extra + results×3.
+ * Modo summary-only: usa studentSummaries como fuente canónica del estado
+ * para evitar lecturas de results/ en el flujo de actualización de módulos.
  */
 export async function fetchPhaseStatusForStudent(
   userId: string
@@ -160,23 +161,11 @@ export async function fetchPhaseStatusForStudent(
   const summaryPack = await fetchStudentProgressSummaryByUserId(userId);
   const summary = summaryPack?.summary ?? null;
 
-  const [accessResults, resultsByPhase] = await Promise.all([
-    Promise.all(
-      phases.map((p) =>
-        phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, p, { summary })
-      )
-    ),
-    Promise.all(phases.map((p) => getPhaseResultsDocs(userId, p))),
-  ]);
-
-  const phaseResults: Record<PhaseType, { subject: string; completed: boolean }[]> = {
-    first: resultsByPhase[0],
-    second: resultsByPhase[1],
-    third: resultsByPhase[2],
-  };
-  const completedByPhase = buildCompletedByPhase(phaseResults);
-
-  const totalSubjects = ALL_SUBJECTS.length;
+  const accessResults = await Promise.all(
+    phases.map((p) =>
+      phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, p, { summary })
+    )
+  );
   const phaseStatesBySubject: Record<string, Record<PhaseType, PhaseState>> = {};
 
   for (const subject of ALL_SUBJECTS) {
@@ -195,11 +184,10 @@ export async function fetchPhaseStatusForStudent(
       state.canAccess = access.success && access.data?.canAccess === true;
       state.reason = access.success ? access.data?.reason : undefined;
 
-      const completedInFirestore = completedByPhase[phase].has(normSubject);
       const slug = subjectLabelToSlug(subject);
       const block = summary?.phases?.[phase];
       const fromSummary = slug != null && block?.subjects?.[slug] != null;
-      const done = completedInFirestore || fromSummary;
+      const done = fromSummary;
 
       state.isCompleted = done;
       state.isExamCompleted = done;
@@ -208,9 +196,7 @@ export async function fetchPhaseStatusForStudent(
     }
   }
 
-  const phase3Completed =
-    summary?.phases?.third?.isComplete === true ||
-    completedByPhase.third.size >= totalSubjects;
+  const phase3Completed = summary?.phases?.third?.isComplete === true;
 
   return {
     phaseStatesBySubject,

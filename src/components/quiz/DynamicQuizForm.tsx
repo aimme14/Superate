@@ -966,6 +966,11 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       }
     } catch (error) {
       console.error('Error guardando examen:', error)
+      setExamLocked(false)
+      notifyError({
+        title: 'No se pudo enviar el examen',
+        message: 'Comprueba tu conexión e inténtalo de nuevo. Si el problema continúa, avisa a tu institución.',
+      })
     }
   }
 

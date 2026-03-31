@@ -139,6 +139,24 @@ class QuestionService {
   }
 
   /**
+   * Normaliza filtros para evitar sobre-restricción por etiquetas textuales
+   * cuando ya existe el código canónico (subjectCode/topicCode/levelCode).
+   */
+  private normalizeQueryFilters(filters: QuestionFilters): QuestionFilters {
+    const normalized: QuestionFilters = { ...filters };
+    if (normalized.subjectCode) {
+      delete normalized.subject;
+    }
+    if (normalized.topicCode) {
+      delete normalized.topic;
+    }
+    if (normalized.levelCode) {
+      delete normalized.level;
+    }
+    return normalized;
+  }
+
+  /**
    * Comprime una imagen si es mayor a 200KB usando Canvas API
    * @param file - Archivo de imagen a comprimir
    * @returns Archivo comprimido o el original si no necesita compresión
@@ -662,38 +680,39 @@ class QuestionService {
    */
   async getFilteredQuestions(filters: QuestionFilters): Promise<Result<Question[]>> {
     try {
-      console.log('🔍 Buscando preguntas con filtros:', filters);
+      const normalizedFilters = this.normalizeQueryFilters(filters);
+      console.log('🔍 Buscando preguntas con filtros:', normalizedFilters);
 
       const questionsRef = collection(db, 'superate', 'auth', 'questions');
       const conditions: any[] = [];
 
-      if (filters.subject) {
-        conditions.push(where('subject', '==', filters.subject));
+      if (normalizedFilters.subject) {
+        conditions.push(where('subject', '==', normalizedFilters.subject));
       }
-      if (filters.subjectCode) {
-        conditions.push(where('subjectCode', '==', filters.subjectCode));
+      if (normalizedFilters.subjectCode) {
+        conditions.push(where('subjectCode', '==', normalizedFilters.subjectCode));
       }
-      if (filters.topic) {
-        conditions.push(where('topic', '==', filters.topic));
+      if (normalizedFilters.topic) {
+        conditions.push(where('topic', '==', normalizedFilters.topic));
       }
-      if (filters.topicCode) {
-        conditions.push(where('topicCode', '==', filters.topicCode));
+      if (normalizedFilters.topicCode) {
+        conditions.push(where('topicCode', '==', normalizedFilters.topicCode));
       }
-      if (filters.grade) {
-        conditions.push(where('grade', '==', filters.grade));
+      if (normalizedFilters.grade) {
+        conditions.push(where('grade', '==', normalizedFilters.grade));
       }
-      if (filters.level) {
-        conditions.push(where('level', '==', filters.level));
+      if (normalizedFilters.level) {
+        conditions.push(where('level', '==', normalizedFilters.level));
       }
-      if (filters.levelCode) {
-        conditions.push(where('levelCode', '==', filters.levelCode));
+      if (normalizedFilters.levelCode) {
+        conditions.push(where('levelCode', '==', normalizedFilters.levelCode));
       }
 
       // Crear consulta sin orderBy para evitar necesidad de índice compuesto
       let q = query(questionsRef, ...conditions);
 
-      if (filters.limit) {
-        q = query(q, limit(filters.limit));
+      if (normalizedFilters.limit) {
+        q = query(q, limit(normalizedFilters.limit));
       }
 
       const querySnapshot = await getDocs(q);
@@ -740,16 +759,17 @@ class QuestionService {
     cursor?: QuestionCursor
   ): Promise<Result<PaginatedQuestions>> {
     try {
+      const normalizedFilters = this.normalizeQueryFilters(filters);
       const questionsRef = collection(db, 'superate', 'auth', 'questions')
       const conditions: any[] = []
 
-      if (filters.subject) conditions.push(where('subject', '==', filters.subject))
-      if (filters.subjectCode) conditions.push(where('subjectCode', '==', filters.subjectCode))
-      if (filters.topic) conditions.push(where('topic', '==', filters.topic))
-      if (filters.topicCode) conditions.push(where('topicCode', '==', filters.topicCode))
-      if (filters.grade) conditions.push(where('grade', '==', filters.grade))
-      if (filters.level) conditions.push(where('level', '==', filters.level))
-      if (filters.levelCode) conditions.push(where('levelCode', '==', filters.levelCode))
+      if (normalizedFilters.subject) conditions.push(where('subject', '==', normalizedFilters.subject))
+      if (normalizedFilters.subjectCode) conditions.push(where('subjectCode', '==', normalizedFilters.subjectCode))
+      if (normalizedFilters.topic) conditions.push(where('topic', '==', normalizedFilters.topic))
+      if (normalizedFilters.topicCode) conditions.push(where('topicCode', '==', normalizedFilters.topicCode))
+      if (normalizedFilters.grade) conditions.push(where('grade', '==', normalizedFilters.grade))
+      if (normalizedFilters.level) conditions.push(where('level', '==', normalizedFilters.level))
+      if (normalizedFilters.levelCode) conditions.push(where('levelCode', '==', normalizedFilters.levelCode))
 
       // Para minimizar requisitos de índices, usamos un solo orderBy.
       // Cursor solo con createdAt.
@@ -839,17 +859,18 @@ class QuestionService {
     filters: QuestionFilters,
     count: number
   ): Promise<Result<Question[]>> {
+    const normalizedFilters = this.normalizeQueryFilters(filters);
     const questionsRef = collection(db, 'superate', 'auth', 'questions');
     const conditions: ReturnType<typeof where>[] = [];
 
-    if (filters.grade) {
-      conditions.push(where('grade', '==', filters.grade));
+    if (normalizedFilters.grade) {
+      conditions.push(where('grade', '==', normalizedFilters.grade));
     }
-    if (filters.subjectCode) {
-      conditions.push(where('subjectCode', '==', filters.subjectCode));
+    if (normalizedFilters.subjectCode) {
+      conditions.push(where('subjectCode', '==', normalizedFilters.subjectCode));
     }
-    if (filters.subject) {
-      conditions.push(where('subject', '==', filters.subject));
+    if (normalizedFilters.subject) {
+      conditions.push(where('subject', '==', normalizedFilters.subject));
     }
 
     const fetchLimit = Math.max(count * 3, 30);

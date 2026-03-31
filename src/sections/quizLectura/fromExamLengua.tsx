@@ -17,6 +17,7 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { processExamResults } from "@/utils/phaseIntegration";
 import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
+import { gradeLabelToBankCode } from "@/utils/gradeMapping";
 import { GroupedQuestionNotice } from "@/components/quiz/GroupedQuestionNotice";
 import ImageGallery from "@/components/common/ImageGallery";
 import DOMPurify from 'dompurify';
@@ -113,50 +114,6 @@ const renderMathInHtml = (html: string): string => {
   return tempDiv.innerHTML
 }
 
-// Función para mapear el nombre del grado al código que usa el banco de preguntas
-const mapGradeToCode = (gradeName: string | undefined): string | undefined => {
-  if (!gradeName) return undefined;
-  
-  const gradeMap: Record<string, string> = {
-    '6°': '6',
-    '6°1': '6',
-    '6°2': '6',
-    '6°3': '6',
-    '7°': '7',
-    '7°1': '7',
-    '7°2': '7',
-    '7°3': '7',
-    '8°': '8',
-    '8°1': '8',
-    '8°2': '8',
-    '8°3': '8',
-    '9°': '9',
-    '9°1': '9',
-    '9°2': '9',
-    '9°3': '9',
-    '10°': '0',
-    '10°1': '0',
-    '10°2': '0',
-    '10°3': '0',
-    '11°': '1',
-    '11°1': '1',
-    '11°2': '1',
-    '11°3': '1',
-    'Sexto': '6',
-    'Séptimo': '7',
-    'Octavo': '8',
-    'Noveno': '9',
-    'Décimo': '0',
-    'Undécimo': '1',
-    // Agregar más variaciones posibles
-    '11': '1',
-    '11°1°': '1',
-    '11°1°1': '1'
-  };
-  
-  return gradeMap[gradeName] || undefined;
-};
-
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
   questionId: string;
@@ -249,7 +206,7 @@ const ExamWithFirebase = () => {
         console.log('Grado del usuario (nombre):', userGradeName);
         
         // Mapear el grado al código que usa el banco de preguntas
-        const userGrade = mapGradeToCode(userGradeName);
+        const userGrade = gradeLabelToBankCode(userGradeName) ?? '1';
         console.log('Grado del usuario (código):', userGrade);
         
         // Generar el cuestionario dinámicamente desde el banco de preguntas
@@ -906,7 +863,7 @@ const ExamWithFirebase = () => {
   // Pantalla cuando no hay preguntas disponibles
   const NoQuestionsScreen = () => {
     const userGradeName = (user as any)?.gradeName || (user as any)?.grade;
-    const userGrade = mapGradeToCode(userGradeName);
+    const userGrade = gradeLabelToBankCode(userGradeName) ?? '1';
     
     return (
       <div className="max-w-2xl mx-auto">
