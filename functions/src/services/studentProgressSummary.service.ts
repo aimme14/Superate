@@ -301,23 +301,6 @@ export async function resolveStudentInstitution(
     console.warn('[studentProgressSummary] userLookup falló:', e);
   }
 
-  try {
-    const institutionsSnap = await firestore
-      .collection('superate')
-      .doc('auth')
-      .collection('institutions')
-      .get();
-
-    for (const instDoc of institutionsSnap.docs) {
-      const stSnap = await instDoc.ref.collection('estudiantes').doc(studentId).get();
-      if (stSnap.exists) {
-        return contextFromStudentDoc(instDoc.id, stSnap.data());
-      }
-    }
-  } catch (e) {
-    console.error('[studentProgressSummary] búsqueda en instituciones falló:', e);
-  }
-
   return null;
 }
 
