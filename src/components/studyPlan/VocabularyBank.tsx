@@ -47,57 +47,88 @@ const MATERIA_MAP: Record<string, string> = {
 // URL base de Cloud Functions
 const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
 
+const PAGE_SIZE = 10;
+
+function shuffleWords<T>(array: T[]): T[] {
+  const a = [...array];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps) {
-  const [words, setWords] = useState<WordDefinition[]>([]);
+  /** Catálogo completo devuelto una sola vez por el API (consolidado en backend). */
+  const [catalog, setCatalog] = useState<WordDefinition[]>([]);
+  /** Orden mezclado para mostrar; la paginación es solo sobre este array en cliente. */
+  const [displayList, setDisplayList] = useState<WordDefinition[]>([]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedWord, setSelectedWord] = useState<WordDefinition | null>(null);
   const [loadingDefinition, setLoadingDefinition] = useState<boolean>(false);
-  const [previousWordIds, setPreviousWordIds] = useState<string[]>([]);
   const { notifyError } = useNotification();
 
   // Normalizar nombre de materia
   const normalizedMateria = MATERIA_MAP[materia] || materia.toLowerCase().replace(/\s+/g, '_');
 
-  // Cargar palabras iniciales
+  const visibleWords = displayList.slice(0, visibleCount);
+  const canShowMore = visibleCount < displayList.length;
+
+  // Una sola petición: todas las palabras de la materia (all=1)
   useEffect(() => {
+    const loadWords = async () => {
+      setLoading(true);
+      setVisibleCount(PAGE_SIZE);
+      try {
+        const response = await fetch(
+          `${FUNCTIONS_URL}/getVocabularyWords?materia=${encodeURIComponent(normalizedMateria)}&all=1`
+        );
+
+        if (!response.ok) {
+          throw new Error('Error al cargar palabras');
+        }
+
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          const rows = data.data as WordDefinition[];
+          setCatalog(rows);
+          setDisplayList(shuffleWords(rows));
+        } else {
+          throw new Error(data.error?.message || 'Error al cargar palabras');
+        }
+      } catch (error: unknown) {
+        console.error('Error cargando palabras:', error);
+        notifyError({
+          title: 'Error',
+          message: 'No se pudieron cargar las palabras. Intenta nuevamente.',
+        });
+        setCatalog([]);
+        setDisplayList([]);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadWords();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar materia
   }, [materia]);
 
-  const loadWords = async (excludeIds: string[] = []) => {
-    setLoading(true);
-    try {
-      const excludeParam = excludeIds.length > 0 ? `&exclude=${excludeIds.join(',')}` : '';
-      const response = await fetch(
-        `${FUNCTIONS_URL}/getVocabularyWords?materia=${encodeURIComponent(normalizedMateria)}&limit=10${excludeParam}`
+  const mergeWordInLists = (definition: WordDefinition) => {
+    const merge = (prev: WordDefinition[]) =>
+      prev.map((w) =>
+        w.palabra === definition.palabra ? { ...w, ...definition } : w
       );
+    setCatalog(merge);
+    setDisplayList(merge);
+  };
 
-      if (!response.ok) {
-        throw new Error('Error al cargar palabras');
-      }
+  const handleShowMore = () => {
+    setVisibleCount((c) => Math.min(c + PAGE_SIZE, displayList.length));
+  };
 
-      const data = await response.json();
-      if (data.success && data.data) {
-        setWords(data.data);
-        // Guardar IDs de las palabras actuales para excluirlas en la próxima carga
-        // Usar el ID del documento o generar uno basado en la palabra normalizada
-        const currentIds = data.data.map((w: WordDefinition) => {
-          if (w.id) return w.id;
-          // Si no hay ID, generar uno basado en la palabra normalizada
-          return w.palabra.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-        }).filter(Boolean);
-        setPreviousWordIds(currentIds);
-      } else {
-        throw new Error(data.error?.message || 'Error al cargar palabras');
-      }
-    } catch (error: any) {
-      console.error('Error cargando palabras:', error);
-      notifyError({
-        title: 'Error',
-        message: 'No se pudieron cargar las palabras. Intenta nuevamente.'
-      });
-    } finally {
-      setLoading(false);
-    }
+  const handleShuffleWords = () => {
+    setDisplayList(shuffleWords(catalog));
+    setVisibleCount(PAGE_SIZE);
   };
 
   const handleWordClick = async (word: WordDefinition) => {
@@ -122,10 +153,7 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
       if (data.success && data.data) {
         const definition = data.data;
         setSelectedWord(definition);
-        // Actualizar la palabra en la lista si tiene definición
-        setWords(prevWords =>
-          prevWords.map(w => (w.palabra === word.palabra ? definition : w))
-        );
+        mergeWordInLists(definition);
       } else {
         throw new Error(data.error?.message || 'No se pudo obtener la definición');
       }
@@ -140,11 +168,6 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
     }
   };
 
-  const handleChangeWords = () => {
-    loadWords(previousWordIds);
-  };
-
-  // Contador visible: evita mostrar 0 mientras carga y asegura consistencia con la lista
   return (
     <>
       <Accordion type="single" collapsible>
@@ -164,7 +187,7 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
                     Cargando palabras...
                   </span>
                 </div>
-              ) : words.length === 0 ? (
+              ) : displayList.length === 0 ? (
                 <div className={cn(
                   "flex items-center gap-2 p-4 rounded-lg",
                   theme === 'dark' ? 'bg-zinc-700/50 text-gray-300' : 'bg-gray-50 text-gray-600'
@@ -175,9 +198,9 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
               ) : (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-                    {words.map((word, idx) => (
+                    {visibleWords.map((word) => (
                       <button
-                        key={idx}
+                        key={word.id ?? word.palabra}
                         onClick={() => handleWordClick(word)}
                         className={cn(
                           "p-3 rounded-lg border text-left transition-all hover:scale-105",
@@ -195,20 +218,37 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
                       </button>
                     ))}
                   </div>
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleChangeWords}
-                      size="sm"
-                      className={cn(
-                        "font-medium transition-all",
-                        theme === 'dark' 
-                          ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500 hover:border-purple-600' 
-                          : 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500 hover:border-purple-600'
+                  <div className="flex flex-wrap gap-2 justify-end">
+                      {canShowMore && (
+                        <Button
+                          type="button"
+                          onClick={handleShowMore}
+                          size="sm"
+                          variant="outline"
+                          className={cn(
+                            theme === 'dark'
+                              ? 'border-zinc-600 text-white hover:bg-zinc-700'
+                              : ''
+                          )}
+                        >
+                          Mostrar {Math.min(PAGE_SIZE, displayList.length - visibleCount)}{' '}
+                          más
+                        </Button>
                       )}
-                    >
-                      <RefreshCw className="h-3 w-3 mr-2" />
-                      Aprender nuevas palabras
-                    </Button>
+                      <Button
+                        type="button"
+                        onClick={handleShuffleWords}
+                        size="sm"
+                        className={cn(
+                          'font-medium transition-all',
+                          theme === 'dark'
+                            ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500 hover:border-purple-600'
+                            : 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500 hover:border-purple-600'
+                        )}
+                      >
+                        <RefreshCw className="h-3 w-3 mr-2" />
+                        Mezclar y empezar de nuevo
+                      </Button>
                   </div>
                 </>
               )}

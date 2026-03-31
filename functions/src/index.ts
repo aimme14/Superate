@@ -1185,9 +1185,10 @@ export const checkAndGenerateSummary = functions
 // =============================
 
 /**
- * Obtiene palabras aleatorias de una materia
- * 
- * GET /definitions/words?materia=...&limit=10&exclude=id1,id2,id3
+ * Obtiene palabras de una materia
+ *
+ * GET getVocabularyWords?materia=...&all=1  → todas (una lectura consolidado; el cliente pagina)
+ * GET getVocabularyWords?materia=...&limit=10&exclude=id1,id2  → subconjunto aleatorio (compatibilidad)
  */
 export const getVocabularyWords = functions
   .region(REGION)
@@ -1212,7 +1213,7 @@ export const getVocabularyWords = functions
     }
     
     try {
-      const { materia, limit, exclude } = req.query;
+      const { materia, limit, exclude, all } = req.query;
       
       if (!materia) {
         const response: APIResponse = {
@@ -1223,14 +1224,27 @@ export const getVocabularyWords = functions
         return;
       }
 
-      const limitNum = limit ? parseInt(limit as string, 10) : 10;
-      const excludeIds = exclude ? (exclude as string).split(',').filter(id => id.trim()) : [];
+      const wantAll =
+        all === 'true' ||
+        all === '1' ||
+        (typeof all === 'string' && all.toLowerCase() === 'yes');
 
-      const words = await vocabularyService.getWords(
-        materia as string,
-        limitNum,
-        excludeIds
-      );
+      let words: Awaited<ReturnType<typeof vocabularyService.getWords>>;
+
+      if (wantAll) {
+        words = await vocabularyService.getAllWords(materia as string);
+      } else {
+        const limitNum = limit ? parseInt(limit as string, 10) : 10;
+        const excludeIds = exclude
+          ? (exclude as string).split(',').filter((id) => id.trim())
+          : [];
+
+        words = await vocabularyService.getWords(
+          materia as string,
+          limitNum,
+          excludeIds
+        );
+      }
       
       const response: APIResponse = {
         success: true,

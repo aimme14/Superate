@@ -29,6 +29,9 @@
     "reconcile-auth-users": "npm run build && node lib/scripts/reconcileAuthUsers.js",
     "rebuild-tips-ia-consolidado": "npm run build && node lib/scripts/rebuildTipsIAConsolidado.js",
     "rebuild-ai-tools-consolidado": "npm run build && node lib/scripts/rebuildAIToolsConsolidado.js",
+    "rebuild-weblinks-consolidado": "npm run build && node lib/scripts/rebuildWebLinksConsolidado.js",
+    "rebuild-youtubelinks-consolidado": "npm run build && node lib/scripts/rebuildYoutubeLinksConsolidado.js",
+    "rebuild-definitionswords-consolidado": "npm run build && node lib/scripts/rebuildDefinitionsWordsConsolidado.js",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
   },

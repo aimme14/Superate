@@ -121,6 +121,23 @@ export interface StudyPlanGenerationResult {
  */
 class StudyPlanService {
   private static readonly TARGET_EXERCISE_COUNT = 10;
+  private readonly webLinksConsolidatedCache = new Map<
+    string,
+    Array<{ title: string; url: string; description: string; topic?: string }>
+  >();
+  private readonly youtubeLinksConsolidatedCache = new Map<
+    string,
+    Array<{
+      title: string;
+      url: string;
+      description: string;
+      channelTitle: string;
+      videoId?: string;
+      duration?: string;
+      language?: string;
+      topic?: string;
+    }>
+  >();
 
   /**
    * Obtiene una instancia de Firestore para el proyecto superate-6c730
@@ -1870,12 +1887,12 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Obtiene videos desde Firestore (caché).
-   * Ruta unificada con admin: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos.
-   * Incluye documentos creados por el admin (IDs auto-generados) y por la API (video1, video2...).
+   * Obtiene videos desde documentos consolidados por materia.
+   * Fuente única: YoutubeLinks/consolidado_{materiaCode} y, si aplica, YoutubeLinks/consolidado_{materiaCode}_{n}.
+   * El campo items.topic usa topicCode (AL, GE, ES, ...); aquí filtramos por topicCode y aplicamos MAX_VIDEOS_PER_TOPIC.
    */
   private async getCachedVideos(
-    grade: string,
+    _grade: string,
     _studentId: string,
     _phase: 'first' | 'second' | 'third',
     subject: string,
@@ -1890,51 +1907,102 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     language?: string;
     topic?: string;
   }>> {
-    const db = this.getStudentDatabase();
-    const gradoPath = getGradeNameForAdminPath(grade);
+    const studentDb = this.getStudentDatabase();
     const subjectConfig = getSubjectConfig(subject);
     const materiaCode = subjectConfig?.code;
     const topicCode = getTopicCode(subject, topic);
 
     if (!materiaCode || !topicCode) {
-      console.warn(`   ⚠️ No se pudo resolver ruta admin para materia="${subject}" topic="${topic}" (materiaCode=${materiaCode ?? '?'}, topicCode=${topicCode ?? '?'})`);
+      console.warn(`   ⚠️ No se pudo resolver ruta admin para YoutubeLinks materia="${subject}" topic="${topic}" (materiaCode=${materiaCode ?? '?'}, topicCode=${topicCode ?? '?'})`);
       return [];
     }
 
-    const parseVideoDoc = (data: admin.firestore.DocumentData) => ({
+    const parseVideoRow = (data: admin.firestore.DocumentData) => ({
       title: data.título || data.title || '',
-      url: data.url || `https://www.youtube.com/watch?v=${data.videoId || ''}`,
+      url:
+        data.url ||
+        (data.videoId
+          ? `https://www.youtube.com/watch?v=${data.videoId}`
+          : ''),
       description: data.description || '',
       channelTitle: data.canal || data.channelTitle || '',
       videoId: data.videoId || '',
       duration: data.duración || data.duration || '',
       language: data.idioma || data.language || 'es',
-      topic,
+      topic: typeof data.topic === 'string' ? data.topic : '',
     });
 
     try {
-      const mainPath = `YoutubeLinks/${gradoPath}/${materiaCode}/${topicCode}/videos`;
-      console.log(`   🔍 Consultando: ${mainPath}`);
+      const cacheKey = materiaCode;
+      let allVideosForSubject = this.youtubeLinksConsolidatedCache.get(cacheKey);
 
-      const videosColRef = db.collection('YoutubeLinks').doc(gradoPath).collection(materiaCode).doc(topicCode).collection('videos');
-      const snapshot = await videosColRef.get();
+      if (!allVideosForSubject) {
+        const baseDocId = `consolidado_${materiaCode}`;
+        const baseRef = studentDb
+          .collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION)
+          .doc(baseDocId);
+        const baseSnap = await baseRef.get();
 
-      const orderOrTime = (data: admin.firestore.DocumentData): number => {
-        if (typeof data.order === 'number') return data.order;
-        const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
-        return t ?? 0;
-      };
+        const baseData = baseSnap.data() as
+          | {
+              items?: admin.firestore.DocumentData[];
+              totalParts?: number;
+            }
+          | undefined;
 
-      const withOrder = snapshot.docs
-        .map((d) => ({ doc: d, data: d.data(), order: orderOrTime(d.data()) }))
-        .filter((x) => x.data?.url)
-        .sort((a, b) => a.order - b.order)
-        .slice(0, MAX_VIDEOS_PER_TOPIC);
+        const totalParts =
+          typeof baseData?.totalParts === 'number' && baseData.totalParts > 0
+            ? baseData.totalParts
+            : 1;
 
-      const videos = withOrder.map((x) => parseVideoDoc(x.data));
-      if (videos.length > 0) {
-        console.log(`   📦 Videos en caché: ${videos.length}`);
+        const partDocs = await Promise.all(
+          Array.from({ length: totalParts }, (_, i) => {
+            const docId = i === 0 ? baseDocId : `${baseDocId}_${i + 1}`;
+            return studentDb
+              .collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION)
+              .doc(docId)
+              .get();
+          })
+        );
+
+        const orderOrTime = (data: admin.firestore.DocumentData): number => {
+          if (typeof data.order === 'number') return data.order;
+          const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
+          return t ?? 0;
+        };
+
+        allVideosForSubject = partDocs
+          .flatMap((snap) => {
+            const data = snap.data() as
+              | { items?: admin.firestore.DocumentData[] }
+              | undefined;
+            return Array.isArray(data?.items) ? data.items : [];
+          })
+          .filter((x) => x?.url || x?.videoId)
+          .sort((a, b) => orderOrTime(a) - orderOrTime(b))
+          .map((x) => parseVideoRow(x));
+
+        this.youtubeLinksConsolidatedCache.set(cacheKey, allVideosForSubject);
+        console.log(
+          `   📦 YoutubeLinks consolidado_${materiaCode}: ${allVideosForSubject.length} video(s) total en ${totalParts} parte(s)`
+        );
       }
+
+      const videos = allVideosForSubject
+        .filter(
+          (v) =>
+            typeof v.topic === 'string' &&
+            v.topic.trim().toUpperCase() === topicCode.trim().toUpperCase()
+        )
+        .slice(0, MAX_VIDEOS_PER_TOPIC)
+        .map((v) => ({
+          ...v,
+          topic,
+        }));
+
+      console.log(
+        `   📎 Videos filtrados tema ${topicCode} (${topic}): ${videos.length}`
+      );
       return videos;
     } catch (error: any) {
       console.error(`❌ Error obteniendo videos desde caché:`, error.message);
@@ -2277,6 +2345,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
    * Debe coincidir con el admin de recursos y con firestore.rules.
    */
   private static readonly WEBLINKS_COLLECTION = 'WebLinks';
+  private static readonly YOUTUBE_LINKS_COLLECTION = 'YoutubeLinks';
 
   /**
    * Obtiene enlaces web para un topic desde Firestore (WebLinks). Solo caché; no se usa motor de búsqueda.
@@ -2325,8 +2394,9 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   /**
    * Construye el array study_links desde WebLinks (única fuente de verdad).
    * Trae TODOS los enlaces de cada topic (sin límite por tema).
+   * Fuente: WebLinks/consolidado_{materiaCode}[_N]
    * topicIds: nombres canónicos de temas (ej. "Álgebra y Cálculo", "Geometría") de getSubjectConfig(subject).topics;
-   * getTopicCode(subject, topicId) resuelve a código (AL, GE, ES) para la ruta WebLinks/{grado}/{materiaCode}/{topicCode}/links.
+   * getTopicCode(subject, topicId) resuelve a código (AL, GE, ES) para filtrar items.topic.
    */
   private async buildStudyLinksFromWebLinks(
     grade: string,
@@ -2353,12 +2423,12 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Obtiene todos los enlaces desde Firestore (sin límite).
-   * Ruta unificada con admin: WebLinks/{grado}/{materiaCode}/{topicCode}/links.
-   * Topics se buscan por nombre canónico (ej. "Álgebra y Cálculo") y se resuelven a topicCode (AL) vía getTopicCode.
+   * Obtiene enlaces desde documentos consolidados por materia.
+   * Fuente única: WebLinks/consolidado_{materiaCode} y, si aplica, WebLinks/consolidado_{materiaCode}_{n}.
+   * El campo items.topic usa topicCode (AL, GE, ES, ...), por lo que aquí filtramos por topicCode.
    */
   private async getCachedLinks(
-    grade: string,
+    _grade: string,
     subject: string,
     topic: string,
     _phase?: 'first' | 'second' | 'third'
@@ -2369,7 +2439,6 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     topic?: string;
   }>> {
     const studentDb = this.getStudentDatabase();
-    const gradoPath = getGradeNameForAdminPath(grade);
     const subjectConfig = getSubjectConfig(subject);
     const materiaCode = subjectConfig?.code;
     const topicCode = getTopicCode(subject, topic);
@@ -2383,34 +2452,75 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       title: data.title || data.name || 'Enlace',
       url: data.url || data.link || '',
       description: data.description || '',
-      topic,
+      topic: typeof data.topic === 'string' ? data.topic : '',
     });
 
     try {
-      const mainPath = `${StudyPlanService.WEBLINKS_COLLECTION}/${gradoPath}/${materiaCode}/${topicCode}/links`;
-      console.log(`   🔍 Consultando WebLinks: ${mainPath}`);
+      const cacheKey = materiaCode;
+      let allLinksForSubject = this.webLinksConsolidatedCache.get(cacheKey);
 
-      const linksColRef = studentDb
-        .collection(StudyPlanService.WEBLINKS_COLLECTION)
-        .doc(gradoPath)
-        .collection(materiaCode)
-        .doc(topicCode)
-        .collection('links');
-      const snapshot = await linksColRef.get();
+      if (!allLinksForSubject) {
+        const baseDocId = `consolidado_${materiaCode}`;
+        const baseRef = studentDb
+          .collection(StudyPlanService.WEBLINKS_COLLECTION)
+          .doc(baseDocId);
+        const baseSnap = await baseRef.get();
 
-      const orderOrTime = (data: admin.firestore.DocumentData): number => {
-        if (typeof data.order === 'number') return data.order;
-        const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
-        return t ?? 0;
-      };
+        const baseData = baseSnap.data() as
+          | {
+              items?: admin.firestore.DocumentData[];
+              totalParts?: number;
+            }
+          | undefined;
 
-      const withOrder = snapshot.docs
-        .map((d) => ({ doc: d, data: d.data(), order: orderOrTime(d.data()) }))
-        .filter((x) => x.data?.url || x.data?.link)
-        .sort((a, b) => a.order - b.order);
-      const links = withOrder.map((x) => parseLinkDoc(x.data));
+        const totalParts =
+          typeof baseData?.totalParts === 'number' && baseData.totalParts > 0
+            ? baseData.totalParts
+            : 1;
 
-      console.log(`   📦 WebLinks ${mainPath}: ${snapshot.docs.length} doc(s) en colección, ${links.length} enlace(s) devueltos (todos, sin límite)`);
+        const partDocs = await Promise.all(
+          Array.from({ length: totalParts }, (_, i) => {
+            const docId = i === 0 ? baseDocId : `${baseDocId}_${i + 1}`;
+            return studentDb
+              .collection(StudyPlanService.WEBLINKS_COLLECTION)
+              .doc(docId)
+              .get();
+          })
+        );
+
+        const orderOrTime = (data: admin.firestore.DocumentData): number => {
+          if (typeof data.order === 'number') return data.order;
+          const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
+          return t ?? 0;
+        };
+
+        allLinksForSubject = partDocs
+          .flatMap((snap) => {
+            const data = snap.data() as
+              | { items?: admin.firestore.DocumentData[] }
+              | undefined;
+            return Array.isArray(data?.items) ? data.items : [];
+          })
+          .filter((x) => x?.url || x?.link)
+          .sort((a, b) => orderOrTime(a) - orderOrTime(b))
+          .map((x) => parseLinkDoc(x));
+
+        this.webLinksConsolidatedCache.set(cacheKey, allLinksForSubject);
+        console.log(
+          `   📦 WebLinks consolidado_${materiaCode}: ${allLinksForSubject.length} enlace(s) total en ${totalParts} parte(s)`
+        );
+      }
+
+      const links = allLinksForSubject
+        .filter(
+          (l) =>
+            typeof l.topic === 'string' &&
+            l.topic.trim().toUpperCase() === topicCode.trim().toUpperCase()
+        )
+        .map((l) => ({ ...l, topic }));
+      console.log(
+        `   📎 Enlaces filtrados tema ${topicCode} (${topic}): ${links.length}`
+      );
       return links;
     } catch (error: any) {
       console.error(`❌ Error obteniendo enlaces desde caché:`, error.message);

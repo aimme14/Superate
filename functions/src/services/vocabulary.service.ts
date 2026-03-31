@@ -218,10 +218,108 @@ IMPORTANTE:
  */
 class VocabularyService {
   private db: admin.firestore.Firestore;
+  /** Lecturas desde definitionswords/consolidado_{materia} (rebuild-definitionswords-consolidado). */
+  private readonly definitionsWordsConsolidatedCache = new Map<
+    string,
+    Array<WordDefinition & { id: string }>
+  >();
 
   constructor() {
     // Usar la base de datos por defecto (superate-ia o superate-6c730 según configuración)
     this.db = admin.firestore();
+  }
+
+  private static readonly DEFINITIONSWORDS_COLLECTION = 'definitionswords';
+
+  /**
+   * Carga todas las palabras de una materia desde documentos consolidados (1..N partes).
+   */
+  private async loadConsolidatedWords(
+    normalizedMateria: string
+  ): Promise<Array<WordDefinition & { id: string }>> {
+    const cacheKey = normalizedMateria;
+    const hit = this.definitionsWordsConsolidatedCache.get(cacheKey);
+    if (hit) {
+      return hit;
+    }
+
+    const baseDocId = `consolidado_${normalizedMateria}`;
+    const baseRef = this.db
+      .collection(VocabularyService.DEFINITIONSWORDS_COLLECTION)
+      .doc(baseDocId);
+    const baseSnap = await baseRef.get();
+
+    if (!baseSnap.exists) {
+      console.warn(
+        `   ⚠️ Vocabulario: no existe ${baseDocId}. Ejecuta npm run rebuild-definitionswords-consolidado`
+      );
+      const empty: Array<WordDefinition & { id: string }> = [];
+      this.definitionsWordsConsolidatedCache.set(cacheKey, empty);
+      return empty;
+    }
+
+    const baseData = baseSnap.data() as
+      | {
+          items?: admin.firestore.DocumentData[];
+          totalParts?: number;
+        }
+      | undefined;
+
+    const totalParts =
+      typeof baseData?.totalParts === 'number' && baseData.totalParts > 0
+        ? baseData.totalParts
+        : 1;
+
+    const partDocs = await Promise.all(
+      Array.from({ length: totalParts }, (_, i) => {
+        const docId = i === 0 ? baseDocId : `${baseDocId}_${i + 1}`;
+        return this.db
+          .collection(VocabularyService.DEFINITIONSWORDS_COLLECTION)
+          .doc(docId)
+          .get();
+      })
+    );
+
+    const mapItem = (
+      data: admin.firestore.DocumentData
+    ): WordDefinition & { id: string } => {
+      const fechaRaw = data.fechaCreacion;
+      const fechaCreacion =
+        fechaRaw &&
+        typeof (fechaRaw as admin.firestore.Timestamp).toMillis === 'function'
+          ? (fechaRaw as admin.firestore.Timestamp)
+          : admin.firestore.Timestamp.now();
+
+      return {
+        id: String(data.id ?? ''),
+        palabra: String(data.palabra ?? ''),
+        definicion: String(data.definicion ?? ''),
+        materia: String(data.materia ?? normalizedMateria),
+        activa: data.activa !== false,
+        fechaCreacion,
+        version: typeof data.version === 'number' ? data.version : 1,
+        ...(data.ejemploIcfes && { ejemploIcfes: data.ejemploIcfes }),
+        ...(data.respuestaEjemploIcfes && {
+          respuestaEjemploIcfes: data.respuestaEjemploIcfes,
+        }),
+      };
+    };
+
+    const all = partDocs
+      .flatMap((snap) => {
+        const data = snap.data() as
+          | { items?: admin.firestore.DocumentData[] }
+          | undefined;
+        return Array.isArray(data?.items) ? data.items : [];
+      })
+      .filter((row) => row && String(row.id ?? '').length > 0)
+      .map((row) => mapItem(row));
+
+    this.definitionsWordsConsolidatedCache.set(cacheKey, all);
+    console.log(
+      `   📦 Vocabulario consolidado_${normalizedMateria}: ${all.length} palabra(s) en ${totalParts} parte(s)`
+    );
+    return all;
   }
 
   /**
@@ -242,40 +340,33 @@ class VocabularyService {
   ): Promise<WordDefinition[]> {
     try {
       const normalizedMateria = this.normalizeMateria(materia);
-      const materiaRef = this.db.collection('definitionswords').doc(normalizedMateria);
-      const palabrasRef = materiaRef.collection('palabras');
-
-      // Construir query: solo palabras activas
-      let query: admin.firestore.Query = palabrasRef.where('activa', '==', true);
-
-      // Si hay IDs a excluir, agregar filtro
-      if (excludeIds.length > 0) {
-        // Firestore no permite != con arrays, así que filtramos después
-        const snapshot = await query.get();
-        const allWords = snapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-          } as WordDefinition & { id: string }))
-          .filter(word => !excludeIds.includes(word.id));
-
-        // Mezclar aleatoriamente y tomar el límite
-        const shuffled = this.shuffleArray([...allWords]);
-        return shuffled.slice(0, limit);
-      }
-
-      // Obtener todas las palabras activas
-      const snapshot = await query.get();
-      const words = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      } as WordDefinition & { id: string }));
-
-      // Mezclar aleatoriamente y tomar el límite
-      const shuffled = this.shuffleArray([...words]);
+      const allWords = await this.loadConsolidatedWords(normalizedMateria);
+      const active = allWords.filter(
+        (word) =>
+          word.activa &&
+          word.id &&
+          !excludeIds.includes(word.id)
+      );
+      const shuffled = this.shuffleArray([...active]);
       return shuffled.slice(0, limit);
     } catch (error: any) {
       console.error(`❌ Error obteniendo palabras para ${materia}:`, error);
+      throw new Error(`Error al obtener palabras: ${error.message}`);
+    }
+  }
+
+  /**
+   * Todas las palabras activas de la materia (consolidado en memoria).
+   * Sirve para que el cliente pagine sin nuevas lecturas a Firestore.
+   */
+  async getAllWords(materia: string): Promise<WordDefinition[]> {
+    try {
+      const normalizedMateria = this.normalizeMateria(materia);
+      const allWords = await this.loadConsolidatedWords(normalizedMateria);
+      const active = allWords.filter((word) => word.activa && word.id);
+      return this.shuffleArray([...active]);
+    } catch (error: any) {
+      console.error(`❌ Error obteniendo todas las palabras para ${materia}:`, error);
       throw new Error(`Error al obtener palabras: ${error.message}`);
     }
   }
@@ -286,18 +377,28 @@ class VocabularyService {
   async getWordDefinition(materia: string, palabra: string): Promise<WordDefinition | null> {
     try {
       const normalizedMateria = this.normalizeMateria(materia);
-      const materiaRef = this.db.collection('definitionswords').doc(normalizedMateria);
+      const normalizedPalabra = palabra.toLowerCase().trim();
+
+      const consolidated = await this.loadConsolidatedWords(normalizedMateria);
+      const fromConsolidado = consolidated.find(
+        (w) => w.palabra === normalizedPalabra && w.activa
+      );
+      if (fromConsolidado) {
+        return { ...fromConsolidado };
+      }
+
+      const materiaRef = this.db
+        .collection(VocabularyService.DEFINITIONSWORDS_COLLECTION)
+        .doc(normalizedMateria);
       const palabrasRef = materiaRef.collection('palabras');
 
-      // Buscar por palabra (case-insensitive)
       const snapshot = await palabrasRef
-        .where('palabra', '==', palabra.toLowerCase().trim())
+        .where('palabra', '==', normalizedPalabra)
         .where('activa', '==', true)
         .limit(1)
         .get();
 
       if (snapshot.empty) {
-        // Si no existe, intentar generar con IA
         return await this.generateAndSaveDefinition(materia, palabra);
       }
 
@@ -400,7 +501,9 @@ class VocabularyService {
 
       // Guardar en Firestore
       const normalizedMateria = this.normalizeMateria(materia);
-      const materiaRef = this.db.collection('definitionswords').doc(normalizedMateria);
+      const materiaRef = this.db
+        .collection(VocabularyService.DEFINITIONSWORDS_COLLECTION)
+        .doc(normalizedMateria);
       const palabrasRef = materiaRef.collection('palabras');
 
       // Crear documento con ID basado en la palabra normalizada
@@ -418,6 +521,7 @@ class VocabularyService {
       };
 
       await palabrasRef.doc(palabraId).set(wordData);
+      this.definitionsWordsConsolidatedCache.delete(normalizedMateria);
 
       return {
         id: palabraId,
@@ -488,11 +592,8 @@ class VocabularyService {
   async countActiveWords(materia: string): Promise<number> {
     try {
       const normalizedMateria = this.normalizeMateria(materia);
-      const materiaRef = this.db.collection('definitionswords').doc(normalizedMateria);
-      const palabrasRef = materiaRef.collection('palabras');
-
-      const snapshot = await palabrasRef.where('activa', '==', true).get();
-      return snapshot.size;
+      const all = await this.loadConsolidatedWords(normalizedMateria);
+      return all.filter((w) => w.activa).length;
     } catch (error: any) {
       console.error(`❌ Error contando palabras para ${materia}:`, error);
       return 0;
@@ -517,7 +618,9 @@ class VocabularyService {
   }> {
     try {
       const normalizedMateria = this.normalizeMateria(materia);
-      const materiaRef = this.db.collection('definitionswords').doc(normalizedMateria);
+      const materiaRef = this.db
+        .collection(VocabularyService.DEFINITIONSWORDS_COLLECTION)
+        .doc(normalizedMateria);
       const palabrasRef = materiaRef.collection('palabras');
 
       // Obtener todas las palabras activas que no tienen ejemplo
@@ -642,6 +745,8 @@ class VocabularyService {
 
       skipped = wordsWithoutExample.length - wordsToProcess.length;
 
+      this.definitionsWordsConsolidatedCache.delete(normalizedMateria);
+
       return { success, failed, skipped, results };
     } catch (error: any) {
       console.error(`❌ Error generando ejemplos para ${materia}:`, error);
@@ -658,7 +763,9 @@ class VocabularyService {
   }> {
     try {
       const normalizedMateria = this.normalizeMateria(materia);
-      const materiaRef = this.db.collection('definitionswords').doc(normalizedMateria);
+      const materiaRef = this.db
+        .collection(VocabularyService.DEFINITIONSWORDS_COLLECTION)
+        .doc(normalizedMateria);
       const palabrasRef = materiaRef.collection('palabras');
 
       // Obtener todas las palabras activas que tienen ejemplo
@@ -702,6 +809,8 @@ class VocabularyService {
           failed += batchDocs.length;
         }
       }
+
+      this.definitionsWordsConsolidatedCache.delete(normalizedMateria);
 
       return { deleted, failed };
     } catch (error: any) {

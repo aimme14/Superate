@@ -1,14 +1,18 @@
 /**
  * Sección "Tips para Romperla en el ICFES".
  * Cada consejo va en un ítem de acordeón expandible (título en trigger, contenido al expandir).
- * Agrupado por categoría.
+ * Agrupado por categoría. Los datos vienen en un solo documento; aquí se muestran de PAGE_SIZE
+ * en PAGE_SIZE con "Ver más" sin volver a cargar.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { TipICFES } from '@/interfaces/tipsICFES.interface';
+
+const PAGE_SIZE = 10;
 
 export interface TipsICFESSectionProps {
   tips: TipICFES[];
@@ -26,7 +30,20 @@ function groupByCategory(tips: TipICFES[]): Record<string, TipICFES[]> {
 }
 
 export function TipsICFESSection({ tips, theme }: TipsICFESSectionProps) {
-  const byCategory = useMemo(() => groupByCategory(tips), [tips]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [tips]);
+
+  const visibleTips = useMemo(
+    () => tips.slice(0, visibleCount),
+    [tips, visibleCount]
+  );
+  const hasMore = visibleCount < tips.length;
+  const remaining = tips.length - visibleCount;
+
+  const byCategory = useMemo(() => groupByCategory(visibleTips), [visibleTips]);
   const categories = Object.keys(byCategory).sort();
 
   const triggerClass = cn(
@@ -100,6 +117,24 @@ export function TipsICFESSection({ tips, theme }: TipsICFESSectionProps) {
           </div>
         ))}
       </div>
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              theme === 'dark' &&
+                'border-zinc-600 bg-zinc-800/50 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100'
+            )}
+            onClick={() =>
+              setVisibleCount((n) => Math.min(n + PAGE_SIZE, tips.length))
+            }
+          >
+            Ver {Math.min(PAGE_SIZE, remaining)} más
+          </Button>
+        </div>
+      )}
     </section>
   );
 }
