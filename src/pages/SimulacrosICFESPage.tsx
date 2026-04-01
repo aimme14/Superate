@@ -251,7 +251,7 @@ export default function SimulacrosICFESPage() {
     if (subjectFilter && subjectFilter !== "all") {
       filters.subjectCode = subjectFilter;
     }
-    const result = await questionService.getRandomQuestions(
+    const result = await questionService.getRandomQuestionsSingleQuery(
       filters,
       EXERCISES_LIMIT
     );
@@ -429,7 +429,7 @@ export default function SimulacrosICFESPage() {
                       )}
                     >
                       <SelectItem value="all">Al azar</SelectItem>
-                      {SUBJECTS_CONFIG.map((s) => (
+                      {SUBJECTS_CONFIG.filter((s) => s.code !== "IN").map((s) => (
                         <SelectItem key={s.code} value={s.code}>
                           {s.name}
                         </SelectItem>

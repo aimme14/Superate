@@ -11,18 +11,10 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { useThemeContext } from "@/context/ThemeContext";
-import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 import { getRandomEjercicios, type EjercicioIA } from "@/services/firebase/ejerciciosIA.service";
@@ -30,12 +22,9 @@ import {
   readSimulacrosIACache,
   writeSimulacrosIACache,
 } from "@/utils/simulacrosIAPrefetch";
-import { dbService } from "@/services/firebase/db.service";
-import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
 import { MathText } from "@/utils/renderMath";
 
 const SECONDS_PER_QUESTION = 60;
-const DEFAULT_GRADE = "11";
 const EXERCISES_LIMIT = 10;
 
 function formatTime(seconds: number): string {
@@ -65,42 +54,21 @@ function isAnswerCorrect(
 
 /**
  * Página Simulacros IA con mini simulacro de 10 preguntas.
- * Ejercicios desde EjerciciosIA, 1.5 min por pregunta, filtro por materia.
+ * Ejercicios desde EjerciciosIA, 1 minuto por pregunta.
  */
 export default function SimulacrosIAPage() {
   const { theme } = useThemeContext();
-  const { user } = useAuthContext();
 
   const [mode, setMode] = useState<"setup" | "running" | "finished">("setup");
-  const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [exercises, setExercises] = useState<EjercicioIA[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
   const [timeRemaining, setTimeRemaining] = useState(SECONDS_PER_QUESTION);
-  const [studentGrade, setStudentGrade] = useState<string>(DEFAULT_GRADE);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    dbService.getUserById(user.uid).then((res) => {
-      if (res.success && res.data) {
-        const data = res.data as { grade?: string; gradeId?: string; gradeName?: string };
-        const raw = data.gradeName || data.grade || data.gradeId;
-        if (raw) {
-          const s = String(raw).trim();
-          if (GRADE_CODE_TO_NAME[s]) setStudentGrade(s);
-          else if (s === "Undécimo" || s === "undecimo" || s.toLowerCase().includes("undécimo")) setStudentGrade("11");
-          else if (s === "Décimo" || s === "decimo" || s.toLowerCase().includes("décimo")) setStudentGrade("10");
-          else setStudentGrade(s);
-        }
-      }
-    });
-  }, [user?.uid]);
 
   const fetchExercises = useCallback(async () => {
-    const subject = subjectFilter && subjectFilter !== "all" ? subjectFilter : "all";
-    const cached = readSimulacrosIACache(studentGrade, subject);
+    const cached = readSimulacrosIACache("global", "all");
 
     if (cached && cached.length > 0) {
       setExercises(cached);
@@ -113,10 +81,7 @@ export default function SimulacrosIAPage() {
 
     setLoading(true);
     setError(null);
-    const subjectParam = subject !== "all" ? subject : undefined;
     const result = await getRandomEjercicios({
-      grade: studentGrade,
-      subject: subjectParam,
       limit: EXERCISES_LIMIT,
     });
     setLoading(false);
@@ -125,16 +90,16 @@ export default function SimulacrosIAPage() {
       return;
     }
     if (result.data.length === 0) {
-      setError("No hay ejercicios disponibles para los filtros seleccionados. Intenta con otra materia o Al azar.");
+      setError("No hay ejercicios disponibles en este momento. Intenta de nuevo.");
       return;
     }
-    writeSimulacrosIACache(studentGrade, subject, result.data);
+    writeSimulacrosIACache("global", "all", result.data);
     setExercises(result.data);
     setCurrentIndex(0);
     setSelectedAnswers({});
     setTimeRemaining(SECONDS_PER_QUESTION);
     setMode("running");
-  }, [studentGrade, subjectFilter]);
+  }, []);
 
   const handleStart = () => {
     fetchExercises();
@@ -235,40 +200,6 @@ export default function SimulacrosIAPage() {
                     Formulario inteligente desarrollado con Inteligencia Artificial, diseñado para potenciar la velocidad y precisión en la toma de decisiones por pregunta. Su enfoque entrena la capacidad de respuesta rápida bajo presión, optimizando el tiempo de resolución y fortaleciendo el rendimiento en evaluaciones de alta exigencia.
                   </p>
                 </div>
-                <div>
-                  <label
-                    className={cn(
-                      "block text-sm font-medium mb-2",
-                      themeSafe === "dark" ? "text-gray-300" : "text-gray-700"
-                    )}
-                  >
-                    Filtrar por materia
-                  </label>
-                  <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-                    <SelectTrigger
-                      className={cn(
-                        themeSafe === "dark"
-                          ? "bg-zinc-700 border-zinc-600 text-white"
-                          : "bg-white border-gray-300"
-                      )}
-                    >
-                      <SelectValue placeholder="Selecciona una materia" />
-                    </SelectTrigger>
-                    <SelectContent
-                      className={cn(
-                        themeSafe === "dark" ? "bg-zinc-800 border-zinc-600" : "bg-white"
-                      )}
-                    >
-                      <SelectItem value="all">Al azar</SelectItem>
-                      {SUBJECTS_CONFIG.map((s) => (
-                        <SelectItem key={s.code} value={s.code}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-              </div>
-
               {error && (
                 <p className={cn("text-sm", themeSafe === "dark" ? "text-red-400" : "text-red-600")}>
                   {error}

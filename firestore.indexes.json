@@ -129,6 +129,14 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" },
         { "fieldPath": "__name__", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "studentSummaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gradeId", "order": "ASCENDING" },
+        { "fieldPath": "academicYear", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

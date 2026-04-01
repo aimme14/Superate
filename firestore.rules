@@ -303,6 +303,12 @@ service cloud.firestore {
       allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
       allow write: if false;
     }
+
+    // Resumen agregado por grado/año (actualizado por Cloud Functions). Solo lectura en cliente.
+    match /superate/auth/institutions/{institutionId}/gradeSummary/{gradeSummaryId} {
+      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
+      allow write: if false;
+    }
     
     // Colecci?n de preguntas
     match /superate/auth/questions/{questionId} {

@@ -28,7 +28,14 @@ export interface PhaseProgressBlock {
 
 export interface StudentProgressSummaryDoc {
   studentId: string
+  studentName?: string
   institutionId: string
+  sedeId?: string
+  jornada?: 'mañana' | 'tarde'
+  campusName?: string
+  gradeId?: string
+  gradeName?: string
+  academicYear?: number | string
   phases: Record<ProgressPhaseKey, PhaseProgressBlock>
   totalSubmitted: number
   overallAvg: number | null

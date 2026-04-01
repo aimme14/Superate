@@ -5,7 +5,7 @@
  * para el sistema de generación automática de justificaciones
  */
 
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { justificationService } from './services/justification.service';
 import { questionService } from './services/question.service';
@@ -17,6 +17,7 @@ import { getTipsFromConsolidado1 } from './services/tipsICFES.service';
 import { getRandomEjercicios } from './services/ejerciciosIA.service';
 import { APIResponse } from './types/question.types';
 import { rebuildStudentProgressSummary } from './services/studentProgressSummary.service';
+import { extractGradeSummaryContext, rebuildGradeSummary } from './services/gradeSummary.service';
 import { beforeUserSignedIn } from 'firebase-functions/v2/identity';
 import {
   computeSuperateClaims,
@@ -701,10 +702,9 @@ export const getStudyPlan = functions
 
 /**
  * Obtiene ejercicios aleatorios desde EjerciciosIA para el mini simulacro.
- * GET /getRandomEjerciciosIA?grade=11&subject=MA&limit=10
- * - grade: grado del estudiante (default "11" = Undécimo)
- * - subject: código materia (MA, BI, CS...) o vacío para aleatorio
- * - limit: cantidad (default 10)
+ * GET /getRandomEjerciciosIA?limit=10
+ * - Optimizado: una sola query con limit(10), sin filtros por materia/eje/topic.
+ * - grade y subject se aceptan por compatibilidad legacy, pero ya no filtran.
  */
 export const getRandomEjerciciosIA = functions
   .region(REGION)
@@ -729,14 +729,11 @@ export const getRandomEjerciciosIA = functions
 
     try {
       const params = req.method === 'GET' ? req.query : req.body;
-      const grade = (params.grade as string) || '11';
-      const subject = (params.subject as string) || undefined;
-      const limitParam = params.limit;
-      const limit = limitParam != null
-        ? Math.min(50, Math.max(1, parseInt(String(limitParam), 10) || 10))
-        : 10;
+      const grade = (params.grade as string) || undefined; // legacy
+      const subject = (params.subject as string) || undefined; // legacy
+      const limit = 10;
 
-      const exercises = await getRandomEjercicios(grade, subject || undefined, limit);
+      const exercises = await getRandomEjercicios(grade, subject, limit);
 
       res.status(200).json({
         success: true,
@@ -1648,6 +1645,53 @@ export const onExamResultWriteStudentProgressSummary = onDocumentWritten(
     } catch (err) {
       console.error('[onExamResultWriteStudentProgressSummary]', err);
       throw err;
+    }
+  }
+);
+
+/**
+ * Al actualizar un studentSummary, recalcula el resumen agregado del grado/año.
+ * v1: recalcula completo (sin delta incremental).
+ */
+export const onStudentSummaryWriteGradeSummary = onDocumentWritten(
+  {
+    document: 'superate/auth/institutions/{institutionId}/studentSummaries/{studentId}',
+    region: REGION,
+  },
+  async (event) => {
+    const institutionIdFromPath = event.params.institutionId as string;
+    const change = event.data;
+    if (!change) return;
+
+    const beforeContext = change.before.exists
+      ? extractGradeSummaryContext(change.before.data(), institutionIdFromPath)
+      : null;
+    const afterContext = change.after.exists
+      ? extractGradeSummaryContext(change.after.data(), institutionIdFromPath)
+      : null;
+
+    const contexts = new Map<string, NonNullable<typeof afterContext>>();
+    if (beforeContext) {
+      contexts.set(
+        `${beforeContext.institutionId}|${beforeContext.gradeId}|${String(beforeContext.academicYear)}`,
+        beforeContext
+      );
+    }
+    if (afterContext) {
+      contexts.set(
+        `${afterContext.institutionId}|${afterContext.gradeId}|${String(afterContext.academicYear)}`,
+        afterContext
+      );
+    }
+    if (contexts.size === 0) return;
+
+    for (const context of contexts.values()) {
+      try {
+        await rebuildGradeSummary(context);
+      } catch (err) {
+        console.error('[onStudentSummaryWriteGradeSummary]', context, err);
+        throw err;
+      }
     }
   }
 );

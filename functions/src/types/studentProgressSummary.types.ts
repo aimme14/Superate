@@ -32,12 +32,16 @@ export interface PhaseProgressBlock {
 
 export interface StudentProgressSummaryDoc {
   studentId: string;
+  studentName?: string;
   institutionId: string;
   /** ID de la sede (campusId / sedeId / campus / sede en el doc del estudiante) */
   sedeId?: string;
+  /** Jornada normalizada: mañana | tarde */
+  jornada?: 'mañana' | 'tarde';
   /** Nombre legible de la sede (campusName, sedeNombre, etc.) */
   campusName?: string;
   gradeId?: string;
+  gradeName?: string;
   academicYear?: number | string;
   phases: Record<ProgressPhaseKey, PhaseProgressBlock>;
   totalSubmitted: number;

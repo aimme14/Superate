@@ -4,7 +4,7 @@
   "description": "Cloud Functions para el sistema de justificaciones con IA de Supérate",
   "main": "lib/index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "tsc",
@@ -32,6 +32,7 @@
     "rebuild-weblinks-consolidado": "npm run build && node lib/scripts/rebuildWebLinksConsolidado.js",
     "rebuild-youtubelinks-consolidado": "npm run build && node lib/scripts/rebuildYoutubeLinksConsolidado.js",
     "rebuild-definitionswords-consolidado": "npm run build && node lib/scripts/rebuildDefinitionsWordsConsolidado.js",
+    "rebuild-grade-summary": "npm run build && node lib/scripts/rebuildGradeSummary.js",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
   },
@@ -40,13 +41,13 @@
     "@types/pdfkit": "^0.17.5",
     "dotenv": "^17.2.3",
     "firebase-admin": "^12.7.0",
-    "firebase-functions": "^4.9.0",
+    "firebase-functions": "^7.2.2",
     "google-auth-library": "^10.5.0",
     "jsonrepair": "^3.13.1",
     "pdfkit": "^0.18.0"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
+    "@types/node": "^25.5.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
     "eslint": "^8.54.0",

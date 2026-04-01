@@ -965,6 +965,57 @@ class QuestionService {
   }
 
   /**
+   * Obtiene preguntas aleatorias con UNA sola query y limit(count).
+   * Diseñado para minimizar costos en simulacros (objetivo ~10 lecturas).
+   *
+   * Nota:
+   * Para mantener una única query no se hace "wrap-around" cuando el umbral
+   * aleatorio cae cerca del final del rango rand.
+   */
+  async getRandomQuestionsSingleQuery(
+    filters: QuestionFilters,
+    count: number
+  ): Promise<Result<Question[]>> {
+    try {
+      const normalizedFilters = this.normalizeQueryFilters(filters);
+      const questionsRef = collection(db, 'superate', 'auth', 'questions');
+      const conditions: ReturnType<typeof where>[] = [];
+
+      if (normalizedFilters.grade) {
+        conditions.push(where('grade', '==', normalizedFilters.grade));
+      }
+      if (normalizedFilters.subjectCode) {
+        conditions.push(where('subjectCode', '==', normalizedFilters.subjectCode));
+      }
+      if (normalizedFilters.subject) {
+        conditions.push(where('subject', '==', normalizedFilters.subject));
+      }
+
+      const safeCount = Math.min(10, Math.max(1, Math.trunc(count || 10)));
+      const randomThreshold = Math.random();
+
+      const q = query(
+        questionsRef,
+        ...conditions,
+        where('rand', '>=', randomThreshold),
+        orderBy('rand', 'asc'),
+        limit(safeCount)
+      );
+
+      const snapshot = await getDocs(q);
+      const questions = snapshot.docs.map((d) =>
+        this.mapDocToQuestion({ id: d.id, data: () => d.data() })
+      );
+
+      return success(shuffleArray(questions).slice(0, safeCount));
+    } catch (e) {
+      return failure(
+        new ErrorAPI(normalizeError(e, 'obtener preguntas aleatorias (single query)'))
+      );
+    }
+  }
+
+  /**
    * Actualiza una pregunta existente
    * @param questionId - ID de la pregunta
    * @param updates - Datos a actualizar (puede incluir código si cambian los parámetros)

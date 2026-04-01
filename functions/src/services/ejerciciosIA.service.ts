@@ -1,11 +1,15 @@
 /**
  * Servicio para obtener ejercicios de la colección EjerciciosIA.
  * Usado por el mini simulacro en Simulacros IA.
+ *
+ * Estrategia optimizada:
+ * - UNA sola query por clic.
+ * - Sin filtros por materia/eje/topic.
+ * - limit(10) => ~10 lecturas facturables.
  */
 
 import * as admin from 'firebase-admin';
 import { getStudentDatabase } from '../utils/firestoreHelpers';
-import { getGradeNameForAdminPath, SUBJECTS_CONFIG } from '../config/subjects.config';
 
 export interface EjercicioIA {
   question: string;
@@ -16,82 +20,48 @@ export interface EjercicioIA {
 }
 
 /**
- * Obtiene ejercicios aleatorios desde EjerciciosIA.
- * Estructura: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicio1, ejercicio2...
+ * Obtiene ejercicios aleatorios desde todas las subcolecciones "ejercicios".
+ * Estructura origen: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicioN
  *
- * Las lecturas a Firestore se ejecutan en paralelo para reducir el tiempo de respuesta.
+ * Nota:
+ * Se usa un cursor pseudoaleatorio sobre documentId (ejercicio1..ejercicio100)
+ * para variar el bloque devuelto sin aumentar el número de queries.
  *
- * @param grade - Grado del estudiante ("11", "Undécimo", etc.)
- * @param subjectCode - Código de materia (MA, BI, CS...) o undefined para aleatorio
+ * @param _grade - Parámetro legacy (ya no se usa para filtrar)
+ * @param _subjectCode - Parámetro legacy (ya no se usa para filtrar)
  * @param limit - Cantidad máxima de ejercicios a retornar (default 10)
  */
 export async function getRandomEjercicios(
-  grade: string,
-  subjectCode?: string,
+  _grade?: string,
+  _subjectCode?: string,
   limit: number = 10
 ): Promise<EjercicioIA[]> {
   const db = getStudentDatabase();
-  const gradePath = getGradeNameForAdminPath(grade);
+  const safeLimit = Math.min(10, Math.max(1, Math.trunc(limit || 10)));
 
-  const subjectsToQuery = subjectCode
-    ? SUBJECTS_CONFIG.filter((s) => s.code === subjectCode)
-    : SUBJECTS_CONFIG;
+  // Cursor pseudoaleatorio sobre IDs existentes (ejercicio1..ejercicio100).
+  const randomOrder = Math.floor(Math.random() * 100) + 1;
+  const randomDocId = `ejercicio${randomOrder}`;
 
-  /** Construir todas las referencias a subcolecciones de ejercicios */
-  const queries: Array<{
-    ref: admin.firestore.CollectionReference;
-    subject: { code: string; topics: { name: string }[] };
-    topic: { name: string; code: string };
-  }> = [];
-  for (const subject of subjectsToQuery) {
-    for (const topic of subject.topics) {
-      const ejerciciosRef = db
-        .collection('EjerciciosIA')
-        .doc(gradePath)
-        .collection(subject.code)
-        .doc(topic.code)
-        .collection('ejercicios');
-      queries.push({ ref: ejerciciosRef, subject, topic });
-    }
-  }
+  const snap = await db
+    .collectionGroup('ejercicios')
+    .where(admin.firestore.FieldPath.documentId(), '>=', randomDocId)
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(safeLimit)
+    .get();
 
-  /** Ejecutar todas las lecturas en paralelo */
-  const results = await Promise.allSettled(
-    queries.map((q) => q.ref.get())
-  );
-
-  const allExercises: EjercicioIA[] = [];
-
-  results.forEach((result, idx) => {
-    if (result.status === 'rejected') {
-      const q = queries[idx];
-      console.warn(
-        `⚠️ Error leyendo EjerciciosIA/${gradePath}/${q.subject.code}/${q.topic.code}:`,
-        result.reason?.message ?? String(result.reason)
-      );
-      return;
-    }
-    const snap = result.value;
-    const q = queries[idx];
-    snap.docs.forEach((doc) => {
-      const data = doc.data();
-      if (data?.question) {
-        allExercises.push({
-          question: data.question || '',
-          options: Array.isArray(data.options) ? data.options : [],
-          correctAnswer: data.correctAnswer || '',
-          explanation: data.explanation || '',
-          topic: data.topic || q.topic.name,
-        });
-      }
+  const exercises: EjercicioIA[] = [];
+  snap.docs.forEach((doc) => {
+    const data = doc.data();
+    if (!data?.question) return;
+    exercises.push({
+      question: data.question || '',
+      options: Array.isArray(data.options) ? data.options : [],
+      correctAnswer: data.correctAnswer || '',
+      explanation: data.explanation || '',
+      topic: data.topic || '',
     });
   });
 
-  // Fisher-Yates shuffle
-  for (let i = allExercises.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [allExercises[i], allExercises[j]] = [allExercises[j], allExercises[i]];
-  }
-
-  return allExercises.slice(0, limit);
+  return exercises;
 }

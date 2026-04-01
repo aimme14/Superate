@@ -527,7 +527,7 @@ export default function InteractiveCards() {
             disabled={showStudentFirstFetchLoading}
             className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-70"
           >
-            {showStudentFirstFetchLoading ? "Verificando…" : "Actualizar estado de módulos"}
+            {showStudentFirstFetchLoading ? "Verificando…" : "Actualizar solo cuando se valla a iniciar Evaluación"}
           </Button>
         </div>
       )}

@@ -1,43 +1,27 @@
 import { useAuthContext } from '@/context/AuthContext'
-import { useTeachers } from './useTeacherQuery'
 import { useStudentsByTeacher } from './useStudentQuery'
+import { useCurrentUser } from './useCurrentUser'
 import { useMemo } from 'react'
 
 export const useTeacherDashboardStats = () => {
   const { user } = useAuthContext()
-  
-  // Obtener todos los docentes y encontrar el actual
-  const { data: teachers, isLoading: teachersLoading, error: teachersError } = useTeachers()
-  
-  // Encontrar el docente actual por email o uid
-  const currentTeacher = useMemo(() => {
-    if (!teachers || !user) return null
-    
-    // Buscar por email primero
-    let teacher = teachers.find(t => 
-      t.email?.toLowerCase() === user.email?.toLowerCase()
-    )
-    
-    // Si no se encuentra por email, buscar por id
-    if (!teacher && user.uid) {
-      teacher = teachers.find(t => 
-        t.id === user.uid
-      )
-    }
-    
-    return teacher || null
-  }, [teachers, user])
-  
-  // Obtener estudiantes del docente usando getStudentsByTeacher que filtra por jornada
-  // Usar id del docente o uid del usuario como fallback
+
+  // Obtener perfil del docente actual desde la estructura nueva (evita lectura legacy global de teachers).
+  const {
+    data: currentTeacher,
+    isLoading: teacherLoading,
+    error: teacherError,
+  } = useCurrentUser(user?.uid, !!user?.uid)
+
+  // Obtener estudiantes del docente usando getStudentsByTeacher (filtra por jornada).
   const teacherId = currentTeacher?.id || user?.uid || ''
   const { data: teacherStudents, isLoading: studentsLoading, error: studentsError } = useStudentsByTeacher(
     teacherId, 
     !!teacherId
   )
 
-  const isLoading = teachersLoading || (!!currentTeacher && studentsLoading)
-  const hasError = teachersError || studentsError
+  const isLoading = teacherLoading || (!!teacherId && studentsLoading)
+  const hasError = teacherError || studentsError
 
   // Calcular estadísticas reales del docente
   const stats = useMemo(() => {
@@ -52,6 +36,7 @@ export const useTeacherDashboardStats = () => {
         campusId: '',
         institutionId: '',
         gradeId: '',
+        jornada: '',
         performanceMetrics: {
           overallAverage: 0,
           attendanceRate: 0,
@@ -67,14 +52,15 @@ export const useTeacherDashboardStats = () => {
       totalStudents: students.length,
       
       // Información del docente - datos reales
-      teacherName: currentTeacher.name || user?.displayName || 'Docente',
-      institutionName: currentTeacher.institutionName || user?.institution || 'Institución',
-      campusName: currentTeacher.campusName || user?.campus || 'Sede',
-      gradeName: currentTeacher.gradeName || user?.grade || 'Grado',
-      teacherEmail: currentTeacher.email || user?.email || '',
-      campusId: currentTeacher.campusId || '',
-      institutionId: currentTeacher.institutionId || '',
-      gradeId: currentTeacher.gradeId || '',
+      teacherName: (currentTeacher as any).name || user?.displayName || 'Docente',
+      institutionName: (currentTeacher as any).institutionName || user?.institution || 'Institución',
+      campusName: (currentTeacher as any).campusName || user?.campus || 'Sede',
+      gradeName: (currentTeacher as any).gradeName || user?.grade || 'Grado',
+      teacherEmail: (currentTeacher as any).email || user?.email || '',
+      campusId: (currentTeacher as any).campusId || '',
+      institutionId: (currentTeacher as any).institutionId || '',
+      gradeId: (currentTeacher as any).gradeId || '',
+      jornada: (currentTeacher as any).jornada || '',
       
       // Métricas de rendimiento (usando datos reales donde sea posible)
       performanceMetrics: {

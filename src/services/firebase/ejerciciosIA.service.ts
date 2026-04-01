@@ -15,7 +15,7 @@ export interface EjercicioIA {
 }
 
 export interface GetRandomEjerciciosParams {
-  grade: string;
+  grade?: string;
   subject?: string;
   limit?: number;
 }
@@ -28,14 +28,14 @@ export interface GetRandomEjerciciosResult {
 
 /**
  * Obtiene ejercicios aleatorios desde EjerciciosIA.
- * @param params - grade (ej. "11"), subject opcional (MA, BI, CS...), limit (default 10)
+ * @param params - grade/subject legacy (backend ya no filtra por estos campos), limit (default 10)
  */
 export async function getRandomEjercicios(
   params: GetRandomEjerciciosParams
 ): Promise<GetRandomEjerciciosResult> {
   const { grade, subject, limit = 10 } = params;
   const url = new URL(`${FUNCTIONS_URL}/getRandomEjerciciosIA`);
-  url.searchParams.set('grade', grade);
+  if (grade) url.searchParams.set('grade', grade);
   if (subject) url.searchParams.set('subject', subject);
   url.searchParams.set('limit', String(limit));
 

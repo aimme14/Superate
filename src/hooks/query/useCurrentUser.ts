@@ -38,8 +38,8 @@ export function useCurrentUser(uid: string | undefined, enabled: boolean = true)
     gcTime: Infinity,
     retry: 1,
     refetchOnWindowFocus: false,
-    refetchOnReconnect: true,
-    // Si el estado hidratado trae error, forzamos una lectura al montar para recuperarse.
-    refetchOnMount: 'always',
+    refetchOnReconnect: false,
+    // Solo refrescar por logout/login, refresh manual o invalidación explícita.
+    refetchOnMount: false,
   })
 }

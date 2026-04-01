@@ -21,8 +21,8 @@ import type {
   TrendLabel,
 } from '../types/studentProgressSummary.types';
 
-/** v2: examSnapshot por materia con copia completa del doc en results */
-const SCHEMA_VERSION = 2;
+/** v3: metadatos de estudiante/jornada/grade/campus para lecturas summary-only */
+const SCHEMA_VERSION = 3;
 const TOTAL_POSSIBLE_SUBMISSIONS = EXPECTED_SUBJECT_COUNT * 3;
 
 /**
@@ -227,10 +227,43 @@ function trendFromAvgs(a: number | null, b: number | null): TrendLabel | null {
 
 export interface StudentInstitutionContext {
   institutionId: string;
+  studentName?: string;
   sedeId?: string;
+  jornada?: 'mañana' | 'tarde';
   campusName?: string;
   gradeId?: string;
+  gradeName?: string;
   academicYear?: number | string;
+}
+
+function pickStudentNameFromStudent(
+  d: admin.firestore.DocumentData | undefined
+): string | undefined {
+  if (!d) return undefined;
+  const ordered: unknown[] = [d.name, d.displayName, d.fullName, d.nombre];
+  for (const v of ordered) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function normalizeJornada(value: unknown): 'mañana' | 'tarde' | undefined {
+  if (typeof value !== 'string') return undefined;
+  const v = value.trim().toLowerCase();
+  if (v === 'manana' || v === 'mañana') return 'mañana';
+  if (v === 'tarde') return 'tarde';
+  return undefined;
+}
+
+function pickGradeNameFromStudent(
+  d: admin.firestore.DocumentData | undefined
+): string | undefined {
+  if (!d) return undefined;
+  const ordered: unknown[] = [d.gradeName, d.grade];
+  for (const v of ordered) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return undefined;
 }
 
 /** ID de sede: campusId y sedeId primero; luego campus/sede si son string no vacíos */
@@ -268,9 +301,12 @@ function contextFromStudentDoc(
 ): StudentInstitutionContext {
   return {
     institutionId,
+    studentName: pickStudentNameFromStudent(d),
     sedeId: pickSedeIdFromStudent(d),
+    jornada: normalizeJornada(d?.jornada),
     campusName: pickCampusNameFromStudent(d),
     gradeId: (d?.gradeId || d?.grade) as string | undefined,
+    gradeName: pickGradeNameFromStudent(d),
     academicYear: d?.academicYear as number | string | undefined,
   };
 }
@@ -360,10 +396,13 @@ export async function rebuildStudentProgressSummary(
     lastUpdatedAt: admin.firestore.FieldValue;
   } = {
     studentId,
+    studentName: ctx.studentName,
     institutionId: ctx.institutionId,
     sedeId: ctx.sedeId,
+    jornada: ctx.jornada,
     campusName: ctx.campusName,
     gradeId: ctx.gradeId,
+    gradeName: ctx.gradeName,
     academicYear: ctx.academicYear,
     phases,
     totalSubmitted,

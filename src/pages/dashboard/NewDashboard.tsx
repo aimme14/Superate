@@ -98,11 +98,11 @@ export function Home() {
               <h2 className={cn("text-3xl sm:text-4xl font-bold mb-4", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 Módulos de{" "}
                 <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                  Evaluación
+                  Seguimiento Académico
                 </span>
               </h2>
               <p className={cn("text-lg sm:text-xl max-w-3xl mx-auto", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Selecciona un módulo para comenzar tu evaluación.
+                Selecciona un módulo para comenzar tu evaluación solo cuando el docente de aula lo hay indicado .
               </p>
               <Suspense fallback={null}>
                 <Intento />

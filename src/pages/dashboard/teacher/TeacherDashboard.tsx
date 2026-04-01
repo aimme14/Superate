@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -27,9 +27,9 @@ import {
 import { cn } from '@/lib/utils'
 import { useTeacherDashboardStats } from '@/hooks/query/useTeacherDashboardStats'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { DASHBOARD_TEACHER_CACHE } from '@/config/dashboardTeacherCache'
-import { collection, getDocs, getFirestore } from 'firebase/firestore'
+import { collection, getDocs, getFirestore, query as fsQuery, where } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -37,7 +37,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Progress } from '@/components/ui/progress'
-import { useStudentAnalysis } from '@/hooks/query/useAdminAnalysis'
 import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
 import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
 import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
@@ -47,6 +46,8 @@ import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRo
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
 import { getWhatsAppUrl } from '@/components/WhatsAppFab'
+import { displayNameFromSubjectSlug, fetchGradeSummaryByContext, type GradeSummaryDoc } from '@/services/teacher/gradeSummary.service'
+import { examResultsFromSummaryData, type StudentProgressSummaryDoc } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
 
 const db = getFirestore(firebaseApp)
 const RANKING_INITIAL_VISIBLE = 10
@@ -54,27 +55,98 @@ const RANKING_INITIAL_VISIBLE = 10
 interface TeacherDashboardProps extends ThemeContextProps {}
 
 export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
-  const { stats, isLoading, students } = useTeacherDashboardStats()
+  const { stats, isLoading } = useTeacherDashboardStats()
   const { institutionName, institutionLogo } = useUserInstitution()
   const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = useState('inicio')
   const [rankingFilters, setRankingFilters] = useState<{
     jornada: 'mañana' | 'tarde' | 'única' | 'todas'
     phase: 'first' | 'second' | 'third'
-    year: number
   }>({
     jornada: 'todas',
     phase: 'first',
-    year: new Date().getFullYear()
   })
   const [evolutionFilters, setEvolutionFilters] = useState<{
-    year: number
     subject: string
     jornada: string
   }>({
-    year: new Date().getFullYear(),
     subject: 'todas',
     jornada: 'todas'
+  })
+
+  const summaryContext = useMemo(
+    () => ({
+      institutionId: stats.institutionId || '',
+      gradeId: stats.gradeId || '',
+    }),
+    [stats.institutionId, stats.gradeId]
+  )
+
+  const currentAcademicYear = new Date().getFullYear()
+  const {
+    data: gradeSummary,
+    isLoading: gradeSummaryLoading,
+    error: gradeSummaryError,
+    refetch: refetchGradeSummary,
+  } = useQuery({
+    queryKey: ['teacher-grade-summary-shared', summaryContext.institutionId, summaryContext.gradeId, currentAcademicYear],
+    queryFn: () =>
+      fetchGradeSummaryByContext({
+        ...summaryContext,
+        academicYear: currentAcademicYear,
+      }),
+    enabled: !!summaryContext.institutionId && !!summaryContext.gradeId,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    retry: 1,
+  })
+
+  const totalStudents = gradeSummary?.totalStudents ?? stats.totalStudents
+  const currentYear = new Date().getFullYear()
+  const normalizedTeacherJornada =
+    stats.jornada === 'mañana' || stats.jornada === 'tarde' ? stats.jornada : null
+  const hasValidTeacherJornada = normalizedTeacherJornada !== null
+
+  const { data: studentSummaries = [] } = useQuery({
+    queryKey: [
+      'teacher-student-summaries',
+      summaryContext.institutionId,
+      summaryContext.gradeId,
+      stats.campusId,
+      normalizedTeacherJornada,
+      currentYear,
+    ],
+    queryFn: async () => {
+      if (!summaryContext.institutionId || !summaryContext.gradeId) return []
+      if (!hasValidTeacherJornada) return []
+      const baseRef = collection(
+        db,
+        'superate',
+        'auth',
+        'institutions',
+        summaryContext.institutionId,
+        'studentSummaries'
+      )
+      const constraints: any[] = [
+        where('gradeId', '==', summaryContext.gradeId),
+        where('academicYear', '==', currentYear),
+        where('jornada', '==', normalizedTeacherJornada),
+      ]
+      if (stats.campusId) constraints.push(where('sedeId', '==', stats.campusId))
+
+      const snap = await getDocs(fsQuery(baseRef, ...constraints))
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as StudentProgressSummaryDoc) }))
+    },
+    enabled: !!summaryContext.institutionId && !!summaryContext.gradeId && hasValidTeacherJornada,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    retry: 1,
   })
 
   if (isLoading) {
@@ -141,7 +213,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       <div className="hidden md:grid md:grid-cols-3 gap-3 mx-4 md:mx-6 lg:mx-8 mt-2.5 fade-in duration-200">
         {[
           { icon: Sparkles, label: 'Inicio', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'inicio' },
-          { icon: Users, label: 'Mis Estudiantes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes', count: stats?.totalStudents ?? null },
+          { icon: Users, label: 'Mis Estudiantes', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'estudiantes', count: totalStudents ?? null },
           { icon: BarChart3, label: 'Análisis del curso', color: theme === 'dark' ? 'from-slate-700 to-slate-800' : 'from-slate-600 to-slate-700', tab: 'analisis-curso' },
         ].map((btn) => (
           <div key={btn.label}>
@@ -173,9 +245,15 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
             <WelcomeTab
               theme={theme}
               stats={stats}
-              students={students || []}
+              summaryContext={summaryContext}
+              totalStudents={totalStudents}
+              gradeSummary={gradeSummary}
+              gradeSummaryLoading={gradeSummaryLoading}
+              gradeSummaryError={gradeSummaryError}
+              refetchGradeSummary={refetchGradeSummary}
               rankingFilters={rankingFilters}
               setRankingFilters={setRankingFilters}
+              studentSummaries={studentSummaries}
               evolutionFilters={evolutionFilters}
               setEvolutionFilters={setEvolutionFilters}
             />
@@ -183,12 +261,18 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
         )}
         {activeTab === 'estudiantes' && (
           <div className="space-y-6">
-            <StudentsTab theme={theme} students={students || []} stats={stats} />
+            <StudentsTab theme={theme} studentSummaries={studentSummaries} stats={stats} />
           </div>
         )}
         {activeTab === 'analisis-curso' && (
           <div className="space-y-6">
-            <CourseAnalysisTab theme={theme} students={students || []} />
+            <CourseAnalysisTab
+              theme={theme}
+              gradeSummary={gradeSummary}
+              gradeSummaryLoading={gradeSummaryLoading}
+              gradeSummaryError={gradeSummaryError}
+              refetchGradeSummary={refetchGradeSummary}
+            />
           </div>
         )}
       </div>
@@ -228,59 +312,19 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   )
 }
 
-type TeacherRankingFilters = { jornada: string; phase: string; year: number }
+type TeacherRankingFilters = { jornada: string; phase: string }
 
 async function fetchTeacherRanking(
-  students: any[],
+  studentSummaries: StudentProgressSummaryDoc[],
   filters: TeacherRankingFilters
 ): Promise<Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }>> {
-  if (!students?.length) return []
-  let filtered = [...students]
+  if (!studentSummaries?.length) return []
+  let filtered = [...studentSummaries]
   if (filters.jornada && filters.jornada !== 'todas') {
     filtered = filtered.filter((s: any) => (s.jornada || '').toLowerCase() === filters.jornada.toLowerCase())
   }
-  if (filters.year) {
-    const getYear = (s: any): number | null =>
-      s.academicYear ?? (s.createdAt ? (typeof s.createdAt === 'string' ? new Date(s.createdAt).getFullYear() : s.createdAt?.toDate ? s.createdAt.toDate().getFullYear() : s.createdAt?.seconds ? new Date(s.createdAt.seconds * 1000).getFullYear() : null) : null)
-    filtered = filtered.filter((s: any) => {
-      const y = getYear(s)
-      return y !== null && y === filters.year
-    })
-  }
-  const studentIds = filtered.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-  if (studentIds.length === 0) return []
 
   const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-  const phaseMap: Record<string, string> = { first: 'fase I', second: 'Fase II', third: 'fase III' }
-  const phaseName = phaseMap[filters.phase] || 'fase I'
-  const phaseResults: { userId: string; subject: string; score: { overallPercentage: number } }[] = []
-
-  for (const studentId of studentIds) {
-    try {
-      const phaseRef = collection(db, 'results', studentId, phaseName)
-      const phaseSnap = await getDocs(phaseRef)
-      phaseSnap.docs.forEach(doc => {
-        const examData = doc.data()
-        if (examData.completed && examData.score && examData.subject) {
-          phaseResults.push({
-            userId: studentId,
-            subject: examData.subject.trim(),
-            score: { overallPercentage: examData.score.overallPercentage || 0 }
-          })
-        }
-      })
-    } catch (err) {
-      console.error(`Error resultados estudiante ${studentId}:`, err)
-    }
-  }
-
-  const resultsByStudent = new Map<string, { scores: number[]; subjects: Set<string> }>()
-  phaseResults.forEach(r => {
-    if (!resultsByStudent.has(r.userId)) resultsByStudent.set(r.userId, { scores: [], subjects: new Set() })
-    const data = resultsByStudent.get(r.userId)!
-    data.scores.push(r.score.overallPercentage)
-    data.subjects.add(r.subject.trim())
-  })
 
   const NATURALES_SUBJECTS = ['Biologia', 'Quimica', 'Física']
   const POINTS_NAT = 100 / 3
@@ -295,43 +339,72 @@ async function fetchTeacherRanking(
   }
 
   const ranking: Array<{ student: any; globalScore: number; totalExams: number; completedSubjects: number }> = []
-  filtered.forEach((student: any) => {
-    const sid = student.id || student.uid
-    const data = resultsByStudent.get(sid)
-    if (!data || data.subjects.size === 0) return
-    if (!REQUIRED_SUBJECTS.every(sub => data.subjects.has(sub))) return
+  filtered.forEach((summary: any) => {
+    const sid = summary.studentId || summary.id
+    if (!sid) return
+    const phaseBlock = summary?.phases?.[filters.phase]
+    if (!phaseBlock?.subjects || typeof phaseBlock.subjects !== 'object') return
+
     const subjectScores: Record<string, number> = {}
-    phaseResults.filter(r => r.userId === sid).forEach(r => {
-      const sub = normalizeSubject(r.subject || '')
-      const pct = r.score?.overallPercentage || 0
-      if (!subjectScores[sub] || pct > subjectScores[sub]) subjectScores[sub] = pct
+    const completedSubjectsSet = new Set<string>()
+
+    Object.entries(phaseBlock.subjects).forEach(([subjectSlug, cell]: [string, any]) => {
+      const displaySubject = normalizeSubject(displayNameFromSubjectSlug(subjectSlug))
+      const pctFromSnapshot = cell?.examSnapshot?.score?.overallPercentage
+      const pctFromCell = cell?.score
+      const pct =
+        typeof pctFromSnapshot === 'number'
+          ? pctFromSnapshot
+          : typeof pctFromCell === 'number'
+            ? pctFromCell
+            : 0
+      if (pct > 0 || typeof pctFromSnapshot === 'number' || typeof pctFromCell === 'number') {
+        completedSubjectsSet.add(displaySubject)
+      }
+      if (!subjectScores[displaySubject] || pct > subjectScores[displaySubject]) {
+        subjectScores[displaySubject] = pct
+      }
     })
+
+    if (!REQUIRED_SUBJECTS.every((sub) => completedSubjectsSet.has(sub))) return
+
     let globalScore = 0
     Object.entries(subjectScores).forEach(([sub, pct]) => {
       globalScore += NATURALES_SUBJECTS.includes(sub) ? (pct / 100) * POINTS_NAT : (pct / 100) * POINTS_REG
     })
-    ranking.push({ student, globalScore: Math.round(globalScore * 100) / 100, totalExams: data.scores.length, completedSubjects: data.subjects.size })
+    ranking.push({
+      student: {
+        id: sid,
+        uid: sid,
+        name: summary.studentName || 'Estudiante',
+        displayName: summary.studentName || 'Estudiante',
+        gradeName: summary.gradeName || '',
+        jornada: summary.jornada || '',
+      },
+      globalScore: Math.round(globalScore * 100) / 100,
+      totalExams: Object.keys(phaseBlock.subjects || {}).length,
+      completedSubjects: completedSubjectsSet.size,
+    })
   })
   ranking.sort((a, b) => (a.totalExams === 0 && b.totalExams > 0 ? 1 : a.totalExams > 0 && b.totalExams === 0 ? -1 : b.globalScore - a.globalScore))
   return ranking
 }
 
-// Ranking de mejores estudiantes del docente (solo sus estudiantes, con filtros jornada/fase/año)
-function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters }: {
+// Ranking de mejores estudiantes del docente (solo sus estudiantes, con filtro por fase)
+function TeacherRankingCard({ theme, studentSummaries, rankingFilters, setRankingFilters }: {
   theme: 'light' | 'dark'
-  students: any[]
+  studentSummaries: StudentProgressSummaryDoc[]
   rankingFilters: TeacherRankingFilters
   setRankingFilters: (f: any) => void
 }) {
   const isMobile = useIsMobile()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const queryClient = useQueryClient()
-  const studentsKey = students.map((s: any) => s.id || s.uid).join(',')
+  const summariesKey = studentSummaries.map((s: any) => s.studentId || s.id).filter(Boolean).join(',')
 
   const { data: rankingData, isLoading: rankingLoading, error: rankingError, refetch: refetchRanking } = useQuery({
-    queryKey: ['teacher-students-ranking', studentsKey, rankingFilters],
-    queryFn: () => fetchTeacherRanking(students, rankingFilters),
-    enabled: !!students?.length,
+    queryKey: ['teacher-students-ranking', summariesKey, rankingFilters],
+    queryFn: () => fetchTeacherRanking(studentSummaries, rankingFilters),
+    enabled: !!studentSummaries?.length,
     staleTime: DASHBOARD_TEACHER_CACHE.staleTimeMs,
     gcTime: DASHBOARD_TEACHER_CACHE.gcTimeMs,
     placeholderData: keepPreviousData,
@@ -342,29 +415,6 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
 
   const [showAllRanking, setShowAllRanking] = useState(false)
   useEffect(() => setShowAllRanking(false), [rankingFilters])
-
-  useEffect(() => {
-    if (!students?.length) return
-    const currentYear = new Date().getFullYear()
-    const base: TeacherRankingFilters = { jornada: 'todas', phase: 'first', year: currentYear }
-    ;[
-      { ...base, phase: 'second' },
-      { ...base, phase: 'third' },
-      { ...base, jornada: 'mañana' },
-      { ...base, jornada: 'tarde' },
-      { ...base, jornada: 'única' },
-    ].forEach((f) => {
-      queryClient.prefetchQuery({
-        queryKey: ['teacher-students-ranking', studentsKey, f],
-        queryFn: () => fetchTeacherRanking(students, f),
-        staleTime: DASHBOARD_TEACHER_CACHE.staleTimeMs,
-        gcTime: DASHBOARD_TEACHER_CACHE.gcTimeMs,
-      })
-    })
-  }, [studentsKey, queryClient])
-
-  const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   return (
     <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
@@ -377,7 +427,7 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
             </CardTitle>
             {!isMobile && <CardDescription>Solo estudiantes de tu grado, ordenados por rendimiento</CardDescription>}
             <p className={cn('text-xs mt-1', isMobile && 'truncate pr-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
-              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year}
+              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -393,10 +443,6 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
                     <Select value={rankingFilters.phase} onValueChange={(v) => setRankingFilters({ ...rankingFilters, phase: v })}>
                       <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por fase"><SelectValue /></SelectTrigger>
                       <SelectContent><SelectItem value="first">Fase I</SelectItem><SelectItem value="second">Fase II</SelectItem><SelectItem value="third">Fase III</SelectItem></SelectContent>
-                    </Select>
-                    <Select value={rankingFilters.year.toString()} onValueChange={(v) => setRankingFilters({ ...rankingFilters, year: parseInt(v) })}>
-                      <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año académico"><SelectValue /></SelectTrigger>
-                      <SelectContent>{years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
                     </Select>
                   </div>
                 </PopoverContent>
@@ -414,17 +460,6 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
                     <SelectItem value="first">Fase I</SelectItem>
                     <SelectItem value="second">Fase II</SelectItem>
                     <SelectItem value="third">Fase III</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col items-center gap-0.5">
-                <label className={cn('text-[10px] leading-none', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Año</label>
-                <Select value={rankingFilters.year.toString()} onValueChange={(v) => setRankingFilters({ ...rankingFilters, year: parseInt(v) })}>
-                  <SelectTrigger className={cn('h-8 w-20 text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año académico">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
@@ -468,7 +503,6 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
                       </div>
                       <div className="min-w-0">
                         <p className={cn(isMobile ? 'font-medium text-[13px] truncate' : 'font-medium text-sm truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{item.student.name || item.student.displayName || 'Estudiante'}</p>
-                        {item.student.gradeName && <p className={cn(isMobile ? 'text-[9px] leading-tight' : 'text-[10px] leading-tight', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>{item.student.gradeName}</p>}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -500,7 +534,7 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
           <div className="text-center py-8 space-y-2">
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay estudiantes con resultados para los filtros seleccionados</p>
             <p className={cn('text-xs', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
-              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'} · {rankingFilters.year}
+              {rankingFilters.phase === 'first' ? 'Fase I' : rankingFilters.phase === 'second' ? 'Fase II' : 'Fase III'}
             </p>
           </div>
         )}
@@ -510,77 +544,53 @@ function TeacherRankingCard({ theme, students, rankingFilters, setRankingFilters
 }
 
 // Evolución por Materia (solo estudiantes del docente; clave sin materia, filtro materia en cliente)
-function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }: {
+function TeacherEvolutionBySubjectChart({
+  theme,
+  filters,
+  setFilters,
+  gradeSummary,
+  gradeSummaryLoading,
+  gradeSummaryError,
+  refetchGradeSummary,
+}: {
   theme: 'light' | 'dark'
-  students: any[]
-  filters: { year: number; subject: string; jornada: string }
+  filters: { subject: string; jornada: string }
   setFilters: (f: any) => void
+  gradeSummary: GradeSummaryDoc | null | undefined
+  gradeSummaryLoading: boolean
+  gradeSummaryError: unknown
+  refetchGradeSummary: () => void
 }) {
   const isMobile = useIsMobile()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
+  const fixedYear = new Date().getFullYear()
   const subjects = ['todas', 'Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-  const studentsKey = students.map((s: any) => s.id || s.uid).join(',')
-  const evolutionDataKey = { year: filters.year, jornada: filters.jornada }
-
-  const { data: evolutionData, isLoading: evolutionLoading, error: evolutionError, refetch: refetchEvolution } = useQuery({
-    queryKey: ['teacher-evolution-data', studentsKey, evolutionDataKey],
-    queryFn: async ({ queryKey }: { queryKey: unknown[] }) => {
-      const key = queryKey[2] as { year: number; jornada: string }
-      if (!students?.length) return { chartData: [], subjects: [] }
-      let filtered = [...students]
-      if (key.year) {
-        const getYear = (s: any) => s.academicYear ?? (s.createdAt ? (typeof s.createdAt === 'string' ? new Date(s.createdAt).getFullYear() : s.createdAt?.toDate ? s.createdAt.toDate().getFullYear() : s.createdAt?.seconds ? new Date(s.createdAt.seconds * 1000).getFullYear() : null) : null)
-        filtered = filtered.filter((s: any) => { const y = getYear(s); return y !== null && y === key.year })
-      }
-      if (key.jornada && key.jornada !== 'todas') filtered = filtered.filter((s: any) => (s.jornada || '').toLowerCase() === key.jornada.toLowerCase())
-      const studentIds = filtered.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-      if (studentIds.length === 0) return { chartData: [], subjects: [] }
-
-      const normalize = (sub: string) => ({ 'Matematicas': 'Matemáticas', 'Sociales': 'Ciencias Sociales', 'Biología': 'Biologia', 'Química': 'Quimica', 'Fisica': 'Física', 'Ingles': 'Inglés' }[sub.trim()] || sub.trim())
-      const allPossible = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-      const phases = [{ key: 'first', name: 'fase I' }, { key: 'second', name: 'Fase II' }, { key: 'third', name: 'fase III' }]
-      const resultsByPhase = new Map<string, Map<string, number[]>>()
-
-      for (const sid of studentIds) {
-        for (const phase of phases) {
-          try {
-            const snap = await getDocs(collection(db, 'results', sid, phase.name))
-            snap.docs.forEach(doc => {
-              const d = doc.data()
-              if (d.completed && d.score && d.subject && allPossible.includes(normalize(d.subject))) {
-                const sub = normalize(d.subject)
-                if (!resultsByPhase.has(phase.key)) resultsByPhase.set(phase.key, new Map())
-                const m = resultsByPhase.get(phase.key)!
-                if (!m.has(sub)) m.set(sub, [])
-                m.get(sub)!.push(d.score.overallPercentage || 0)
-              }
-            })
-          } catch (_) {}
-        }
-      }
-      const allSubjectsSet = new Set<string>()
-      resultsByPhase.forEach(m => m.forEach((_, sub) => allSubjectsSet.add(sub)))
-      const allSubjects = Array.from(allSubjectsSet).sort()
-      const chartData: any[] = []
-      phases.forEach(phase => {
-        const point: any = { fase: phase.key === 'first' ? 'Fase I' : phase.key === 'second' ? 'Fase II' : 'Fase III' }
-        allSubjects.forEach(sub => {
-          const scores = resultsByPhase.get(phase.key)?.get(sub) || []
-          point[sub] = scores.length ? Math.round((scores.reduce((a: number, b: number) => a + b, 0) / scores.length) * 100) / 100 : null
-        })
-        chartData.push(point)
+  const evolutionData = useMemo(() => {
+    if (!gradeSummary?.phases) return { chartData: [], subjects: [] as string[] }
+    const phaseKeys: Array<'first' | 'second' | 'third'> = ['first', 'second', 'third']
+    const allSubjectsSet = new Set<string>()
+    for (const phaseKey of phaseKeys) {
+      const phaseSubjects = gradeSummary.phases[phaseKey]?.subjects || {}
+      Object.keys(phaseSubjects).forEach((subjectSlug) => {
+        allSubjectsSet.add(displayNameFromSubjectSlug(subjectSlug))
       })
-      return { chartData, subjects: allSubjects }
-    },
-    enabled: !!students?.length,
-    staleTime: DASHBOARD_TEACHER_CACHE.staleTimeMs,
-    gcTime: DASHBOARD_TEACHER_CACHE.gcTimeMs,
-    placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  })
+    }
+    const allSubjects = Array.from(allSubjectsSet).sort()
+    const chartData: any[] = phaseKeys.map((phaseKey) => {
+      const point: any = {
+        fase: phaseKey === 'first' ? 'Fase I' : phaseKey === 'second' ? 'Fase II' : 'Fase III'
+      }
+      const phaseSubjects = gradeSummary.phases[phaseKey]?.subjects || {}
+      for (const subjectName of allSubjects) {
+        const subjectSlug = Object.keys(phaseSubjects).find(
+          (slug) => displayNameFromSubjectSlug(slug) === subjectName
+        )
+        point[subjectName] = subjectSlug ? (phaseSubjects[subjectSlug]?.avgPct ?? null) : null
+      }
+      return point
+    })
+    return { chartData, subjects: allSubjects }
+  }, [gradeSummary])
 
   const displaySubjects = evolutionData?.subjects?.length
     ? filters.subject === 'todas'
@@ -611,7 +621,7 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
             </CardDescription>
             )}
             <p className={cn('text-[10px] mt-0.5', isMobile && 'truncate pr-1', theme === 'dark' ? 'text-gray-500' : 'text-gray-500')} aria-live="polite">
-              {filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject}
+              {fixedYear} · {filters.subject === 'todas' ? 'Todas' : filters.subject}
             </p>
           </div>
           <div className="flex items-end gap-2 flex-wrap">
@@ -624,10 +634,6 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className={cn('w-60 p-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-300')}>
                   <div className="grid grid-cols-1 gap-2">
-                    <Select value={filters.year.toString()} onValueChange={(v) => setFilters({ ...filters, year: parseInt(v) })}>
-                      <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año"><SelectValue placeholder="Año" /></SelectTrigger>
-                      <SelectContent>{years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
-                    </Select>
                     <Select value={filters.subject} onValueChange={(v) => setFilters({ ...filters, subject: v })}>
                       <SelectTrigger className={cn('h-8 w-full text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por materia"><SelectValue placeholder="Materia" /></SelectTrigger>
                       <SelectContent>{subjects.map(s => (<SelectItem key={s} value={s}>{s === 'todas' ? 'Todas las materias' : s}</SelectItem>))}</SelectContent>
@@ -638,15 +644,6 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
             )}
             {!isMobile && (
             <>
-            <div className="flex flex-col gap-0.5">
-              <label className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Año</label>
-              <Select value={filters.year.toString()} onValueChange={(v) => setFilters({ ...filters, year: parseInt(v) })}>
-                <SelectTrigger className={cn('h-7 w-20 text-xs', theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-300')} aria-label="Filtrar por año">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>{years.map(y => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
-              </Select>
-            </div>
             <div className="flex flex-col gap-0.5">
               <label className={cn('text-[10px] font-medium', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>Materia</label>
               <Select value={filters.subject} onValueChange={(v) => setFilters({ ...filters, subject: v })}>
@@ -662,14 +659,14 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
         </div>
       </CardHeader>
       <CardContent className={cn(isMobile ? 'pt-0 px-3 pb-3' : 'pt-0')}>
-        {evolutionError ? (
+        {gradeSummaryError ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3">
             <p className={cn('text-sm text-center', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error al cargar la evolución. Por favor, intenta nuevamente.</p>
-            <Button variant="outline" size="sm" onClick={() => refetchEvolution()} className={cn(theme === 'dark' ? 'border-zinc-600 hover:bg-zinc-800' : 'border-gray-300 hover:bg-gray-100')}>
+            <Button variant="outline" size="sm" onClick={() => refetchGradeSummary()} className={cn(theme === 'dark' ? 'border-zinc-600 hover:bg-zinc-800' : 'border-gray-300 hover:bg-gray-100')}>
               <RotateCw className="h-4 w-4 mr-2" /> Reintentar
             </Button>
           </div>
-        ) : evolutionLoading ? (
+        ) : gradeSummaryLoading ? (
           <div className="space-y-2 py-2" aria-busy="true" aria-label="Cargando evolución por materia">
             <div className={cn('h-48 rounded-md animate-pulse', theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-200')} />
             <div className="flex flex-wrap gap-2 justify-center">
@@ -692,12 +689,12 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
         ) : hasChartData && filters.subject !== 'todas' && displaySubjects.length === 0 ? (
           <div className="text-center py-8 space-y-1">
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos para {filters.subject} con los filtros seleccionados</p>
-            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year}</p>
+            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{fixedYear}</p>
           </div>
         ) : (
           <div className="text-center py-8 space-y-1">
             <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>No hay datos disponibles para los filtros seleccionados</p>
-            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{filters.year} · {filters.subject === 'todas' ? 'Todas' : filters.subject}</p>
+            <p className={cn('text-[10px]', theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>{fixedYear} · {filters.subject === 'todas' ? 'Todas' : filters.subject}</p>
           </div>
         )}
       </CardContent>
@@ -706,82 +703,39 @@ function TeacherEvolutionBySubjectChart({ theme, students, filters, setFilters }
 }
 
 // Promedio del grado por fase (tarjeta con filtro de fase)
-function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; students: any[] }) {
+function GradeAverageCard({
+  theme,
+  gradeSummary,
+  gradeSummaryLoading,
+  gradeSummaryError,
+  refetchGradeSummary,
+}: {
+  theme: 'light' | 'dark'
+  gradeSummary: GradeSummaryDoc | null | undefined
+  gradeSummaryLoading: boolean
+  gradeSummaryError: unknown
+  refetchGradeSummary: () => void
+}) {
   const isMobile = useIsMobile()
   const [mobilePhaseOpen, setMobilePhaseOpen] = useState(false)
   const [phase, setPhase] = useState<'first' | 'second' | 'third'>('first')
-  const phaseMap: Record<string, string> = { first: 'fase I', second: 'Fase II', third: 'fase III' }
-  const phaseName = phaseMap[phase]
+  const average = useMemo(() => {
+    if (!gradeSummary?.phases?.[phase]) return null
+    const NATURALES = ['Biologia', 'Quimica', 'Física']
+    const POINTS_NAT = 100 / 3
+    const POINTS_REG = 100
+    const subjects = gradeSummary.phases[phase].subjects || {}
+    const entries = Object.entries(subjects).filter(([, value]) => typeof value.avgPct === 'number')
+    if (!entries.length) return null
 
-  const { data: average, isLoading, error: averageError, refetch: refetchAverage } = useQuery({
-    queryKey: ['teacher-grade-average', students.map((s: any) => s.id || s.uid).join(','), phase],
-    queryFn: async () => {
-      if (!students?.length) return null
-      const studentIds = students.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-      const REQUIRED_SUBJECTS = ['Matemáticas', 'Lenguaje', 'Ciencias Sociales', 'Biologia', 'Quimica', 'Física', 'Inglés']
-      const NATURALES = ['Biologia', 'Quimica', 'Física']
-      const POINTS_NAT = 100 / 3
-      const POINTS_REG = 100
-      const normalizeSubject = (s: string): string => {
-        const n = s.trim().toLowerCase()
-        const map: Record<string, string> = {
-          biologia: 'Biologia', quimica: 'Quimica', fisica: 'Física', matematicas: 'Matemáticas',
-          lenguaje: 'Lenguaje', 'ciencias sociales': 'Ciencias Sociales', ingles: 'Inglés'
-        }
-        return map[n] || s
-      }
-
-      const phaseResults: { userId: string; subject: string; overallPercentage: number }[] = []
-      for (const studentId of studentIds) {
-        try {
-          const ref = collection(db, 'results', studentId, phaseName)
-          const snap = await getDocs(ref)
-          snap.docs.forEach(doc => {
-            const d = doc.data()
-            if (d.completed && d.score && d.subject) {
-              phaseResults.push({
-                userId: studentId,
-                subject: normalizeSubject(d.subject),
-                overallPercentage: d.score.overallPercentage ?? 0
-              })
-            }
-          })
-        } catch (err) {
-          console.error(`Error grade average ${studentId}:`, err)
-        }
-      }
-
-      const byStudent = new Map<string, Map<string, number>>()
-      phaseResults.forEach(r => {
-        if (!byStudent.has(r.userId)) byStudent.set(r.userId, new Map())
-        const subMap = byStudent.get(r.userId)!
-        if (!subMap.has(r.subject) || r.overallPercentage > (subMap.get(r.subject) ?? 0)) {
-          subMap.set(r.subject, r.overallPercentage)
-        }
-      })
-
-      const globalScores: number[] = []
-      byStudent.forEach((subMap) => {
-        if (!REQUIRED_SUBJECTS.every(sub => subMap.has(sub))) return
-        let globalScore = 0
-        subMap.forEach((pct, sub) => {
-          globalScore += NATURALES.includes(sub) ? (pct / 100) * POINTS_NAT : (pct / 100) * POINTS_REG
-        })
-        globalScores.push(Math.round(globalScore * 100) / 100)
-      })
-
-      if (globalScores.length === 0) return null
-      const avg = globalScores.reduce((a, b) => a + b, 0) / globalScores.length
-      return Math.round(avg * 100) / 100
-    },
-    enabled: !!students?.length,
-    staleTime: DASHBOARD_TEACHER_CACHE.staleTimeMs,
-    gcTime: DASHBOARD_TEACHER_CACHE.gcTimeMs,
-    placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    retry: 1,
-  })
+    let globalScore = 0
+    entries.forEach(([subjectSlug, value]) => {
+      const name = displayNameFromSubjectSlug(subjectSlug)
+      const pct = value.avgPct as number
+      globalScore += NATURALES.includes(name) ? (pct / 100) * POINTS_NAT : (pct / 100) * POINTS_REG
+    })
+    return Math.round(globalScore * 100) / 100
+  }, [gradeSummary, phase])
 
   return (
     <div className="fade-in duration-200">
@@ -842,14 +796,14 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
           </div>
         </CardHeader>
         <CardContent className={cn('relative z-10 pt-0.5 leading-none', isMobile ? 'px-2 pb-1' : 'px-3 pb-2.5')}>
-          {averageError ? (
+          {gradeSummaryError ? (
             <div className="flex flex-col gap-1.5">
               <span className={cn('text-xs', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error</span>
-              <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => refetchAverage()}>
+              <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => refetchGradeSummary()}>
                 <RotateCw className="h-3 w-3 mr-1" /> Reintentar
               </Button>
             </div>
-          ) : isLoading ? (
+          ) : gradeSummaryLoading ? (
             <div className={cn('h-7 w-14 rounded animate-pulse', theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-300')} aria-busy="true" aria-label="Cargando promedio" />
           ) : average != null ? (
             <span className={cn(isMobile ? 'text-lg font-bold' : 'text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{average.toFixed(1)}</span>
@@ -863,7 +817,20 @@ function GradeAverageCard({ theme, students }: { theme: 'light' | 'dark'; studen
 }
 
 // Componente de Bienvenida
-function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters, evolutionFilters, setEvolutionFilters }: any) {
+function WelcomeTab({
+  theme,
+  stats,
+  rankingFilters,
+  setRankingFilters,
+  studentSummaries,
+  evolutionFilters,
+  setEvolutionFilters,
+  totalStudents,
+  gradeSummary,
+  gradeSummaryLoading,
+  gradeSummaryError,
+  refetchGradeSummary,
+}: any) {
   const isMobile = useIsMobile()
   return (
     <div>
@@ -878,27 +845,36 @@ function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters,
               <Users className={cn(isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4', 'text-green-500 shrink-0')} />
             </CardHeader>
             <CardContent className={cn('relative z-10 pt-0.5', isMobile ? 'px-2 pb-1.5' : 'px-3 pb-2.5')}>
-              <span className={cn(isMobile ? 'text-xl font-bold' : 'text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{stats.totalStudents.toLocaleString()}</span>
+              <span className={cn(isMobile ? 'text-xl font-bold' : 'text-lg font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>{(totalStudents ?? stats.totalStudents).toLocaleString()}</span>
             </CardContent>
           </Card>
         </div>
 
         {/* Promedio del Grado (con filtro de fase) */}
-        <GradeAverageCard theme={theme} students={students} />
+        <GradeAverageCard
+          theme={theme}
+          gradeSummary={gradeSummary}
+          gradeSummaryLoading={gradeSummaryLoading}
+          gradeSummaryError={gradeSummaryError}
+          refetchGradeSummary={refetchGradeSummary}
+        />
       </div>
 
       {/* Ranking de mejores estudiantes y logros */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-2">
         <TeacherEvolutionBySubjectChart
           theme={theme}
-          students={students}
           filters={evolutionFilters}
           setFilters={setEvolutionFilters}
+          gradeSummary={gradeSummary}
+          gradeSummaryLoading={gradeSummaryLoading}
+          gradeSummaryError={gradeSummaryError}
+          refetchGradeSummary={refetchGradeSummary}
         />
 
         <TeacherRankingCard
           theme={theme}
-          students={students}
+          studentSummaries={studentSummaries || []}
           rankingFilters={rankingFilters}
           setRankingFilters={setRankingFilters}
         />
@@ -908,11 +884,36 @@ function WelcomeTab({ theme, stats, students, rankingFilters, setRankingFilters,
 }
 
 // Componente de Estudiantes (Análisis por estudiante - igual que coordinador)
-function StudentsTab({ theme, students, stats }: any) {
+function StudentsTab({ theme, studentSummaries, stats }: any) {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [selectedSummary, setSelectedSummary] = useState<any>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const groupedStudents = (students || []).reduce((acc: any, student: any) => {
+  const looksLikeTechnicalId = (value: string): boolean => {
+    const v = value.trim()
+    if (!v) return true
+    if (v.includes('/')) return true
+    if (v.length >= 24 && !v.includes(' ')) return true
+    return false
+  }
+
+  const safeGradeName = (raw: unknown): string | null => {
+    if (typeof raw !== 'string') return null
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    return looksLikeTechnicalId(trimmed) ? null : trimmed
+  }
+
+  const studentRows = (studentSummaries || []).map((s: any) => ({
+    id: s.studentId || s.id,
+    name: s.studentName || 'Estudiante',
+    gradeName: safeGradeName(stats?.gradeName) || safeGradeName(s.gradeName) || 'Sin grado',
+    campusName: s.campusName || stats?.campusName || '',
+    jornada: s.jornada || '',
+    summary: s,
+  }))
+
+  const groupedStudents = (studentRows || []).reduce((acc: any, student: any) => {
     const gradeName = student.gradeName || 'Sin grado'
     if (!acc[gradeName]) acc[gradeName] = { gradeName, students: [] }
     acc[gradeName].students.push(student)
@@ -921,6 +922,7 @@ function StudentsTab({ theme, students, stats }: any) {
 
   const handleStudentClick = (student: any) => {
     setSelectedStudent(student)
+    setSelectedSummary(student.summary || null)
     setIsDialogOpen(true)
   }
 
@@ -928,16 +930,16 @@ function StudentsTab({ theme, students, stats }: any) {
     <div className="space-y-6" role="region" aria-label="Listado de estudiantes por grado">
       <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200')}>
         <CardHeader className="pb-2">
-          <CardTitle className={cn('flex items-center gap-2 text-sm font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')} aria-label={`Total estudiantes: ${students?.length ?? 0}`}>
+          <CardTitle className={cn('flex items-center gap-2 text-sm font-medium', theme === 'dark' ? 'text-white' : 'text-gray-900')} aria-label={`Total estudiantes: ${studentRows?.length ?? 0}`}>
             <Users className={cn('h-4 w-4', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
-            Total Estudiantes: {students?.length ?? 0}
+            Total Estudiantes: {studentRows?.length ?? 0}
           </CardTitle>
           <CardDescription className="text-xs">
             Estudiantes de {stats?.gradeName} en {stats?.campusName}. Haz clic en un estudiante para ver su resumen y diagnóstico.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!students?.length ? (
+          {!studentRows?.length ? (
             <div className="text-center py-12">
               <Users className="h-16 w-16 mx-auto text-gray-400 mb-4" />
               <h3 className={cn('text-lg font-medium mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -960,7 +962,7 @@ function StudentsTab({ theme, students, stats }: any) {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                     {group.students.map((student: any) => (
                       <div
-                        key={student.id || student.uid}
+                        key={student.id}
                         onClick={() => handleStudentClick(student)}
                         className={cn(
                           'p-2 rounded-lg border cursor-pointer transition-transform duration-200 hover:scale-[1.02]',
@@ -974,11 +976,11 @@ function StudentsTab({ theme, students, stats }: any) {
                             'w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0',
                             theme === 'dark' ? 'bg-gradient-to-br from-blue-800 to-slate-800' : 'bg-gradient-to-br from-blue-700 to-slate-700'
                           )}>
-                            {(student.name || student.displayName || 'E').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                            {(student.name || 'E').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={cn('font-medium text-xs truncate', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                              {student.name || student.displayName || 'Estudiante'}
+                              {student.name || 'Estudiante'}
                             </p>
                           </div>
                         </div>
@@ -995,10 +997,12 @@ function StudentsTab({ theme, students, stats }: any) {
       {selectedStudent && (
         <StudentDetailDialog
           student={selectedStudent}
+          studentSummary={selectedSummary}
           isOpen={isDialogOpen}
           onClose={() => {
             setIsDialogOpen(false)
             setSelectedStudent(null)
+            setSelectedSummary(null)
           }}
           theme={theme}
         />
@@ -1008,9 +1012,20 @@ function StudentsTab({ theme, students, stats }: any) {
 }
 
 // Diálogo Resumen y Diagnóstico del estudiante (misma funcionalidad que coordinador)
-function StudentDetailDialog({ student, isOpen, onClose, theme }: { student: any; isOpen: boolean; onClose: () => void; theme: 'light' | 'dark' }) {
-  const studentId = student?.id || student?.uid
-  const { data: studentAnalysis, isLoading, error: analysisError, refetch: refetchAnalysis } = useStudentAnalysis(studentId, isOpen && !!studentId)
+function StudentDetailDialog({
+  student,
+  studentSummary,
+  isOpen,
+  onClose,
+  theme,
+}: {
+  student: any
+  studentSummary: StudentProgressSummaryDoc | null
+  isOpen: boolean
+  onClose: () => void
+  theme: 'light' | 'dark'
+}) {
+  const studentId = student?.id || student?.uid || studentSummary?.studentId
   const [selectedPhase, setSelectedPhase] = useState<'phase1' | 'phase2' | 'phase3' | 'all'>('phase1')
 
   const normalizeSubjectName = (subject: string): string => {
@@ -1022,124 +1037,184 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: { student: any
     return subjectMap[normalized] || subject
   }
 
-  const { data: subjectsData, isLoading: subjectsLoading, error: subjectsError, refetch: refetchSubjects } = useQuery({
-    queryKey: ['student-subjects-data', studentId, selectedPhase],
-    queryFn: async () => {
-      if (!studentId) return { subjects: [], subjectsWithTopics: [] }
-      const phases = [{ key: 'first', name: 'fase I' }, { key: 'second', name: 'Fase II' }, { key: 'third', name: 'fase III' }]
-      const selectedPhases = selectedPhase === 'all' ? phases : selectedPhase === 'phase1' ? [phases[0]] : selectedPhase === 'phase2' ? [phases[1]] : [phases[2]]
-      const subjectTopicGroups: { [subject: string]: { [topic: string]: any[] } } = {}
+  const evaluations = useMemo(() => {
+    if (!studentSummary || !studentId) return []
+    return examResultsFromSummaryData(studentSummary, studentId)
+  }, [studentSummary, studentId])
+
+  const phasesData = useMemo(() => {
+    const phaseResults: { [key: string]: any[] } = { phase1: [], phase2: [], phase3: [] }
+    evaluations.forEach((exam: any) => {
+      if (!exam?.completed || !exam?.score || !exam?.subject) return
+      const subject = normalizeSubjectName(exam.subject)
+      const percentage = exam.score?.overallPercentage || 0
+      const key =
+        exam.phase === 'first' || exam.phase === 'Fase I'
+          ? 'phase1'
+          : exam.phase === 'second' || exam.phase === 'Fase II'
+            ? 'phase2'
+            : exam.phase === 'third' || exam.phase === 'Fase III'
+              ? 'phase3'
+              : null
+      if (!key) return
+      phaseResults[key].push({ subject, percentage })
+    })
+    const processPhaseData = (results: any[]) => {
       const subjectScores: { [subject: string]: number } = {}
-      const subjectTotals: { [subject: string]: { correct: number; total: number } } = {}
-      for (const phase of selectedPhases) {
-        try {
-          const phaseRef = collection(db, 'results', studentId, phase.name)
-          const phaseSnap = await getDocs(phaseRef)
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data()
-            if (examData.completed && examData.score && examData.subject) {
-              const sub = normalizeSubjectName(examData.subject)
-              const pct = examData.score.overallPercentage || 0
-              if (!subjectScores[sub] || pct > subjectScores[sub]) subjectScores[sub] = pct
-              if (!subjectTotals[sub]) subjectTotals[sub] = { correct: 0, total: 0 }
-              subjectTotals[sub].correct += examData.score.correctAnswers || 0
-              subjectTotals[sub].total += examData.score.totalQuestions || 0
-              if (examData.questionDetails && Array.isArray(examData.questionDetails)) {
-                examData.questionDetails.forEach((q: any) => {
-                  const topic = q.topic || 'General'
-                  if (!subjectTopicGroups[sub]) subjectTopicGroups[sub] = {}
-                  if (!subjectTopicGroups[sub][topic]) subjectTopicGroups[sub][topic] = []
-                  subjectTopicGroups[sub][topic].push(q)
-                })
-              }
-            }
-          })
-        } catch (err) {
-          console.error(`Error datos fase ${phase.name}:`, err)
+      results.forEach((r) => {
+        if (!subjectScores[r.subject] || r.percentage > subjectScores[r.subject]) {
+          subjectScores[r.subject] = r.percentage
         }
-      }
-      const subjectsWithTopics: any[] = []
-      Object.entries(subjectTopicGroups).forEach(([sub, topics]) => {
-        const topicData = Object.entries(topics).map(([topicName, questions]) => {
-          const correct = questions.filter((q: any) => q.isCorrect).length
-          const total = questions.length
-          return { name: topicName, percentage: total > 0 ? Math.round((correct / total) * 100) : 0, correct, total }
-        })
-        subjectsWithTopics.push({
-          name: sub,
-          percentage: Math.round(subjectScores[sub] || 0),
-          topics: topicData,
-          strengths: topicData.filter(t => t.percentage >= 65).map(t => t.name),
-          weaknesses: topicData.filter(t => t.percentage < 50).map(t => t.name),
-          neutrals: topicData.filter(t => t.percentage >= 50 && t.percentage < 65).map(t => t.name)
-        })
       })
-      const subjects = Object.entries(subjectScores).map(([name, percentage]) => ({
+      return Object.entries(subjectScores).map(([name, percentage]) => ({
         name,
         percentage: Math.round(percentage),
-        score: Math.round(percentage),
-        maxScore: 100,
-        correct: subjectTotals[name]?.correct ?? 0,
-        total: subjectTotals[name]?.total ?? 0,
-        strengths: subjectsWithTopics.find(s => s.name === name)?.strengths ?? [],
-        weaknesses: subjectsWithTopics.find(s => s.name === name)?.weaknesses ?? [],
-        improvement: ''
       }))
-      return { subjects, subjectsWithTopics }
-    },
-    enabled: isOpen && !!studentId,
-    staleTime: DASHBOARD_TEACHER_CACHE.staleTimeMs,
-    gcTime: DASHBOARD_TEACHER_CACHE.gcTimeMs,
-    placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    retry: 1,
-  })
+    }
+    return {
+      phase1: phaseResults.phase1.length > 0 ? { phase: 'phase1' as const, subjects: processPhaseData(phaseResults.phase1) } : null,
+      phase2: phaseResults.phase2.length > 0 ? { phase: 'phase2' as const, subjects: processPhaseData(phaseResults.phase2) } : null,
+      phase3: phaseResults.phase3.length > 0 ? { phase: 'phase3' as const, subjects: processPhaseData(phaseResults.phase3) } : null,
+    }
+  }, [evaluations])
 
-  const { data: phasesData, isLoading: phasesLoading, error: phasesError, refetch: refetchPhases } = useQuery({
-    queryKey: ['student-phases-data', studentId],
-    queryFn: async () => {
-      if (!studentId) return { phase1: null, phase2: null, phase3: null }
-      const phases = [{ key: 'phase1', name: 'fase I' }, { key: 'phase2', name: 'Fase II' }, { key: 'phase3', name: 'fase III' }]
-      const phaseResults: { [key: string]: any[] } = { phase1: [], phase2: [], phase3: [] }
-      for (const phase of phases) {
-        try {
-          const phaseRef = collection(db, 'results', studentId, phase.name)
-          const phaseSnap = await getDocs(phaseRef)
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data()
-            if (examData.completed && examData.score && examData.subject) {
-              phaseResults[phase.key].push({
-                subject: normalizeSubjectName(examData.subject),
-                percentage: examData.score.overallPercentage || 0
-              })
-            }
-          })
-        } catch (err) {
-          console.error(`Error fase ${phase.name}:`, err)
+  const subjectsData = useMemo(() => {
+    const selectedPhaseKeys =
+      selectedPhase === 'all'
+        ? ['first', 'second', 'third']
+        : selectedPhase === 'phase1'
+          ? ['first']
+          : selectedPhase === 'phase2'
+            ? ['second']
+            : ['third']
+    const subjectTopicGroups: { [subject: string]: { [topic: string]: any[] } } = {}
+    const subjectScores: { [subject: string]: number } = {}
+    const subjectTotals: { [subject: string]: { correct: number; total: number } } = {}
+
+    evaluations.forEach((exam: any) => {
+      if (!exam?.completed || !exam?.score || !exam?.subject) return
+      if (!selectedPhaseKeys.includes(exam.phase)) return
+      const sub = normalizeSubjectName(exam.subject)
+      const pct = exam.score?.overallPercentage || 0
+      if (!subjectScores[sub] || pct > subjectScores[sub]) subjectScores[sub] = pct
+      if (!subjectTotals[sub]) subjectTotals[sub] = { correct: 0, total: 0 }
+      subjectTotals[sub].correct += exam.score?.correctAnswers || 0
+      subjectTotals[sub].total += exam.score?.totalQuestions || 0
+      const details = Array.isArray(exam.questionDetails) ? exam.questionDetails : []
+      details.forEach((q: any) => {
+        const topic = q.topic || 'General'
+        if (!subjectTopicGroups[sub]) subjectTopicGroups[sub] = {}
+        if (!subjectTopicGroups[sub][topic]) subjectTopicGroups[sub][topic] = []
+        subjectTopicGroups[sub][topic].push(q)
+      })
+    })
+
+    const subjectsWithTopics: any[] = []
+    Object.entries(subjectTopicGroups).forEach(([sub, topics]) => {
+      const topicData = Object.entries(topics).map(([topicName, questions]) => {
+        const correct = questions.filter((q: any) => q.isCorrect).length
+        const total = questions.length
+        return { name: topicName, percentage: total > 0 ? Math.round((correct / total) * 100) : 0, correct, total }
+      })
+      subjectsWithTopics.push({
+        name: sub,
+        percentage: Math.round(subjectScores[sub] || 0),
+        topics: topicData,
+        strengths: topicData.filter((t) => t.percentage >= 65).map((t) => t.name),
+        weaknesses: topicData.filter((t) => t.percentage < 50).map((t) => t.name),
+        neutrals: topicData.filter((t) => t.percentage >= 50 && t.percentage < 65).map((t) => t.name),
+      })
+    })
+    const subjects = Object.entries(subjectScores).map(([name, percentage]) => ({
+      name,
+      percentage: Math.round(percentage),
+      score: Math.round(percentage),
+      maxScore: 100,
+      correct: subjectTotals[name]?.correct ?? 0,
+      total: subjectTotals[name]?.total ?? 0,
+      strengths: subjectsWithTopics.find((s) => s.name === name)?.strengths ?? [],
+      weaknesses: subjectsWithTopics.find((s) => s.name === name)?.weaknesses ?? [],
+      improvement: '',
+    }))
+    return { subjects, subjectsWithTopics }
+  }, [evaluations, selectedPhase])
+
+  const studentAnalysis = useMemo(() => {
+    const bySubjectBest: Record<string, number> = {}
+    const phaseSubjects = {
+      phase1: new Set<string>(),
+      phase2: new Set<string>(),
+      phase3: new Set<string>(),
+    }
+    let fraudAttempts = 0
+    let totalTime = 0
+    let totalQuestions = 0
+    let fastAnswers = 0
+    let answeredWithTime = 0
+
+    evaluations.forEach((exam: any) => {
+      if (!exam?.completed || !exam?.score || !exam?.subject) return
+      const subject = normalizeSubjectName(exam.subject)
+      const pct = exam.score?.overallPercentage || 0
+      if (!bySubjectBest[subject] || pct > bySubjectBest[subject]) bySubjectBest[subject] = pct
+
+      if (exam.phase === 'first') phaseSubjects.phase1.add(subject)
+      if (exam.phase === 'second') phaseSubjects.phase2.add(subject)
+      if (exam.phase === 'third') phaseSubjects.phase3.add(subject)
+
+      if ((exam.tabChangeCount ?? 0) > 0 || exam.lockedByTabChange === true) fraudAttempts += 1
+      const details = Array.isArray(exam.questionDetails) ? exam.questionDetails : []
+      details.forEach((q: any) => {
+        const t = q.timeSpent || 0
+        if (t > 0) {
+          totalTime += t
+          totalQuestions += 1
+          if (q.answered && subject !== 'Inglés') {
+            answeredWithTime += 1
+            if (t < 10) fastAnswers += 1
+          }
         }
-      }
-      const processPhaseData = (results: any[]) => {
-        const subjectScores: { [subject: string]: number } = {}
-        results.forEach(r => {
-          if (!subjectScores[r.subject] || r.percentage > subjectScores[r.subject]) subjectScores[r.subject] = r.percentage
-        })
-        return Object.entries(subjectScores).map(([name, percentage]) => ({ name, percentage: Math.round(percentage) }))
-      }
-      return {
-        phase1: phaseResults.phase1.length > 0 ? { phase: 'phase1' as const, subjects: processPhaseData(phaseResults.phase1) } : null,
-        phase2: phaseResults.phase2.length > 0 ? { phase: 'phase2' as const, subjects: processPhaseData(phaseResults.phase2) } : null,
-        phase3: phaseResults.phase3.length > 0 ? { phase: 'phase3' as const, subjects: processPhaseData(phaseResults.phase3) } : null
-      }
-    },
-    enabled: isOpen && !!studentId,
-    staleTime: DASHBOARD_TEACHER_CACHE.staleTimeMs,
-    gcTime: DASHBOARD_TEACHER_CACHE.gcTimeMs,
-    placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    retry: 1,
-  })
+      })
+    })
+
+    const NATURALES = ['Biologia', 'Quimica', 'Física']
+    let globalScore = 0
+    Object.entries(bySubjectBest).forEach(([subject, pct]) => {
+      globalScore += NATURALES.includes(subject) ? (pct / 100) * (100 / 3) : (pct / 100) * 100
+    })
+    const avgTime = totalQuestions > 0 ? totalTime / totalQuestions / 60 : 0
+    const luckPercentage = answeredWithTime > 0 ? Math.round((fastAnswers / answeredWithTime) * 100) : 0
+    const metricsByPhase = (phase: 'phase1' | 'phase2' | 'phase3') => ({
+      globalScore: Math.round(globalScore),
+      phasePercentage: Math.round((phaseSubjects[phase].size / 7) * 100),
+      averageTimePerQuestion: avgTime,
+      fraudAttempts,
+      luckPercentage,
+      completedSubjects: phaseSubjects[phase].size,
+    })
+    return {
+      globalScore: Math.round(globalScore),
+      phase3Percentage: Math.round((phaseSubjects.phase3.size / 7) * 100),
+      averageTimePerQuestion: avgTime,
+      fraudAttempts,
+      luckPercentage,
+      phaseMetrics: {
+        phase1: metricsByPhase('phase1'),
+        phase2: metricsByPhase('phase2'),
+        phase3: metricsByPhase('phase3'),
+      },
+    }
+  }, [evaluations])
+
+  const isLoading = false
+  const subjectsLoading = false
+  const phasesLoading = false
+  const analysisError = null
+  const subjectsError = null
+  const phasesError = null
+  const refetchAnalysis = () => {}
+  const refetchSubjects = () => {}
+  const refetchPhases = () => {}
 
   if (!student) return null
 
@@ -1152,7 +1227,7 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: { student: any
         averageTimePerQuestion: studentAnalysis.averageTimePerQuestion || 0,
         fraudAttempts: studentAnalysis.fraudAttempts || 0,
         luckPercentage: studentAnalysis.luckPercentage || 0,
-        completedSubjects: 7
+        completedSubjects: 7,
       }
     }
     const phase = selectedPhase === 'phase1' ? 'phase1' : selectedPhase === 'phase2' ? 'phase2' : 'phase3'
@@ -1162,7 +1237,7 @@ function StudentDetailDialog({ student, isOpen, onClose, theme }: { student: any
       averageTimePerQuestion: 0,
       fraudAttempts: 0,
       luckPercentage: 0,
-      completedSubjects: 0
+      completedSubjects: 0,
     }
   }
 
@@ -1504,7 +1579,19 @@ function prepareSubjectTopicsData(
 }
 
 // Análisis del curso: rendimiento por materia y por ejes/temas (promedio del salón)
-function CourseAnalysisTab({ theme, students }: { theme: 'light' | 'dark'; students: any[] }) {
+function CourseAnalysisTab({
+  theme,
+  gradeSummary,
+  gradeSummaryLoading,
+  gradeSummaryError,
+  refetchGradeSummary,
+}: {
+  theme: 'light' | 'dark'
+  gradeSummary: GradeSummaryDoc | null | undefined
+  gradeSummaryLoading: boolean
+  gradeSummaryError: unknown
+  refetchGradeSummary: () => void
+}) {
   const normalizeSubject = (s: string): string => {
     const n = s.trim()
     const map: Record<string, string> = {
@@ -1516,75 +1603,28 @@ function CourseAnalysisTab({ theme, students }: { theme: 'light' | 'dark'; stude
     return map[n] || n
   }
 
-  const { data: phasesData, isLoading } = useQuery({
-    queryKey: ['teacher-course-analysis', students.map((s: any) => s.id || s.uid).join(','), students?.length],
-    queryFn: async () => {
-      if (!students?.length) return { phase1: null, phase2: null, phase3: null }
-      const studentIds = students.map((s: any) => s.id || s.uid).filter(Boolean) as string[]
-      const phases = [
-        { key: 'phase1', name: 'fase I' },
-        { key: 'phase2', name: 'Fase II' },
-        { key: 'phase3', name: 'fase III' }
-      ]
-      type SubjectTopicAcc = { correct: number; total: number }
-      type SubjectScores = { subjectPcts: number[]; byTopic: Record<string, SubjectTopicAcc> }
-      const phaseData: Record<string, Record<string, SubjectScores>> = { phase1: {}, phase2: {}, phase3: {} }
-
-      for (const studentId of studentIds) {
-        for (const phase of phases) {
-          try {
-            const ref = collection(db, 'results', studentId, phase.name)
-            const snap = await getDocs(ref)
-            snap.docs.forEach(doc => {
-              const d = doc.data()
-              if (!d.completed || !d.score || !d.subject) return
-              const sub = normalizeSubject(d.subject)
-              if (!phaseData[phase.key][sub]) {
-                phaseData[phase.key][sub] = { subjectPcts: [], byTopic: {} }
-              }
-              phaseData[phase.key][sub].subjectPcts.push(d.score.overallPercentage ?? 0)
-              if (Array.isArray(d.questionDetails)) {
-                d.questionDetails.forEach((q: any) => {
-                  const topic = (q.topic || 'General').trim()
-                  if (!phaseData[phase.key][sub].byTopic[topic]) phaseData[phase.key][sub].byTopic[topic] = { correct: 0, total: 0 }
-                  phaseData[phase.key][sub].byTopic[topic].correct += q.isCorrect ? 1 : 0
-                  phaseData[phase.key][sub].byTopic[topic].total += 1
-                })
-              }
-            })
-          } catch (err) {
-            console.error(`Error course analysis ${studentId} ${phase.name}:`, err)
-          }
+  const phasesData = useMemo(() => {
+    if (!gradeSummary?.phases) return { phase1: null, phase2: null, phase3: null }
+    const buildPhaseSubjectsWithTopics = (phaseKey: 'first' | 'second' | 'third') => {
+      const bySubject = gradeSummary.phases[phaseKey]?.subjects || {}
+      return Object.entries(bySubject).map(([subjectSlug, subjectData]) => {
+        const topics = Object.entries(subjectData.topics || {}).map(([topicName, topicData]) => ({
+          name: topicName,
+          percentage: Math.round(topicData.pct ?? 0)
+        }))
+        return {
+          name: normalizeSubject(displayNameFromSubjectSlug(subjectSlug)),
+          percentage: Math.round(subjectData.avgPct ?? 0),
+          topics
         }
-      }
-
-      const buildPhaseSubjectsWithTopics = (phaseKey: string) => {
-        const bySubject = phaseData[phaseKey] || {}
-        return Object.entries(bySubject).map(([name, data]) => {
-          const subjectPct = data.subjectPcts.length > 0
-            ? Math.round(data.subjectPcts.reduce((a, b) => a + b, 0) / data.subjectPcts.length)
-            : 0
-          const topics = Object.entries(data.byTopic).map(([topicName, acc]) => ({
-            name: topicName,
-            percentage: acc.total > 0 ? Math.round((acc.correct / acc.total) * 100) : 0
-          }))
-          return { name, percentage: subjectPct, topics }
-        })
-      }
-
-      return {
-        phase1: { subjectsWithTopics: buildPhaseSubjectsWithTopics('phase1') },
-        phase2: { subjectsWithTopics: buildPhaseSubjectsWithTopics('phase2') },
-        phase3: { subjectsWithTopics: buildPhaseSubjectsWithTopics('phase3') }
-      }
-    },
-    enabled: !!students?.length,
-    staleTime: DASHBOARD_TEACHER_CACHE.staleTimeMs,
-    gcTime: DASHBOARD_TEACHER_CACHE.gcTimeMs,
-    placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  })
+      })
+    }
+    return {
+      phase1: { subjectsWithTopics: buildPhaseSubjectsWithTopics('first') },
+      phase2: { subjectsWithTopics: buildPhaseSubjectsWithTopics('second') },
+      phase3: { subjectsWithTopics: buildPhaseSubjectsWithTopics('third') }
+    }
+  }, [gradeSummary])
 
   const phase1 = phasesData?.phase1 ?? null
   const phase2 = phasesData?.phase2 ?? null
@@ -1615,7 +1655,14 @@ function CourseAnalysisTab({ theme, students }: { theme: 'light' | 'dark'; stude
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {gradeSummaryError ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <p className={cn('text-sm text-center', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>Error al cargar el análisis del curso.</p>
+              <Button variant="outline" size="sm" onClick={() => refetchGradeSummary()} className={cn(theme === 'dark' ? 'border-zinc-600 hover:bg-zinc-800' : 'border-gray-300 hover:bg-gray-100')}>
+                <RotateCw className="h-4 w-4 mr-2" /> Reintentar
+              </Button>
+            </div>
+          ) : gradeSummaryLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className={cn('h-6 w-6 animate-spin', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')} />
             </div>
