@@ -14,7 +14,6 @@ import { Sidebar } from '#/layout/Sidebar'
 import { Toaster } from '#/ui/toaster'
 import { GlobalQueryErrorToaster } from '@/components/common/GlobalQueryErrorToaster'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
-import { PwaLifecycleToaster } from '@/components/common/PwaLifecycleToaster'
 import { PrefetchInstitutions } from '@/components/common/PrefetchInstitutions'
 import { AuthBootScreen } from '@/components/common/AuthBootScreen'
 import { useInitialAuthSplash } from '@/hooks/ui/useInitialAuthSplash'
@@ -112,7 +111,6 @@ const RootLayout = () => {
 
       {/* Componentes UI globales */}
       <OfflineBanner />
-      <PwaLifecycleToaster />
       <Toaster />
       <GlobalQueryErrorToaster />
       <ScrollToTop />
