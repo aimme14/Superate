@@ -16,7 +16,7 @@ import { useNotification } from '@/hooks/ui/useNotification'
 /**
  * Hook para obtener estudiantes filtrados
  */
-export const useFilteredStudents = (filters: StudentFilters) => {
+export const useFilteredStudents = (filters: StudentFilters, enabled: boolean = true) => {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['students', 'filtered', filters],
     queryFn: async () => {
@@ -24,6 +24,7 @@ export const useFilteredStudents = (filters: StudentFilters) => {
       if (result.success) return result.data
       throw new Error(result.error?.message ?? 'Error al cargar estudiantes')
     },
+    enabled,
     ...ADMIN_LIST_CACHE,
     placeholderData: keepPreviousData,
   })

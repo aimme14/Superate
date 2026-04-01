@@ -309,6 +309,12 @@ service cloud.firestore {
       allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
       allow write: if false;
     }
+
+    // Resumen agregado institucional por año (actualizado por script manual). Solo lectura en cliente.
+    match /superate/auth/institutions/{institutionId}/institutionSummary/{summaryId} {
+      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
+      allow write: if false;
+    }
     
     // Colecci?n de preguntas
     match /superate/auth/questions/{questionId} {

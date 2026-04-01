@@ -31,8 +31,8 @@ const RootLayout = () => {
   const [openSidebar, setOpenSidebar] = useState(true)
   const isExpanded = !isAuth || (user?.displayName === 'aimme')
   
-  // Actividad en Firestore solo cuando la portada terminó (evita escrituras durante la bienvenida)
-  useUserActivity({ enabled: splashPhase === 'app' })
+  // La portada es solo visual: no debe controlar side-effects de la app.
+  useUserActivity()
   
   // Detectar si estamos en la ruta de quiz
   const isQuizRoute = location.pathname.startsWith('/quiz')
@@ -56,15 +56,14 @@ const RootLayout = () => {
     }
   }, [showSplash, splashPhase])
 
-  // Tras cerrar la portada: precargar rutas frecuentes para suavizar Suspense (ya no bloquea el splash).
+  // Precargar rutas frecuentes para suavizar Suspense.
   useEffect(() => {
-    if (splashPhase !== 'app') return
     void Promise.all([
       import('@/pages/HomePage').catch(() => undefined),
       import('@/pages/LoginPage').catch(() => undefined),
       isAuth ? import('@/pages/dashboard').catch(() => undefined) : Promise.resolve(undefined),
     ])
-  }, [splashPhase, isAuth])
+  }, [isAuth])
 
   const onSplashFadeComplete = useCallback(() => {
     setSplashPhase('app')
@@ -123,14 +122,14 @@ const RootLayout = () => {
 
   return (
     <>
-      {splashPhase === 'app' && <PrefetchInstitutions />}
+      <PrefetchInstitutions />
+      {mainShell}
       {splashPhase !== 'app' && (
         <AuthBootScreen
           exiting={splashPhase === 'fade'}
           onFadeComplete={onSplashFadeComplete}
         />
       )}
-      {splashPhase !== 'splash' && mainShell}
     </>
   )
 }
