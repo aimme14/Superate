@@ -685,9 +685,12 @@ function TeacherEvolutionBySubjectChart({
                 cursor={{ fill: 'transparent' }}
                 contentStyle={{ backgroundColor: theme === 'dark' ? '#18181b' : '#ffffff', border: theme === 'dark' ? '1px solid #3f3f46' : '1px solid #e5e7eb', borderRadius: '8px' }}
                 labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-                formatter={(value: number | string | null | undefined, name: string) =>
-                  typeof value === 'number' ? [`${value.toFixed(1)}%`, name] : ['Sin dato', name]
-                }
+                formatter={(value, name) => {
+                  const rawValue = Array.isArray(value) ? value[0] : value
+                  return typeof rawValue === 'number'
+                    ? [`${rawValue.toFixed(1)}%`, String(name)]
+                    : ['Sin dato', String(name)]
+                }}
               />
               <Legend wrapperStyle={{ paddingTop: isMobile ? '4px' : '8px' }} iconType="rect" iconSize={isMobile ? 8 : 10} formatter={(value) => <span style={{ fontSize: isMobile ? 10 : 11 }}>{value}</span>} />
               {displaySubjects.map((subject: string) => (
