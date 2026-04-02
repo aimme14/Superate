@@ -41,7 +41,7 @@ import { StrengthsRadarChart } from '@/components/charts/StrengthsRadarChart'
 import { SubjectsProgressChart } from '@/components/charts/SubjectsProgressChart'
 import { SubjectsDetailedSummary } from '@/components/charts/SubjectsDetailedSummary'
 import { SubjectTopicsAccordion } from '@/components/charts/SubjectTopicsAccordion'
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts'
 import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRoleSkeleton'
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/ui/use-mobile'
@@ -676,16 +676,31 @@ function TeacherEvolutionBySubjectChart({
           </div>
         ) : hasChartData && displaySubjects.length > 0 ? (
           <ResponsiveContainer width="100%" height={isMobile ? 190 : 240}>
-            <LineChart data={evolutionData!.chartData}>
+            <BarChart data={evolutionData!.chartData} barCategoryGap={displaySubjects.length > 1 ? '18%' : '35%'} barGap={2}>
               <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#3f3f46' : '#d1d5db'} />
               <XAxis dataKey="fase" stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: isMobile ? 10 : 11 }} />
               <YAxis domain={[0, 100]} stroke={theme === 'dark' ? '#a1a1aa' : '#6b7280'} tick={{ fill: theme === 'dark' ? '#a1a1aa' : '#6b7280', fontSize: isMobile ? 10 : 11 }} />
-              <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#18181b' : '#ffffff', border: theme === 'dark' ? '1px solid #3f3f46' : '1px solid #e5e7eb', borderRadius: '8px' }} labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#111827' }} />
-              <Legend wrapperStyle={{ paddingTop: isMobile ? '4px' : '8px' }} iconType="line" iconSize={isMobile ? 6 : 8} formatter={(value) => <span style={{ fontSize: isMobile ? 10 : 11 }}>{value}</span>} />
+              <Tooltip
+                shared={false}
+                cursor={{ fill: 'transparent' }}
+                contentStyle={{ backgroundColor: theme === 'dark' ? '#18181b' : '#ffffff', border: theme === 'dark' ? '1px solid #3f3f46' : '1px solid #e5e7eb', borderRadius: '8px' }}
+                labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
+                formatter={(value: number | string | null | undefined, name: string) =>
+                  typeof value === 'number' ? [`${value.toFixed(1)}%`, name] : ['Sin dato', name]
+                }
+              />
+              <Legend wrapperStyle={{ paddingTop: isMobile ? '4px' : '8px' }} iconType="rect" iconSize={isMobile ? 8 : 10} formatter={(value) => <span style={{ fontSize: isMobile ? 10 : 11 }}>{value}</span>} />
               {displaySubjects.map((subject: string) => (
-                <Line key={subject} type="monotone" dataKey={subject} name={subject} stroke={SUBJECT_COLORS[subject] || '#6b7280'} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+                <Bar
+                  key={subject}
+                  dataKey={subject}
+                  name={subject}
+                  fill={SUBJECT_COLORS[subject] || '#6b7280'}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={24}
+                />
               ))}
-            </LineChart>
+            </BarChart>
           </ResponsiveContainer>
         ) : hasChartData && filters.subject !== 'todas' && displaySubjects.length === 0 ? (
           <div className="text-center py-8 space-y-1">
