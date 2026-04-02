@@ -30,6 +30,7 @@ const SUBJECT_LABELS: Record<string, string> = {
   fisica: 'Física',
   ingles: 'Inglés',
 }
+const AXES_SUBJECT_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#a3e635', '#f97316']
 
 function getSubjectLabel(slug: string): string {
   return SUBJECT_LABELS[slug] || slug
@@ -46,6 +47,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [subjectFilter, setSubjectFilter] = useState<string>('todas')
   const [phaseFilter, setPhaseFilter] = useState<RectorPhaseKey>('first')
+  const [axesPhaseFilter, setAxesPhaseFilter] = useState<RectorPhaseKey>('first')
   const [studentsJornadaFilter, setStudentsJornadaFilter] = useState<'todas' | 'manana' | 'tarde'>('todas')
   const isDark = theme === 'dark'
   const dashboardBg = isDark ? 'bg-zinc-950' : 'bg-slate-50'
@@ -145,10 +147,11 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   const phaseBarOption = useMemo(() => {
     if (!institutionSummary) return null
     const labels = ['Fase I', 'Fase II', 'Fase III']
+    const toScore500 = (value: number | null | undefined) => Math.round(safeNum(value) * 5 * 10) / 10
     const data = [
-      safeNum(institutionSummary.phases.first?.avgScore),
-      safeNum(institutionSummary.phases.second?.avgScore),
-      safeNum(institutionSummary.phases.third?.avgScore),
+      toScore500(institutionSummary.phases.first?.avgScore),
+      toScore500(institutionSummary.phases.second?.avgScore),
+      toScore500(institutionSummary.phases.third?.avgScore),
     ]
     return {
       backgroundColor: 'transparent',
@@ -162,7 +165,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       yAxis: {
         type: 'value',
         min: 0,
-        max: 100,
+        max: 500,
         splitNumber: 5,
         axisLine: { show: false },
         splitLine: { lineStyle: { color: isDark ? '#3f3f46' : '#e2e8f0' } },
@@ -236,6 +239,114 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     }
   }, [institutionSummary, phaseFilter, isDark])
 
+  const axesBySubjectOption = useMemo(() => {
+    if (!institutionSummary) return null
+
+    const subjectsEntries = Object.entries(institutionSummary.phases[axesPhaseFilter]?.subjects || {})
+    if (!subjectsEntries.length) return null
+
+    const flatBars: Array<{
+      category: string
+      value: number
+      subject: string
+      topic: string
+      avgPct: number
+      color: string
+    }> = []
+
+    subjectsEntries.forEach(([slug, subject], subjectIndex) => {
+      const subjectLabel = getSubjectLabel(slug)
+      const isEnglishSubject =
+        slug.toLowerCase().includes('ingles') || slug.toLowerCase().includes('english')
+      const topicOrderNumber = (name: string) => {
+        const match = name.match(/(\d+)/)
+        return match ? Number(match[1]) : Number.POSITIVE_INFINITY
+      }
+
+      const topics = Object.entries(subject?.topics || {})
+        .map(([topicName, topicSummary]) => ({
+          name: topicName,
+          pct: safeNum(topicSummary?.pct),
+        }))
+        .sort((a, b) => {
+          if (isEnglishSubject) {
+            const byNumber = topicOrderNumber(a.name) - topicOrderNumber(b.name)
+            if (byNumber !== 0) return byNumber
+            return a.name.localeCompare(b.name, 'es', { numeric: true, sensitivity: 'base' })
+          }
+          return b.pct - a.pct
+        })
+
+      topics.forEach((topic) => {
+        flatBars.push({
+          category: topic.name,
+          value: topic.pct,
+          subject: subjectLabel,
+          topic: topic.name,
+          avgPct: safeNum(subject?.avgPct),
+          color: AXES_SUBJECT_COLORS[subjectIndex % AXES_SUBJECT_COLORS.length],
+        })
+      })
+    })
+    if (!flatBars.length) return null
+
+    return {
+      backgroundColor: 'transparent',
+      legend: { show: false },
+      grid: { left: 40, right: 16, top: 24, bottom: 96 },
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: any) => {
+          const d = params?.data
+          if (!d) return 'Sin datos'
+          return `<b>${d.subject}</b><br/>Puntaje materia: <b>${d.avgPct}%</b><br/>${d.topic}: <b>${d.value}%</b>`
+        },
+      },
+      xAxis: {
+        type: 'category',
+        data: flatBars.map((bar) => bar.category),
+        axisLine: { lineStyle: { color: isDark ? '#3f3f46' : '#cbd5e1' } },
+        axisLabel: {
+          color: isDark ? '#a1a1aa' : '#64748b',
+          fontSize: 9,
+          interval: 0,
+          rotate: 28,
+        },
+      },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        max: 100,
+        splitNumber: 5,
+        axisLabel: { color: isDark ? '#a1a1aa' : '#64748b', fontSize: 10 },
+        splitLine: { lineStyle: { color: isDark ? '#3f3f46' : '#e2e8f0' } },
+      },
+      series: [
+        {
+          name: 'Puntaje por eje',
+          type: 'bar',
+          barWidth: 14,
+          data: flatBars.map((bar) => ({
+            value: bar.value,
+            subject: bar.subject,
+            topic: bar.topic,
+            avgPct: bar.avgPct,
+            itemStyle: { color: bar.color, borderRadius: [4, 4, 0, 0] },
+          })),
+        },
+      ],
+    }
+  }, [institutionSummary, axesPhaseFilter, isDark])
+
+  const axesSubjectLegend = useMemo(() => {
+    if (!institutionSummary) return []
+    const subjectSlugs = Object.keys(institutionSummary.phases[axesPhaseFilter]?.subjects || {})
+    return subjectSlugs.map((slug, index) => ({
+      label: getSubjectLabel(slug),
+      color: AXES_SUBJECT_COLORS[index % AXES_SUBJECT_COLORS.length],
+    }))
+  }, [institutionSummary, axesPhaseFilter])
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (!menuRef.current) return
@@ -247,18 +358,6 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [])
-
-  useEffect(() => {
-    const prevBodyOverflowY = document.body.style.overflowY
-    const prevHtmlOverflowY = document.documentElement.style.overflowY
-    document.body.style.overflowY = 'hidden'
-    document.documentElement.style.overflowY = 'hidden'
-
-    return () => {
-      document.body.style.overflowY = prevBodyOverflowY
-      document.documentElement.style.overflowY = prevHtmlOverflowY
     }
   }, [])
 
@@ -485,6 +584,54 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className={cn(cardMuted)}>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <CardTitle className={cn(isDark ? 'text-zinc-100' : 'text-slate-900')}>
+                        Ejes por materia {axesPhaseFilter === 'first' ? '(Fase I)' : axesPhaseFilter === 'second' ? '(Fase II)' : '(Fase III)'}
+                      </CardTitle>
+                      <CardDescription className={cn(isDark ? 'text-zinc-400' : 'text-slate-500')}>
+                        Promedio por eje (tema) de cada materia en la fase seleccionada
+                      </CardDescription>
+                    </div>
+                    <Select value={axesPhaseFilter} onValueChange={(value) => setAxesPhaseFilter(value as RectorPhaseKey)}>
+                      <SelectTrigger className={cn('h-7 w-28 px-2 text-[11px]', isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-100' : 'bg-white border-slate-300 text-slate-900')}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="first">Fase I</SelectItem>
+                        <SelectItem value="second">Fase II</SelectItem>
+                        <SelectItem value="third">Fase III</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {axesSubjectLegend.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2.5">
+                      {axesSubjectLegend.map((item) => (
+                        <div
+                          key={item.label}
+                          className={cn(
+                            'inline-flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-medium',
+                            isDark ? 'border-zinc-700 bg-zinc-800 text-zinc-100' : 'border-slate-300 bg-slate-50 text-slate-800'
+                          )}
+                        >
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          {item.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {axesBySubjectOption ? (
+                    <ReactECharts option={axesBySubjectOption} style={{ height: 320 }} notMerge lazyUpdate />
+                  ) : (
+                    <p className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-slate-500')}>Sin datos de ejes para mostrar</p>
+                  )}
+                </CardContent>
+              </Card>
 
             </>
           )}

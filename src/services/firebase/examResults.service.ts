@@ -15,6 +15,7 @@ import { success, failure, Result } from '@/interfaces/db.interface'
 import ErrorAPI from '@/errors'
 import { normalizeError } from '@/errors/handler'
 import { subjectLabelToSlug } from '@/utils/subjectResultDocId'
+import { canonicalizeTopicName } from '@/utils/topicCanonicalization'
 
 const db = getFirestore(firebaseApp)
 
@@ -32,6 +33,37 @@ export interface ExamResultData {
   examTitle?: string
   examId?: string
   [key: string]: unknown
+}
+
+type ExamQuestionDetail = {
+  topic?: unknown
+  [key: string]: unknown
+}
+
+function normalizeQuestionDetailsTopics(examData: ExamResultData): ExamResultData {
+  const subjectName =
+    (typeof examData.subject === 'string' && examData.subject.trim()) ||
+    (typeof examData.examTitle === 'string' && examData.examTitle.trim()) ||
+    ''
+
+  const questionDetailsRaw = examData.questionDetails
+  if (!Array.isArray(questionDetailsRaw)) return examData
+
+  const normalizedQuestionDetails = questionDetailsRaw.map((detail) => {
+    if (!detail || typeof detail !== 'object') return detail
+    const questionDetail = detail as ExamQuestionDetail
+    if (typeof questionDetail.topic !== 'string') return detail
+
+    return {
+      ...questionDetail,
+      topic: canonicalizeTopicName(subjectName, questionDetail.topic),
+    }
+  })
+
+  return {
+    ...examData,
+    questionDetails: normalizedQuestionDetails,
+  }
 }
 
 /**
@@ -156,6 +188,7 @@ export async function saveExamResultsAndRegister(
   examData: ExamResultData
 ): Promise<Result<{ id: string }>> {
   try {
+    const normalizedExamData = normalizeQuestionDetailsTopics(examData)
     const phase = normalizePhase(examData.phase)
     const phaseName = getPhaseName(phase)
 
@@ -166,7 +199,7 @@ export async function saveExamResultsAndRegister(
     })
 
     const payload = {
-      ...examData,
+      ...normalizedExamData,
       examId,
       phase: examData.phase,
       timestamp: Date.now(),
@@ -175,7 +208,7 @@ export async function saveExamResultsAndRegister(
     const docRef = doc(db, 'results', userId, phaseName, storageDocId)
     await setDoc(docRef, payload)
 
-    await removeObsoleteSameSubjectDocs(userId, phaseName, storageDocId, examData)
+    await removeObsoleteSameSubjectDocs(userId, phaseName, storageDocId, normalizedExamData)
 
     console.log(
       `[examResults] ✅ Examen guardado: results/${userId}/${phaseName}/${storageDocId} (quizId=${examId})`

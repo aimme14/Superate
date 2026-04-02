@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 const RUTA_ACADEMICA_PATH = "/ruta-academica-adaptativa";
 const PLAN_ESTUDIO_IA_PATH = "/plan-estudio-ia";
 const SIMULACROS_IA_PATH = "/simulacros-ia";
-const SIMULACROS_ICFES_PATH = "/simulacros-icfes";
 
 interface NavRutaPreparacionDropdownProps {
   theme?: "light" | "dark";
@@ -22,8 +21,7 @@ export function NavRutaPreparacionDropdown({ theme = "light", onPrefetch }: NavR
   const isActive =
     pathname === RUTA_ACADEMICA_PATH ||
     pathname === PLAN_ESTUDIO_IA_PATH ||
-    pathname === SIMULACROS_IA_PATH ||
-    pathname === SIMULACROS_ICFES_PATH;
+    pathname === SIMULACROS_IA_PATH;
 
   return (
     <Link

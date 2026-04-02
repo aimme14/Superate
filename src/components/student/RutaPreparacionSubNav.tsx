@@ -1,11 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
-import { Pencil, BookOpen, Zap, FileCheck } from "lucide-react";
+import { Pencil, BookOpen, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RUTA_ACADEMICA_PATH = "/ruta-academica-adaptativa";
 const PLAN_ESTUDIO_IA_PATH = "/plan-estudio-ia";
 const SIMULACROS_IA_PATH = "/simulacros-ia";
-const SIMULACROS_ICFES_PATH = "/simulacros-icfes";
 
 interface RutaPreparacionSubNavProps {
   theme?: "light" | "dark";
@@ -13,7 +12,7 @@ interface RutaPreparacionSubNavProps {
 
 /**
  * Sub-navegación dentro de la sección Ruta de preparación.
- * Botones para alternar entre Ruta Académica Simulacros, Plan de estudio IA, Simulacros IA y Simulacros ICFES.
+ * Botones para alternar entre Ruta Académica Simulacros, Plan de estudio IA y Simulacros IA.
  */
 export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNavProps) {
   const { pathname } = useLocation();
@@ -21,7 +20,6 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
   const isRutaAcademicaActive = pathname === RUTA_ACADEMICA_PATH;
   const isPlanEstudioActive = pathname === PLAN_ESTUDIO_IA_PATH;
   const isSimulacrosIAActive = pathname === SIMULACROS_IA_PATH;
-  const isSimulacrosICFESActive = pathname === SIMULACROS_ICFES_PATH;
 
   const buttonClass = (active: boolean) =>
     cn(
@@ -68,15 +66,6 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
       >
         <Zap className="w-5 h-5 flex-shrink-0" aria-hidden />
         <span className="hidden sm:inline">Simulacros IA</span>
-      </Link>
-      <Link
-        to={SIMULACROS_ICFES_PATH}
-        className={cn(buttonClass(isSimulacrosICFESActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
-        aria-current={isSimulacrosICFESActive ? "page" : undefined}
-        aria-label="Simulacros ICFES"
-      >
-        <FileCheck className="w-5 h-5 flex-shrink-0" aria-hidden />
-        <span className="hidden sm:inline">Simulacros ICFES</span>
       </Link>
     </div>
   );

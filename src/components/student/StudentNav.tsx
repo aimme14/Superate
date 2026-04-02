@@ -19,7 +19,6 @@ import {
   prefetchRutaAcademica,
   prefetchPlanEstudioIA,
   prefetchSimulacrosIA,
-  prefetchSimulacrosICFES,
 } from "@/utils/prefetchChunks";
 import {
   scheduleRutaPreparacionPrefetch,
@@ -117,7 +116,7 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
   const isActive = (href: string, isRutaArea?: boolean) => {
     if (href === STUDENT_HOME) return isStudentHomePath(pathname);
     if (isRutaArea) {
-      return pathname === RUTA_ACADEMICA_PATH || pathname === PLAN_ESTUDIO_PATH || pathname === "/simulacros-ia" || pathname === "/simulacros-icfes";
+      return pathname === RUTA_ACADEMICA_PATH || pathname === PLAN_ESTUDIO_PATH || pathname === "/simulacros-ia";
     }
     if (href.includes("#")) {
       const [base] = href.split("#");
@@ -224,7 +223,6 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
             prefetchRutaAcademica();
             prefetchPlanEstudioIA();
             prefetchSimulacrosIA();
-            prefetchSimulacrosICFES();
             if (isStudent) {
               runRutaPreparacionPrefetch(queryClient, {
                 grade: DEFAULT_GRADE_RUTA_PREPARACION,
@@ -310,14 +308,12 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
                 className={mobileLinkClass(
                   pathname === RUTA_ACADEMICA_PATH ||
                     pathname === PLAN_ESTUDIO_PATH ||
-                    pathname === "/simulacros-ia" ||
-                    pathname === "/simulacros-icfes"
+                    pathname === "/simulacros-ia"
                 )}
                 onPointerEnter={() => {
                   prefetchRutaAcademica();
                   prefetchPlanEstudioIA();
                   prefetchSimulacrosIA();
-                  prefetchSimulacrosICFES();
                 }}
                 onClick={() => {
                   runRutaPreparacionPrefetch(queryClient, { grade: DEFAULT_GRADE_RUTA_PREPARACION });

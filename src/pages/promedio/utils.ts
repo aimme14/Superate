@@ -4,6 +4,7 @@
 
 import { TEST_NAME_MAP } from "./constants";
 import type { AnalysisData, SubjectWithTopics } from "./types";
+import { canonicalizeTopicName } from "@/utils/topicCanonicalization";
 
 /** Mapea nombres de pruebas a nombres descriptivos para visualización. */
 export function getTestDisplayName(testName: string): string {
@@ -120,20 +121,39 @@ export function prepareSubjectTopicsData(
     const phase2Subject = phase2Data?.subjectsWithTopics?.find((s) => s.name === subjectName);
     const phase3Subject = phase3Data?.subjectsWithTopics?.find((s) => s.name === subjectName);
 
-    const allTopics = new Set<string>();
-    [phase1Subject, phase2Subject, phase3Subject].forEach((s) => {
-      s?.topics.forEach((t) => allTopics.add(t.name));
-    });
+    const buildPhaseMap = (subjectData?: SubjectWithTopics): Map<string, number> => {
+      const map = new Map<string, { sum: number; count: number }>();
+      subjectData?.topics.forEach((topic) => {
+        const canonicalTopic = canonicalizeTopicName(subjectName, topic.name);
+        const current = map.get(canonicalTopic) || { sum: 0, count: 0 };
+        map.set(canonicalTopic, {
+          sum: current.sum + topic.percentage,
+          count: current.count + 1,
+        });
+      });
+
+      const averaged = new Map<string, number>();
+      map.forEach((value, key) => {
+        averaged.set(key, Math.round(value.sum / value.count));
+      });
+      return averaged;
+    };
+
+    const phase1Map = buildPhaseMap(phase1Subject);
+    const phase2Map = buildPhaseMap(phase2Subject);
+    const phase3Map = buildPhaseMap(phase3Subject);
+    const allTopics = new Set<string>([
+      ...Array.from(phase1Map.keys()),
+      ...Array.from(phase2Map.keys()),
+      ...Array.from(phase3Map.keys()),
+    ]);
 
     const topics = Array.from(allTopics).map((topicName) => {
-      const phase1Topic = phase1Subject?.topics.find((t) => t.name === topicName);
-      const phase2Topic = phase2Subject?.topics.find((t) => t.name === topicName);
-      const phase3Topic = phase3Subject?.topics.find((t) => t.name === topicName);
       return {
         topic: topicName,
-        phase1: phase1Topic ? phase1Topic.percentage : null,
-        phase2: phase2Topic ? phase2Topic.percentage : null,
-        phase3: phase3Topic ? phase3Topic.percentage : null,
+        phase1: phase1Map.get(topicName) ?? null,
+        phase2: phase2Map.get(topicName) ?? null,
+        phase3: phase3Map.get(topicName) ?? null,
       };
     });
 

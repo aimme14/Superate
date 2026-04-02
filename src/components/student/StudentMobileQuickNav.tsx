@@ -22,7 +22,6 @@ import {
   prefetchRutaAcademica,
   prefetchPlanEstudioIA,
   prefetchSimulacrosIA,
-  prefetchSimulacrosICFES,
 } from "@/utils/prefetchChunks";
 import {
   DEFAULT_GRADE_RUTA_PREPARACION,
@@ -88,13 +87,11 @@ function buildQuickItems(
       isActive: (p) =>
         p === RUTA_ACADEMICA_PATH ||
         p === PLAN_ESTUDIO_PATH ||
-        p === "/simulacros-ia" ||
-        p === "/simulacros-icfes",
+        p === "/simulacros-ia",
       onPrefetch: () => {
         prefetchRutaAcademica();
         prefetchPlanEstudioIA();
         prefetchSimulacrosIA();
-        prefetchSimulacrosICFES();
         runRutaPreparacionPrefetch(queryClient, {
           grade: DEFAULT_GRADE_RUTA_PREPARACION,
         });
