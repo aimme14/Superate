@@ -63,42 +63,42 @@ const Navbar = () => {
                     alt="SUPERATE.IA"
                     className="h-7 w-auto max-h-9 sm:h-8 sm:max-h-10 object-contain"
                   />
-                  <div className="hidden sm:flex items-center gap-2 md:gap-3">
+                  <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
                     <img
                       src={secretariaIcono}
                       alt="Secretaría de Educación"
-                        className="h-11 md:h-12 w-auto max-h-14 object-contain"
+                      className="h-7 sm:h-11 md:h-12 w-auto max-h-14 object-contain"
                       loading="lazy"
                     />
                     <div className={cn(
-                      'leading-tight text-center',
+                      'block leading-tight text-center max-w-[78px] sm:max-w-none',
                       theme === 'dark' ? 'text-zinc-100' : 'text-gray-900'
                     )}>
-                      <p className="text-[11px] md:text-xs font-semibold tracking-wide uppercase">
+                      <p className="text-[7px] sm:text-[10px] md:text-xs font-semibold tracking-tight sm:tracking-wide uppercase">
                         SECRETARÍA DE EDUCACIÓN
                       </p>
-                      <p className="text-[10px] md:text-[11px] font-medium">
+                      <p className="text-[7px] sm:text-[9px] md:text-[11px] font-medium">
                         Norte de Santander
                       </p>
                     </div>
                     <div className={cn(
-                      'flex items-center gap-2 md:gap-3 border-l pl-2 md:pl-3',
+                      'flex items-center gap-1 sm:gap-2 md:gap-3 border-l pl-1 sm:pl-2 md:pl-3',
                       theme === 'dark' ? 'border-zinc-600' : 'border-gray-300'
                     )}>
                       <img
                         src={gobernacionIcono}
                         alt="Gobernación de Norte de Santander"
-                        className="h-12 md:h-[3.25rem] w-auto max-h-[3.5rem] object-contain"
+                        className="h-8 sm:h-12 md:h-[3.25rem] w-auto max-h-[3.5rem] object-contain"
                         loading="lazy"
                       />
                       <div className={cn(
-                        'leading-tight text-center',
+                        'block leading-tight text-center max-w-[74px] sm:max-w-none',
                         theme === 'dark' ? 'text-zinc-100' : 'text-gray-900'
                       )}>
-                        <p className="text-[11px] md:text-xs font-semibold tracking-wide">
+                        <p className="text-[7px] sm:text-[10px] md:text-xs font-semibold tracking-tight sm:tracking-wide">
                           Gobernación de
                         </p>
-                        <p className="text-[10px] md:text-[11px] font-medium">
+                        <p className="text-[7px] sm:text-[9px] md:text-[11px] font-medium">
                           Norte de Santander
                         </p>
                       </div>
@@ -113,42 +113,42 @@ const Navbar = () => {
                     alt="SUPERATE.IA"
                     className="h-7 w-auto max-h-9 sm:h-8 sm:max-h-10 object-contain"
                   />
-                  <div className="hidden sm:flex items-center gap-2 md:gap-3">
+                  <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
                     <img
                       src={secretariaIcono}
                       alt="Secretaría de Educación"
-                      className="h-11 md:h-12 w-auto max-h-14 object-contain"
+                      className="h-7 sm:h-11 md:h-12 w-auto max-h-14 object-contain"
                       loading="lazy"
                     />
                     <div className={cn(
-                      'leading-tight text-center',
+                      'block leading-tight text-center max-w-[78px] sm:max-w-none',
                       theme === 'dark' ? 'text-zinc-100' : 'text-gray-900'
                     )}>
-                      <p className="text-[11px] md:text-xs font-semibold tracking-wide uppercase">
+                      <p className="text-[7px] sm:text-[10px] md:text-xs font-semibold tracking-tight sm:tracking-wide uppercase">
                         SECRETARÍA DE EDUCACIÓN
                       </p>
-                      <p className="text-[10px] md:text-[11px] font-medium">
+                      <p className="text-[7px] sm:text-[9px] md:text-[11px] font-medium">
                         Norte de Santander
                       </p>
                     </div>
                     <div className={cn(
-                      'flex items-center gap-2 md:gap-3 border-l pl-2 md:pl-3',
+                      'flex items-center gap-1 sm:gap-2 md:gap-3 border-l pl-1 sm:pl-2 md:pl-3',
                       theme === 'dark' ? 'border-zinc-600' : 'border-gray-300'
                     )}>
                       <img
                         src={gobernacionIcono}
                         alt="Gobernación de Norte de Santander"
-                        className="h-12 md:h-[3.25rem] w-auto max-h-[3.5rem] object-contain"
+                        className="h-8 sm:h-12 md:h-[3.25rem] w-auto max-h-[3.5rem] object-contain"
                         loading="lazy"
                       />
                       <div className={cn(
-                        'leading-tight text-center',
+                        'block leading-tight text-center max-w-[74px] sm:max-w-none',
                         theme === 'dark' ? 'text-zinc-100' : 'text-gray-900'
                       )}>
-                        <p className="text-[11px] md:text-xs font-semibold tracking-wide">
+                        <p className="text-[7px] sm:text-[10px] md:text-xs font-semibold tracking-tight sm:tracking-wide">
                           Gobernación de
                         </p>
-                        <p className="text-[10px] md:text-[11px] font-medium">
+                        <p className="text-[7px] sm:text-[9px] md:text-[11px] font-medium">
                           Norte de Santander
                         </p>
                       </div>

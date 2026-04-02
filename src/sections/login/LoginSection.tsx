@@ -60,7 +60,7 @@ const LoginSection = ({ theme }: ThemeContextProps) => {
                 theme={theme}
                 title="Bienvenido"
                 className="bg-transparent/0"
-                description="Ingresa tus credenciales para acceder"
+                description="Ingresa tus credenciales para acceaopara continuar"
               />
               <FormSection theme={theme} />
               <FooterSection />
