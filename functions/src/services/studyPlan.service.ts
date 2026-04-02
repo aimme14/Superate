@@ -27,6 +27,12 @@ import * as admin from 'firebase-admin';
 import * as path from 'path';
 import * as fs from 'fs';
 import { jsonrepair } from 'jsonrepair';
+import {
+  getCanonicalAnswerIAPhaseSubcollection,
+  getCanonicalResultsPhaseSubcollection,
+  getLegacyAnswerIAPhaseAlternates,
+  getLegacyResultsPhaseAlternates,
+} from '../utils/resultsPhasePath';
 
 /**
  * Tipos para el plan de estudio
@@ -121,22 +127,25 @@ export interface StudyPlanGenerationResult {
  */
 class StudyPlanService {
   private static readonly TARGET_EXERCISE_COUNT = 10;
-  private readonly webLinksConsolidatedCache = new Map<
+  /** Una promesa por materiaCode: evita cargas duplicadas del consolidado_* en paralelo. */
+  private readonly webLinksConsolidatedPromises = new Map<
     string,
-    Array<{ title: string; url: string; description: string; topic?: string }>
+    Promise<Array<{ title: string; url: string; description: string; topic?: string }>>
   >();
-  private readonly youtubeLinksConsolidatedCache = new Map<
+  private readonly youtubeLinksConsolidatedPromises = new Map<
     string,
-    Array<{
-      title: string;
-      url: string;
-      description: string;
-      channelTitle: string;
-      videoId?: string;
-      duration?: string;
-      language?: string;
-      topic?: string;
-    }>
+    Promise<
+      Array<{
+        title: string;
+        url: string;
+        description: string;
+        channelTitle: string;
+        videoId?: string;
+        duration?: string;
+        language?: string;
+        topic?: string;
+      }>
+    >
   >();
 
   /**
@@ -218,18 +227,11 @@ class StudyPlanService {
       console.log(`   Fase: ${phase}`);
       console.log(`   Materia: ${subject}`);
 
-      // Mapear fase a nombre de subcolección (probar múltiples variantes)
-      // Nota: según firestoreHelpers.ts, 'first' se guarda como 'fase I' (minúsculas)
-      const phaseVariants: Record<string, string[]> = {
-        first: ['fase I', 'Fase I', 'Fase 1', 'fase 1', 'first'],
-        second: ['Fase II', 'fase II', 'Fase 2', 'fase 2', 'second'],
-        third: ['fase III', 'Fase III', 'Fase 3', 'fase 3', 'third'],
-      };
-      
-      const phaseNames = phaseVariants[phase] || [];
-      if (phaseNames.length === 0) {
-        throw new Error(`Fase inválida: ${phase}`);
-      }
+      const canonicalPhase = getCanonicalResultsPhaseSubcollection(phase);
+      const phaseNamesToTry = [
+        canonicalPhase,
+        ...getLegacyResultsPhaseAlternates(phase),
+      ];
 
       // Obtener la base de datos correcta (superate-6c730)
       console.log(`\n📊 Obteniendo acceso a base de datos superate-6c730...`);
@@ -244,27 +246,31 @@ class StudyPlanService {
       let totalDocsFound = 0;
       let docsChecked = 0;
 
-      // Intentar buscar en cada variante de nombre de fase
-      for (const phaseName of phaseNames) {
+      // Un solo intento con lectura típica: canónico (getPhaseName en cliente). Si la subcolección está vacía, probar legacy.
+      for (const phaseName of phaseNamesToTry) {
         try {
           console.log(`\n   🔎 Buscando en subcolección: "results/${studentId}/${phaseName}"`);
           const phaseRef = studentDb.collection('results').doc(studentId).collection(phaseName);
           const phaseSnap = await phaseRef.get();
-          
+
+          if (phaseSnap.empty) {
+            console.log(`      📄 Sin documentos en "${phaseName}", siguiente variante`);
+            continue;
+          }
+
           totalDocsFound += phaseSnap.size;
           console.log(`      📄 Documentos encontrados en "${phaseName}": ${phaseSnap.size}`);
 
-          phaseSnap.docs.forEach(doc => {
+          phaseSnap.docs.forEach((doc) => {
             docsChecked++;
             const data = doc.data();
             const examSubject = data.subject || '';
             const normalizedExamSubject = this.normalizeSubjectName(examSubject);
-            
+
             console.log(`      📋 Examen ${doc.id}:`);
             console.log(`         - Materia en documento: "${examSubject}" (normalizada: "${normalizedExamSubject}")`);
             console.log(`         - Coincide: ${normalizedExamSubject === normalizedSubject ? '✅ SÍ' : '❌ NO'}`);
-            
-            // Filtrar solo exámenes de la materia específica (comparación flexible)
+
             if (normalizedExamSubject === normalizedSubject) {
               results.push({
                 ...data,
@@ -273,9 +279,11 @@ class StudyPlanService {
               console.log(`         ✅ Agregado a resultados`);
             }
           });
+
+          // Solo una carpeta de fase por estudiante (evita duplicar si hubiera dos variantes pobladas).
+          break;
         } catch (error: any) {
           console.warn(`      ⚠️ Error accediendo a "${phaseName}": ${error.message}`);
-          // Continuar con la siguiente variante
         }
       }
 
@@ -1597,87 +1605,77 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     subject: string
   ): Promise<StudyPlanResponse | null> {
     try {
-      // Mapear fase a nombre de subcolección (probar múltiples variantes)
-      const phaseVariants: Record<string, string[]> = {
-        first: ['fase I', 'Fase I', 'Fase 1', 'fase 1', 'first'],
-        second: ['Fase II', 'fase II', 'Fase 2', 'fase 2', 'second'],
-        third: ['fase III', 'Fase III', 'Fase 3', 'fase 3', 'third'],
-      };
-      
-      const phaseNames = phaseVariants[phase] || [];
-      
-      // Obtener la base de datos correcta (superate-6c730)
+      const phaseNamesToTry = [
+        getCanonicalAnswerIAPhaseSubcollection(phase),
+        ...getLegacyAnswerIAPhaseAlternates(phase),
+      ];
+
       const studentDb = this.getStudentDatabase();
-      
-      // Intentar buscar en cada variante de nombre de fase
-      for (const phaseName of phaseNames) {
+
+      for (const phaseName of phaseNamesToTry) {
         try {
           const docRef = studentDb
             .collection('AnswerIA')
             .doc(studentId)
             .collection(phaseName)
             .doc(subject);
-          
+
           const docSnap = await docRef.get();
-          
-          if (docSnap.exists) {
-            const data = docSnap.data() as StudyPlanResponse;
-            
-            // Verificar que los ejercicios existen
-            if (!data.practice_exercises || !Array.isArray(data.practice_exercises)) {
-              console.warn(`⚠️ Plan de estudio recuperado pero practice_exercises no existe o no es un array`);
-              console.warn(`   Estudiante: ${studentId}, Fase: ${phaseName}, Materia: ${subject}`);
-              // Inicializar como array vacío para evitar errores en el frontend
-              data.practice_exercises = [];
-            } else {
-              console.log(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
-            }
-            
-            // study_links: fuente de verdad WebLinks; se construyen al leer
-            const gradeForLinks = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
-            const allTopicNamesForSubject = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
-            data.study_links = await this.buildStudyLinksFromWebLinks(gradeForLinks, subject, allTopicNamesForSubject, phase);
-            if (data.study_links.length > 0) {
-              console.log(`   ✅ study_links desde WebLinks: ${data.study_links.length} enlace(s) para ${allTopicNamesForSubject.length} tema(s)`);
-            }
 
-            // video_resources: siempre se cargan TODOS los temas de la materia (con o sin debilidades)
-            // Fuente: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos
-            const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
-            const allTopicsForVideos = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
-            if (allTopicsForVideos.length > 0) {
-              console.log(`   📹 Construyendo video_resources desde YoutubeLinks (${allTopicsForVideos.length} tema(s) de la materia)...`);
-              const videosByTopic = await Promise.all(
-                allTopicsForVideos.map(async (topicName) => {
-                  try {
-                    const videos = await this.getCachedVideos(grade, studentId, phase, subject, topicName);
-                    return videos.map((video) => ({
-                      ...video,
-                      topic: topicName,
-                      topicDisplayName: topicName,
-                    }));
-                  } catch (error: any) {
-                    console.warn(`   ⚠️ Error obteniendo videos para topic "${topicName}":`, error?.message);
-                    return [];
-                  }
-                })
-              );
-              data.video_resources = videosByTopic.flat();
-              if (data.video_resources.length > 0) {
-                console.log(`   ✅ video_resources desde YoutubeLinks: ${data.video_resources.length} video(s)`);
-              }
-            } else {
-              data.video_resources = [];
-            }
-
-            return data;
+          if (!docSnap.exists) {
+            continue;
           }
+
+          const data = docSnap.data() as StudyPlanResponse;
+
+          if (!data.practice_exercises || !Array.isArray(data.practice_exercises)) {
+            console.warn(`⚠️ Plan de estudio recuperado pero practice_exercises no existe o no es un array`);
+            console.warn(`   Estudiante: ${studentId}, Fase: ${phaseName}, Materia: ${subject}`);
+            data.practice_exercises = [];
+          } else {
+            console.log(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
+          }
+
+          const gradeForLinks = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
+          const allTopicNamesForSubject = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
+          data.study_links = await this.buildStudyLinksFromWebLinks(gradeForLinks, subject, allTopicNamesForSubject, phase);
+          if (data.study_links.length > 0) {
+            console.log(`   ✅ study_links desde WebLinks: ${data.study_links.length} enlace(s) para ${allTopicNamesForSubject.length} tema(s)`);
+          }
+
+          const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
+          const allTopicsForVideos = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
+          if (allTopicsForVideos.length > 0) {
+            console.log(`   📹 Construyendo video_resources desde YoutubeLinks (${allTopicsForVideos.length} tema(s) de la materia)...`);
+            const videosByTopic = await Promise.all(
+              allTopicsForVideos.map(async (topicName) => {
+                try {
+                  const videos = await this.getCachedVideos(grade, studentId, phase, subject, topicName);
+                  return videos.map((video) => ({
+                    ...video,
+                    topic: topicName,
+                    topicDisplayName: topicName,
+                  }));
+                } catch (error: any) {
+                  console.warn(`   ⚠️ Error obteniendo videos para topic "${topicName}":`, error?.message);
+                  return [];
+                }
+              })
+            );
+            data.video_resources = videosByTopic.flat();
+            if (data.video_resources.length > 0) {
+              console.log(`   ✅ video_resources desde YoutubeLinks: ${data.video_resources.length} video(s)`);
+            }
+          } else {
+            data.video_resources = [];
+          }
+
+          return data;
         } catch (error: any) {
-          // Continuar con la siguiente variante
           console.warn(`   ⚠️ Error buscando en ${phaseName}:`, error.message);
         }
       }
-      
+
       return null;
     } catch (error: any) {
       console.error('Error obteniendo plan de estudio:', error);
@@ -1891,6 +1889,95 @@ Responde SOLO con JSON válido, sin texto adicional.`;
    * Fuente única: YoutubeLinks/consolidado_{materiaCode} y, si aplica, YoutubeLinks/consolidado_{materiaCode}_{n}.
    * El campo items.topic usa topicCode (AL, GE, ES, ...); aquí filtramos por topicCode y aplicamos MAX_VIDEOS_PER_TOPIC.
    */
+  private getOrLoadYoutubeLinksConsolidated(
+    materiaCode: string
+  ): Promise<
+    Array<{
+      title: string;
+      url: string;
+      description: string;
+      channelTitle: string;
+      videoId?: string;
+      duration?: string;
+      language?: string;
+      topic?: string;
+    }>
+  > {
+    let p = this.youtubeLinksConsolidatedPromises.get(materiaCode);
+    if (!p) {
+      p = this.fetchYoutubeLinksConsolidatedItems(materiaCode);
+      this.youtubeLinksConsolidatedPromises.set(materiaCode, p);
+    }
+    return p;
+  }
+
+  private async fetchYoutubeLinksConsolidatedItems(
+    materiaCode: string
+  ): Promise<
+    Array<{
+      title: string;
+      url: string;
+      description: string;
+      channelTitle: string;
+      videoId?: string;
+      duration?: string;
+      language?: string;
+      topic?: string;
+    }>
+  > {
+    const studentDb = this.getStudentDatabase();
+    const parseVideoRow = (data: admin.firestore.DocumentData) => ({
+      title: data.título || data.title || '',
+      url:
+        data.url ||
+        (data.videoId ? `https://www.youtube.com/watch?v=${data.videoId}` : ''),
+      description: data.description || '',
+      channelTitle: data.canal || data.channelTitle || '',
+      videoId: data.videoId || '',
+      duration: data.duración || data.duration || '',
+      language: data.idioma || data.language || 'es',
+      topic: typeof data.topic === 'string' ? data.topic : '',
+    });
+    const baseDocId = `consolidado_${materiaCode}`;
+    const baseRef = studentDb.collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION).doc(baseDocId);
+    const baseSnap = await baseRef.get();
+    const baseData = baseSnap.data() as
+      | { items?: admin.firestore.DocumentData[]; totalParts?: number }
+      | undefined;
+    const totalParts =
+      typeof baseData?.totalParts === 'number' && baseData.totalParts > 0 ? baseData.totalParts : 1;
+    const extraPartSnapsYt =
+      totalParts > 1
+        ? await Promise.all(
+            Array.from({ length: totalParts - 1 }, (_, j) => {
+              const suffix = j + 2;
+              return studentDb
+                .collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION)
+                .doc(`${baseDocId}_${suffix}`)
+                .get();
+            })
+          )
+        : [];
+    const partDocs = [baseSnap, ...extraPartSnapsYt];
+    const orderOrTime = (data: admin.firestore.DocumentData): number => {
+      if (typeof data.order === 'number') return data.order;
+      const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
+      return t ?? 0;
+    };
+    const allVideosForSubject = partDocs
+      .flatMap((snap) => {
+        const data = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
+        return Array.isArray(data?.items) ? data.items : [];
+      })
+      .filter((x) => x?.url || x?.videoId)
+      .sort((a, b) => orderOrTime(a) - orderOrTime(b))
+      .map((x) => parseVideoRow(x));
+    console.log(
+      `   📦 YoutubeLinks consolidado_${materiaCode}: ${allVideosForSubject.length} video(s) total en ${totalParts} parte(s)`
+    );
+    return allVideosForSubject;
+  }
+
   private async getCachedVideos(
     _grade: string,
     _studentId: string,
@@ -1907,7 +1994,6 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     language?: string;
     topic?: string;
   }>> {
-    const studentDb = this.getStudentDatabase();
     const subjectConfig = getSubjectConfig(subject);
     const materiaCode = subjectConfig?.code;
     const topicCode = getTopicCode(subject, topic);
@@ -1917,77 +2003,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       return [];
     }
 
-    const parseVideoRow = (data: admin.firestore.DocumentData) => ({
-      title: data.título || data.title || '',
-      url:
-        data.url ||
-        (data.videoId
-          ? `https://www.youtube.com/watch?v=${data.videoId}`
-          : ''),
-      description: data.description || '',
-      channelTitle: data.canal || data.channelTitle || '',
-      videoId: data.videoId || '',
-      duration: data.duración || data.duration || '',
-      language: data.idioma || data.language || 'es',
-      topic: typeof data.topic === 'string' ? data.topic : '',
-    });
-
     try {
-      const cacheKey = materiaCode;
-      let allVideosForSubject = this.youtubeLinksConsolidatedCache.get(cacheKey);
-
-      if (!allVideosForSubject) {
-        const baseDocId = `consolidado_${materiaCode}`;
-        const baseRef = studentDb
-          .collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION)
-          .doc(baseDocId);
-        const baseSnap = await baseRef.get();
-
-        const baseData = baseSnap.data() as
-          | {
-              items?: admin.firestore.DocumentData[];
-              totalParts?: number;
-            }
-          | undefined;
-
-        const totalParts =
-          typeof baseData?.totalParts === 'number' && baseData.totalParts > 0
-            ? baseData.totalParts
-            : 1;
-
-        const partDocs = await Promise.all(
-          Array.from({ length: totalParts }, (_, i) => {
-            const docId = i === 0 ? baseDocId : `${baseDocId}_${i + 1}`;
-            return studentDb
-              .collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION)
-              .doc(docId)
-              .get();
-          })
-        );
-
-        const orderOrTime = (data: admin.firestore.DocumentData): number => {
-          if (typeof data.order === 'number') return data.order;
-          const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
-          return t ?? 0;
-        };
-
-        allVideosForSubject = partDocs
-          .flatMap((snap) => {
-            const data = snap.data() as
-              | { items?: admin.firestore.DocumentData[] }
-              | undefined;
-            return Array.isArray(data?.items) ? data.items : [];
-          })
-          .filter((x) => x?.url || x?.videoId)
-          .sort((a, b) => orderOrTime(a) - orderOrTime(b))
-          .map((x) => parseVideoRow(x));
-
-        this.youtubeLinksConsolidatedCache.set(cacheKey, allVideosForSubject);
-        console.log(
-          `   📦 YoutubeLinks consolidado_${materiaCode}: ${allVideosForSubject.length} video(s) total en ${totalParts} parte(s)`
-        );
-      }
-
+      const allVideosForSubject = await this.getOrLoadYoutubeLinksConsolidated(materiaCode);
       const videos = allVideosForSubject
         .filter(
           (v) =>
@@ -2422,6 +2439,70 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     return total;
   }
 
+  private getOrLoadWebLinksConsolidated(
+    materiaCode: string
+  ): Promise<Array<{ title: string; url: string; description: string; topic?: string }>> {
+    let p = this.webLinksConsolidatedPromises.get(materiaCode);
+    if (!p) {
+      p = this.fetchWebLinksConsolidatedItems(materiaCode);
+      this.webLinksConsolidatedPromises.set(materiaCode, p);
+    }
+    return p;
+  }
+
+  /**
+   * Carga y fusiona partes consolidadas WebLinks (una sola ejecución en paralelo por materiaCode).
+   */
+  private async fetchWebLinksConsolidatedItems(
+    materiaCode: string
+  ): Promise<Array<{ title: string; url: string; description: string; topic?: string }>> {
+    const studentDb = this.getStudentDatabase();
+    const parseLinkDoc = (data: admin.firestore.DocumentData) => ({
+      title: data.title || data.name || 'Enlace',
+      url: data.url || data.link || '',
+      description: data.description || '',
+      topic: typeof data.topic === 'string' ? data.topic : '',
+    });
+    const baseDocId = `consolidado_${materiaCode}`;
+    const baseRef = studentDb.collection(StudyPlanService.WEBLINKS_COLLECTION).doc(baseDocId);
+    const baseSnap = await baseRef.get();
+    const baseData = baseSnap.data() as
+      | { items?: admin.firestore.DocumentData[]; totalParts?: number }
+      | undefined;
+    const totalParts =
+      typeof baseData?.totalParts === 'number' && baseData.totalParts > 0 ? baseData.totalParts : 1;
+    const extraPartSnaps =
+      totalParts > 1
+        ? await Promise.all(
+            Array.from({ length: totalParts - 1 }, (_, j) => {
+              const suffix = j + 2;
+              return studentDb
+                .collection(StudyPlanService.WEBLINKS_COLLECTION)
+                .doc(`${baseDocId}_${suffix}`)
+                .get();
+            })
+          )
+        : [];
+    const partDocs = [baseSnap, ...extraPartSnaps];
+    const orderOrTime = (data: admin.firestore.DocumentData): number => {
+      if (typeof data.order === 'number') return data.order;
+      const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
+      return t ?? 0;
+    };
+    const allLinksForSubject = partDocs
+      .flatMap((snap) => {
+        const data = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
+        return Array.isArray(data?.items) ? data.items : [];
+      })
+      .filter((x) => x?.url || x?.link)
+      .sort((a, b) => orderOrTime(a) - orderOrTime(b))
+      .map((x) => parseLinkDoc(x));
+    console.log(
+      `   📦 WebLinks consolidado_${materiaCode}: ${allLinksForSubject.length} enlace(s) total en ${totalParts} parte(s)`
+    );
+    return allLinksForSubject;
+  }
+
   /**
    * Obtiene enlaces desde documentos consolidados por materia.
    * Fuente única: WebLinks/consolidado_{materiaCode} y, si aplica, WebLinks/consolidado_{materiaCode}_{n}.
@@ -2438,7 +2519,6 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     description: string;
     topic?: string;
   }>> {
-    const studentDb = this.getStudentDatabase();
     const subjectConfig = getSubjectConfig(subject);
     const materiaCode = subjectConfig?.code;
     const topicCode = getTopicCode(subject, topic);
@@ -2448,69 +2528,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       return [];
     }
 
-    const parseLinkDoc = (data: admin.firestore.DocumentData) => ({
-      title: data.title || data.name || 'Enlace',
-      url: data.url || data.link || '',
-      description: data.description || '',
-      topic: typeof data.topic === 'string' ? data.topic : '',
-    });
-
     try {
-      const cacheKey = materiaCode;
-      let allLinksForSubject = this.webLinksConsolidatedCache.get(cacheKey);
-
-      if (!allLinksForSubject) {
-        const baseDocId = `consolidado_${materiaCode}`;
-        const baseRef = studentDb
-          .collection(StudyPlanService.WEBLINKS_COLLECTION)
-          .doc(baseDocId);
-        const baseSnap = await baseRef.get();
-
-        const baseData = baseSnap.data() as
-          | {
-              items?: admin.firestore.DocumentData[];
-              totalParts?: number;
-            }
-          | undefined;
-
-        const totalParts =
-          typeof baseData?.totalParts === 'number' && baseData.totalParts > 0
-            ? baseData.totalParts
-            : 1;
-
-        const partDocs = await Promise.all(
-          Array.from({ length: totalParts }, (_, i) => {
-            const docId = i === 0 ? baseDocId : `${baseDocId}_${i + 1}`;
-            return studentDb
-              .collection(StudyPlanService.WEBLINKS_COLLECTION)
-              .doc(docId)
-              .get();
-          })
-        );
-
-        const orderOrTime = (data: admin.firestore.DocumentData): number => {
-          if (typeof data.order === 'number') return data.order;
-          const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
-          return t ?? 0;
-        };
-
-        allLinksForSubject = partDocs
-          .flatMap((snap) => {
-            const data = snap.data() as
-              | { items?: admin.firestore.DocumentData[] }
-              | undefined;
-            return Array.isArray(data?.items) ? data.items : [];
-          })
-          .filter((x) => x?.url || x?.link)
-          .sort((a, b) => orderOrTime(a) - orderOrTime(b))
-          .map((x) => parseLinkDoc(x));
-
-        this.webLinksConsolidatedCache.set(cacheKey, allLinksForSubject);
-        console.log(
-          `   📦 WebLinks consolidado_${materiaCode}: ${allLinksForSubject.length} enlace(s) total en ${totalParts} parte(s)`
-        );
-      }
-
+      const allLinksForSubject = await this.getOrLoadWebLinksConsolidated(materiaCode);
       const links = allLinksForSubject
         .filter(
           (l) =>
@@ -2528,9 +2547,19 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     }
   }
 
+  /** Orden estable: campo order o número en id `ejercicioN`. */
+  private static exerciseDocOrder(docId: string, data: admin.firestore.DocumentData): number {
+    if (typeof data.order === 'number' && !Number.isNaN(data.order)) {
+      return data.order;
+    }
+    const m = /^ejercicio(\d+)$/i.exec(docId);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
   /**
    * Obtiene ejercicios desde Firestore (caché EjerciciosIA).
-   * Ruta unificada con admin: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicio1, ejercicio2...
+   * Ruta unificada con admin: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicio1...
+   * Optimizado: query orderBy('order') + limit (pocas lecturas vs N gets por slot vacío).
    */
   private async getCachedExercises(
     grade: string,
@@ -2570,22 +2599,40 @@ Responde SOLO con JSON válido, sin texto adicional.`;
         .doc(topicCode)
         .collection('ejercicios');
 
-      const promises: Promise<admin.firestore.DocumentSnapshot | null>[] = [];
-      for (let i = 1; i <= MAX_EXERCISES_PER_TOPIC; i++) {
-        promises.push(
-          ejerciciosColRef.doc(`ejercicio${i}`).get().then((d) => (d.exists ? d : null))
+      let snap: admin.firestore.QuerySnapshot | null = null;
+      try {
+        snap = await ejerciciosColRef
+          .orderBy('order', 'asc')
+          .limit(MAX_EXERCISES_PER_TOPIC)
+          .get();
+      } catch (orderErr: any) {
+        console.warn(
+          `   ⚠️ orderBy('order') en EjerciciosIA falló, usando lectura completa:`,
+          orderErr?.message
         );
       }
-      const docs = await Promise.all(promises);
-      const withOrder = docs
-        .filter((doc): doc is admin.firestore.DocumentSnapshot => doc !== null)
+
+      if (!snap || snap.empty) {
+        snap = await ejerciciosColRef.get();
+      }
+
+      if (snap.empty) {
+        return [];
+      }
+
+      const parsed = snap.docs
         .map((doc) => {
-          const data = doc?.data();
-          return data ? { ...parseExerciseDoc(data), order: data.order ?? 0 } : null;
+          const data = doc.data();
+          if (!data || !data.question) return null;
+          const order = StudyPlanService.exerciseDocOrder(doc.id, data);
+          return { doc, data, order };
         })
-        .filter((v): v is NonNullable<typeof v> & { order: number } => v !== null);
-      withOrder.sort((a, b) => (a.order as number) - (b.order as number));
-      return withOrder;
+        .filter((x): x is { doc: admin.firestore.QueryDocumentSnapshot; data: admin.firestore.DocumentData; order: number } => x !== null)
+        .sort((a, b) => a.order - b.order)
+        .slice(0, MAX_EXERCISES_PER_TOPIC)
+        .map((x) => parseExerciseDoc(x.data));
+
+      return parsed;
     } catch (error: any) {
       console.warn(`   ⚠️ Error leyendo ejercicios desde EjerciciosIA:`, error.message);
       return [];

@@ -20,6 +20,8 @@
     "delete-examples": "npm run build && node lib/scripts/deleteExamples.js",
     "test": "npm run build && node lib/scripts/test-study-plan-smoke.js",
     "test:smoke": "npm run build && node lib/scripts/test-study-plan-smoke.js",
+    "verify:plan": "npm run build && node lib/scripts/verifyPlanOptimizations.js",
+    "verify:generate": "npm run build && node lib/scripts/generateAndVerifyPlan.js",
     "migrate-videos": "npm run build && node lib/scripts/migrateVideosToAnswerIA.js",
     "migrate-weblinks": "npm run build && node lib/scripts/migrateWebLinks.js",
     "migrate-youtube-grade": "npm run build && node lib/scripts/migrateYoutubeLinksToGrade.js",
