@@ -53,6 +53,48 @@ import { canonicalizeTopicName } from '@/utils/topicCanonicalization'
 const db = getFirestore(firebaseApp)
 const RANKING_INITIAL_VISIBLE = 10
 
+/** Evita mostrar IDs de Firestore u otras claves técnicas como si fueran nombre de grado/sede. */
+function looksLikeTechnicalId(value: string): boolean {
+  const v = value.trim()
+  if (!v) return true
+  if (v.includes('/')) return true
+  if (v.length >= 24 && !v.includes(' ')) return true
+  return false
+}
+
+function isDisplayableCampusName(value: string | undefined): boolean {
+  const v = value?.trim() ?? ''
+  if (!v) return false
+  if (/^sede$/i.test(v)) return false
+  if (looksLikeTechnicalId(v)) return false
+  return true
+}
+
+function isDisplayableGradeName(value: string | undefined): boolean {
+  const v = value?.trim() ?? ''
+  if (!v) return false
+  if (/^grado$/i.test(v)) return false
+  if (looksLikeTechnicalId(v)) return false
+  return true
+}
+
+function buildTeacherDocenciaLine(campusName: string | undefined, gradeName: string | undefined): string {
+  const parts: string[] = []
+  if (isDisplayableCampusName(campusName)) parts.push(String(campusName).trim())
+  if (isDisplayableGradeName(gradeName)) parts.push(String(gradeName).trim())
+  return parts.length ? `Docencia - ${parts.join(' • ')}` : 'Docencia'
+}
+
+function buildStudentsAssignedDescription(stats: { gradeName?: string; campusName?: string } | null | undefined): string {
+  const g = stats?.gradeName && isDisplayableGradeName(stats.gradeName) ? stats.gradeName.trim() : null
+  const c = stats?.campusName && isDisplayableCampusName(stats.campusName) ? stats.campusName.trim() : null
+  const suffix = 'Haz clic en un estudiante para ver su resumen y diagnóstico.'
+  if (g && c) return `Estudiantes de ${g} en ${c}. ${suffix}`
+  if (g) return `Estudiantes de ${g}. ${suffix}`
+  if (c) return `Estudiantes en ${c}. ${suffix}`
+  return `Estudiantes asignados. ${suffix}`
+}
+
 interface TeacherDashboardProps extends ThemeContextProps {}
 
 export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
@@ -192,7 +234,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                     Bienvenido, {stats.teacherName}
                   </h1>
                   <p className={cn('opacity-90 mb-0.5', isMobile ? 'text-xs' : 'text-sm')}>
-                    Docencia - {stats.campusName} • {stats.gradeName}
+                    {buildTeacherDocenciaLine(stats.campusName, stats.gradeName)}
                   </p>
                   <p className={cn('opacity-75 truncate', isMobile ? 'text-[11px] max-w-[180px]' : 'text-xs')}>
                     {institutionName || stats.institutionName} • {stats.teacherEmail}
@@ -908,14 +950,6 @@ function StudentsTab({ theme, studentSummaries, stats }: any) {
   const [selectedSummary, setSelectedSummary] = useState<any>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const looksLikeTechnicalId = (value: string): boolean => {
-    const v = value.trim()
-    if (!v) return true
-    if (v.includes('/')) return true
-    if (v.length >= 24 && !v.includes(' ')) return true
-    return false
-  }
-
   const safeGradeName = (raw: unknown): string | null => {
     if (typeof raw !== 'string') return null
     const trimmed = raw.trim()
@@ -954,7 +988,7 @@ function StudentsTab({ theme, studentSummaries, stats }: any) {
             Total Estudiantes: {studentRows?.length ?? 0}
           </CardTitle>
           <CardDescription className="text-xs">
-            Estudiantes de {stats?.gradeName} en {stats?.campusName}. Haz clic en un estudiante para ver su resumen y diagnóstico.
+            {buildStudentsAssignedDescription(stats)}
           </CardDescription>
         </CardHeader>
         <CardContent>

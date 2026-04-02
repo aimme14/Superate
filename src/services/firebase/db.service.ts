@@ -1652,15 +1652,8 @@ class DatabaseService {
    */
   async getTeachersByInstitution(institutionId: string): Promise<Result<any[]>> {
     try {
-      // Obtener docentes de la colección tradicional
-      const queryRef = query(
-        this.getCollection('teachers'),
-        where('institutionId', '==', institutionId)
-      )
-      const snapshot = await getDocs(queryRef)
-      const traditionalTeachers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-
-      // Obtener docentes de los grados de la institución
+      // Obtener docentes de la institución desde la estructura jerárquica.
+      // No consultar colecciones legacy para evitar rechazos/lecturas innecesarias.
       const institutionResult = await this.getInstitutionById(institutionId)
       if (!institutionResult.success) {
         return failure(institutionResult.error)
@@ -1684,23 +1677,7 @@ class DatabaseService {
         })
       })
 
-      // Enriquecer docentes tradicionales con nombres
-      const enrichedTraditionalTeachers = traditionalTeachers.map((teacher: any) => ({
-        ...teacher,
-        institutionName: institutionResult.data.name,
-        campusName: teacher.campusId ? 
-          institutionResult.data.campuses.find((c: any) => c.id === teacher.campusId)?.name || teacher.campusId :
-          'N/A',
-        gradeName: teacher.gradeId ?
-          institutionResult.data.campuses
-            .flatMap((c: any) => c.grades)
-            .find((g: any) => g.id === teacher.gradeId)?.name || teacher.gradeId :
-          'N/A'
-      }))
-
-      // Combinar ambos tipos de docentes
-      const allTeachers = [...enrichedTraditionalTeachers, ...gradeTeachers]
-      return success(allTeachers)
+      return success(gradeTeachers)
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener docentes por institución'))) }
   }
 
@@ -1711,29 +1688,18 @@ class DatabaseService {
    */
   async getTeachersByCampus(campusId: string): Promise<Result<any[]>> {
     try {
-      // Obtener docentes de la colección tradicional
-      const queryRef = query(
-        this.getCollection('teachers'),
-        where('campusId', '==', campusId)
-      )
-      const snapshot = await getDocs(queryRef)
-      const traditionalTeachers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-
-      // Obtener docentes de los grados de la sede
+      // Obtener docentes de los grados de la sede en estructura jerárquica.
+      // Evita acceso a colecciones legacy que solo agregan ruido en métricas.
       const institutionsResult = await this.getAllInstitutions()
       if (!institutionsResult.success) {
         return failure(institutionsResult.error)
       }
 
       const gradeTeachers: any[] = []
-      let campusInfo: any = null
-      let institutionInfo: any = null
 
       institutionsResult.data.forEach((institution: any) => {
         const campus = institution.campuses.find((c: any) => c.id === campusId)
         if (campus) {
-          campusInfo = campus
-          institutionInfo = institution
           campus.grades.forEach((grade: any) => {
             if (grade.teachers && grade.teachers.length > 0) {
               gradeTeachers.push(...grade.teachers.map((teacher: any) => ({
@@ -1751,19 +1717,7 @@ class DatabaseService {
         }
       })
 
-      // Enriquecer docentes tradicionales con nombres
-      const enrichedTraditionalTeachers = traditionalTeachers.map((teacher: any) => ({
-        ...teacher,
-        institutionName: institutionInfo?.name || teacher.institutionId,
-        campusName: campusInfo?.name || teacher.campusId,
-        gradeName: teacher.gradeId ?
-          campusInfo?.grades.find((g: any) => g.id === teacher.gradeId)?.name || teacher.gradeId :
-          'N/A'
-      }))
-
-      // Combinar ambos tipos de docentes
-      const allTeachers = [...enrichedTraditionalTeachers, ...gradeTeachers]
-      return success(allTeachers)
+      return success(gradeTeachers)
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener docentes por sede'))) }
   }
 
@@ -1917,9 +1871,10 @@ class DatabaseService {
 
       let students = allStudents
 
-      // OPTIMIZADO: Enriquecer datos usando caché para evitar múltiples llamadas
-      // Agrupar estudiantes por institución para hacer una sola llamada por institución
+      // OPTIMIZADO: Enriquecer datos usando caché para evitar múltiples llamadas.
+      // Usamos caché de promesas para deduplicar lecturas concurrentes por institución.
       const institutionCache = new Map<string, any>()
+      const institutionPromiseCache = new Map<string, Promise<any | null>>()
       
       const enrichedStudents = await Promise.all(
         students.map(async (student: any) => {
@@ -1934,13 +1889,18 @@ class DatabaseService {
             
             // Solo enriquecer si tenemos IDs válidos
             if (institutionId) {
-              // Usar caché para evitar llamadas duplicadas
+              // Usar caché para evitar llamadas duplicadas (incluyendo concurrencia).
               if (!institutionCache.has(institutionId)) {
                 try {
-                  const institutionDoc = await getDoc(doc(this.getCollection('institutions'), institutionId))
-                  if (institutionDoc.exists()) {
-                    institutionCache.set(institutionId, institutionDoc.data())
+                  if (!institutionPromiseCache.has(institutionId)) {
+                    institutionPromiseCache.set(
+                      institutionId,
+                      getDoc(doc(this.getCollection('institutions'), institutionId))
+                        .then((institutionDoc) => (institutionDoc.exists() ? institutionDoc.data() : null))
+                    )
                   }
+                  const institutionDataFromPromise = await institutionPromiseCache.get(institutionId)!
+                  if (institutionDataFromPromise) institutionCache.set(institutionId, institutionDataFromPromise)
                 } catch (error: any) {
                   // Si es error de cuota, no intentar más
                   if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {

@@ -13,6 +13,7 @@ import letraModoClaro from '/assets/letra_modo_claro.png'
 import letraModoNegro from '/assets/letra_modo_negro.png'
 import secretariaIcono from '/assets/identidad/secretaria-icono.png'
 import gobernacionIcono from '/assets/identidad/gobernacion-icono.png'
+import gobernacionIconoModoOscuro from '/assets/identidad/gobernacion-icono-modo-oscuro.png'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -24,6 +25,7 @@ const Navbar = () => {
   const isRectorDashboardPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/rector')
   const showRectorMobileMenuTrigger = isMobile && isAuth && user?.role === 'rector' && isRectorDashboardPath
   const showSidebarTrigger = isMobile && !hasStudentNav(pathname) && isAuth && !showRectorMobileMenuTrigger
+  const gobernacionSrc = theme === 'dark' ? gobernacionIconoModoOscuro : gobernacionIcono
   return (
     <header className={cn(
       'sticky top-0 z-20 bg-gradient-to-r',
@@ -75,7 +77,7 @@ const Navbar = () => {
                       theme === 'dark' ? 'border-zinc-600' : 'border-gray-300'
                     )}>
                       <img
-                        src={gobernacionIcono}
+                        src={gobernacionSrc}
                         alt="Gobernación de Norte de Santander"
                         className="h-9 sm:h-14 md:h-[3.5rem] w-auto max-h-[3.75rem] object-contain"
                         loading="lazy"
@@ -103,7 +105,7 @@ const Navbar = () => {
                       theme === 'dark' ? 'border-zinc-600' : 'border-gray-300'
                     )}>
                       <img
-                        src={gobernacionIcono}
+                        src={gobernacionSrc}
                         alt="Gobernación de Norte de Santander"
                         className="h-9 sm:h-14 md:h-[3.5rem] w-auto max-h-[3.75rem] object-contain"
                         loading="lazy"
