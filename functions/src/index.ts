@@ -31,6 +31,7 @@ import { rebuildSimulacrosConsolidated } from './services/simulacrosConsolidated
 // =============================
 
 const REGION = 'us-central1'; // Cambia según tu región
+const ENABLE_SCHEDULED_JUSTIFICATIONS = false; // Cambiar a true para reactivar
 
 // =============================
 // ENDPOINTS DE JUSTIFICACIONES
@@ -392,6 +393,15 @@ export const scheduledJustificationGeneration = functions
   .pubsub.schedule('0 2 * * *') // Cron: 2:00 AM todos los días
   .timeZone('America/Bogota') // Ajusta según tu zona horaria
   .onRun(async (_context) => {
+    if (!ENABLE_SCHEDULED_JUSTIFICATIONS) {
+      console.log('⏸️ Generación programada de justificaciones desactivada temporalmente.');
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Scheduled justification generation is disabled',
+      };
+    }
+
     console.log('🕐 Ejecutando generación programada de justificaciones...');
     
     try {
