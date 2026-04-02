@@ -45,7 +45,7 @@ interface ItemInfoProps extends ThemeContextProps {
 
 const ItemInfo = ({ image, title, description, theme }: ItemInfoProps) => {
   return (
-    <div className="relative w-full min-h-[240px] h-[38vh] max-h-[320px] sm:h-[350px] md:h-[450px] lg:h-[500px]">
+    <div className="relative w-full min-h-[280px] h-[48vh] max-h-[420px] sm:h-[420px] md:h-[560px] lg:h-[620px]">
       <img src={image} alt={title} className="w-full h-full object-cover" />
       <div
         className={cn(

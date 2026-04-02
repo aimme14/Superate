@@ -848,12 +848,12 @@ export const getRegistrationConfig = async (): Promise<Result<RegistrationConfig
     const configSnap = await getDoc(configRef)
     
     if (!configSnap.exists()) {
-      // Si no existe, crear con valor por defecto (habilitado)
+      // Si no existe, devolver valor por defecto sin escribir.
+      // Esto evita "permission-denied" cuando un usuario no autenticado abre la home.
       const defaultConfig: RegistrationConfig = {
         enabled: true,
         updatedAt: new Date(),
       }
-      await setDoc(configRef, defaultConfig)
       return success(defaultConfig)
     }
     
