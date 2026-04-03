@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Building2, GraduationCap, TrendingUp, Users, UserCog, Crown, Target, Wrench, ChevronDown, ChevronUp } from 'lucide-react'
+import { Building2, GraduationCap, TrendingUp, Users, UserCog, Crown, Target, Wrench, ChevronDown, ChevronUp, Loader2, RotateCw } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRoleSkeleton'
 import { useCurrentRector } from '@/hooks/query/useRectorQuery'
@@ -18,6 +18,8 @@ import {
   fetchInstitutionSummaryByContext,
   RectorPhaseKey,
 } from '@/services/rector/institutionSummary.service'
+import { requestRebuildInstitutionSummary } from '@/services/rector/rebuildInstitutionSummaryCallable'
+import { useToast } from '@/hooks/ui/use-toast'
 
 interface RectorDashboardProps extends ThemeContextProps {}
 
@@ -58,11 +60,18 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     ? 'bg-zinc-900/90 border-zinc-800/80 shadow-md shadow-black/10'
     : 'bg-white border-slate-200 shadow-sm'
 
+  const { toast } = useToast()
   const { data: currentRector, isLoading: rectorLoading } = useCurrentRector()
   const institutionId = currentRector?.institutionId || currentRector?.inst || ''
   const currentYear = new Date().getFullYear()
+  const [rebuildInstBusy, setRebuildInstBusy] = useState(false)
 
-  const { data: institutionSummary, isLoading: summaryLoading, error: summaryError } = useQuery({
+  const {
+    data: institutionSummary,
+    isLoading: summaryLoading,
+    error: summaryError,
+    refetch: refetchInstitutionSummary,
+  } = useQuery({
     queryKey: ['rector-institution-summary-shared', institutionId, currentYear],
     queryFn: () => fetchInstitutionSummaryByContext({ institutionId, academicYear: currentYear }),
     enabled: !!institutionId,
@@ -72,6 +81,24 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     refetchOnMount: false,
     refetchOnReconnect: false,
   })
+
+  const handleRebuildInstitutionSummary = async () => {
+    if (!institutionId) return
+    setRebuildInstBusy(true)
+    try {
+      await requestRebuildInstitutionSummary({ institutionId, academicYear: currentYear })
+      await refetchInstitutionSummary()
+      toast({
+        title: 'Resumen institucional actualizado',
+        description: 'Los datos reflejan los gradeSummary actuales del año.',
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'No se pudo actualizar. Intenta de nuevo.'
+      toast({ variant: 'destructive', title: 'Error al actualizar', description: msg })
+    } finally {
+      setRebuildInstBusy(false)
+    }
+  }
 
   const { data: coordinators = [] } = usePrincipalsByInstitution(
     institutionId,
@@ -361,7 +388,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     }
   }, [])
 
-  if (rectorLoading || summaryLoading) return <DashboardRoleSkeleton theme={theme} />
+  if (rectorLoading) return <DashboardRoleSkeleton theme={theme} />
 
   return (
     <div className={cn('overflow-x-hidden', dashboardBg)}>
@@ -391,6 +418,26 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
               </div>
             </div>
 
+            <div className="flex items-center gap-2 shrink-0">
+              {!!institutionId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={rebuildInstBusy || summaryLoading}
+                  onClick={() => void handleRebuildInstitutionSummary()}
+                  title="Actualizar resumen institucional"
+                  aria-label="Actualizar resumen institucional"
+                  aria-busy={rebuildInstBusy}
+                  className="h-10 w-10 rounded-lg border-2 border-white/40 bg-white/15 text-white shadow-sm hover:bg-white/25 hover:text-white"
+                >
+                  {rebuildInstBusy ? (
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                  ) : (
+                    <RotateCw className="h-5 w-5" aria-hidden />
+                  )}
+                </Button>
+              )}
             <div ref={menuRef} className="relative shrink-0 z-[80]">
               <Button
                 type="button"
@@ -427,6 +474,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                 </div>
               )}
             </div>
+            </div>
           </div>
           <Building2 className="absolute -right-5 -top-4 h-28 w-28 text-white/10" aria-hidden />
         </div>
@@ -434,15 +482,35 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
 
       {activeTab === 'inicio' && (
         <div className="space-y-4 px-4 md:px-6 pt-3 pb-6">
-          {summaryError || !institutionSummary ? (
+          {summaryLoading ? (
             <Card className={cn(cardBase)}>
-              <CardContent className="py-8 text-center">
+              <CardContent className="py-12 flex flex-col items-center justify-center gap-3 text-center">
+                <Loader2 className={cn('h-8 w-8 animate-spin', isDark ? 'text-blue-400' : 'text-blue-600')} aria-hidden />
+                <p className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-slate-600')}>Cargando resumen institucional…</p>
+              </CardContent>
+            </Card>
+          ) : summaryError || !institutionSummary ? (
+            <Card className={cn(cardBase)}>
+              <CardContent className="py-8 text-center space-y-3">
                 <p className={cn(theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
-                  No se encontró `institutionSummary` para este rector/año.
+                  {summaryError ? 'No se pudo cargar el resumen institucional.' : 'Aún no hay resumen institucional para este año.'}
                 </p>
-                <p className={cn('text-sm mt-1', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-                  Ejecuta el script `rebuild-institution-summary` y recarga.
+                <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
+                  Pulsa el icono de actualizar arriba a la derecha para generarlo o refrescarlo (los docentes deben actualizar primero los resúmenes por grado).
                 </p>
+                {!!institutionId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={rebuildInstBusy}
+                    onClick={() => void handleRebuildInstitutionSummary()}
+                    className={cn(isDark ? 'border-zinc-600' : '')}
+                  >
+                    {rebuildInstBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCw className="h-4 w-4 mr-2" />}
+                    Generar / actualizar resumen
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (

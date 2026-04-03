@@ -7,6 +7,7 @@
 
 import * as functions from 'firebase-functions/v1';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { justificationService } from './services/justification.service';
 import { questionService } from './services/question.service';
 import { geminiService } from './services/gemini.service';
@@ -17,7 +18,8 @@ import { getTipsFromConsolidado1 } from './services/tipsICFES.service';
 import { getRandomEjercicios } from './services/ejerciciosIA.service';
 import { APIResponse } from './types/question.types';
 import { rebuildStudentProgressSummary } from './services/studentProgressSummary.service';
-import { extractGradeSummaryContext, rebuildGradeSummary } from './services/gradeSummary.service';
+import { rebuildGradeSummary } from './services/gradeSummary.service';
+import { rebuildInstitutionSummary } from './services/institutionSummary.service';
 import { beforeUserSignedIn } from 'firebase-functions/v2/identity';
 import {
   computeSuperateClaims,
@@ -1660,48 +1662,83 @@ export const onExamResultWriteStudentProgressSummary = onDocumentWritten(
 );
 
 /**
- * Al actualizar un studentSummary, recalcula el resumen agregado del grado/año.
- * v1: recalcula completo (sin delta incremental).
+ * Recalcula gradeSummary para un grado/año (on-demand desde el dashboard del docente).
+ * Reemplaza al trigger automático sobre studentSummaries para reducir lecturas repetidas.
  */
-export const onStudentSummaryWriteGradeSummary = onDocumentWritten(
-  {
-    document: 'superate/auth/institutions/{institutionId}/studentSummaries/{studentId}',
-    region: REGION,
-  },
-  async (event) => {
-    const institutionIdFromPath = event.params.institutionId as string;
-    const change = event.data;
-    if (!change) return;
+export const rebuildGradeSummaryOnDemand = onCall(
+  { region: REGION },
+  async (request) => {
+    const data = request.data as {
+      institutionId?: unknown;
+      gradeId?: unknown;
+      academicYear?: unknown;
+    };
+    const institutionId =
+      typeof data.institutionId === 'string' ? data.institutionId.trim() : '';
+    const gradeId = typeof data.gradeId === 'string' ? data.gradeId.trim() : '';
+    let academicYear: number | string | null = null;
+    if (typeof data.academicYear === 'number' && Number.isFinite(data.academicYear)) {
+      academicYear = data.academicYear;
+    } else if (typeof data.academicYear === 'string' && data.academicYear.trim()) {
+      academicYear = data.academicYear.trim();
+    }
 
-    const beforeContext = change.before.exists
-      ? extractGradeSummaryContext(change.before.data(), institutionIdFromPath)
-      : null;
-    const afterContext = change.after.exists
-      ? extractGradeSummaryContext(change.after.data(), institutionIdFromPath)
-      : null;
-
-    const contexts = new Map<string, NonNullable<typeof afterContext>>();
-    if (beforeContext) {
-      contexts.set(
-        `${beforeContext.institutionId}|${beforeContext.gradeId}|${String(beforeContext.academicYear)}`,
-        beforeContext
+    if (!institutionId || !gradeId || academicYear === null) {
+      throw new HttpsError(
+        'invalid-argument',
+        'institutionId, gradeId y academicYear son requeridos'
       );
     }
-    if (afterContext) {
-      contexts.set(
-        `${afterContext.institutionId}|${afterContext.gradeId}|${String(afterContext.academicYear)}`,
-        afterContext
+
+    try {
+      await rebuildGradeSummary({ institutionId, gradeId, academicYear });
+      return { ok: true as const };
+    } catch (err) {
+      console.error('[rebuildGradeSummaryOnDemand]', err);
+      throw new HttpsError(
+        'internal',
+        err instanceof Error ? err.message : 'Error al recalcular gradeSummary'
       );
     }
-    if (contexts.size === 0) return;
+  }
+);
 
-    for (const context of contexts.values()) {
-      try {
-        await rebuildGradeSummary(context);
-      } catch (err) {
-        console.error('[onStudentSummaryWriteGradeSummary]', context, err);
-        throw err;
-      }
+/**
+ * Recalcula institutionSummary para institución/año (on-demand desde el dashboard del rector).
+ * Lee los gradeSummary existentes y escribe el agregado institucional.
+ */
+export const rebuildInstitutionSummaryOnDemand = onCall(
+  { region: REGION },
+  async (request) => {
+    const data = request.data as {
+      institutionId?: unknown;
+      academicYear?: unknown;
+    };
+    const institutionId =
+      typeof data.institutionId === 'string' ? data.institutionId.trim() : '';
+    let academicYear: number | string | null = null;
+    if (typeof data.academicYear === 'number' && Number.isFinite(data.academicYear)) {
+      academicYear = data.academicYear;
+    } else if (typeof data.academicYear === 'string' && data.academicYear.trim()) {
+      academicYear = data.academicYear.trim();
+    }
+
+    if (!institutionId || academicYear === null) {
+      throw new HttpsError(
+        'invalid-argument',
+        'institutionId y academicYear son requeridos'
+      );
+    }
+
+    try {
+      await rebuildInstitutionSummary({ institutionId, academicYear });
+      return { ok: true as const };
+    } catch (err) {
+      console.error('[rebuildInstitutionSummaryOnDemand]', err);
+      throw new HttpsError(
+        'internal',
+        err instanceof Error ? err.message : 'Error al recalcular institutionSummary'
+      );
     }
   }
 );

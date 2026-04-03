@@ -196,29 +196,6 @@ function toAcademicYearSuffix(year: number | string): string {
   return String(year).trim();
 }
 
-export function extractGradeSummaryContext(
-  data: admin.firestore.DocumentData | undefined,
-  institutionIdFromPath?: string
-): GradeSummaryContext | null {
-  if (!data) return null;
-  const gradeId = typeof data.gradeId === 'string' ? data.gradeId.trim() : '';
-  const institutionIdRaw =
-    typeof data.institutionId === 'string' && data.institutionId.trim()
-      ? data.institutionId.trim()
-      : institutionIdFromPath?.trim() || '';
-  const academicYear = data.academicYear as number | string | undefined;
-  const hasAcademicYear =
-    typeof academicYear === 'number' ||
-    (typeof academicYear === 'string' && academicYear.trim().length > 0);
-
-  if (!gradeId || !institutionIdRaw || !hasAcademicYear) return null;
-  return {
-    institutionId: institutionIdRaw,
-    gradeId,
-    academicYear: academicYear as number | string,
-  };
-}
-
 export async function rebuildGradeSummary(
   context: GradeSummaryContext,
   firestore: Firestore = db

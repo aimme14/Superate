@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { 
   Users, 
-  GraduationCap, 
   TrendingUp,
   School,
   BarChart3,
@@ -28,6 +27,8 @@ import { cn } from '@/lib/utils'
 import { useTeacherDashboardStats } from '@/hooks/query/useTeacherDashboardStats'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useToast } from '@/hooks/ui/use-toast'
+import { requestRebuildGradeSummary } from '@/services/teacher/rebuildGradeSummaryCallable'
 import { DASHBOARD_TEACHER_CACHE } from '@/config/dashboardTeacherCache'
 import { collection, getDocs, getFirestore, query as fsQuery, where } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
@@ -100,7 +101,9 @@ interface TeacherDashboardProps extends ThemeContextProps {}
 export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   const { stats, isLoading } = useTeacherDashboardStats()
   const { institutionName, institutionLogo } = useUserInstitution()
+  const { toast } = useToast()
   const isMobile = useIsMobile()
+  const [rebuildGradeBusy, setRebuildGradeBusy] = useState(false)
   const [activeTab, setActiveTab] = useState('inicio')
   const [rankingFilters, setRankingFilters] = useState<{
     jornada: 'mañana' | 'tarde' | 'única' | 'todas'
@@ -152,6 +155,32 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   const normalizedTeacherJornada =
     stats.jornada === 'mañana' || stats.jornada === 'tarde' ? stats.jornada : null
   const hasValidTeacherJornada = normalizedTeacherJornada !== null
+
+  const handleRebuildGradeSummary = async () => {
+    if (!summaryContext.institutionId || !summaryContext.gradeId) return
+    setRebuildGradeBusy(true)
+    try {
+      await requestRebuildGradeSummary({
+        institutionId: summaryContext.institutionId,
+        gradeId: summaryContext.gradeId,
+        academicYear: currentAcademicYear,
+      })
+      await refetchGradeSummary()
+      toast({
+        title: 'Estísticas del grado actualizadas',
+        description: 'Los gráficos y promedios reflejan los últimos resultados.',
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'No se pudo actualizar. Intenta de nuevo.'
+      toast({
+        variant: 'destructive',
+        title: 'Error al actualizar',
+        description: msg,
+      })
+    } finally {
+      setRebuildGradeBusy(false)
+    }
+  }
 
   const { data: studentSummaries = [] } = useQuery({
     queryKey: [
@@ -241,11 +270,30 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                   </p>
                 </div>
               </div>
-              <div className="hidden md:flex items-center">
-                <div className="bg-white/15 rounded-lg p-3 text-center border-2 border-white/40 shadow-sm">
-                  <GraduationCap className="h-6 w-6 mx-auto text-white" aria-label="Docente" />
+              {!!summaryContext.institutionId && !!summaryContext.gradeId && (
+                <div className="flex items-center shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={rebuildGradeBusy || gradeSummaryLoading}
+                    onClick={() => void handleRebuildGradeSummary()}
+                    title="Actualizar resumen del grado"
+                    aria-label="Actualizar resumen del grado"
+                    aria-busy={rebuildGradeBusy}
+                    className={cn(
+                      'h-10 w-10 rounded-lg border-2 border-white/40 bg-white/15 text-white shadow-sm hover:bg-white/25 hover:text-white',
+                      isMobile ? 'shrink-0' : 'h-11 w-11'
+                    )}
+                  >
+                    {rebuildGradeBusy ? (
+                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                    ) : (
+                      <RotateCw className="h-5 w-5" aria-hidden />
+                    )}
+                  </Button>
                 </div>
-              </div>
+              )}
             </div>
           </div>
           <School className={cn('absolute top-0 right-0 opacity-10', isMobile ? 'h-28 w-28' : 'h-40 w-40')} aria-hidden />

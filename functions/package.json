@@ -34,8 +34,6 @@
     "rebuild-weblinks-consolidado": "npm run build && node lib/scripts/rebuildWebLinksConsolidado.js",
     "rebuild-youtubelinks-consolidado": "npm run build && node lib/scripts/rebuildYoutubeLinksConsolidado.js",
     "rebuild-definitionswords-consolidado": "npm run build && node lib/scripts/rebuildDefinitionsWordsConsolidado.js",
-    "rebuild-grade-summary": "npm run build && node lib/scripts/rebuildGradeSummary.js",
-    "rebuild-institution-summary": "npm run build && node lib/scripts/rebuildInstitutionSummary.js",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
   },
