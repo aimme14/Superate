@@ -4,6 +4,7 @@ import { authService } from "@/services/firebase/auth.service"
 import { normalizeError } from "@/errors/handler"
 import ErrorAPI from "@/errors"
 import { User } from "@/interfaces/context.interface"
+import { resolveGradeNameFromInstitution } from "@/utils/resolveGradeNameFromInstitution"
 
 export interface CreateStudentData {
   name: string
@@ -33,8 +34,12 @@ export interface UpdateStudentData extends Partial<CreateStudentData> {
 
 export interface StudentFilters {
   institutionId?: string
+  /** ID de sede (alias semántico de campusId; debe coincidir con estudiante.sedeId) */
+  sedeId?: string
   campusId?: string
   gradeId?: string
+  /** Cohorte / año académico (mismo criterio que estudiante.academicYear) */
+  academicYear?: number
   isActive?: boolean
   searchTerm?: string
   jornada?: 'mañana' | 'tarde' | 'única'
@@ -89,6 +94,7 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
       inst: institutionId, // Mantener inst para retrocompatibilidad
       campus: campusId,
       campusId: campusId, // Mantener campusId para consistencia
+      sedeId: campusId, // Mismo ID que campusId; usado en queries alineadas con studentSummaries.sedeId
       userdoc: generatedPassword,
       createdAt: new Date().toISOString(),
       isActive: true,
@@ -107,6 +113,11 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
 
     // Agregar año académico (obligatorio)
     dbUserData.academicYear = academicYear
+
+    const resolvedGradeName = resolveGradeNameFromInstitution(institution, campusId, gradeId)
+    if (resolvedGradeName) {
+      dbUserData.gradeName = resolvedGradeName
+    }
 
     // Usar directamente la nueva estructura jerárquica para estudiantes
     console.log('🆕 Creando estudiante usando nueva estructura jerárquica')
@@ -232,11 +243,40 @@ export const updateStudent = async (studentId: string, studentData: UpdateStuden
     if (studentData.userdoc !== undefined) updateData.userdoc = studentData.userdoc
     if (studentData.isActive !== undefined) updateData.isActive = Boolean(studentData.isActive)
     if (studentData.institutionId !== undefined) updateData.inst = studentData.institutionId
-    if (studentData.campusId !== undefined) updateData.campus = studentData.campusId
+    if (studentData.campusId !== undefined) {
+      updateData.campus = studentData.campusId
+      updateData.sedeId = studentData.campusId
+    }
     if (studentData.gradeId !== undefined) updateData.grade = studentData.gradeId
     if (studentData.academicYear !== undefined) updateData.academicYear = studentData.academicYear
     if (studentData.representativePhone !== undefined) updateData.representativePhone = studentData.representativePhone
     if (studentData.jornada !== undefined) updateData.jornada = studentData.jornada
+
+    const locationInPayload =
+      studentData.institutionId !== undefined ||
+      studentData.campusId !== undefined ||
+      studentData.gradeId !== undefined
+    if (locationInPayload) {
+      let ref = currentStudent
+      if (!ref) {
+        const refResult = await dbService.getUserById(studentId)
+        if (refResult.success) ref = refResult.data
+      }
+      const r = ref as Record<string, string | undefined> | null | undefined
+      const effectiveInst =
+        studentData.institutionId ?? r?.inst ?? r?.institutionId
+      const effectiveCampus =
+        studentData.campusId ?? r?.campus ?? r?.campusId
+      const effectiveGrade =
+        studentData.gradeId ?? r?.grade ?? r?.gradeId
+      if (effectiveInst && effectiveCampus && effectiveGrade) {
+        const instRes = await dbService.getInstitutionById(effectiveInst)
+        if (instRes.success) {
+          const gn = resolveGradeNameFromInstitution(instRes.data, effectiveCampus, effectiveGrade)
+          if (gn) updateData.gradeName = gn
+        }
+      }
+    }
 
     // Actualizar datos en Firestore PRIMERO (más importante, debe completarse)
     const result = await dbService.updateUser(studentId, updateData, {

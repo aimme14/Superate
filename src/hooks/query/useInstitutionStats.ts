@@ -8,14 +8,18 @@ import { getTeachersByInstitution } from '@/controllers/teacher.controller'
  * @param enabled - Si la consulta debe estar habilitada
  * @returns Contadores de estudiantes y docentes
  */
+const defaultCohortYear = () => new Date().getFullYear()
+
 export const useInstitutionStats = (institutionId: string, enabled: boolean = true) => {
-  // Consulta para estudiantes de la institución
+  const academicYear = defaultCohortYear()
+  // Consulta para estudiantes de la institución (misma cohorte que el resto del sistema)
   const studentsQuery = useQuery({
-    queryKey: ['students', 'by-institution', institutionId],
+    queryKey: ['students', 'by-institution', institutionId, academicYear],
     queryFn: async () => {
       const result = await getFilteredStudents({ 
         institutionId, 
-        isActive: true 
+        isActive: true,
+        academicYear,
       })
       return result.success ? result.data : []
     },
@@ -55,12 +59,14 @@ export const useInstitutionStats = (institutionId: string, enabled: boolean = tr
  * @param enabled - Si la consulta debe estar habilitada
  */
 export const useInstitutionStudentCount = (institutionId: string, enabled: boolean = true) => {
+  const academicYear = defaultCohortYear()
   return useQuery({
-    queryKey: ['students', 'count', 'by-institution', institutionId],
+    queryKey: ['students', 'count', 'by-institution', institutionId, academicYear],
     queryFn: async () => {
       const result = await getFilteredStudents({ 
         institutionId, 
-        isActive: true 
+        isActive: true,
+        academicYear,
       })
       return result.success ? result.data.length : 0
     },

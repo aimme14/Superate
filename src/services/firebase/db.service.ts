@@ -1787,15 +1787,22 @@ class DatabaseService {
                 // Aplicar filtros en memoria
                 let matches = true
 
-                if (filters.campusId) {
-                  const studentCampus = student.campus || student.campusId
-                  if (studentCampus !== filters.campusId) {
+                const sedeFilter = filters.sedeId ?? filters.campusId
+                if (sedeFilter) {
+                  const studentSede = String(student.sedeId || student.campusId || student.campus || '').trim()
+                  if (studentSede !== String(sedeFilter).trim()) {
                     matches = false
                   }
                 }
                 if (filters.gradeId) {
                   const studentGrade = student.grade || student.gradeId
                   if (studentGrade !== filters.gradeId) {
+                    matches = false
+                  }
+                }
+                if (filters.academicYear !== undefined && filters.academicYear !== null) {
+                  const sy = student.academicYear
+                  if (sy === undefined || sy === null || String(sy) !== String(filters.academicYear)) {
                     matches = false
                   }
                 }
@@ -1835,8 +1842,16 @@ class DatabaseService {
                 if (allStudents.length >= MAX_STUDENTS_WITHOUT_INSTITUTION) break
                 if (studentIds.has(student.id)) continue
                 let matches = true
-                if (filters.campusId && (student.campus || student.campusId) !== filters.campusId) matches = false
+                const sedeF = filters.sedeId ?? filters.campusId
+                if (sedeF) {
+                  const studentSede = String(student.sedeId || student.campusId || student.campus || '').trim()
+                  if (studentSede !== String(sedeF).trim()) matches = false
+                }
                 if (filters.gradeId && (student.grade || student.gradeId) !== filters.gradeId) matches = false
+                if (filters.academicYear !== undefined && filters.academicYear !== null) {
+                  const sy = student.academicYear
+                  if (sy === undefined || sy === null || String(sy) !== String(filters.academicYear)) matches = false
+                }
                 if (filters.jornada && student.jornada !== filters.jornada) matches = false
                 if (filters.isActive !== undefined && student.isActive !== filters.isActive) matches = false
                 if (filters.searchTerm) {
@@ -2088,11 +2103,14 @@ class DatabaseService {
       const campusId = teacher.campusId || teacher.campus
       const gradeId = teacher.gradeId || teacher.grade
       
-      // Preparar filtros para estudiantes
+      const cohortYear = new Date().getFullYear()
+      // Preparar filtros para estudiantes (alineados con lista del docente: sede, grado, cohorte activa)
       const filters: any = {
         institutionId: institutionId,
         campusId: campusId,
+        sedeId: campusId,
         gradeId: gradeId,
+        academicYear: cohortYear,
         isActive: true
       }
       

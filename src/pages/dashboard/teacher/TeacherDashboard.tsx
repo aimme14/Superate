@@ -26,7 +26,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useTeacherDashboardStats } from '@/hooks/query/useTeacherDashboardStats'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useToast } from '@/hooks/ui/use-toast'
 import { requestRebuildGradeSummary } from '@/services/teacher/rebuildGradeSummaryCallable'
 import { DASHBOARD_TEACHER_CACHE } from '@/config/dashboardTeacherCache'
@@ -99,6 +99,7 @@ function buildStudentsAssignedDescription(stats: { gradeName?: string; campusNam
 interface TeacherDashboardProps extends ThemeContextProps {}
 
 export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
+  const queryClient = useQueryClient()
   const { stats, isLoading } = useTeacherDashboardStats()
   const { institutionName, institutionLogo } = useUserInstitution()
   const { toast } = useToast()
@@ -150,8 +151,6 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
     retry: 1,
   })
 
-  const totalStudents = gradeSummary?.totalStudents ?? stats.totalStudents
-  const currentYear = new Date().getFullYear()
   const normalizedTeacherJornada =
     stats.jornada === 'mañana' || stats.jornada === 'tarde' ? stats.jornada : null
   const hasValidTeacherJornada = normalizedTeacherJornada !== null
@@ -166,9 +165,11 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
         academicYear: currentAcademicYear,
       })
       await refetchGradeSummary()
+      await queryClient.invalidateQueries({ queryKey: ['teacher-student-summaries'] })
       toast({
         title: 'Estísticas del grado actualizadas',
-        description: 'Los gráficos y promedios reflejan los últimos resultados.',
+        description:
+          'Grado y lista de Mis Estudiantes actualizados con los últimos datos.',
       })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'No se pudo actualizar. Intenta de nuevo.'
@@ -189,7 +190,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       summaryContext.gradeId,
       stats.campusId,
       normalizedTeacherJornada,
-      currentYear,
+      currentAcademicYear,
     ],
     queryFn: async () => {
       if (!summaryContext.institutionId || !summaryContext.gradeId) return []
@@ -204,7 +205,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
       )
       const constraints: any[] = [
         where('gradeId', '==', summaryContext.gradeId),
-        where('academicYear', '==', currentYear),
+        where('academicYear', '==', currentAcademicYear),
         where('jornada', '==', normalizedTeacherJornada),
       ]
       if (stats.campusId) constraints.push(where('sedeId', '==', stats.campusId))
@@ -220,6 +221,12 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
     refetchOnReconnect: false,
     retry: 1,
   })
+
+  /** Mismo criterio que la lista Mis Estudiantes (summaries); si no hay jornada válida, fallback a stats/grado. */
+  const totalStudents = useMemo(() => {
+    if (hasValidTeacherJornada) return studentSummaries.length
+    return gradeSummary?.totalStudents ?? stats.totalStudents
+  }, [hasValidTeacherJornada, studentSummaries.length, gradeSummary?.totalStudents, stats.totalStudents])
 
   if (isLoading) {
     return <DashboardRoleSkeleton theme={theme} />
@@ -1008,7 +1015,7 @@ function StudentsTab({ theme, studentSummaries, stats }: any) {
   const studentRows = (studentSummaries || []).map((s: any) => ({
     id: s.studentId || s.id,
     name: s.studentName || 'Estudiante',
-    gradeName: safeGradeName(stats?.gradeName) || safeGradeName(s.gradeName) || 'Sin grado',
+    gradeName: safeGradeName(s.gradeName) || safeGradeName(stats?.gradeName) || 'Sin grado',
     campusName: s.campusName || stats?.campusName || '',
     jornada: s.jornada || '',
     summary: s,

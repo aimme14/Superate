@@ -3,6 +3,7 @@ import { Result, success, failure } from '@/interfaces/db.interface'
 import ErrorAPI from '@/errors'
 import { dbService } from '@/services/firebase/db.service'
 import { authService } from '@/services/firebase/auth.service'
+import { resolveGradeNameFromInstitution } from '@/utils/resolveGradeNameFromInstitution'
 
 // Interfaces para las operaciones CRUD
 export interface CreateTeacherData {
@@ -108,6 +109,7 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
       inst: data.institutionId, // Mantener inst para retrocompatibilidad
       campusId: data.campusId,
       campus: data.campusId, // Mantener campus para retrocompatibilidad
+      sedeId: data.campusId, // Misma sede; alineado con estudiantes y studentSummaries.sedeId
       gradeId: data.gradeId,
       grade: data.gradeId, // Mantener grade para retrocompatibilidad
       subjects: data.subjects || [], // Si no se proporcionan materias, usar array vacío
@@ -120,6 +122,11 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
     // Agregar jornada si se proporciona
     if (data.jornada) {
       teacherData.jornada = data.jornada
+    }
+
+    const resolvedGradeName = resolveGradeNameFromInstitution(institution, data.campusId, data.gradeId)
+    if (resolvedGradeName) {
+      teacherData.gradeName = resolvedGradeName
     }
 
     console.log('👨‍🏫 Datos del docente a guardar en Firestore:', teacherData)
@@ -305,6 +312,7 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
     const oldName = teacher.name
 
     let updatedTeacher: any
+    let resolvedGradeNameForUser: string | undefined
 
     // Si se está moviendo el docente, primero eliminarlo del grado original y luego agregarlo al nuevo
     if (isMoving) {
@@ -326,12 +334,21 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
       }
 
       // Preparar los datos del docente actualizados
+      const newInstForName = newInstitutionResult.data
+      const gradeNameWhenMoving = resolveGradeNameFromInstitution(
+        newInstForName,
+        newCampusId,
+        newGradeId
+      )
+      resolvedGradeNameForUser = gradeNameWhenMoving
+
       const updatedTeacherData = {
         ...teacher,
         ...data,
         institutionId: newInstitutionId,
         campusId: newCampusId,
         gradeId: newGradeId,
+        ...(gradeNameWhenMoving ? { gradeName: gradeNameWhenMoving } : {}),
         updatedAt: new Date().toISOString().split('T')[0]
       }
 
@@ -375,6 +392,7 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
       userUpdateData.institutionId = newInstitutionId
       userUpdateData.campusId = newCampusId
       userUpdateData.gradeId = newGradeId
+      if (resolvedGradeNameForUser) userUpdateData.gradeName = resolvedGradeNameForUser
     }
 
     // Actualizar en la colección de usuarios de Firestore

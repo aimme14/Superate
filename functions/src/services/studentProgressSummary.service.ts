@@ -255,15 +255,54 @@ function normalizeJornada(value: unknown): 'mañana' | 'tarde' | undefined {
   return undefined;
 }
 
+/** Misma heurística que el cliente: no usar IDs de Firestore como nombre de grado. */
+function looksLikeTechnicalId(value: string): boolean {
+  const v = value.trim();
+  if (!v) return true;
+  if (v.includes('/')) return true;
+  if (v.length >= 24 && !v.includes(' ')) return true;
+  return false;
+}
+
 function pickGradeNameFromStudent(
   d: admin.firestore.DocumentData | undefined
 ): string | undefined {
   if (!d) return undefined;
-  const ordered: unknown[] = [d.gradeName, d.grade];
-  for (const v of ordered) {
-    if (typeof v === 'string' && v.trim()) return v.trim();
+  if (typeof d.gradeName === 'string') {
+    const g = d.gradeName.trim();
+    if (g && !looksLikeTechnicalId(g)) return g;
+  }
+  if (typeof d.grade === 'string') {
+    const g = d.grade.trim();
+    if (g && !looksLikeTechnicalId(g)) return g;
   }
   return undefined;
+}
+
+/**
+ * Nombre de grado desde campuses[].grades[] de la institución (como resolveGradeNameFromInstitution en cliente).
+ */
+async function resolveGradeDisplayNameFromInstitution(
+  firestore: Firestore,
+  institutionId: string,
+  campusId: string | undefined,
+  gradeId: string | undefined
+): Promise<string | undefined> {
+  if (!institutionId || !campusId || !gradeId) return undefined;
+  try {
+    const snap = await firestore.doc(`superate/auth/institutions/${institutionId}`).get();
+    if (!snap.exists) return undefined;
+    const data = snap.data() as Record<string, unknown> | undefined;
+    const campuses = data?.campuses as
+      | Array<{ id: string; grades?: Array<{ id: string; name?: string }> }>
+      | undefined;
+    const campus = campuses?.find((c) => c.id === campusId);
+    const grade = campus?.grades?.find((g) => g.id === gradeId);
+    const name = grade?.name;
+    return typeof name === 'string' && name.trim() ? name.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** ID de sede: campusId y sedeId primero; luego campus/sede si son string no vacíos */
@@ -357,6 +396,14 @@ export async function rebuildStudentProgressSummary(
     return false;
   }
 
+  const gradeNameResolved =
+    (await resolveGradeDisplayNameFromInstitution(
+      firestore,
+      ctx.institutionId,
+      ctx.sedeId,
+      ctx.gradeId
+    )) ?? ctx.gradeName;
+
   const phases: Record<ProgressPhaseKey, PhaseProgressBlock> = {
     first: emptyPhaseBlock(),
     second: emptyPhaseBlock(),
@@ -402,7 +449,7 @@ export async function rebuildStudentProgressSummary(
     jornada: ctx.jornada,
     campusName: ctx.campusName,
     gradeId: ctx.gradeId,
-    gradeName: ctx.gradeName,
+    gradeName: gradeNameResolved,
     academicYear: ctx.academicYear,
     phases,
     totalSubmitted,

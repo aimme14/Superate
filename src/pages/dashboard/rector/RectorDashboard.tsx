@@ -47,7 +47,8 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   const [activeTab, setActiveTab] = useState<'inicio' | 'administrativos' | 'estudiantes'>('inicio')
   const [menuExpanded, setMenuExpanded] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const [subjectFilter, setSubjectFilter] = useState<string>('todas')
+  /** 'todas' = agregado institucional; si no, gradeId desde institutionSummary.byGrade */
+  const [subjectEvolutionGradeFilter, setSubjectEvolutionGradeFilter] = useState<string>('todas')
   const [phaseFilter, setPhaseFilter] = useState<RectorPhaseKey>('first')
   const [axesPhaseFilter, setAxesPhaseFilter] = useState<RectorPhaseKey>('first')
   const [studentsJornadaFilter, setStudentsJornadaFilter] = useState<'todas' | 'manana' | 'tarde'>('todas')
@@ -126,12 +127,17 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     })
 
     const orderedSubjects = Array.from(allSubjects)
-    const visibleSubjects = subjectFilter === 'todas'
-      ? orderedSubjects
-      : orderedSubjects.filter((slug) => slug === subjectFilter)
 
-    const categories = visibleSubjects.map((slug) => getSubjectLabel(slug))
-    const getPhaseData = (phase: RectorPhaseKey) => visibleSubjects.map((slug) => safeNum(institutionSummary.phases[phase]?.subjects?.[slug]?.avgPct))
+    const categories = orderedSubjects.map((slug) => getSubjectLabel(slug))
+    const gradeId = subjectEvolutionGradeFilter
+    const getPhaseData = (phase: RectorPhaseKey) =>
+      orderedSubjects.map((slug) => {
+        const sub = institutionSummary.phases[phase]?.subjects?.[slug]
+        if (gradeId === 'todas') {
+          return safeNum(sub?.avgPct)
+        }
+        return safeNum(sub?.byGrade?.[gradeId]?.avgPct)
+      })
 
     return {
       backgroundColor: 'transparent',
@@ -169,7 +175,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         { name: 'Fase III', type: 'bar', barMaxWidth: 22, data: getPhaseData('third'), itemStyle: { borderRadius: [4, 4, 0, 0] } },
       ],
     }
-  }, [institutionSummary, subjectFilter, isDark])
+  }, [institutionSummary, subjectEvolutionGradeFilter, isDark])
 
   const phaseBarOption = useMemo(() => {
     if (!institutionSummary) return null
@@ -604,25 +610,34 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                 </Card>
 
                 <Card className={cn(cardMuted)}>
-                  <CardHeader className="h-[86px] pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <CardTitle className={cn(isDark ? 'text-zinc-100' : 'text-slate-900')}>Estado académico por materia</CardTitle>
-                        <CardDescription className={cn(isDark ? 'text-zinc-400' : 'text-slate-500')}>Evolución de la Institucional</CardDescription>
-                      </div>
-                      <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-                        <SelectTrigger className={cn('h-7 w-32 px-2 text-[11px]', isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-100' : 'bg-white border-slate-300 text-slate-900')}>
-                          <SelectValue />
+                  <CardHeader className="relative min-h-[86px] pb-2 pr-2">
+                    <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-1">
+                      <Select value={subjectEvolutionGradeFilter} onValueChange={setSubjectEvolutionGradeFilter}>
+                        <SelectTrigger
+                          className={cn(
+                            'h-7 w-[6.25rem] px-1.5 text-[10px] [&>span]:truncate',
+                            isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-100' : 'bg-white border-slate-300 text-slate-900'
+                          )}
+                        >
+                          <SelectValue placeholder="Grado" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="todas">Todas las materias</SelectItem>
-                          {Object.keys(institutionSummary.phases.first.subjects || {}).map((subject) => (
-                            <SelectItem key={subject} value={subject}>
-                              {getSubjectLabel(subject)}
+                          <SelectItem value="todas">Todos los grados</SelectItem>
+                          {Object.entries(institutionSummary.byGrade || {}).map(([gid, info]) => (
+                            <SelectItem key={gid} value={gid}>
+                              {info.gradeName?.trim() || gid}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="min-w-0 max-w-[calc(100%-5.5rem)] pr-1">
+                      <CardTitle className={cn(isDark ? 'text-zinc-100' : 'text-slate-900')}>Estado académico por materia</CardTitle>
+                      <CardDescription className={cn(isDark ? 'text-zinc-400' : 'text-slate-500')}>
+                        {subjectEvolutionGradeFilter === 'todas'
+                          ? 'Evolución institucional (todos los grados)'
+                          : `Evolución del grado: ${institutionSummary.byGrade[subjectEvolutionGradeFilter]?.gradeName?.trim() || subjectEvolutionGradeFilter}`}
+                      </CardDescription>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">

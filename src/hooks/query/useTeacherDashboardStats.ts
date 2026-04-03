@@ -57,7 +57,7 @@ export const useTeacherDashboardStats = () => {
       campusName: (currentTeacher as any).campusName || user?.campus || 'Sede',
       gradeName: (currentTeacher as any).gradeName || user?.grade || 'Grado',
       teacherEmail: (currentTeacher as any).email || user?.email || '',
-      campusId: (currentTeacher as any).campusId || '',
+      campusId: (currentTeacher as any).campusId || (currentTeacher as any).sedeId || '',
       institutionId: (currentTeacher as any).institutionId || '',
       gradeId: (currentTeacher as any).gradeId || '',
       jornada: (currentTeacher as any).jornada || '',

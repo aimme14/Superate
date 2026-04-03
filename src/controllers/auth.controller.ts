@@ -6,6 +6,7 @@ import { getRegistrationConfig } from "@/controllers/admin.controller"
 import { RegisterFormProps } from "@/schemas/auth.schema"
 import ErrorAPI, { Unauthorized } from "@/errors/index"
 import { normalizeError } from "@/errors/handler"
+import { resolveGradeNameFromInstitution } from "@/utils/resolveGradeNameFromInstitution"
 import { User as UserFB, getIdTokenResult } from "firebase/auth"
 
 /** Payload de login: usuario de Auth + documento de Firestore ya validado (sin lecturas extra en el cliente). */
@@ -287,6 +288,11 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
       createdAt: new Date().toISOString(),
       isActive: true,
       createdBy: 'admin' // Marcar como creado por admin para que aparezca en la gestión de usuarios
+    }
+
+    const resolvedGradeName = resolveGradeNameFromInstitution(institution, campus, grade)
+    if (resolvedGradeName) {
+      dbUserData.gradeName = resolvedGradeName
     }
 
     // Agregar jornada (obligatorio)

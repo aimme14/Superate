@@ -87,7 +87,8 @@ interface InstitutionDetailViewProps {
 
 function InstitutionDetailView({ institution, theme, onClose }: InstitutionDetailViewProps) {
   const [showCampuses, setShowCampuses] = useState(false)
-  
+  const institutionCohortYear = new Date().getFullYear()
+
   // Obtener datos de usuarios de la institución
   const { principals: coordinators } = useFilteredPrincipals({
     institutionId: institution.id,
@@ -101,7 +102,8 @@ function InstitutionDetailView({ institution, theme, onClose }: InstitutionDetai
   
   const { students } = useFilteredStudents({
     institutionId: institution.id,
-    isActive: true
+    isActive: true,
+    academicYear: institutionCohortYear,
   })
   
   const { options: campusOptions } = useCampusOptions(institution.id)

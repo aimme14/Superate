@@ -57,6 +57,8 @@ export interface User {
   email: string
   role: 'student' | 'teacher' | 'principal' | 'rector' | 'admin'
   institutionId?: string
+  /** ID de sede (mismo valor que campusId cuando aplica) */
+  sedeId?: string
   campusId?: string
   gradeId?: string
   subjects?: string[] // Para docentes
