@@ -4,7 +4,10 @@ import { authService } from "@/services/firebase/auth.service"
 import { normalizeError } from "@/errors/handler"
 import ErrorAPI from "@/errors"
 import { User } from "@/interfaces/context.interface"
-import { resolveGradeNameFromInstitution } from "@/utils/resolveGradeNameFromInstitution"
+import {
+  resolveCampusNameFromInstitution,
+  resolveGradeNameFromInstitution,
+} from "@/utils/resolveGradeNameFromInstitution"
 
 export interface CreateStudentData {
   name: string
@@ -117,6 +120,12 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     const resolvedGradeName = resolveGradeNameFromInstitution(institution, campusId, gradeId)
     if (resolvedGradeName) {
       dbUserData.gradeName = resolvedGradeName
+    }
+
+    dbUserData.institutionName = institution.name ?? institutionId
+    const resolvedCampusName = resolveCampusNameFromInstitution(institution, campusId)
+    if (resolvedCampusName) {
+      dbUserData.campusName = resolvedCampusName
     }
 
     // Usar directamente la nueva estructura jerárquica para estudiantes
@@ -269,11 +278,17 @@ export const updateStudent = async (studentId: string, studentData: UpdateStuden
         studentData.campusId ?? r?.campus ?? r?.campusId
       const effectiveGrade =
         studentData.gradeId ?? r?.grade ?? r?.gradeId
-      if (effectiveInst && effectiveCampus && effectiveGrade) {
+      if (effectiveInst && effectiveCampus) {
         const instRes = await dbService.getInstitutionById(effectiveInst)
         if (instRes.success) {
-          const gn = resolveGradeNameFromInstitution(instRes.data, effectiveCampus, effectiveGrade)
-          if (gn) updateData.gradeName = gn
+          const instData = instRes.data
+          updateData.institutionName = instData.name ?? effectiveInst
+          const cn = resolveCampusNameFromInstitution(instData, effectiveCampus)
+          if (cn) updateData.campusName = cn
+          if (effectiveGrade) {
+            const gn = resolveGradeNameFromInstitution(instData, effectiveCampus, effectiveGrade)
+            if (gn) updateData.gradeName = gn
+          }
         }
       }
     }

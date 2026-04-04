@@ -1,4 +1,15 @@
 /**
+ * Resuelve el nombre legible de la sede (campus) a partir del documento de institución.
+ */
+export function resolveCampusNameFromInstitution(
+  institution: { campuses?: Array<{ id: string; name?: string }> },
+  campusId: string
+): string | undefined {
+  const campus = institution.campuses?.find((c) => c.id === campusId)
+  return campus?.name
+}
+
+/**
  * Resuelve el nombre legible del grado a partir del documento de institución
  * (estructura campuses[].grades[] con { id, name }).
  */

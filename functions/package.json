@@ -16,8 +16,6 @@
     "logs": "firebase functions:log",
     "generate-justifications": "npm run build && node lib/scripts/generateJustifications.js",
     "view-justifications": "npm run build && node lib/scripts/viewJustifications.js",
-    "generate-vocabulary": "npm run build && node lib/scripts/generateVocabulary.js",
-    "delete-examples": "npm run build && node lib/scripts/deleteExamples.js",
     "test": "npm run build && node lib/scripts/test-study-plan-smoke.js",
     "test:smoke": "npm run build && node lib/scripts/test-study-plan-smoke.js",
     "verify:plan": "npm run build && node lib/scripts/verifyPlanOptimizations.js",
@@ -35,7 +33,6 @@
     "rebuild-ai-tools-consolidado": "npm run build && node lib/scripts/rebuildAIToolsConsolidado.js",
     "rebuild-weblinks-consolidado": "npm run build && node lib/scripts/rebuildWebLinksConsolidado.js",
     "rebuild-youtubelinks-consolidado": "npm run build && node lib/scripts/rebuildYoutubeLinksConsolidado.js",
-    "rebuild-definitionswords-consolidado": "npm run build && node lib/scripts/rebuildDefinitionsWordsConsolidado.js",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
   },

@@ -6,7 +6,10 @@ import { getRegistrationConfig } from "@/controllers/admin.controller"
 import { RegisterFormProps } from "@/schemas/auth.schema"
 import ErrorAPI, { Unauthorized } from "@/errors/index"
 import { normalizeError } from "@/errors/handler"
-import { resolveGradeNameFromInstitution } from "@/utils/resolveGradeNameFromInstitution"
+import {
+  resolveCampusNameFromInstitution,
+  resolveGradeNameFromInstitution,
+} from "@/utils/resolveGradeNameFromInstitution"
 import { User as UserFB, getIdTokenResult } from "firebase/auth"
 
 /** Payload de login: usuario de Auth + documento de Firestore ya validado (sin lecturas extra en el cliente). */
@@ -284,6 +287,7 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
       inst: inst, // Mantener inst para retrocompatibilidad
       campus: campus,
       campusId: campus, // Mantener campusId para consistencia
+      sedeId: campus,
       userdoc: generatedPassword,
       createdAt: new Date().toISOString(),
       isActive: true,
@@ -293,6 +297,12 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     const resolvedGradeName = resolveGradeNameFromInstitution(institution, campus, grade)
     if (resolvedGradeName) {
       dbUserData.gradeName = resolvedGradeName
+    }
+
+    dbUserData.institutionName = institution.name ?? inst
+    const resolvedCampusName = resolveCampusNameFromInstitution(institution, campus)
+    if (resolvedCampusName) {
+      dbUserData.campusName = resolvedCampusName
     }
 
     // Agregar jornada (obligatorio)

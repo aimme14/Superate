@@ -14,12 +14,10 @@ if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'devel
 import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
 import { geminiCentralizedService } from './geminiService';
 import {
-  getCanonicalTopicsWithWeakness,
   getGradeNameForAdminPath,
   getSubjectConfig,
   getTopicCode,
   mapToCanonicalTopic,
-  MAX_VIDEOS_PER_TOPIC,
   MAX_EXERCISES_PER_TOPIC,
   VIDEOS_PER_TOPIC,
 } from '../config/subjects.config';
@@ -58,19 +56,6 @@ export interface StudentWeakness {
   }>;
 }
 
-/**
- * Información semántica para búsqueda de videos en YouTube
- * Generada por Gemini antes de realizar la búsqueda en YouTube API
- * Gemini NO genera enlaces ni IDs de video, solo criterios pedagógicos de búsqueda
- */
-export interface YouTubeSearchSemanticInfo {
-  searchIntent: string; // Intención pedagógica del video (qué debe aprender el estudiante)
-  searchKeywords: string[]; // Lista de 5 a 8 palabras clave optimizadas para buscar videos educativos en YouTube
-  academicLevel: string; // Nivel académico objetivo: "básico", "medio", "avanzado"
-  expectedContentType: string; // Tipo de explicación esperada: "conceptual", "paso a paso", "con ejemplos", "ejercicios resueltos"
-  competenceToStrengthen: string; // Competencia a fortalecer: "interpretación", "formulación", "argumentación"
-}
-
 export interface StudyPlanResponse {
   student_info: {
     studentId: string;
@@ -85,7 +70,7 @@ export interface StudyPlanResponse {
     name: string; // Nombre del tema
     description: string; // Descripción del tema
     level: string; // Nivel de dificultad
-    keywords: string[]; // Keywords para buscar videos en YouTube
+    keywords: string[]; // Palabras clave del plan (Gemini); videos vienen de YoutubeLinks/consolidado_*
   }>;
   practice_exercises: Array<{
     question: string;
@@ -372,32 +357,6 @@ class StudyPlanService {
   }
 
   /**
-   * Obtiene keywords para un topic canónico combinando las de los topics de Gemini que mapean a él.
-   */
-  private getKeywordsForCanonicalTopic(
-    canonicalTopic: string,
-    geminiTopics: Array<{ name: string; keywords?: string[] }>,
-    subject: string
-  ): string[] {
-    const keywordsSet = new Set<string>();
-    for (const gt of geminiTopics) {
-      const mapped = mapToCanonicalTopic(subject, gt.name);
-      if (mapped === canonicalTopic && gt.keywords?.length) {
-        gt.keywords.forEach((k) => keywordsSet.add(k));
-      }
-    }
-    if (keywordsSet.size > 0) {
-      return Array.from(keywordsSet);
-    }
-    // Fallback: para Inglés usar keywords cortas por tema; para otras materias frase + educación ICFES
-    if (this.isEnglishSubject(subject) && StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic]) {
-      return StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic];
-    }
-    const searchTopic = this.getDescriptiveSearchTopic(subject, canonicalTopic);
-    return [searchTopic, subject, 'educación ICFES'];
-  }
-
-  /**
    * Helper para verificar y loggear el estado de practice_exercises después del parsing
    */
   private logPracticeExercisesStatus(parsed: any, context: string): void {
@@ -422,57 +381,6 @@ class StudyPlanService {
         console.log(`   Primer ejercicio (muestra): ${JSON.stringify(parsed.practice_exercises[0]).substring(0, 150)}...`);
       }
     }
-  }
-
-  /**
-   * Frases cortas para búsqueda (YouTube/enlaces) en Inglés.
-   * Parte 1 = avisos públicos / mensajes funcionales (ICFES), no publicitarios.
-   */
-  private static readonly ENGLISH_SEARCH_TOPIC_NAMES: Record<string, string> = {
-    'Parte 1': 'Avisos y mensajes en inglés, comprensión contextual',
-    'Parte 2': 'Asociación de palabras y comprensión léxica en inglés',
-    'Parte 3': 'Diálogos inglés, expresiones cotidianas',
-    'Parte 4': 'Comprensión lectora y gramática en contexto inglés',
-    'Parte 5': 'Ideas principales y comprensión en contexto inglés',
-    'Parte 6': 'Comprensión lectora crítica, propósito del autor inglés',
-    'Parte 7': 'Gramática inglés, preposiciones y conectores',
-  };
-
-  /**
-   * Fallback de keywords por tema para Inglés cuando Gemini no devuelve keywords.
-   * Términos genéricos por tema para encontrar videos útiles de CUALQUIER canal (no solo los recomendados).
-   */
-  private static readonly ENGLISH_FALLBACK_KEYWORDS: Record<string, string[]> = {
-    'Parte 1': ['avisos públicos en inglés', 'mensajes cortos en inglés', 'comprensión de mensajes en inglés', 'aprender inglés', 'ICFES inglés'],
-    'Parte 2': ['asociación de palabras en inglés', 'comprensión léxica de textos en inglés', 'comprensión de expresiones en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
-    'Parte 3': ['diálogos en inglés', 'expresiones cotidianas en inglés', 'conversación en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
-    'Parte 4': ['comprensión lectora en inglés', 'gramática en contexto en inglés', 'pasado, presente y futuro en inglés', 'tiempos verbales en inglés', 'lectura en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
-    'Parte 5': ['ideas principales en texto en inglés', 'comprensión en contexto inglés', 'comprensión de lectura en inglés', 'inferencias simples en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
-    'Parte 6': ['comprensión lectora de textos en inglés', 'propósito del autor en inglés', 'interpretación de textos en inglés', 'pronombres relativos en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
-    'Parte 7': ['gramática aplicada en inglés', 'uso del lenguaje en contexto en inglés', 'preposiciones y conectores en inglés', 'cuantificadores en inglés', 'tiempos verbales en inglés', 'aprender inglés en español', 'prueba ICFES de inglés'],
-  };
-
-  /**
-   * Devuelve el nombre a usar para búsqueda (videos y enlaces).
-   * Para Inglés usa nombres descriptivos en lugar de "Parte 1", "Parte 2", etc.
-   */
-  private getDescriptiveSearchTopic(subject: string, canonicalTopic: string): string {
-    if (this.isEnglishSubject(subject) && StudyPlanService.ENGLISH_SEARCH_TOPIC_NAMES[canonicalTopic]) {
-      return StudyPlanService.ENGLISH_SEARCH_TOPIC_NAMES[canonicalTopic];
-    }
-    return canonicalTopic;
-  }
-
-  /**
-   * Descripción del tema para enviar a Gemini al pedir keywords de búsqueda.
-   * Para Inglés usa la lista completa de ENGLISH_FALLBACK_KEYWORDS (por Parte) para que Gemini
-   * reciba todo el contexto y devuelva searchKeywords más afinadas.
-   */
-  private getTopicDescriptionForGemini(subject: string, canonicalTopic: string): string {
-    if (this.isEnglishSubject(subject) && StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic]) {
-      return StudyPlanService.ENGLISH_FALLBACK_KEYWORDS[canonicalTopic].join(', ');
-    }
-    return this.getDescriptiveSearchTopic(subject, canonicalTopic);
   }
 
   /**
@@ -1253,163 +1161,57 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       (parsed.student_info as { grade?: string }).grade = grade;
       console.log(`   📋 Grado (videos y WebLinks): ${grade}`);
 
-      // Obtener videos desde YoutubeLinks/{grado}/{materia}/{topicId}/ (caché) o YouTube
-      // Usa topics CANÓNICOS (ejes de la materia) con debilidad. 7 videos por topic.
-      // Llenado incremental en cada generación hasta MAX_VIDEOS_PER_TOPIC, sin duplicados.
-      console.log(`\n📹 Obteniendo videos educativos (YoutubeLinks/${grade}/{materia}/{topicId}/, YouTube si es necesario)...`);
+      // Todos los temas de la materia (videos y enlaces; no solo debilidades).
+      const allTopicNamesForSubjectGen =
+        getSubjectConfig(input.subject)?.topics.map((t) => t.name) ?? [];
 
+      // Videos: YoutubeLinks/consolidado_{materiaCode} — mismo criterio que al leer AnswerIA.
+      console.log(
+        `\n📹 Videos desde YoutubeLinks/consolidado_* (${allTopicNamesForSubjectGen.length} tema(s) de la materia)...`
+      );
       parsed.video_resources = [];
-      parsed.study_links = [];
-
-      const weaknessTopics = (parsed.student_info?.weaknesses || []).map((w) => w.topic);
-      let canonicalTopics = getCanonicalTopicsWithWeakness(input.subject, weaknessTopics);
-
-      // Fallback para Inglés: si no se mapeó ninguna debilidad a Parte 1..7, derivar desde los topics del plan (Gemini)
-      if (canonicalTopics.length === 0 && this.isEnglishSubject(input.subject) && (parsed.topics?.length ?? 0) > 0) {
-        const seen = new Set<string>();
-        for (const t of parsed.topics || []) {
-          const canonical = mapToCanonicalTopic(input.subject, t.name);
-          if (canonical && !seen.has(canonical)) {
-            seen.add(canonical);
-            canonicalTopics.push(canonical);
-          }
-        }
-        if (canonicalTopics.length > 0) {
-          console.log(`   🇬🇧 Inglés: no se mapearon debilidades; usando ${canonicalTopics.length} topic(s) del plan: ${canonicalTopics.join(', ')}`);
-        }
-      }
-
-      if (canonicalTopics.length > 0) {
-        console.log(`   📚 Topics canónicos con debilidad: ${canonicalTopics.join(', ')}`);
-
-        // Varios topics del plan pueden mapear al mismo canónico: unir nombres para UI (ej. "Ecuaciones · Polinomios")
-        const canonicalToDisplayNames = new Map<string, string[]>();
-        for (const t of parsed.topics || []) {
-          const canonical = mapToCanonicalTopic(input.subject, t.name);
-          if (canonical) {
-            const list = canonicalToDisplayNames.get(canonical) ?? [];
-            if (!list.includes(t.name)) list.push(t.name);
-            canonicalToDisplayNames.set(canonical, list);
-          }
-        }
-        const formatDisplayName = (names: string[]) => names.join(' · ');
-
-        const videoPromises = canonicalTopics.map(async (canonicalTopic) => {
-          try {
-            const keywords = this.getKeywordsForCanonicalTopic(
-              canonicalTopic,
-              parsed.topics || [],
-              input.subject
-            );
-            console.log(`   🔍 Procesando videos para topic canónico: "${canonicalTopic}"`);
-            console.log(`      Keywords: ${keywords.join(', ')}`);
-
-            const videos = await this.getVideosForTopic(
-              grade,
-              input.studentId,
-              input.phase,
-              input.subject,
-              canonicalTopic,
-              keywords
-            );
-
-            if (videos.length > 0) {
-              console.log(`   ✅ Obtenidos ${videos.length} video(s) para "${canonicalTopic}" (objetivo: ${VIDEOS_PER_TOPIC})`);
-            } else {
-              console.warn(`   ⚠️ No se encontraron videos para topic "${canonicalTopic}"`);
+      if (allTopicNamesForSubjectGen.length > 0) {
+        const videosByTopic = await Promise.all(
+          allTopicNamesForSubjectGen.map(async (topicName) => {
+            try {
+              const videos = await this.getVideosForTopic(
+                grade,
+                input.studentId,
+                input.phase,
+                input.subject,
+                topicName
+              );
+              return videos.map((video) => ({
+                ...video,
+                topic: topicName,
+                topicDisplayName: topicName,
+              }));
+            } catch (error: any) {
+              console.warn(`   ⚠️ Error videos tema "${topicName}":`, error?.message);
+              return [];
             }
-
-            const displayName = this.isEnglishSubject(input.subject)
-              ? canonicalTopic
-              : formatDisplayName(canonicalToDisplayNames.get(canonicalTopic) ?? [canonicalTopic]);
-            return videos.map((video) => ({
-              ...video,
-              topic: canonicalTopic,
-              topicDisplayName: displayName,
-            }));
-          } catch (error: any) {
-            console.error(`   ❌ Error procesando videos para topic "${canonicalTopic}":`, error.message);
-            return [];
-          }
-        });
-
-        const allVideos = await Promise.all(videoPromises);
-        parsed.video_resources = allVideos.flat();
-
-        let totalVideos = parsed.video_resources.length;
-        const expectedVideos = canonicalTopics.length * VIDEOS_PER_TOPIC;
-        console.log(`✅ Total de ${totalVideos} video(s) obtenido(s) para el plan de estudio`);
-        console.log(`   📊 Esperados: ~${expectedVideos} videos (${canonicalTopics.length} topics × ${VIDEOS_PER_TOPIC} videos)`);
-
-        // Rescate para Inglés: si no se encontró ningún video, búsqueda genérica para no bloquear el plan
-        if (totalVideos === 0 && this.isEnglishSubject(input.subject)) {
-          console.warn(`   🇬🇧 Inglés: 0 videos por topic; intentando búsqueda genérica de rescate...`);
-          const rescueKeywords = ['inglés explicado en español', 'gramática inglés bachillerato', 'ICFES inglés'];
-          const rescueVideos = await this.searchYouTubeVideos(rescueKeywords, 7, 'Inglés', canonicalTopics[0]);
-          if (rescueVideos.length > 0) {
-            const displayName = this.isEnglishSubject(input.subject)
-              ? canonicalTopics[0]
-              : (() => {
-                  const names: string[] = [];
-                  for (const t of parsed.topics || []) {
-                    if (mapToCanonicalTopic(input.subject, t.name) === canonicalTopics[0] && !names.includes(t.name)) names.push(t.name);
-                  }
-                  return names.length > 0 ? names.join(' · ') : canonicalTopics[0];
-                })();
-            parsed.video_resources = rescueVideos.map((v) => ({
-              ...v,
-              topic: canonicalTopics[0],
-              topicDisplayName: displayName,
-            }));
-            totalVideos = parsed.video_resources.length;
-            console.log(`   ✅ Rescate: se añadieron ${totalVideos} video(s) genéricos de inglés para el plan.`);
-          } else {
-            console.error(`❌ ERROR CRÍTICO: No se encontraron videos para ningún topic ni en búsqueda de rescate.`);
-          }
-        } else if (totalVideos === 0) {
-          console.error(`❌ ERROR CRÍTICO: No se encontraron videos para ningún topic.`);
+          })
+        );
+        parsed.video_resources = videosByTopic.flat();
+        const totalVideos = parsed.video_resources.length;
+        const cap = allTopicNamesForSubjectGen.length * VIDEOS_PER_TOPIC;
+        console.log(
+          `✅ Total ${totalVideos} video(s) desde consolidado (${allTopicNamesForSubjectGen.length} temas × hasta ${VIDEOS_PER_TOPIC}/tema ≈ ${cap})`
+        );
+        if (totalVideos === 0) {
+          console.error(`❌ No hay videos en YoutubeLinks/consolidado para esta materia.`);
         }
-      } else {
-        console.warn('⚠️ No se identificaron topics canónicos con debilidad. No se buscarán videos.');
       }
 
-      console.log(`\n🔗 Obteniendo enlaces web educativos (WebLinks/${grade}/{materia}/{topicId}/)...`);
-
-      parsed.study_links = [];
-
-      if (canonicalTopics.length > 0) {
-        console.log(`   📚 Procesando ${canonicalTopics.length} topic(s) canónico(s) para obtener enlaces...`);
-
-        const linkPromises = canonicalTopics.map(async (canonicalTopic) => {
-          try {
-            console.log(`   🔍 Procesando enlaces para topic canónico: "${canonicalTopic}"`);
-
-            const links = await this.getLinksForTopic(grade, input.subject, canonicalTopic);
-
-            if (links.length > 0) {
-              console.log(`   ✅ Obtenidos ${links.length} enlace(s) para "${canonicalTopic}"`);
-            } else {
-              console.warn(`   ⚠️ No se encontraron enlaces para topic "${canonicalTopic}"`);
-            }
-
-            return links.map((link) => ({
-              ...link,
-              topic: canonicalTopic,
-            }));
-          } catch (error: any) {
-            console.error(`   ❌ Error procesando enlaces para topic "${canonicalTopic}":`, error.message);
-            return [];
-          }
-        });
-
-        const allLinks = await Promise.all(linkPromises);
-        parsed.study_links = allLinks.flat();
-
-        const totalLinks = parsed.study_links.length;
-        console.log(`✅ Total de ${totalLinks} enlace(s) obtenido(s) para el plan (${canonicalTopics.length} topic(s) canónico(s)); luego se rellenan desde WebLinks para todos los temas de la materia`);
-      } else {
-        console.warn('⚠️ No se identificaron topics canónicos con debilidad. No se buscarán enlaces.');
-      }
+      // Enlaces: WebLinks/consolidado_{materiaCode} (1 lectura; todos los temas de la materia)
+      console.log(`\n🔗 Enlaces desde WebLinks/consolidado_* (${allTopicNamesForSubjectGen.length} tema(s))...`);
+      parsed.study_links = await this.buildStudyLinksFromWebLinks(
+        grade,
+        input.subject,
+        allTopicNamesForSubjectGen,
+        input.phase
+      );
+      console.log(`   ✅ ${parsed.study_links.length} enlace(s) desde consolidado`);
 
       // 6b. Guardar ejercicios en EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ (misma ruta que admin)
       if (parsed.practice_exercises && parsed.practice_exercises.length > 0) {
@@ -1495,10 +1297,6 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       }
       
       await this.saveStudyPlan(input, parsed);
-
-      // study_links: todos los enlaces de la materia (todos los temas en WebLinks, no solo los del plan)
-      const allTopicNamesForSubject = getSubjectConfig(input.subject)?.topics.map((t) => t.name) ?? [];
-      parsed.study_links = await this.buildStudyLinksFromWebLinks(grade, input.subject, allTopicNamesForSubject, input.phase);
 
       const processingTime = Date.now() - startTime;
       console.log(`\n✅ Plan de estudio generado y guardado exitosamente en ${(processingTime / 1000).toFixed(1)}s`);
@@ -1685,176 +1483,14 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
 
 
   /**
-   * Obtiene información semántica de Gemini para buscar videos en YouTube
-   * Este método se llama SOLO cuando no hay suficientes videos en Firestore
-   * @param topic - Nombre del tema
-   * @param subject - Materia
-   * @param phase - Fase del estudiante
-   * @param keywords - Keywords básicas del tema
-   * @returns Información semántica para optimizar la búsqueda en YouTube
-   */
-  private async getYouTubeSearchSemanticInfo(
-    topic: string,
-    subject: string,
-    phase: 'first' | 'second' | 'third',
-    keywords: string[]
-  ): Promise<YouTubeSearchSemanticInfo | null> {
-    try {
-      if (!(await geminiClient.isAvailable())) {
-        console.warn('⚠️ Gemini no está disponible, usando keywords básicas');
-        return null;
-      }
-
-      const phaseMap: Record<string, string> = {
-        first: 'Fase I',
-        second: 'Fase II',
-        third: 'Fase III',
-      };
-
-      const prompt = `Actúas como un experto en educación secundaria y docencia en ${subject},
-especializado en la Prueba Saber 11 (ICFES) y en el diseño de recursos educativos audiovisuales.
-
-Tu tarea NO es generar enlaces ni recomendar videos específicos.
-Tu función es definir criterios pedagógicos de búsqueda para encontrar
-videos educativos adecuados para reforzar una debilidad académica.
-
-REGLAS ESTRICTAS:
-- NO generes enlaces.
-- NO inventes URLs ni IDs de YouTube.
-- NO menciones videos, canales o plataformas específicas.
-- Limítate exclusivamente a análisis pedagógico y semántico.
-
-Para el siguiente tema con debilidad identificada, devuelve:
-1. Intención pedagógica del video (qué debe aprender el estudiante).
-2. Nivel académico objetivo (básico, medio, avanzado).
-3. Tipo de explicación esperada (conceptual, paso a paso, con ejemplos, ejercicios resueltos).
-4. Lista de 5 a 8 palabras clave optimizadas para buscar videos educativos en YouTube.
-5. Competencia a fortalecer (interpretación, formulación, argumentación).
-
-**Tema con debilidad:** ${topic}
-**Materia:** ${subject}
-**Fase:** ${phaseMap[phase]}
-**Keywords básicas del tema:** ${keywords.join(', ')}
-${this.isEnglishSubject(subject) ? `
-IMPORTANTE PARA INGLÉS: Buscamos videos EN ESPAÑOL que explican inglés, de CUALQUIER canal útil. En searchKeywords usa términos GENÉRICOS por tema (ej. "aprender inglés", "inglés explicado en español", "gramática inglés", "comprensión lectora inglés", "ICFES inglés") combinados con el tema. NO uses solo nombres de canales: prioriza palabras clave que encuentren contenido educativo de diversos canales.` : ''}
-
-Devuelve exclusivamente un objeto JSON válido con esta estructura:
-{
-  "searchIntent": "Intención pedagógica clara de qué debe aprender el estudiante",
-  "searchKeywords": ["palabra1", "palabra2", "palabra3", "palabra4", "palabra5", "palabra6", "palabra7", "palabra8"],
-  "academicLevel": "básico|medio|avanzado",
-  "expectedContentType": "conceptual|paso a paso|con ejemplos|ejercicios resueltos",
-  "competenceToStrengthen": "interpretación|formulación|argumentación"
-}
-
-Responde SOLO con JSON válido, sin texto adicional.`;
-
-      console.log(`   🤖 Consultando Gemini para información semántica de búsqueda...`);
-      const result = await geminiCentralizedService.generateContent({
-        userId: 'system:study-plan',
-        prompt,
-        processName: 'study_plan_semantic_search',
-        images: [],
-        options: {
-          retries: 2,
-          timeout: 30000, // 30 segundos
-        },
-      });
-
-      // Parsear respuesta JSON
-      let cleanedText = result.text.replace(/```json\n?([\s\S]*?)\n?```/g, '$1');
-      cleanedText = cleanedText.replace(/```\n?([\s\S]*?)\n?```/g, '$1');
-      
-      const firstBrace = cleanedText.indexOf('{');
-      const lastBrace = cleanedText.lastIndexOf('}');
-      
-      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-        console.warn('⚠️ No se pudo parsear respuesta de Gemini, usando keywords básicas');
-        return null;
-      }
-
-      const jsonString = cleanedText.substring(firstBrace, lastBrace + 1);
-      const semanticInfo = JSON.parse(jsonString) as YouTubeSearchSemanticInfo;
-
-      console.log(`   ✅ Información semántica obtenida de Gemini`);
-      console.log(`      Intención: ${semanticInfo.searchIntent}`);
-      console.log(`      Keywords: ${semanticInfo.searchKeywords.join(', ')}`);
-
-      return semanticInfo;
-    } catch (error: any) {
-      console.warn(`⚠️ Error obteniendo información semántica de Gemini:`, error.message);
-      console.warn(`   Se usarán keywords básicas para la búsqueda`);
-      return null;
-    }
-  }
-
-  /**
-   * Asegura que el caché de YoutubeLinks tenga al menos minCount videos para el topic.
-   * Si no hidrata: devuelve la lista en caché para evitar una segunda lectura.
-   * Si hidrata: devuelve null y el llamador debe leer con getCachedVideos.
-   */
-  private async ensureVideosInCache(
-    grade: string,
-    subject: string,
-    topic: string,
-    keywords: string[],
-    minCount: number = VIDEOS_PER_TOPIC
-  ): Promise<Array<{
-    title: string;
-    url: string;
-    description: string;
-    channelTitle: string;
-    videoId?: string;
-    duration?: string;
-    language?: string;
-  }> | null> {
-    const cached = await this.getCachedVideos(grade, '', 'first', subject, topic);
-    if (cached.length >= minCount) {
-      return cached;
-    }
-    if (cached.length >= MAX_VIDEOS_PER_TOPIC) {
-      return cached;
-    }
-
-    const videosNeeded = MAX_VIDEOS_PER_TOPIC - cached.length;
-    console.log(`   ⚠️ Faltan videos en caché. Buscando hasta ${videosNeeded} más en YouTube...`);
-    const topicForGemini = this.getTopicDescriptionForGemini(subject, topic);
-    const semanticInfo = await this.getYouTubeSearchSemanticInfo(topicForGemini, subject, 'first', keywords);
-    const searchKeywords = semanticInfo?.searchKeywords || keywords;
-    const videosToSearch = Math.min(Math.max(videosNeeded + 5, 10), 25);
-    const newVideos = await this.searchYouTubeVideos(searchKeywords, videosToSearch, subject, topic);
-
-    if (newVideos.length === 0 && cached.length === 0) {
-      console.warn(`   🔄 Fallback: buscando con keywords originales`);
-      const fallbackVideos = await this.searchYouTubeVideos(keywords, 10, subject, topic);
-      if (fallbackVideos.length > 0) {
-        await this.saveVideosToCache(grade, '', subject, topic, fallbackVideos, 0);
-      }
-      return null;
-    }
-
-    const existingIds = new Set(cached.map((v) => v.videoId || v.url));
-    const uniqueNew = newVideos.filter((v) => {
-      const id = v.videoId || v.url;
-      return !existingIds.has(id);
-    });
-    if (uniqueNew.length > 0) {
-      await this.saveVideosToCache(grade, '', subject, topic, uniqueNew, cached.length);
-    }
-    return null;
-  }
-
-  /**
-   * Obtiene videos para un topic canónico: asegura caché y lee una sola vez desde YoutubeLinks.
-   * Ruta unificada con admin: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos.
+   * Videos para un topic canónico: solo YoutubeLinks/consolidado_{materiaCode} (sin YouTube API ni rutas por grado/topic).
    */
   private async getVideosForTopic(
     grade: string,
     studentId: string,
     phase: 'first' | 'second' | 'third',
     subject: string,
-    topic: string,
-    keywords: string[]
+    topic: string
   ): Promise<Array<{
     title: string;
     url: string;
@@ -1865,10 +1501,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
     language?: string;
   }>> {
     try {
-      console.log(`   📋 Obteniendo videos para topic canónico: "${topic}"`);
-      const maybeCached = await this.ensureVideosInCache(grade, subject, topic, keywords);
-      const list = maybeCached ?? await this.getCachedVideos(grade, studentId, phase, subject, topic);
-      console.log(`   📦 Leyendo caché: ${list.length} video(s)`);
+      const list = await this.getCachedVideos(grade, studentId, phase, subject, topic);
       return list.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
         title: v.title,
         url: v.url,
@@ -1885,9 +1518,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Obtiene videos desde documentos consolidados por materia.
-   * Fuente única: YoutubeLinks/consolidado_{materiaCode} y, si aplica, YoutubeLinks/consolidado_{materiaCode}_{n}.
-   * El campo items.topic usa topicCode (AL, GE, ES, ...); aquí filtramos por topicCode y aplicamos MAX_VIDEOS_PER_TOPIC.
+   * Videos desde YoutubeLinks/consolidado_{materiaCode} únicamente (1 lectura Firestore por materia por invocación, con caché en memoria).
    */
   private getOrLoadYoutubeLinksConsolidated(
     materiaCode: string
@@ -1938,42 +1569,27 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       language: data.idioma || data.language || 'es',
       topic: typeof data.topic === 'string' ? data.topic : '',
     });
-    const baseDocId = `consolidado_${materiaCode}`;
-    const baseRef = studentDb.collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION).doc(baseDocId);
-    const baseSnap = await baseRef.get();
-    const baseData = baseSnap.data() as
-      | { items?: admin.firestore.DocumentData[]; totalParts?: number }
-      | undefined;
-    const totalParts =
-      typeof baseData?.totalParts === 'number' && baseData.totalParts > 0 ? baseData.totalParts : 1;
-    const extraPartSnapsYt =
-      totalParts > 1
-        ? await Promise.all(
-            Array.from({ length: totalParts - 1 }, (_, j) => {
-              const suffix = j + 2;
-              return studentDb
-                .collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION)
-                .doc(`${baseDocId}_${suffix}`)
-                .get();
-            })
-          )
-        : [];
-    const partDocs = [baseSnap, ...extraPartSnapsYt];
+    const docId = `consolidado_${materiaCode}`;
+    const snap = await studentDb
+      .collection(StudyPlanService.YOUTUBE_LINKS_COLLECTION)
+      .doc(docId)
+      .get();
+    if (!snap.exists) {
+      console.warn(`   ⚠️ YoutubeLinks: no existe ${docId}`);
+      return [];
+    }
+    const raw = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
     const orderOrTime = (data: admin.firestore.DocumentData): number => {
       if (typeof data.order === 'number') return data.order;
       const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
       return t ?? 0;
     };
-    const allVideosForSubject = partDocs
-      .flatMap((snap) => {
-        const data = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
-        return Array.isArray(data?.items) ? data.items : [];
-      })
+    const allVideosForSubject = (Array.isArray(raw?.items) ? raw.items : [])
       .filter((x) => x?.url || x?.videoId)
       .sort((a, b) => orderOrTime(a) - orderOrTime(b))
       .map((x) => parseVideoRow(x));
     console.log(
-      `   📦 YoutubeLinks consolidado_${materiaCode}: ${allVideosForSubject.length} video(s) total en ${totalParts} parte(s)`
+      `   📦 YoutubeLinks ${docId}: ${allVideosForSubject.length} video(s) (1 lectura)`
     );
     return allVideosForSubject;
   }
@@ -2011,7 +1627,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
             typeof v.topic === 'string' &&
             v.topic.trim().toUpperCase() === topicCode.trim().toUpperCase()
         )
-        .slice(0, MAX_VIDEOS_PER_TOPIC)
+        .slice(0, VIDEOS_PER_TOPIC)
         .map((v) => ({
           ...v,
           topic,
@@ -2028,345 +1644,14 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Guarda videos en Firestore (caché).
-   * Ruta unificada con admin: YoutubeLinks/{grado}/{materiaCode}/{topicCode}/videos/video1, video2...
-   * Caché global por grado, materia y topic (sin studentId).
-   */
-  private async saveVideosToCache(
-    grade: string,
-    _studentId: string,
-    subject: string,
-    topic: string,
-    videos: Array<{
-      title: string;
-      url: string;
-      description: string;
-      channelTitle: string;
-      videoId?: string;
-      duration?: string;
-      language?: string;
-    }>,
-    startOrder: number = 0
-  ): Promise<void> {
-    try {
-      const db = this.getStudentDatabase();
-      const gradoPath = getGradeNameForAdminPath(grade);
-      const subjectConfig = getSubjectConfig(subject);
-      const materiaCode = subjectConfig?.code;
-      const topicCode = getTopicCode(subject, topic);
-
-      if (!materiaCode || !topicCode) {
-        console.warn(`   ⚠️ No se pudo resolver ruta admin para guardar videos (materia="${subject}" topic="${topic}"). No se guardan en caché.`);
-        return;
-      }
-
-      const topicColRef = db.collection('YoutubeLinks').doc(gradoPath).collection(materiaCode).doc(topicCode).collection('videos');
-      const savePath = `YoutubeLinks/${gradoPath}/${materiaCode}/${topicCode}/videos/video${startOrder + 1}...video${startOrder + videos.length}`;
-      console.log(`   💾 Guardando ${videos.length} video(s) en: ${savePath}`);
-
-      const batch = db.batch();
-      videos.forEach((video, index) => {
-        const order = startOrder + index + 1;
-        if (order > MAX_VIDEOS_PER_TOPIC) {
-          console.warn(`   ⚠️ Límite de ${MAX_VIDEOS_PER_TOPIC} videos para topic "${topic}"`);
-          return;
-        }
-        const vidDocId = `video${order}`;
-        let extractedVideoId = video.videoId || '';
-        if (!extractedVideoId && video.url) {
-          const match = video.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-          if (match) extractedVideoId = match[1];
-        }
-        const videoRef = topicColRef.doc(vidDocId);
-        batch.set(
-          videoRef,
-          {
-            videoId: extractedVideoId,
-            título: video.title,
-            canal: video.channelTitle,
-            duración: video.duration || '',
-            idioma: video.language || 'es',
-            title: video.title,
-            channelTitle: video.channelTitle,
-            duration: video.duration || '',
-            language: video.language || 'es',
-            url: video.url,
-            description: video.description || '',
-            order,
-            savedAt: new Date(),
-            topic,
-          },
-          { merge: true }
-        );
-      });
-      await batch.commit();
-    } catch (error: any) {
-      console.error(`❌ Error guardando videos en Firestore:`, error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Convierte duración ISO 8601 (PT4M13S) a formato legible (4:13)
-   * @param duration - Duración en formato ISO 8601
-   * @returns Duración en formato legible
-   */
-  private parseDuration(duration: string): string {
-    if (!duration || !duration.startsWith('PT')) {
-      return '';
-    }
-
-    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-    if (!match) {
-      return '';
-    }
-
-    const hours = parseInt(match[1] || '0', 10);
-    const minutes = parseInt(match[2] || '0', 10);
-    const seconds = parseInt(match[3] || '0', 10);
-
-    if (hours > 0) {
-      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }
-
-  /**
-   * Obtiene detalles de videos (duración, idioma) desde YouTube API
-   * @param videoIds - Array de IDs de videos
-   * @returns Map con videoId -> { duration, language }
-   */
-  private async getVideoDetails(videoIds: string[]): Promise<Map<string, { duration: string; language: string }>> {
-    const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
-    const detailsMap = new Map<string, { duration: string; language: string }>();
-
-    if (!YOUTUBE_API_KEY || videoIds.length === 0) {
-      return detailsMap;
-    }
-
-    try {
-      // YouTube API permite hasta 50 videos por request
-      const chunks = [];
-      for (let i = 0; i < videoIds.length; i += 50) {
-        chunks.push(videoIds.slice(i, i + 50));
-      }
-
-      for (const chunk of chunks) {
-        const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?` +
-          `part=contentDetails,snippet` +
-          `&id=${chunk.join(',')}` +
-          `&key=${YOUTUBE_API_KEY}`;
-
-        const response = await fetch(detailsUrl);
-
-        if (!response.ok) {
-          console.warn(`⚠️ Error obteniendo detalles de videos (${response.status}): ${response.statusText}`);
-          continue;
-        }
-
-        const data = await response.json() as {
-          items?: Array<{
-            id: string;
-            contentDetails: {
-              duration: string;
-            };
-            snippet: {
-              defaultAudioLanguage?: string;
-              defaultLanguage?: string;
-            };
-          }>;
-        };
-
-        if (data.items) {
-          data.items.forEach(item => {
-            const duration = this.parseDuration(item.contentDetails.duration);
-            const language = item.snippet.defaultAudioLanguage || 
-                           item.snippet.defaultLanguage || 
-                           'es'; // Default a español si no se especifica
-
-            detailsMap.set(item.id, { duration, language });
-          });
-        }
-      }
-    } catch (error: any) {
-      console.warn(`⚠️ Error obteniendo detalles de videos:`, error.message);
-    }
-
-    return detailsMap;
-  }
-
-  /**
-   * Log estructurado para observabilidad (Cloud Logging puede filtrar por jsonPayload).
-   */
-  private logYouTubeSearchEvent(
-    event: 'youtube_search' | 'youtube_search_error',
-    payload: { topic?: string; subject?: string; keywordsCount?: number; resultCount?: number; status?: number; message?: string }
-  ): void {
-    console.log(JSON.stringify({ event, ...payload }));
-  }
-
-  /**
-   * Busca videos educativos en YouTube usando keywords.
-   * No lanza errores: ante fallo de API o cuota agotada devuelve [] y registra evento estructurado.
-   * @param keywords - Array de keywords para buscar
-   * @param maxResults - Número máximo de videos a retornar (default: 3)
-   * @param subject - Materia (para query y observabilidad)
-   * @param topic - Topic canónico (para observabilidad)
-   */
-  private async searchYouTubeVideos(
-    keywords: string[],
-    maxResults: number = 3,
-    subject?: string,
-    topic?: string
-  ): Promise<Array<{
-    title: string;
-    url: string;
-    description: string;
-    channelTitle: string;
-    videoId?: string;
-    duration?: string;
-    language?: string;
-  }>> {
-    const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
-    
-    if (!YOUTUBE_API_KEY) {
-      this.logYouTubeSearchEvent('youtube_search_error', { topic, subject, keywordsCount: keywords.length, message: 'YOUTUBE_API_KEY no configurada' });
-      console.error('❌ YOUTUBE_API_KEY no está configurada.');
-      return [];
-    }
-
-    try {
-      // Limitar a ~6 términos para no degradar relevancia en YouTube (especialmente cuando Gemini falla y se usa fallback)
-      const cappedKeywords = keywords.slice(0, 6);
-      let query = cappedKeywords.join(' ');
-      if (cappedKeywords.length < keywords.length) {
-        console.log(`   📌 Query limitada a ${cappedKeywords.length} términos para mejor relevancia`);
-      }
-
-      // Para inglés, agregar términos en español para encontrar videos en español que expliquen inglés
-      if (subject && this.isEnglishSubject(subject)) {
-        query = query + ' español explicación';
-        console.log(`   🇬🇧 Búsqueda para Inglés: agregando términos en español para encontrar videos en español`);
-      } else {
-        query = query + ' educación ICFES';
-      }
-
-      // Construir URL de búsqueda
-      // type=video, videoEmbeddable=true, order=relevance
-      // Para Inglés: regionCode=CO y relevanceLanguage=es para priorizar contenido en español
-      const regionCode = subject && this.isEnglishSubject(subject) ? '&regionCode=CO' : '';
-      const relevanceLanguage = subject && this.isEnglishSubject(subject) ? '&relevanceLanguage=es' : '';
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?` +
-        `part=snippet` +
-        `&q=${encodeURIComponent(query)}` +
-        `&type=video` +
-        `&videoEmbeddable=true` +
-        `&maxResults=${maxResults}` +
-        `&order=relevance` +
-        `${regionCode}` +
-        `${relevanceLanguage}` +
-        `&key=${YOUTUBE_API_KEY}`;
-
-      console.log(`🔍 Buscando videos en YouTube con keywords: ${keywords.join(', ')}`);
-      
-      const response = await fetch(searchUrl);
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'No se pudo leer el error');
-        let errorData: { error?: { message?: string } } = {};
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          // ignorar
-        }
-        const errMessage = errorData.error?.message || response.statusText || errorText.substring(0, 200);
-        this.logYouTubeSearchEvent('youtube_search_error', { topic, subject, keywordsCount: keywords.length, status: response.status, message: errMessage });
-        if (response.status === 403 || response.status === 401) {
-          console.error(`   ❌ YouTube API: autenticación/cuota. Razón: ${errMessage}`);
-        }
-        return [];
-      }
-
-      let data = await response.json() as {
-        items?: Array<{
-          id: { videoId: string };
-          snippet: {
-            title: string;
-            description: string;
-            channelTitle: string;
-            thumbnails?: { default?: { url: string } };
-          };
-        }>;
-      };
-
-      // Si Inglés devolvió 0 resultados, reintentar sin relevanceLanguage (puede ser demasiado restrictivo)
-      if (subject && this.isEnglishSubject(subject) && (!data.items || data.items.length === 0)) {
-        console.warn(`   🇬🇧 Primera búsqueda con relevanceLanguage=es sin resultados; reintentando sin filtro de idioma...`);
-        const searchUrlFallback = `https://www.googleapis.com/youtube/v3/search?` +
-          `part=snippet` +
-          `&q=${encodeURIComponent(query)}` +
-          `&type=video` +
-          `&videoEmbeddable=true` +
-          `&maxResults=${maxResults}` +
-          `&order=relevance` +
-          `${regionCode}` +
-          `&key=${YOUTUBE_API_KEY}`;
-        const resFallback = await fetch(searchUrlFallback);
-        if (resFallback.ok) {
-          const dataFallback = await resFallback.json() as typeof data;
-          if (dataFallback.items && dataFallback.items.length > 0) {
-            data = dataFallback;
-          }
-        }
-      }
-
-      if (!data.items || data.items.length === 0) {
-        this.logYouTubeSearchEvent('youtube_search', { topic, subject, keywordsCount: keywords.length, resultCount: 0 });
-        console.warn(`⚠️ No se encontraron videos para topic "${topic ?? '?'}" (${keywords.length} keywords)`);
-        return [];
-      }
-
-      // Extraer IDs de videos para obtener detalles (duración, idioma)
-      const videoIds = data.items.map(item => item.id.videoId);
-      console.log(`   📊 Obteniendo detalles (duración, idioma) para ${videoIds.length} video(s)...`);
-      const videoDetails = await this.getVideoDetails(videoIds);
-
-      // Mapear resultados a formato esperado con metadata completa
-      const videos = data.items.map(item => {
-        const videoId = item.id.videoId;
-        const details = videoDetails.get(videoId);
-
-        return {
-          title: item.snippet.title,
-          url: `https://www.youtube.com/watch?v=${videoId}`,
-          description: item.snippet.description.substring(0, 200) + (item.snippet.description.length > 200 ? '...' : ''),
-          channelTitle: item.snippet.channelTitle,
-          videoId: videoId,
-          duration: details?.duration || '',
-          language: details?.language || 'es',
-        };
-      });
-
-      this.logYouTubeSearchEvent('youtube_search', { topic, subject, keywordsCount: keywords.length, resultCount: videos.length });
-      return videos;
-    } catch (error: any) {
-      this.logYouTubeSearchEvent('youtube_search_error', { topic, subject, keywordsCount: keywords.length, message: error?.message ?? String(error) });
-      console.error(`❌ Error buscando videos en YouTube:`, error.message);
-      return [];
-    }
-  }
-
-  /**
    * Nombre de la colección Firestore para recursos web (única fuente de verdad).
-   * Ruta completa: WebLinks/{grado}/{materiaCode}/{topicCode}/links
-   * Debe coincidir con el admin de recursos y con firestore.rules.
+   * Lectura: WebLinks/consolidado_{materiaCode} únicamente.
    */
   private static readonly WEBLINKS_COLLECTION = 'WebLinks';
   private static readonly YOUTUBE_LINKS_COLLECTION = 'YoutubeLinks';
 
   /**
-   * Obtiene enlaces web para un topic desde Firestore (WebLinks). Solo caché; no se usa motor de búsqueda.
-   * Ruta: WebLinks/{grado}/{materiaCode}/{topicCode}/links
+   * Enlaces web por tema: solo WebLinks/consolidado_{materiaCode} (filtrado por topicCode en items).
    */
   private async getLinksForTopic(
     grade: string,
@@ -2409,11 +1694,8 @@ Responde SOLO con JSON válido, sin texto adicional.`;
 
 
   /**
-   * Construye el array study_links desde WebLinks (única fuente de verdad).
-   * Trae TODOS los enlaces de cada topic (sin límite por tema).
-   * Fuente: WebLinks/consolidado_{materiaCode}[_N]
-   * topicIds: nombres canónicos de temas (ej. "Álgebra y Cálculo", "Geometría") de getSubjectConfig(subject).topics;
-   * getTopicCode(subject, topicId) resuelve a código (AL, GE, ES) para filtrar items.topic.
+   * Construye study_links desde WebLinks/consolidado_{materiaCode} (1 lectura Firestore por materia).
+   * topicIds: nombres canónicos; getTopicCode → código (AL, GE, BI, …) para filtrar items.topic.
    */
   private async buildStudyLinksFromWebLinks(
     grade: string,
@@ -2451,7 +1733,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Carga y fusiona partes consolidadas WebLinks (una sola ejecución en paralelo por materiaCode).
+   * WebLinks/consolidado_{materiaCode} únicamente (1 lectura Firestore por materia, con caché en memoria).
    */
   private async fetchWebLinksConsolidatedItems(
     materiaCode: string
@@ -2463,50 +1745,28 @@ Responde SOLO con JSON válido, sin texto adicional.`;
       description: data.description || '',
       topic: typeof data.topic === 'string' ? data.topic : '',
     });
-    const baseDocId = `consolidado_${materiaCode}`;
-    const baseRef = studentDb.collection(StudyPlanService.WEBLINKS_COLLECTION).doc(baseDocId);
-    const baseSnap = await baseRef.get();
-    const baseData = baseSnap.data() as
-      | { items?: admin.firestore.DocumentData[]; totalParts?: number }
-      | undefined;
-    const totalParts =
-      typeof baseData?.totalParts === 'number' && baseData.totalParts > 0 ? baseData.totalParts : 1;
-    const extraPartSnaps =
-      totalParts > 1
-        ? await Promise.all(
-            Array.from({ length: totalParts - 1 }, (_, j) => {
-              const suffix = j + 2;
-              return studentDb
-                .collection(StudyPlanService.WEBLINKS_COLLECTION)
-                .doc(`${baseDocId}_${suffix}`)
-                .get();
-            })
-          )
-        : [];
-    const partDocs = [baseSnap, ...extraPartSnaps];
+    const docId = `consolidado_${materiaCode}`;
+    const snap = await studentDb.collection(StudyPlanService.WEBLINKS_COLLECTION).doc(docId).get();
+    if (!snap.exists) {
+      console.warn(`   ⚠️ WebLinks: no existe ${docId}`);
+      return [];
+    }
+    const raw = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
     const orderOrTime = (data: admin.firestore.DocumentData): number => {
       if (typeof data.order === 'number') return data.order;
       const t = data.savedAt?.toMillis?.() ?? data.createdAt?.toMillis?.();
       return t ?? 0;
     };
-    const allLinksForSubject = partDocs
-      .flatMap((snap) => {
-        const data = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
-        return Array.isArray(data?.items) ? data.items : [];
-      })
+    const allLinksForSubject = (Array.isArray(raw?.items) ? raw.items : [])
       .filter((x) => x?.url || x?.link)
       .sort((a, b) => orderOrTime(a) - orderOrTime(b))
       .map((x) => parseLinkDoc(x));
-    console.log(
-      `   📦 WebLinks consolidado_${materiaCode}: ${allLinksForSubject.length} enlace(s) total en ${totalParts} parte(s)`
-    );
+    console.log(`   📦 WebLinks ${docId}: ${allLinksForSubject.length} enlace(s) (1 lectura)`);
     return allLinksForSubject;
   }
 
   /**
-   * Obtiene enlaces desde documentos consolidados por materia.
-   * Fuente única: WebLinks/consolidado_{materiaCode} y, si aplica, WebLinks/consolidado_{materiaCode}_{n}.
-   * El campo items.topic usa topicCode (AL, GE, ES, ...), por lo que aquí filtramos por topicCode.
+   * Filtra por topicCode sobre el consolidado ya cargado en memoria (getOrLoadWebLinksConsolidated).
    */
   private async getCachedLinks(
     _grade: string,
@@ -2729,8 +1989,7 @@ Responde SOLO con JSON válido, sin texto adicional.`;
   }
 
   /**
-   * Normaliza el grado para usar en la ruta WebLinks/{grado}/{materia}/{topicId}/.
-   * Retorna "6".."11" para escalabilidad por grados.
+   * Normaliza el grado del estudiante ("6".."11") para student_info y APIs; WebLinks/YoutubeLinks no usan grado en la ruta.
    */
   private normalizeGradeForPath(grade: string | undefined): string {
     if (!grade || typeof grade !== 'string') return '11';
