@@ -6,7 +6,6 @@ import { useRole } from '@/hooks/core/useRole'
 import RoleBasedRedirect from '@/components/auth/RoleBasedRedirect'
 
 // Lazy load dashboards por rol: solo se descarga el dashboard que el usuario necesita
-const AdminSection = lazy(() => import('./admin/AdminPage'))
 const NewDashboard = lazy(() => import('./NewDashboard').then(m => ({ default: m.Home })))
 const TeacherDashboard = lazy(() => import('./teacher/TeacherDashboard'))
 const PrincipalDashboard = lazy(() => import('./principal/PrincipalDashboard'))
@@ -32,7 +31,7 @@ const DashboardPage = () => {
   if (!userRole) {
     return (
       <Suspense fallback={<Skeleton theme={theme} />}>
-        {user?.displayName === 'aimme' ? <AdminSection /> : <NewDashboard />}
+        {user?.displayName === 'aimme' ? <AdminDashboard theme={theme} /> : <NewDashboard />}
       </Suspense>
     )
   }

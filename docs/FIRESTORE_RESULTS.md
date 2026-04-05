@@ -9,25 +9,11 @@ La colección **`results`** almacena los resultados de las pruebas presentadas p
 - **docId:** slug de materia (`matematicas`, `lenguaje`, `ciencias_sociales`, `biologia`, `quimica`, `fisica`, `ingles`) — **como máximo 7 documentos por fase**, un intento por materia. El ID del cuestionario generado se guarda en el campo `examId` dentro del documento.
 - Cada documento en una subcolección de fase representa el resultado completado de esa materia en esa fase (un reintento sobrescribe el mismo doc y elimina duplicados previos con el mismo slug al guardar).
 
-El **dashboard del administrador** muestra el total de "Pruebas presentadas" usando:
-
-1. **Contador central:** documento `examRegistry/examCounter` (campo `count`), actualizado cada vez que se guarda un examen vía `examResults.service`.
-2. **Fallback (conteo manual):** si el contador no está disponible o es 0, se cuenta leyendo todos los documentos en `results/{userId}/{phaseName}` para cada estudiante y cada fase.
+El registro de pruebas mantiene un **contador** en `examRegistry/examCounter` (campo `count`), actualizado al guardar cada examen vía `examResults.service` y `examRegistryService.registerExam`.
 
 ## Permisos necesarios
 
-Para que el conteo de pruebas funcione correctamente:
-
-- El contexto que ejecuta **getAdminStats** / **getTotalCompletedExams** (backend con Admin SDK o cliente con usuario admin) debe tener **lectura** en:
-  - Colección **`results`** (lista de documentos por estudiante)
-  - Subcolecciones **`results/{userId}/fase I`**, **`results/{userId}/Fase II`**, **`results/{userId}/fase III`**
-
-Si el dashboard muestra 0 pruebas cuando sí hay exámenes guardados, revisar:
-
-1. Que las reglas de Firestore permitan leer la colección `results` y sus subcolecciones para el rol/contexto del administrador.
-2. Que no exista un error en consola o en los logs del backend al ejecutar el conteo (por ejemplo, permisos denegados).
-
-Si se usa **Firebase Admin SDK** en el backend para obtener las estadísticas, las reglas de seguridad de cliente no aplican a esas lecturas; en ese caso, el fallo suele ser por entorno (proyecto distinto) o por error de red/servicio.
+Cualquier herramienta o script que **lea** la colección **`results`** y sus subcolecciones por fase (`results/{userId}/fase I`, `Fase II`, `fase III`) necesita reglas que permitan esas lecturas en el contexto correspondiente (por ejemplo, administrador o backend con Admin SDK).
 
 ## Desempeño y lecturas (cliente estudiante)
 

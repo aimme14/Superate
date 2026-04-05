@@ -95,8 +95,8 @@ Democracia, ciudadanía, derechos, gobierno, economía, geografía, historia, et
 
 - El script respeta las palabras que ya tienen definición (por defecto) para evitar regenerar innecesariamente.
 - Hay un delay de 3 segundos entre lotes para evitar rate limits de la API de Gemini.
-- Las definiciones se guardan en Firestore en la colección `definitionswords/{materia}/palabras/{palabraId}`.
-- Si una palabra falla, el script continúa con las siguientes y muestra un resumen al final.
+- **Producción (app):** el banco lee solo `definitionswords/consolidado_{materia}` vía Cloud Function (`getVocabularyWords`), **una lectura** por materia; no se usa `collectionGroup` sobre `palabras`.
+- Si aún generas términos en documentos sueltos bajo `definitionswords/.../palabras/`, es modelo de **ingreso**; el runtime del plan de estudio no debe consultar esa subcolección.
 
 ## Troubleshooting
 
@@ -114,4 +114,4 @@ Democracia, ciudadanía, derechos, gobierno, economía, geografía, historia, et
 
 ## Integración con el sistema
 
-Una vez generadas las definiciones, el componente `VocabularyBank` en el frontend las consultará automáticamente desde Firestore, sin necesidad de generar definiciones en tiempo real, mejorando significativamente la experiencia del usuario.
+El componente `VocabularyBank` obtiene las definiciones con **HTTP** (`/superateHttp/getVocabularyWords`), no con el SDK de Firestore en el cliente.

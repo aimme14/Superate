@@ -5,13 +5,13 @@
 #   $env:CONSOLIDATE_SIMULACROS_SECRET = "tu-secreto"
 #   .\scripts\rebuild-simulacros-consolidado.ps1
 # Otra URL (otro proyecto / emulador):
-#   $env:REBUILD_CONSOLIDATED_URL = "https://us-central1-OTRO.cloudfunctions.net/rebuildSimulacrosConsolidatedHttp"
+#   $env:REBUILD_CONSOLIDATED_URL = "https://us-central1-OTRO.cloudfunctions.net/superateHttp/rebuildSimulacrosConsolidatedHttp"
 
 $ErrorActionPreference = "Stop"
 
 $url = $env:REBUILD_CONSOLIDATED_URL
 if (-not $url) {
-  $url = "https://us-central1-superate-ia.cloudfunctions.net/rebuildSimulacrosConsolidatedHttp"
+  $url = "https://us-central1-superate-6c730.cloudfunctions.net/superateHttp/rebuildSimulacrosConsolidatedHttp"
 }
 
 $headers = @{

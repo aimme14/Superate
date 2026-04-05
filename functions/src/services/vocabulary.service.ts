@@ -34,7 +34,6 @@ export interface WordDefinition {
   palabra: string;
   definicion: string;
   materia: string;
-  activa: boolean;
   fechaCreacion: admin.firestore.Timestamp;
   version: number;
   ejemploIcfes?: string;
@@ -76,7 +75,6 @@ class VocabularyService {
       palabra: String(data.palabra ?? ''),
       definicion: String(data.definicion ?? ''),
       materia: String(data.materia ?? normalizedMateria),
-      activa: data.activa !== false,
       fechaCreacion,
       version: typeof data.version === 'number' ? data.version : 1,
       ...(data.ejemploIcfes && { ejemploIcfes: data.ejemploIcfes }),
@@ -142,17 +140,17 @@ class VocabularyService {
   ): Promise<WordDefinition[]> {
     const normalizedMateria = this.normalizeMateria(materia);
     const allWords = await this.loadConsolidatedWords(normalizedMateria);
-    const active = allWords.filter(
-      (word) => word.activa && word.id && !excludeIds.includes(word.id)
+    const usable = allWords.filter(
+      (word) => word.id && !excludeIds.includes(word.id)
     );
-    const shuffled = this.shuffleArray([...active]);
+    const shuffled = this.shuffleArray([...usable]);
     return shuffled.slice(0, Math.max(0, limit));
   }
 
   async getAllWords(materia: string): Promise<WordDefinition[]> {
     const normalizedMateria = this.normalizeMateria(materia);
     const allWords = await this.loadConsolidatedWords(normalizedMateria);
-    return allWords.filter((word) => word.activa && word.id);
+    return allWords.filter((word) => Boolean(word.id));
   }
 
 }

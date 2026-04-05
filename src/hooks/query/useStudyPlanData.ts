@@ -1,8 +1,10 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { dbService } from "@/services/firebase/db.service";
 import type { StudyPlanPhase } from "@/interfaces/studyPlan.interface";
 import { GRADE_CODE_TO_NAME } from "@/utils/subjects.config";
 import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
+import { currentUserQueryKey } from "@/hooks/query/useCurrentUser";
+import { CLOUD_FUNCTIONS_HTTP_BASE } from "@/config/cloudFunctions";
 
 export interface StudyPlanData {
   student_info: {
@@ -50,10 +52,6 @@ export interface SubjectWithTopics {
   neutrals: string[];
 }
 
-const FUNCTIONS_URL =
-  import.meta.env.VITE_CLOUD_FUNCTIONS_URL ||
-  "https://us-central1-superate-ia.cloudfunctions.net";
-
 function toGradeNameForApi(grade: string | undefined): string | undefined {
   if (!grade || typeof grade !== "string") return undefined;
   const g = grade.trim();
@@ -72,7 +70,42 @@ interface StudyPlanDataResult {
   studentGrade: string | undefined;
 }
 
+type StudentProfileFields = {
+  gradeId?: string;
+  grade?: string;
+  gradeName?: string;
+};
+
+/**
+ * Perfil del estudiante para el plan: primero `currentUser` en React Query (misma clave que Auth/useCurrentUser).
+ * Si no hay caché o falta gradeId/grade (p. ej. docente viendo otro alumno), fallback a Firestore vía getUserById.
+ */
+async function resolveStudentProfileForStudyPlan(
+  queryClient: QueryClient,
+  studentId: string
+): Promise<{ ok: true; studentData: StudentProfileFields } | { ok: false }> {
+  const cached = queryClient.getQueryData(currentUserQueryKey(studentId));
+  if (cached && typeof cached === "object") {
+    const sd = cached as StudentProfileFields;
+    const gradeId =
+      sd.gradeId ||
+      (typeof sd.grade === "string" ? sd.grade : undefined);
+    if (gradeId) {
+      return { ok: true, studentData: sd };
+    }
+  }
+  const userResult = await dbService.getUserById(studentId);
+  if (!userResult.success || !userResult.data) {
+    return { ok: false };
+  }
+  return {
+    ok: true,
+    studentData: userResult.data as StudentProfileFields,
+  };
+}
+
 async function fetchStudyPlanData(
+  queryClient: QueryClient,
   studentId: string,
   phase: "first" | "second" | "third",
   subjectsWithTopics: SubjectWithTopics[]
@@ -81,8 +114,8 @@ async function fetchStudyPlanData(
     (s) => s.weaknesses.length > 0
   );
 
-  const userResult = await dbService.getUserById(studentId);
-  if (!userResult.success || !userResult.data) {
+  const resolved = await resolveStudentProfileForStudyPlan(queryClient, studentId);
+  if (!resolved.ok) {
     const emptyAuth: Record<string, boolean> = {};
     subjectsWithTopics.forEach((s) => (emptyAuth[s.name] = false));
     return {
@@ -92,11 +125,7 @@ async function fetchStudyPlanData(
     };
   }
 
-  const studentData = userResult.data as {
-    gradeId?: string;
-    grade?: string;
-    gradeName?: string;
-  };
+  const studentData = resolved.studentData;
   const gradeId =
     studentData.gradeId ||
     (typeof studentData.grade === "string" ? studentData.grade : undefined);
@@ -133,7 +162,7 @@ async function fetchStudyPlanData(
   const planPromises = subjectsWithWeaknesses.map(async (subject) => {
     try {
       const response = await fetch(
-        `${FUNCTIONS_URL}/getStudyPlan?studentId=${studentId}&phase=${phase}&subject=${encodeURIComponent(subject.name)}`
+        `${CLOUD_FUNCTIONS_HTTP_BASE}/getStudyPlan?studentId=${studentId}&phase=${phase}&subject=${encodeURIComponent(subject.name)}`
       );
       const result = await response.json();
       if (result.success && result.data) {
@@ -186,7 +215,7 @@ export function useStudyPlanData(
   const query = useQuery({
     queryKey: studyPlanKeys.detail(studentId, phase, subjectKeys),
     queryFn: () =>
-      fetchStudyPlanData(studentId, phase, subjectsWithTopics),
+      fetchStudyPlanData(queryClient, studentId, phase, subjectsWithTopics),
     enabled:
       !!studentId &&
       subjectsWithTopics.length > 0,

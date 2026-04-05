@@ -30,7 +30,7 @@ export const institutionKeys = {
 }
 
 // Hook para obtener todas las instituciones
-export const useInstitutions = () => {
+export const useInstitutions = (enabled: boolean = true) => {
   return useQuery({
     queryKey: institutionKeys.lists(),
     queryFn: async () => {
@@ -40,6 +40,7 @@ export const useInstitutions = () => {
       }
       throw new Error(result.error.message)
     },
+    enabled,
     staleTime: Infinity,
     gcTime: Infinity,
     refetchOnWindowFocus: false,
@@ -71,8 +72,8 @@ export const useInstitution = (id: string, enabled: boolean = true) => {
 }
 
 // Hook para obtener instituciones como opciones para select
-export const useInstitutionOptions = (onlyActive: boolean = false) => {
-  const { data: institutions, isLoading, error } = useInstitutions()
+export const useInstitutionOptions = (onlyActive: boolean = false, queryEnabled: boolean = true) => {
+  const { data: institutions, isLoading, error } = useInstitutions(queryEnabled)
   
   // Filtrar por estado activo si se solicita (útil para formularios de creación de usuarios)
   const filteredInstitutions = onlyActive 
@@ -95,8 +96,11 @@ export const useInstitutionOptions = (onlyActive: boolean = false) => {
 }
 
 // Hook para obtener sedes de una institución específica
-export const useCampusOptions = (institutionId: string) => {
-  const { data: institution, isLoading } = useInstitution(institutionId, !!institutionId)
+export const useCampusOptions = (institutionId: string, queryEnabled: boolean = true) => {
+  const { data: institution, isLoading } = useInstitution(
+    institutionId,
+    Boolean(institutionId) && queryEnabled
+  )
   
   const options = institution?.campuses.map(campus => ({
     label: campus.name,
@@ -113,8 +117,11 @@ export const useCampusOptions = (institutionId: string) => {
 }
 
 // Hook para obtener grados de una sede específica
-export const useGradeOptions = (institutionId: string, campusId: string) => {
-  const { data: institution, isLoading } = useInstitution(institutionId, !!institutionId)
+export const useGradeOptions = (institutionId: string, campusId: string, queryEnabled: boolean = true) => {
+  const { data: institution, isLoading } = useInstitution(
+    institutionId,
+    Boolean(institutionId) && queryEnabled
+  )
   
   const campus = institution?.campuses.find(c => c.id === campusId)
   const options = campus?.grades.map(grade => ({

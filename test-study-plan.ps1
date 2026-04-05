@@ -1,7 +1,7 @@
 # Script de prueba para generateStudyPlan
 # Este script prueba la función desplegada para verificar que los enlaces web se generan correctamente
 
-$functionUrl = "https://us-central1-superate-ia.cloudfunctions.net/generateStudyPlan"
+$functionUrl = "https://us-central1-superate-6c730.cloudfunctions.net/superateHttp/generateStudyPlan"
 
 Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "  🧪 PRUEBA DE FUNCIÓN generateStudyPlan" -ForegroundColor Cyan
@@ -142,7 +142,7 @@ try {
     Write-Host "   1. Verifica que el studentId existe en Firestore (proyecto superate-6c730)" -ForegroundColor White
     Write-Host "   2. Verifica que el estudiante tiene resultados de exámenes en la fase y materia especificadas" -ForegroundColor White
     Write-Host "   3. Revisa los logs de Firebase Functions en la consola:" -ForegroundColor White
-    Write-Host "      https://console.firebase.google.com/project/superate-ia/functions/logs" -ForegroundColor DarkGray
+    Write-Host "      https://console.firebase.google.com/project/superate-6c730/functions/logs" -ForegroundColor DarkGray
     Write-Host "   4. Verifica que los secrets GOOGLE_CSE_API_KEY y GOOGLE_CSE_ID estén configurados" -ForegroundColor White
 }
 

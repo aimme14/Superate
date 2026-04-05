@@ -8,6 +8,7 @@ import {
   getFirestore,
   collection,
   collectionGroup,
+  getCountFromServer,
   updateDoc,
   deleteDoc,
   Firestore,
@@ -3140,6 +3141,35 @@ class DatabaseService {
       return success(allUsers)
     } catch (e) {
       return failure(new ErrorAPI(normalizeError(e, 'obtener usuarios por institución de nueva estructura')))
+    }
+  }
+
+  /**
+   * Conteos para el dashboard admin mediante agregaciones (sin listar documentos).
+   * Usa getCountFromServer sobre la colección de instituciones y collectionGroup sobre
+   * estudiantes / profesores / rectores bajo superate/auth/institutions/{id}/...
+   */
+  async getAdminDashboardEntityCounts(): Promise<Result<{
+    institutions: number
+    students: number
+    teachers: number
+    rectors: number
+  }>> {
+    try {
+      const [institutionsSnap, studentsSnap, teachersSnap, rectorsSnap] = await Promise.all([
+        getCountFromServer(collection(this.db, 'superate', 'auth', 'institutions')),
+        getCountFromServer(collectionGroup(this.db, 'estudiantes')),
+        getCountFromServer(collectionGroup(this.db, 'profesores')),
+        getCountFromServer(collectionGroup(this.db, 'rectores')),
+      ])
+      return success({
+        institutions: institutionsSnap.data().count,
+        students: studentsSnap.data().count,
+        teachers: teachersSnap.data().count,
+        rectors: rectorsSnap.data().count,
+      })
+    } catch (e) {
+      return failure(new ErrorAPI(normalizeError(e, 'obtener conteos agregados del dashboard admin')))
     }
   }
 

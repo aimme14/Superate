@@ -5,13 +5,14 @@
  * Estrategia: una sola query con limit(N). Cada documento devuelto = 1 lectura.
  *
  * Se usa el entero `shard` en [0, SHARD_MAX) por documento. Cada request elige
- * un shard al azar y pide hasta `limit` ejercicios de ese shard (igualdad simple,
- * compatible con índice de campo único en collection group).
+ * un shard al azar y pide hasta `limit` ejercicios de ese shard.
+ * Sin `orderBy(__name__)`: una sola query con índice solo en `shard` (fieldOverrides
+ * collection group), evita escaneos grandes en Query Insights cuando faltaba el
+ * compuesto (shard + __name__). Facturación: ~1 lectura por documento devuelto (≤ limit).
  *
  * Backfill: npm run backfill:ejercicios-ia-rand (nombre histórico; rellena shard)
  */
 
-import * as admin from 'firebase-admin';
 import { getStudentDatabase } from '../utils/firestoreHelpers';
 
 /** Cantidad de shards; más shards = menos ejercicios por shard en promedio. */
@@ -50,7 +51,6 @@ export async function getRandomEjercicios(
   const snap = await db
     .collectionGroup('ejercicios')
     .where('shard', '==', shard)
-    .orderBy(admin.firestore.FieldPath.documentId())
     .limit(safeLimit)
     .get();
 

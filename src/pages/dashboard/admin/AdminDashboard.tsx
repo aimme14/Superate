@@ -13,27 +13,19 @@ import {
   Users,
   Building,
   Lock,
-  BarChart3,
-  Home,
   BookOpen,
   Loader2,
-  FileText,
   FolderOpen,
   ChevronDown,
   Settings,
   Sparkles,
   ClipboardList,
-  Construction,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-// AdminOverviewTab importado solo para restaurar después del mantenimiento
-// import AdminOverviewTab from '@/components/admin/AdminOverviewTab'
 
 // Lazy por costo: evita montajes/lecturas hasta que el usuario entre al tab
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'))
 const InstitutionManagement = lazy(() => import('@/components/admin/InstitutionManagement'))
-const StudentPhaseReports = lazy(() => import('@/components/admin/StudentPhaseReports'))
 const RegistrationSettings = lazy(() => import('@/components/admin/RegistrationSettings'))
 
 // Lazy: cargar solo al abrir cada tab
@@ -46,7 +38,7 @@ const AdminSimulacros = lazy(() => import('@/components/admin/AdminSimulacros'))
 interface AdminDashboardProps extends ThemeContextProps {}
 
 export default function AdminDashboard({ theme }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('users')
 
   return (
     <div className="space-y-6">
@@ -73,25 +65,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
             theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-muted border-border/30 shadow-sm'
           )}
         >
-          {/* Inicio - sin desplegable */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('overview')}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              activeTab === 'overview'
-                ? theme === 'dark'
-                  ? 'bg-teal-600/80 text-white'
-                  : 'bg-primary text-primary-foreground'
-                : theme === 'dark'
-                  ? 'text-gray-400 hover:bg-zinc-700 hover:text-white'
-                  : 'text-black hover:bg-gray-100'
-            )}
-          >
-            <Home className="h-4 w-4" />
-            <span>Inicio</span>
-          </button>
-
           {/* Nos conforman: Usuarios, Instituciones, Registro */}
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -243,68 +216,7 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          {/* Resultados: Análisis, Resúmenes PDF */}
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-md px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  ['analytics', 'reports'].includes(activeTab)
-                    ? theme === 'dark'
-                      ? 'bg-teal-600/80 text-white'
-                      : 'bg-primary text-primary-foreground'
-                    : theme === 'dark'
-                      ? 'text-gray-400 hover:bg-zinc-700 hover:text-white'
-                      : 'text-black hover:bg-gray-100'
-                )}
-              >
-                <BarChart3 className="h-4 w-4" />
-                <span>Resultados</span>
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className={cn(
-                "min-w-[10rem] rounded-lg shadow-lg",
-                theme === 'dark' ? 'border-zinc-700 bg-zinc-800' : 'bg-white border-gray-200'
-              )}
-            >
-              <DropdownMenuItem
-                onClick={() => setActiveTab('reports')}
-                className={cn(
-                  "cursor-pointer rounded-sm px-2 py-2",
-                  activeTab === 'reports' && (theme === 'dark' ? 'bg-teal-600/30 text-teal-300' : 'bg-primary/10 text-primary')
-                )}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Resúmenes PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </nav>
-
-        {/* Inicio: temporalmente en mantenimiento */}
-        <TabsContent value="overview" className="space-y-6">
-          <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-muted/30 border-border/50')}>
-            <CardHeader className="text-center py-16">
-              <div className="flex justify-center mb-4">
-                <Construction className={cn('h-16 w-16', theme === 'dark' ? 'text-amber-400' : 'text-amber-600')} />
-              </div>
-              <CardTitle className={cn('text-2xl', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                En mantenimiento
-              </CardTitle>
-              <CardDescription className="text-base mt-2">
-                Esta sección está temporalmente en mantenimiento. Pronto estará disponible nuevamente.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          {/* Contenido original comentado para restaurar después:
-          <AdminOverviewTab theme={theme} />
-          */}
-        </TabsContent>
 
         <TabsContent value="users">
           {activeTab === 'users' ? (
@@ -387,18 +299,6 @@ export default function AdminDashboard({ theme }: AdminDashboardProps) {
               <CardDescription>Contenido próximamente.</CardDescription>
             </CardHeader>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="reports">
-          {activeTab === 'reports' ? (
-            <Suspense fallback={
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            }>
-              <StudentPhaseReports theme={theme} />
-            </Suspense>
-          ) : null}
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6">

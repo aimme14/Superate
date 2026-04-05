@@ -31,9 +31,13 @@ function ProtectedRoute() {
     return id != null && id !== "" ? String(id) : ""
   }, [userData])
 
+  /** Admin no depende de una institución concreta; evita 404/toasts si el perfil trae un id viejo. */
+  const shouldLoadInstitution =
+    Boolean(institutionId) && userData?.role !== 'admin'
+
   const { data: institution, isLoading: isLoadingInstitution } = useInstitution(
     institutionId,
-    Boolean(institutionId)
+    shouldLoadInstitution
   )
 
   useEffect(() => {
@@ -62,6 +66,8 @@ function ProtectedRoute() {
       })()
       return
     }
+
+    if (userData.role === 'admin') return
 
     if (!institutionId) return
     if (isLoadingInstitution) return

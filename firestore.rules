@@ -431,6 +431,16 @@ service cloud.firestore {
       allow update, delete: if isAdminOrToken();
     }
 
+    // Vocabulario académico (definitionswords): la app solo lee vía Cloud Function (Admin SDK),
+    // documento consolidado_{materia} con campo items. No usar subcolección palabras en runtime
+    // (collectionGroup costoso). Cliente denegado explícitamente.
+    match /definitionswords/{docId} {
+      allow read, write: if false;
+    }
+    match /definitionswords/{materia}/palabras/{wordId} {
+      allow read, write: if false;
+    }
+
     // Regla por defecto: denegar acceso a todo lo dem?s
     match /{document=**} {
       allow read, write: if false;

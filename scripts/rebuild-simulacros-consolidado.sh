@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-URL="${REBUILD_CONSOLIDATED_URL:-https://us-central1-superate-ia.cloudfunctions.net/rebuildSimulacrosConsolidatedHttp}"
+URL="${REBUILD_CONSOLIDATED_URL:-https://us-central1-superate-6c730.cloudfunctions.net/superateHttp/rebuildSimulacrosConsolidatedHttp}"
 
 if [[ -n "${CONSOLIDATE_SIMULACROS_SECRET:-}" ]]; then
   curl -sS -X POST "$URL" \

@@ -1216,14 +1216,17 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
 
       // Filtrar enlaces sin título o URL válida (evitar fallar todo el plan por datos incompletos de caché o API)
       if (parsed.study_links.length > 0) {
-        const validLinks = parsed.study_links.filter(
-          (l) => (l.title && l.url) || (l.title && (l as any).link)
-        ).map((l) => ({
-          title: l.title || 'Enlace',
-          url: l.url || (l as any).link || '',
-          description: l.description || '',
-          topic: l.topic,
-        })).filter((l) => l.url && l.url.startsWith('http'));
+        const validLinks = parsed.study_links
+          .filter(
+            (l) => (l.title && l.url) || (l.title && (l as any).link)
+          )
+          .map((l) => ({
+            title: l.title || 'Enlace',
+            url: l.url || (l as any).link || '',
+            description: l.description || '',
+            topic: l.topic,
+          }))
+          .filter((l) => l.url && l.url.startsWith('http'));
         const removed = parsed.study_links.length - validLinks.length;
         if (removed > 0) {
           console.warn(`⚠️ Se omitieron ${removed} enlace(s) sin título o URL válida. Se conservan ${validLinks.length} enlace(s) válido(s).`);

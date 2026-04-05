@@ -1,1 +1,6 @@
-{"projects":{"default":"superate-ia","superate-6c730":"superate-6c730"}}
+{
+  "projects": {
+    "default": "superate-6c730",
+    "superate-6c730": "superate-6c730"
+  }
+}

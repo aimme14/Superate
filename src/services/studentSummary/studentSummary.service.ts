@@ -7,6 +7,7 @@
 import { Result, success, failure } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
+import { CLOUD_FUNCTIONS_HTTP_BASE } from '@/config/cloudFunctions';
 
 /**
  * Resumen académico generado por IA
@@ -64,12 +65,6 @@ interface APIResponse {
 }
 
 /**
- * URL base de Cloud Functions
- */
-const CLOUD_FUNCTIONS_BASE_URL = import.meta.env.VITE_CLOUD_FUNCTIONS_URL || 
-  'https://us-central1-superate-ia.cloudfunctions.net';
-
-/**
  * Servicio de Resumen Académico
  */
 class StudentSummaryService {
@@ -87,18 +82,17 @@ class StudentSummaryService {
    */
   async generateSummary(studentId: string, phase: 'first' | 'second' | 'third', force: boolean = false): Promise<Result<PersistedSummary>> {
     try {
-      const url = `${CLOUD_FUNCTIONS_BASE_URL}/generateStudentSummary`;
-      
+      const url = `${CLOUD_FUNCTIONS_HTTP_BASE}/studentSummary`;
+      const body = force
+        ? { studentId, phase, mode: 'generate' as const }
+        : { studentId, phase, mode: 'ensure' as const };
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          studentId,
-          phase,
-          force,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -108,11 +102,19 @@ class StudentSummaryService {
 
       const data: APIResponse = await response.json();
 
-      if (!data.success || !data.data) {
+      if (!data.success) {
         throw new Error(data.error?.message || 'Error generando resumen');
       }
 
-      return success(data.data);
+      const payload = data.data as PersistedSummary | { summary?: PersistedSummary } | undefined;
+      if (payload && 'resumen_general' in payload) {
+        return success(payload as PersistedSummary);
+      }
+      const nested = payload as { summary?: PersistedSummary } | undefined;
+      if (nested?.summary) {
+        return success(nested.summary);
+      }
+      throw new Error(data.error?.message || 'Error generando resumen');
     } catch (e) {
       console.error('Error generando resumen académico:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar resumen académico')));
@@ -124,7 +126,7 @@ class StudentSummaryService {
    */
   async getSummary(studentId: string, phase: 'first' | 'second' | 'third'): Promise<Result<PersistedSummary | null>> {
     try {
-      const url = `${CLOUD_FUNCTIONS_BASE_URL}/getStudentSummary?studentId=${encodeURIComponent(studentId)}&phase=${phase}`;
+      const url = `${CLOUD_FUNCTIONS_HTTP_BASE}/getStudentSummary?studentId=${encodeURIComponent(studentId)}&phase=${phase}`;
       
       const response = await fetch(url, {
         method: 'GET',

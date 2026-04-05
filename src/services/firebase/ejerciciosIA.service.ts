@@ -2,9 +2,7 @@
  * Servicio para obtener ejercicios de EjerciciosIA (mini simulacro).
  */
 
-const FUNCTIONS_URL =
-  import.meta.env.VITE_CLOUD_FUNCTIONS_URL ||
-  'https://us-central1-superate-ia.cloudfunctions.net';
+import { CLOUD_FUNCTIONS_HTTP_BASE } from '@/config/cloudFunctions';
 
 export interface EjercicioIA {
   question: string;
@@ -34,7 +32,7 @@ export async function getRandomEjercicios(
   params: GetRandomEjerciciosParams
 ): Promise<GetRandomEjerciciosResult> {
   const { grade, subject, limit = 10 } = params;
-  const url = new URL(`${FUNCTIONS_URL}/getRandomEjerciciosIA`);
+  const url = new URL(`${CLOUD_FUNCTIONS_HTTP_BASE}/getRandomEjerciciosIA`);
   if (grade) url.searchParams.set('grade', grade);
   if (subject) url.searchParams.set('subject', subject);
   url.searchParams.set('limit', String(limit));

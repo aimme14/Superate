@@ -37,6 +37,7 @@ import type {
   StudyPlanData,
   ICFESAnalysisInterfaceProps,
 } from './promedio/types'
+import { CLOUD_FUNCTIONS_HTTP_BASE } from '@/config/cloudFunctions'
 import { MOTIVATIONAL_MESSAGES, STUDY_LINKS_INITIAL_PER_TOPIC, STUDY_VIDEOS_INITIAL_PER_TOPIC } from './promedio/constants'
 import {
   getTestDisplayName,
@@ -688,7 +689,6 @@ function StudyPlanSummary({
   theme: 'light' | 'dark';
 }) {
   const [phase1Stats, setPhase1Stats] = useState({ deployed: 0, pending: 0, loading: true });
-  const FUNCTIONS_URL = 'https://us-central1-superate-ia.cloudfunctions.net';
 
   const isPlanComplete = (plan: any): boolean => {
     if (!plan) return false;
@@ -714,7 +714,7 @@ function StudyPlanSummary({
       for (const subject of subjectsWithWeaknesses) {
         try {
           const response = await fetch(
-            `${FUNCTIONS_URL}/getStudyPlan?studentId=${user.uid}&phase=first&subject=${encodeURIComponent(subject.name)}`
+            `${CLOUD_FUNCTIONS_HTTP_BASE}/getStudyPlan?studentId=${user.uid}&phase=first&subject=${encodeURIComponent(subject.name)}`
           );
           const result = await response.json();
           if (result.success && result.data && isPlanComplete(result.data)) {
@@ -898,8 +898,6 @@ function PersonalizedStudyPlan({
     addPlanLocally,
   } = useStudyPlanData(studentId, phase, subjectsWithTopics);
 
-  const FUNCTIONS_URL = import.meta.env.VITE_CLOUD_FUNCTIONS_URL || 'https://us-central1-superate-ia.cloudfunctions.net';
-
   // Generar plan de estudio para una materia
   const generateStudyPlan = async (subject: string) => {
     const gradeForApi = studentGrade;
@@ -914,7 +912,7 @@ function PersonalizedStudyPlan({
     let clearedInRaf = false;
     try {
       // Iniciar generación del plan (esto puede tardar varios minutos). Siempre enviamos grado en formato nombre (Sexto, Décimo, Undécimo).
-      const response = await fetch(`${FUNCTIONS_URL}/generateStudyPlan`, {
+      const response = await fetch(`${CLOUD_FUNCTIONS_HTTP_BASE}/generateStudyPlan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3701,6 +3699,6 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
   );
 }
 
-// Re-exportar funciones de generación de PDF para StudentPhaseReports y otros consumidores
+// Re-exportar funciones de generación de PDF para otros consumidores (p. ej. PlanEstudioIA)
 export { generatePhase1And2PDFHTML } from './promedio/pdf/phase1And2'
 export { generatePhase3PDFHTML } from './promedio/pdf/phase3'

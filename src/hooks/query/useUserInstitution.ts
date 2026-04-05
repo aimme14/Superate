@@ -1,7 +1,7 @@
 import { useAuthContext } from "@/context/AuthContext"
 import { useInstitution } from "./useInstitutionQuery"
 import { useCurrentUser } from "./useCurrentUser"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 
 /**
  * Hook para obtener la información de la institución del usuario autenticado
@@ -31,10 +31,12 @@ export const useUserInstitution = () => {
     }
   }, [userData])
 
-  // Obtener los datos de la institución
+  const isAdmin = useMemo(() => userData?.role === 'admin', [userData?.role])
+
+  // Obtener los datos de la institución (los admin no requieren institución en Firestore)
   const { data: institution, isLoading: isLoadingInstitution } = useInstitution(
     institutionId || '',
-    !!institutionId
+    Boolean(institutionId) && !isAdmin
   )
 
   // Validar que la institución esté activa

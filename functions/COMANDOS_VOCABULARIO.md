@@ -1,81 +1,17 @@
-# 📚 Comandos para Generar Vocabulario Académico
+# Vocabulario académico (HTTP unificado)
 
-## 🚀 Método Recomendado: Usar el Endpoint HTTP (PowerShell)
+Todas las rutas van bajo **`superateHttp`** (no existen funciones sueltas como `getVocabularyWords` en la raíz).
 
-### Comando básico:
+**Base:** `https://us-central1-superate-6c730.cloudfunctions.net/superateHttp`
 
-```powershell
-# Desde cualquier directorio
-$body = @{
-    materia = 'matematicas'
-    palabras = @('palabra1', 'palabra2', 'palabra3')
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
-
-### Usar el script de PowerShell (más fácil):
+## Leer el banco (consolidado, 1 lectura en servidor)
 
 ```powershell
-# Desde la carpeta functions
-cd functions
-.\GENERAR_PALABRAS.ps1 -Materia matematicas -Palabras @('coseno', 'tangente', 'geometría')
+Invoke-RestMethod -Uri 'https://us-central1-superate-6c730.cloudfunctions.net/superateHttp/getVocabularyWords?materia=matematicas&all=1' -Method Get
 ```
 
-### Ejemplos por materia:
+## Generación masiva por API
 
-#### Matemáticas (10 palabras):
-```powershell
-$body = @{ materia = 'matematicas'; palabras = @('coseno', 'tangente', 'geometría', 'ángulo', 'perímetro', 'área', 'volumen', 'teorema', 'postulado', 'axioma') } | ConvertTo-Json
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
+No hay ruta `generateVocabularyBatch` en el código actual. Para poblar datos, actualiza los documentos `definitionswords/consolidado_{materia}` en Firestore (campo `items`) o usa un script propio con Admin SDK.
 
-#### Lectura Crítica (10 palabras):
-```powershell
-$body = @{ materia = 'lectura_critica'; palabras = @('conectores', 'metáfora', 'símil', 'analogía', 'símbolo', 'alegoría', 'ironía', 'sarcasmo', 'paradoja', 'hipérbole') } | ConvertTo-Json
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
-
-#### Física (10 palabras):
-```powershell
-$body = @{ materia = 'fisica'; palabras = @('período', 'reflexión', 'refracción', 'difracción', 'interferencia', 'resonancia', 'sonido', 'luz', 'óptica', 'lente') } | ConvertTo-Json
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
-
-#### Biología (10 palabras):
-```powershell
-$body = @{ materia = 'biologia'; palabras = @('fotosíntesis', 'respiración', 'celular', 'organismo', 'especie', 'género', 'familia', 'orden', 'clase', 'filo') } | ConvertTo-Json
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
-
-#### Química (10 palabras):
-```powershell
-$body = @{ materia = 'quimica'; palabras = @('homogénea', 'heterogénea', 'covalente', 'iónico', 'metálico', 'electronegatividad', 'periodicidad', 'tabla periódica', 'grupo', 'período') } | ConvertTo-Json
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
-
-#### Inglés (10 palabras):
-```powershell
-$body = @{ materia = 'ingles'; palabras = @('infinitive', 'gerund', 'participle', 'clause', 'phrase', 'sentence', 'paragraph', 'essay', 'composition', 'reading comprehension') } | ConvertTo-Json
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
-
-#### Sociales y Ciudadanas (10 palabras):
-```powershell
-$body = @{ materia = 'sociales_ciudadanas'; palabras = @('demanda', 'precio', 'valor', 'producción', 'consumo', 'distribución', 'comercio', 'exportación', 'importación', 'desarrollo') } | ConvertTo-Json
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/generateVocabularyBatch' -Method Post -Body $body -ContentType 'application/json'
-```
-
-## 📋 Verificar palabras generadas:
-
-```powershell
-# Obtener palabras de una materia
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/getVocabularyWords?materia=matematicas&limit=10' -Method Get
-
-# Obtener definición de una palabra específica
-Invoke-RestMethod -Uri 'https://us-central1-superate-ia.cloudfunctions.net/getVocabularyWord?materia=matematicas&palabra=álgebra' -Method Get
-```
-
-## ⚠️ Nota sobre el script npm:
-
-El script `npm run generate-vocabulary` requiere credenciales de Vertex AI configuradas localmente, por lo que puede fallar. **Usa el endpoint HTTP en su lugar**, que ya tiene las credenciales configuradas en producción.
+Ver `INSTRUCCIONES_VOCABULARIO.md`.

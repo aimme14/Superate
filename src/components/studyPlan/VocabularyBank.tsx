@@ -9,12 +9,12 @@ import { cn } from '@/lib/utils';
 import { BookOpen, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNotification } from '@/hooks/ui/useNotification';
+import { CLOUD_FUNCTIONS_HTTP_BASE } from '@/config/cloudFunctions';
 
 interface WordDefinition {
   palabra: string;
   definicion: string;
   materia: string;
-  activa: boolean;
   fechaCreacion?: any;
   version?: number;
   ejemploIcfes?: string;
@@ -40,10 +40,6 @@ const MATERIA_MAP: Record<string, string> = {
   'Ciencias Sociales': 'sociales_ciudadanas',
 };
 
-const FUNCTIONS_URL =
-  import.meta.env.VITE_CLOUD_FUNCTIONS_URL ||
-  'https://us-central1-superate-6c730.cloudfunctions.net';
-
 const PAGE_SIZE = 10;
 
 export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps) {
@@ -61,7 +57,7 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
       setVisibleCount(PAGE_SIZE);
       try {
         const response = await fetch(
-          `${FUNCTIONS_URL}/getVocabularyWords?materia=${encodeURIComponent(normalizedMateria)}&all=1`
+          `${CLOUD_FUNCTIONS_HTTP_BASE}/getVocabularyWords?materia=${encodeURIComponent(normalizedMateria)}&all=1`
         );
 
         if (!response.ok) {

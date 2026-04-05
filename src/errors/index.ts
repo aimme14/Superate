@@ -36,9 +36,11 @@ export class Forbidden extends ErrorAPI {
 export class NotFound extends ErrorAPI {
   constructor({ message }: ErrorProps) {
     // Evitar duplicar "no encontrado" si el mensaje ya lo incluye
-    const finalMessage = message.toLowerCase().includes('no encontrado') 
-      ? message 
-      : `${message} no encontrado`
+    const lower = message.toLowerCase()
+    const finalMessage =
+      lower.includes('no encontrado') || lower.includes('no encontrada')
+        ? message
+        : `${message} no encontrado`
     super({ message: finalMessage, statusCode: 404, code: 'NOT_FOUND' })
   }
 }

@@ -279,7 +279,7 @@ export default function InstitutionWizard({ isOpen, onClose, theme }: Institutio
         title: '¡Éxito!', 
         message: `Institución "${institution.name}" creada exitosamente con ${createdCampuses.length} sede(s) y ${wizardData.grades.length} grado(s).` 
       })
-      
+
       // Cerrar wizard después de un breve delay
       setTimeout(() => {
         handleClose()
