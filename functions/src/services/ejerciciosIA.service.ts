@@ -2,14 +2,20 @@
  * Servicio para obtener ejercicios de la colección EjerciciosIA.
  * Usado por el mini simulacro en Simulacros IA.
  *
- * Estrategia optimizada:
- * - UNA sola query por clic.
- * - Sin filtros por materia/eje/topic.
- * - limit(10) => ~10 lecturas facturables.
+ * Estrategia: una sola query con limit(N). Cada documento devuelto = 1 lectura.
+ *
+ * Se usa el entero `shard` en [0, SHARD_MAX) por documento. Cada request elige
+ * un shard al azar y pide hasta `limit` ejercicios de ese shard (igualdad simple,
+ * compatible con índice de campo único en collection group).
+ *
+ * Backfill: npm run backfill:ejercicios-ia-rand (nombre histórico; rellena shard)
  */
 
 import * as admin from 'firebase-admin';
 import { getStudentDatabase } from '../utils/firestoreHelpers';
+
+/** Cantidad de shards; más shards = menos ejercicios por shard en promedio. */
+export const EJERCICIOS_IA_SHARD_MAX = 100;
 
 export interface EjercicioIA {
   question: string;
@@ -19,33 +25,31 @@ export interface EjercicioIA {
   topic: string;
 }
 
+export interface GetRandomEjerciciosOutcome {
+  exercises: EjercicioIA[];
+  /** Documentos leídos en la única query ejecutada (facturación Firestore). */
+  documentsRead: number;
+}
+
 /**
  * Obtiene ejercicios aleatorios desde todas las subcolecciones "ejercicios".
- * Estructura origen: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicioN
+ * Estructura: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicioN
  *
- * Nota:
- * Se usa un cursor pseudoaleatorio sobre documentId (ejercicio1..ejercicio100)
- * para variar el bloque devuelto sin aumentar el número de queries.
- *
- * @param _grade - Parámetro legacy (ya no se usa para filtrar)
- * @param _subjectCode - Parámetro legacy (ya no se usa para filtrar)
- * @param limit - Cantidad máxima de ejercicios a retornar (default 10)
+ * Requiere campo entero `shard` en [0, EJERCICIOS_IA_SHARD_MAX). Sin backfill,
+ * puede devolver vacío.
  */
 export async function getRandomEjercicios(
   _grade?: string,
   _subjectCode?: string,
   limit: number = 10
-): Promise<EjercicioIA[]> {
+): Promise<GetRandomEjerciciosOutcome> {
   const db = getStudentDatabase();
   const safeLimit = Math.min(10, Math.max(1, Math.trunc(limit || 10)));
-
-  // Cursor pseudoaleatorio sobre IDs existentes (ejercicio1..ejercicio100).
-  const randomOrder = Math.floor(Math.random() * 100) + 1;
-  const randomDocId = `ejercicio${randomOrder}`;
+  const shard = Math.floor(Math.random() * EJERCICIOS_IA_SHARD_MAX);
 
   const snap = await db
     .collectionGroup('ejercicios')
-    .where(admin.firestore.FieldPath.documentId(), '>=', randomDocId)
+    .where('shard', '==', shard)
     .orderBy(admin.firestore.FieldPath.documentId())
     .limit(safeLimit)
     .get();
@@ -63,5 +67,8 @@ export async function getRandomEjercicios(
     });
   });
 
-  return exercises;
+  return {
+    exercises,
+    documentsRead: snap.size,
+  };
 }

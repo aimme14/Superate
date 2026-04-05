@@ -654,8 +654,9 @@ export const getStudyPlan = functions
 /**
  * Obtiene ejercicios aleatorios desde EjerciciosIA para el mini simulacro.
  * GET /getRandomEjerciciosIA?limit=10
- * - Optimizado: una sola query con limit(10), sin filtros por materia/eje/topic.
- * - grade y subject se aceptan por compatibilidad legacy, pero ya no filtran.
+ * - Una sola query: where shard == k, limit(10) → ≤10 lecturas facturables.
+ * - Requiere campo entero `shard` en cada ejercicio (backfill si hace falta).
+ * - grade y subject: legacy, no filtran.
  */
 export const getRandomEjerciciosIA = functions
   .region(REGION)
@@ -684,12 +685,20 @@ export const getRandomEjerciciosIA = functions
       const subject = (params.subject as string) || undefined; // legacy
       const limit = 10;
 
-      const exercises = await getRandomEjercicios(grade, subject, limit);
+      const { exercises, documentsRead } = await getRandomEjercicios(
+        grade,
+        subject,
+        limit
+      );
 
       res.status(200).json({
         success: true,
         data: exercises,
-        metadata: { count: exercises.length, timestamp: new Date() },
+        metadata: {
+          count: exercises.length,
+          firestoreDocumentReads: documentsRead,
+          timestamp: new Date(),
+        },
       } as APIResponse);
     } catch (error) {
       console.error('Error en getRandomEjerciciosIA:', error);

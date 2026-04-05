@@ -18,10 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { RutaPreparacionSubNav } from "@/components/student/RutaPreparacionSubNav";
 import { RutaPreparacionPageSkeleton } from "@/components/student/RutaPreparacionPageSkeleton";
 import { getRandomEjercicios, type EjercicioIA } from "@/services/firebase/ejerciciosIA.service";
-import {
-  readSimulacrosIACache,
-  writeSimulacrosIACache,
-} from "@/utils/simulacrosIAPrefetch";
 import { MathText } from "@/utils/renderMath";
 
 const SECONDS_PER_QUESTION = 60;
@@ -68,17 +64,6 @@ export default function SimulacrosIAPage() {
   const [timeRemaining, setTimeRemaining] = useState(SECONDS_PER_QUESTION);
 
   const fetchExercises = useCallback(async () => {
-    const cached = readSimulacrosIACache("global", "all");
-
-    if (cached && cached.length > 0) {
-      setExercises(cached);
-      setCurrentIndex(0);
-      setSelectedAnswers({});
-      setTimeRemaining(SECONDS_PER_QUESTION);
-      setMode("running");
-      return;
-    }
-
     setLoading(true);
     setError(null);
     const result = await getRandomEjercicios({
@@ -93,7 +78,6 @@ export default function SimulacrosIAPage() {
       setError("No hay ejercicios disponibles en este momento. Intenta de nuevo.");
       return;
     }
-    writeSimulacrosIACache("global", "all", result.data);
     setExercises(result.data);
     setCurrentIndex(0);
     setSelectedAnswers({});

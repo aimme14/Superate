@@ -91,7 +91,7 @@ async function main(): Promise<void> {
   console.log(
     '   • Consolidados Web/YT (promesa por materia): study_links y videos cargados sin duplicar lecturas en caliente.'
   );
-  console.log('   • EjerciciosIA: query por order (no 100 gets) al guardar/leer caché.');
+  console.log('   • practice_exercises: solo en AnswerIA (sin escribir/leer EjerciciosIA desde el plan).');
 
   if (exOk && videosOk && linksOk) {
     console.log('\n✅ Plan completo y lectura posterior coherentes con lo esperado.');

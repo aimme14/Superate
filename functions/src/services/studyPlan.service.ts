@@ -14,11 +14,8 @@ if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'devel
 import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
 import { geminiCentralizedService } from './geminiService';
 import {
-  getGradeNameForAdminPath,
   getSubjectConfig,
   getTopicCode,
-  mapToCanonicalTopic,
-  MAX_EXERCISES_PER_TOPIC,
   VIDEOS_PER_TOPIC,
 } from '../config/subjects.config';
 import * as admin from 'firebase-admin';
@@ -31,7 +28,6 @@ import {
   getLegacyAnswerIAPhaseAlternates,
   getLegacyResultsPhaseAlternates,
 } from '../utils/resultsPhasePath';
-
 /**
  * Tipos para el plan de estudio
  */
@@ -39,7 +35,7 @@ export interface StudyPlanInput {
   studentId: string;
   phase: 'first' | 'second' | 'third';
   subject: string;
-  /** Grado para escalar WebLinks por nivel (ej: "6", "10", "11", "Décimo", "Undécimo"). Opcional: default "11". */
+  /** Grado del estudiante en student_info (opcional; default "11"). */
   grade?: string;
 }
 
@@ -61,7 +57,7 @@ export interface StudyPlanResponse {
     studentId: string;
     phase: string;
     subject: string;
-    grade?: string; // Grado para WebLinks (ej: "6".."11")
+    grade?: string; // Grado del estudiante (metadatos; videos/enlaces usan solo consolidados por materia)
     weaknesses: StudentWeakness[];
   };
   diagnostic_summary: string; // 50 palabras sobre lo que trabajará
@@ -72,6 +68,7 @@ export interface StudyPlanResponse {
     level: string; // Nivel de dificultad
     keywords: string[]; // Palabras clave del plan (Gemini); videos vienen de YoutubeLinks/consolidado_*
   }>;
+  /** Solo persistidos en AnswerIA; este servicio no lee ni escribe EjerciciosIA. */
   practice_exercises: Array<{
     question: string;
     options: string[];
@@ -79,7 +76,7 @@ export interface StudyPlanResponse {
     explanation: string;
     topic: string;
   }>;
-  // Videos: fuente de verdad es YoutubeLinks; no se persisten en AnswerIA.
+  // Videos: YoutubeLinks/consolidado_{materiaCode} (1 lectura); no se persisten en AnswerIA.
   // topic = tema canónico (ruta); topicDisplayName = nombre del plan (Gemini) para UI.
   video_resources: Array<{
     title: string;
@@ -1159,83 +1156,32 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       const grade = this.normalizeGradeForPath(input.grade);
       if (!parsed.student_info) parsed.student_info = {} as StudyPlanResponse['student_info'];
       (parsed.student_info as { grade?: string }).grade = grade;
-      console.log(`   📋 Grado (videos y WebLinks): ${grade}`);
+      console.log(`   📋 Grado (student_info): ${grade}`);
 
       // Todos los temas de la materia (videos y enlaces; no solo debilidades).
       const allTopicNamesForSubjectGen =
         getSubjectConfig(input.subject)?.topics.map((t) => t.name) ?? [];
 
-      // Videos: YoutubeLinks/consolidado_{materiaCode} — mismo criterio que al leer AnswerIA.
+      // Videos: 1 lectura Firestore → YoutubeLinks/consolidado_{materiaCode}; reparto por tema en memoria.
       console.log(
-        `\n📹 Videos desde YoutubeLinks/consolidado_* (${allTopicNamesForSubjectGen.length} tema(s) de la materia)...`
+        `\n📹 Videos: 1 lectura consolidado (${allTopicNamesForSubjectGen.length} tema(s) en materia)...`
       );
-      parsed.video_resources = [];
-      if (allTopicNamesForSubjectGen.length > 0) {
-        const videosByTopic = await Promise.all(
-          allTopicNamesForSubjectGen.map(async (topicName) => {
-            try {
-              const videos = await this.getVideosForTopic(
-                grade,
-                input.studentId,
-                input.phase,
-                input.subject,
-                topicName
-              );
-              return videos.map((video) => ({
-                ...video,
-                topic: topicName,
-                topicDisplayName: topicName,
-              }));
-            } catch (error: any) {
-              console.warn(`   ⚠️ Error videos tema "${topicName}":`, error?.message);
-              return [];
-            }
-          })
-        );
-        parsed.video_resources = videosByTopic.flat();
-        const totalVideos = parsed.video_resources.length;
-        const cap = allTopicNamesForSubjectGen.length * VIDEOS_PER_TOPIC;
-        console.log(
-          `✅ Total ${totalVideos} video(s) desde consolidado (${allTopicNamesForSubjectGen.length} temas × hasta ${VIDEOS_PER_TOPIC}/tema ≈ ${cap})`
-        );
-        if (totalVideos === 0) {
-          console.error(`❌ No hay videos en YoutubeLinks/consolidado para esta materia.`);
-        }
-      }
-
-      // Enlaces: WebLinks/consolidado_{materiaCode} (1 lectura; todos los temas de la materia)
-      console.log(`\n🔗 Enlaces desde WebLinks/consolidado_* (${allTopicNamesForSubjectGen.length} tema(s))...`);
-      parsed.study_links = await this.buildStudyLinksFromWebLinks(
-        grade,
+      parsed.video_resources = await this.buildVideoResourcesFromYoutubeConsolidado(
         input.subject,
-        allTopicNamesForSubjectGen,
-        input.phase
+        allTopicNamesForSubjectGen
       );
-      console.log(`   ✅ ${parsed.study_links.length} enlace(s) desde consolidado`);
-
-      // 6b. Guardar ejercicios en EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ (misma ruta que admin)
-      if (parsed.practice_exercises && parsed.practice_exercises.length > 0) {
-        console.log(`\n📝 Guardando ejercicios en EjerciciosIA (grado/materiaCode/topicCode)...`);
-        const exercisesByTopic = new Map<string, typeof parsed.practice_exercises>();
-        for (const ex of parsed.practice_exercises) {
-          const canonicalTopic = mapToCanonicalTopic(input.subject, ex.topic);
-          const topicKey = canonicalTopic || this.normalizeTopicId(ex.topic);
-          if (!exercisesByTopic.has(topicKey)) {
-            exercisesByTopic.set(topicKey, []);
-          }
-          exercisesByTopic.get(topicKey)!.push(ex);
-        }
-        let totalSaved = 0;
-        for (const [topicKey, exs] of exercisesByTopic) {
-          const n = await this.saveExercisesToCache(grade, input.subject, topicKey, exs);
-          totalSaved += n;
-        }
-        if (totalSaved > 0) {
-          console.log(`   ✅ Total: ${totalSaved} ejercicio(s) guardados en EjerciciosIA`);
-        }
+      if (parsed.video_resources.length === 0) {
+        console.warn(`⚠️ Sin videos en YoutubeLinks/consolidado para esta materia; el plan sigue sin video_resources.`);
       }
 
-      // 7. Guardar en Firestore
+      // Enlaces: 1 lectura Firestore → WebLinks/consolidado_{materiaCode}; filtrado por tema en memoria.
+      console.log(`\n🔗 Enlaces: 1 lectura consolidado...`);
+      parsed.study_links = await this.buildStudyLinksFromWebLinksConsolidated(
+        input.subject,
+        allTopicNamesForSubjectGen
+      );
+
+      // 7. Guardar en Firestore (practice_exercises solo en AnswerIA; sin EjerciciosIA)
       console.log(`\n💾 Guardando plan de estudio en Firestore...`);
       console.log(`   📊 Resumen antes de guardar:`);
       console.log(`      - Topics: ${parsed.topics?.length || 0}`);
@@ -1250,15 +1196,10 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
 
       // Verificar que el plan tenga todos los recursos necesarios
       const hasExercises = parsed.practice_exercises && Array.isArray(parsed.practice_exercises) && parsed.practice_exercises.length > 0;
-      const hasVideos = parsed.video_resources && Array.isArray(parsed.video_resources) && parsed.video_resources.length > 0;
       const hasLinks = parsed.study_links && Array.isArray(parsed.study_links) && parsed.study_links.length > 0;
 
       if (!hasExercises) {
         throw new Error('El plan debe tener al menos un ejercicio de práctica');
-      }
-
-      if (!hasVideos) {
-        throw new Error('El plan debe tener al menos un video educativo');
       }
 
       // Enlaces web: si no hay ninguno, se permite el plan pero se registra advertencia (los links solo vienen de WebLinks/caché)
@@ -1434,39 +1375,16 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
             console.log(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
           }
 
-          const gradeForLinks = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
           const allTopicNamesForSubject = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
-          data.study_links = await this.buildStudyLinksFromWebLinks(gradeForLinks, subject, allTopicNamesForSubject, phase);
-          if (data.study_links.length > 0) {
-            console.log(`   ✅ study_links desde WebLinks: ${data.study_links.length} enlace(s) para ${allTopicNamesForSubject.length} tema(s)`);
-          }
+          data.study_links = await this.buildStudyLinksFromWebLinksConsolidated(
+            subject,
+            allTopicNamesForSubject
+          );
 
-          const grade = this.normalizeGradeForPath((data.student_info as { grade?: string })?.grade);
-          const allTopicsForVideos = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
-          if (allTopicsForVideos.length > 0) {
-            console.log(`   📹 Construyendo video_resources desde YoutubeLinks (${allTopicsForVideos.length} tema(s) de la materia)...`);
-            const videosByTopic = await Promise.all(
-              allTopicsForVideos.map(async (topicName) => {
-                try {
-                  const videos = await this.getCachedVideos(grade, studentId, phase, subject, topicName);
-                  return videos.map((video) => ({
-                    ...video,
-                    topic: topicName,
-                    topicDisplayName: topicName,
-                  }));
-                } catch (error: any) {
-                  console.warn(`   ⚠️ Error obteniendo videos para topic "${topicName}":`, error?.message);
-                  return [];
-                }
-              })
-            );
-            data.video_resources = videosByTopic.flat();
-            if (data.video_resources.length > 0) {
-              console.log(`   ✅ video_resources desde YoutubeLinks: ${data.video_resources.length} video(s)`);
-            }
-          } else {
-            data.video_resources = [];
-          }
+          data.video_resources = await this.buildVideoResourcesFromYoutubeConsolidado(
+            subject,
+            allTopicNamesForSubject
+          );
 
           return data;
         } catch (error: any) {
@@ -1481,41 +1399,11 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     }
   }
 
-
   /**
-   * Videos para un topic canónico: solo YoutubeLinks/consolidado_{materiaCode} (sin YouTube API ni rutas por grado/topic).
+   * Nombre de la colección Firestore para recursos web y videos (solo documentos consolidado_{materiaCode}).
    */
-  private async getVideosForTopic(
-    grade: string,
-    studentId: string,
-    phase: 'first' | 'second' | 'third',
-    subject: string,
-    topic: string
-  ): Promise<Array<{
-    title: string;
-    url: string;
-    description: string;
-    channelTitle: string;
-    videoId?: string;
-    duration?: string;
-    language?: string;
-  }>> {
-    try {
-      const list = await this.getCachedVideos(grade, studentId, phase, subject, topic);
-      return list.slice(0, VIDEOS_PER_TOPIC).map((v) => ({
-        title: v.title,
-        url: v.url,
-        description: v.description,
-        channelTitle: v.channelTitle,
-        videoId: v.videoId,
-        duration: v.duration,
-        language: v.language,
-      }));
-    } catch (error: any) {
-      console.error(`❌ Error obteniendo videos para topic "${topic}":`, error.message);
-      return [];
-    }
-  }
+  private static readonly WEBLINKS_COLLECTION = 'WebLinks';
+  private static readonly YOUTUBE_LINKS_COLLECTION = 'YoutubeLinks';
 
   /**
    * Videos desde YoutubeLinks/consolidado_{materiaCode} únicamente (1 lectura Firestore por materia por invocación, con caché en memoria).
@@ -1594,34 +1482,30 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     return allVideosForSubject;
   }
 
-  private async getCachedVideos(
-    _grade: string,
-    _studentId: string,
-    _phase: 'first' | 'second' | 'third',
+  /**
+   * Una lectura a YoutubeLinks/consolidado_{materiaCode}; reparte videos por tema en memoria (hasta VIDEOS_PER_TOPIC por tema).
+   */
+  private async buildVideoResourcesFromYoutubeConsolidado(
     subject: string,
-    topic: string
-  ): Promise<Array<{
-    title: string;
-    url: string;
-    description: string;
-    channelTitle: string;
-    videoId?: string;
-    duration?: string;
-    language?: string;
-    topic?: string;
-  }>> {
+    topicDisplayNames: string[]
+  ): Promise<StudyPlanResponse['video_resources']> {
     const subjectConfig = getSubjectConfig(subject);
     const materiaCode = subjectConfig?.code;
-    const topicCode = getTopicCode(subject, topic);
-
-    if (!materiaCode || !topicCode) {
-      console.warn(`   ⚠️ No se pudo resolver ruta admin para YoutubeLinks materia="${subject}" topic="${topic}" (materiaCode=${materiaCode ?? '?'}, topicCode=${topicCode ?? '?'})`);
+    if (!materiaCode || topicDisplayNames.length === 0) {
       return [];
     }
-
-    try {
-      const allVideosForSubject = await this.getOrLoadYoutubeLinksConsolidated(materiaCode);
-      const videos = allVideosForSubject
+    const allVideosForSubject = await this.getOrLoadYoutubeLinksConsolidated(materiaCode);
+    const out: StudyPlanResponse['video_resources'] = [];
+    const uniqueTopics = [...new Set(topicDisplayNames)];
+    for (const topicName of uniqueTopics) {
+      const topicCode = getTopicCode(subject, topicName);
+      if (!topicCode) {
+        console.warn(
+          `   ⚠️ YoutubeLinks: sin topicCode materia="${subject}" tema="${topicName}"`
+        );
+        continue;
+      }
+      const slice = allVideosForSubject
         .filter(
           (v) =>
             typeof v.topic === 'string' &&
@@ -1629,26 +1513,23 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         )
         .slice(0, VIDEOS_PER_TOPIC)
         .map((v) => ({
-          ...v,
-          topic,
+          title: v.title,
+          url: v.url,
+          description: v.description,
+          channelTitle: v.channelTitle,
+          videoId: v.videoId,
+          duration: v.duration,
+          language: v.language,
+          topic: topicName,
+          topicDisplayName: topicName,
         }));
-
-      console.log(
-        `   📎 Videos filtrados tema ${topicCode} (${topic}): ${videos.length}`
-      );
-      return videos;
-    } catch (error: any) {
-      console.error(`❌ Error obteniendo videos desde caché:`, error.message);
-      return [];
+      out.push(...slice);
     }
+    console.log(
+      `   ✅ video_resources: consolidado_${materiaCode} (1 lectura) → ${out.length} video(s) en ${uniqueTopics.length} tema(s)`
+    );
+    return out;
   }
-
-  /**
-   * Nombre de la colección Firestore para recursos web (única fuente de verdad).
-   * Lectura: WebLinks/consolidado_{materiaCode} únicamente.
-   */
-  private static readonly WEBLINKS_COLLECTION = 'WebLinks';
-  private static readonly YOUTUBE_LINKS_COLLECTION = 'YoutubeLinks';
 
   /**
    * Enlaces web por tema: solo WebLinks/consolidado_{materiaCode} (filtrado por topicCode en items).
@@ -1690,35 +1571,6 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
   }>> {
     const g = this.normalizeGradeForPath(grade);
     return this.getLinksForTopic(g, subject, topic);
-  }
-
-
-  /**
-   * Construye study_links desde WebLinks/consolidado_{materiaCode} (1 lectura Firestore por materia).
-   * topicIds: nombres canónicos; getTopicCode → código (AL, GE, BI, …) para filtrar items.topic.
-   */
-  private async buildStudyLinksFromWebLinks(
-    grade: string,
-    subject: string,
-    topicIds: string[],
-    phase?: 'first' | 'second' | 'third'
-  ): Promise<Array<{ title: string; url: string; description: string; topic?: string }>> {
-    if (topicIds.length === 0) return [];
-    const uniqueTopics = [...new Set(topicIds)];
-    const allLinksByTopic = await Promise.all(
-      uniqueTopics.map(async (topicId) => {
-        try {
-          return this.getCachedLinks(grade, subject, topicId, phase);
-        } catch (error: any) {
-          console.warn(`   ⚠️ Error obteniendo enlaces para topic "${topicId}":`, error?.message);
-          return [];
-        }
-      })
-    );
-    const total = allLinksByTopic.flat();
-    const perTopic = uniqueTopics.map((t, i) => `${t}:${allLinksByTopic[i].length}`).join(', ');
-    console.log(`   📊 buildStudyLinksFromWebLinks: ${total.length} enlace(s) total para ${uniqueTopics.length} tema(s) [${perTopic}] (sin límite por tema)`);
-    return total;
   }
 
   private getOrLoadWebLinksConsolidated(
@@ -1766,7 +1618,45 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
   }
 
   /**
-   * Filtra por topicCode sobre el consolidado ya cargado en memoria (getOrLoadWebLinksConsolidated).
+   * Una lectura a WebLinks/consolidado_{materiaCode}; filtra enlaces por cada tema en memoria.
+   */
+  private async buildStudyLinksFromWebLinksConsolidated(
+    subject: string,
+    topicIds: string[]
+  ): Promise<Array<{ title: string; url: string; description: string; topic?: string }>> {
+    if (topicIds.length === 0) return [];
+    const subjectConfig = getSubjectConfig(subject);
+    const materiaCode = subjectConfig?.code;
+    if (!materiaCode) {
+      console.warn(`   ⚠️ WebLinks: sin código de materia para "${subject}"`);
+      return [];
+    }
+    const allLinksForSubject = await this.getOrLoadWebLinksConsolidated(materiaCode);
+    const uniqueTopics = [...new Set(topicIds)];
+    const total: Array<{ title: string; url: string; description: string; topic?: string }> = [];
+    for (const topicId of uniqueTopics) {
+      const topicCode = getTopicCode(subject, topicId);
+      if (!topicCode) {
+        console.warn(`   ⚠️ WebLinks: sin topicCode materia="${subject}" tema="${topicId}"`);
+        continue;
+      }
+      const links = allLinksForSubject
+        .filter(
+          (l) =>
+            typeof l.topic === 'string' &&
+            l.topic.trim().toUpperCase() === topicCode.trim().toUpperCase()
+        )
+        .map((l) => ({ ...l, topic: topicId }));
+      total.push(...links);
+    }
+    console.log(
+      `   ✅ study_links: consolidado_${materiaCode} (1 lectura) → ${total.length} enlace(s) en ${uniqueTopics.length} tema(s)`
+    );
+    return total;
+  }
+
+  /**
+   * Un tema: misma única lectura consolidado que el plan completo (caché en memoria por materia).
    */
   private async getCachedLinks(
     _grade: string,
@@ -1779,213 +1669,12 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     description: string;
     topic?: string;
   }>> {
-    const subjectConfig = getSubjectConfig(subject);
-    const materiaCode = subjectConfig?.code;
-    const topicCode = getTopicCode(subject, topic);
-
-    if (!materiaCode || !topicCode) {
-      console.warn(`   ⚠️ No se pudo resolver ruta admin para WebLinks materia="${subject}" topic="${topic}" (materiaCode=${materiaCode ?? '?'}, topicCode=${topicCode ?? '?'})`);
-      return [];
-    }
-
     try {
-      const allLinksForSubject = await this.getOrLoadWebLinksConsolidated(materiaCode);
-      const links = allLinksForSubject
-        .filter(
-          (l) =>
-            typeof l.topic === 'string' &&
-            l.topic.trim().toUpperCase() === topicCode.trim().toUpperCase()
-        )
-        .map((l) => ({ ...l, topic }));
-      console.log(
-        `   📎 Enlaces filtrados tema ${topicCode} (${topic}): ${links.length}`
-      );
-      return links;
+      return await this.buildStudyLinksFromWebLinksConsolidated(subject, [topic]);
     } catch (error: any) {
-      console.error(`❌ Error obteniendo enlaces desde caché:`, error.message);
+      console.error(`❌ Error obteniendo enlaces desde consolidado:`, error.message);
       return [];
     }
-  }
-
-  /** Orden estable: campo order o número en id `ejercicioN`. */
-  private static exerciseDocOrder(docId: string, data: admin.firestore.DocumentData): number {
-    if (typeof data.order === 'number' && !Number.isNaN(data.order)) {
-      return data.order;
-    }
-    const m = /^ejercicio(\d+)$/i.exec(docId);
-    return m ? parseInt(m[1], 10) : 0;
-  }
-
-  /**
-   * Obtiene ejercicios desde Firestore (caché EjerciciosIA).
-   * Ruta unificada con admin: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicio1...
-   * Optimizado: query orderBy('order') + limit (pocas lecturas vs N gets por slot vacío).
-   */
-  private async getCachedExercises(
-    grade: string,
-    subject: string,
-    topic: string
-  ): Promise<Array<{
-    question: string;
-    options: string[];
-    correctAnswer: string;
-    explanation: string;
-    topic: string;
-  }>> {
-    const db = this.getStudentDatabase();
-    const gradoPath = getGradeNameForAdminPath(grade);
-    const subjectConfig = getSubjectConfig(subject);
-    const materiaCode = subjectConfig?.code;
-    const topicCode = getTopicCode(subject, topic);
-
-    if (!materiaCode || !topicCode) {
-      console.warn(`   ⚠️ No se pudo resolver ruta admin para EjerciciosIA materia="${subject}" topic="${topic}"`);
-      return [];
-    }
-
-    const parseExerciseDoc = (data: admin.firestore.DocumentData) => ({
-      question: data.question || '',
-      options: Array.isArray(data.options) ? data.options : [],
-      correctAnswer: data.correctAnswer || '',
-      explanation: data.explanation || '',
-      topic: data.topic || topic,
-    });
-
-    try {
-      const ejerciciosColRef = db
-        .collection('EjerciciosIA')
-        .doc(gradoPath)
-        .collection(materiaCode)
-        .doc(topicCode)
-        .collection('ejercicios');
-
-      let snap: admin.firestore.QuerySnapshot | null = null;
-      try {
-        snap = await ejerciciosColRef
-          .orderBy('order', 'asc')
-          .limit(MAX_EXERCISES_PER_TOPIC)
-          .get();
-      } catch (orderErr: any) {
-        console.warn(
-          `   ⚠️ orderBy('order') en EjerciciosIA falló, usando lectura completa:`,
-          orderErr?.message
-        );
-      }
-
-      if (!snap || snap.empty) {
-        snap = await ejerciciosColRef.get();
-      }
-
-      if (snap.empty) {
-        return [];
-      }
-
-      const parsed = snap.docs
-        .map((doc) => {
-          const data = doc.data();
-          if (!data || !data.question) return null;
-          const order = StudyPlanService.exerciseDocOrder(doc.id, data);
-          return { doc, data, order };
-        })
-        .filter((x): x is { doc: admin.firestore.QueryDocumentSnapshot; data: admin.firestore.DocumentData; order: number } => x !== null)
-        .sort((a, b) => a.order - b.order)
-        .slice(0, MAX_EXERCISES_PER_TOPIC)
-        .map((x) => parseExerciseDoc(x.data));
-
-      return parsed;
-    } catch (error: any) {
-      console.warn(`   ⚠️ Error leyendo ejercicios desde EjerciciosIA:`, error.message);
-      return [];
-    }
-  }
-
-  /**
-   * Guarda ejercicios en Firestore (caché EjerciciosIA).
-   * Ruta unificada con admin: EjerciciosIA/{grado}/{materiaCode}/{topicCode}/ejercicios/ejercicio1, ejercicio2...
-   * Incremental: agrega nuevos sin duplicar por texto de pregunta.
-   */
-  private async saveExercisesToCache(
-    grade: string,
-    subject: string,
-    topic: string,
-    exercises: Array<{
-      question: string;
-      options: string[];
-      correctAnswer: string;
-      explanation: string;
-      topic: string;
-    }>
-  ): Promise<number> {
-    if (exercises.length === 0) return 0;
-    try {
-      const db = this.getStudentDatabase();
-      const gradoPath = getGradeNameForAdminPath(grade);
-      const subjectConfig = getSubjectConfig(subject);
-      const materiaCode = subjectConfig?.code;
-      const topicCode = getTopicCode(subject, topic);
-
-      if (!materiaCode || !topicCode) {
-        console.warn(`   ⚠️ No se pudo resolver ruta admin para guardar ejercicios (materia="${subject}" topic="${topic}"). No se guardan en caché.`);
-        return 0;
-      }
-
-      const cached = await this.getCachedExercises(grade, subject, topic);
-      const startOrder = cached.length;
-      const existingQuestions = new Set(
-        cached.map((e) => e.question.trim().toLowerCase().substring(0, 200))
-      );
-
-      const ejerciciosColRef = db
-        .collection('EjerciciosIA')
-        .doc(gradoPath)
-        .collection(materiaCode)
-        .doc(topicCode)
-        .collection('ejercicios');
-
-      const toSave: typeof exercises = [];
-      for (const exercise of exercises) {
-        if (startOrder + toSave.length >= MAX_EXERCISES_PER_TOPIC) break;
-        const qKey = exercise.question.trim().toLowerCase().substring(0, 200);
-        if (existingQuestions.has(qKey)) continue;
-        existingQuestions.add(qKey);
-        toSave.push(exercise);
-      }
-
-      if (toSave.length === 0) return 0;
-
-      const batch = db.batch();
-      toSave.forEach((exercise, index) => {
-        const order = startOrder + index + 1;
-        batch.set(
-          ejerciciosColRef.doc(`ejercicio${order}`),
-          {
-            question: exercise.question,
-            options: exercise.options,
-            correctAnswer: exercise.correctAnswer,
-            explanation: exercise.explanation || '',
-            topic: exercise.topic || topic,
-            order,
-            savedAt: new Date(),
-          },
-          { merge: true }
-        );
-      });
-      await batch.commit();
-      console.log(`   💾 Guardados ${toSave.length} ejercicio(s) en EjerciciosIA/${gradoPath}/${materiaCode}/${topicCode}/ejercicios`);
-      return toSave.length;
-    } catch (error: any) {
-      console.error(`❌ Error guardando ejercicios en EjerciciosIA:`, error.message);
-      return 0;
-    }
-  }
-
-  private normalizeTopicId(topic: string): string {
-    return topic
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9áéíóúñü]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .substring(0, 100);
   }
 
   /**
