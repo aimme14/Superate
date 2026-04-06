@@ -9,7 +9,7 @@ import { Label } from "#/ui/label"
 import { useNavigate } from "react-router-dom"
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
+import { invalidateStudentEvaluationsAfterExamSave } from "@/hooks/query/useStudentEvaluations";
 import { fetchExamResultDocument, saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { shuffleArray } from "@/utils/arrayUtils";
 
@@ -307,7 +307,7 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, examData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      if (result) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)

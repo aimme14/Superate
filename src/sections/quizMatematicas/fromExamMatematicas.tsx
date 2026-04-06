@@ -9,7 +9,7 @@ import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
+import { invalidateStudentEvaluationsAfterExamSave } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import {
@@ -17,6 +17,7 @@ import {
   type StudentProgressSummaryPack,
 } from "@/services/quiz/validateExamPresentationGate";
 import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
+import { usePrefetchAdjacentQuizImagesLinear } from "@/hooks/usePrefetchAdjacentQuizImages";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -228,6 +229,12 @@ const ExamWithFirebase = () => {
       // Sin impacto funcional
     }
   }, []);
+
+  usePrefetchAdjacentQuizImagesLinear(
+    examState === "active" && !!quizData?.questions?.length,
+    quizData?.questions,
+    currentQuestion
+  );
 
   // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
@@ -615,7 +622,7 @@ const ExamWithFirebase = () => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      if (result?.success) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
 
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
       if (result.success && quizData.phase) {

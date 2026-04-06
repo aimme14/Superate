@@ -55,7 +55,12 @@ export const onExamResultWriteStudentProgressSummary = onDocumentWritten(
   async (event) => {
     const studentId = event.params.studentId as string;
     try {
-      await rebuildStudentProgressSummary(studentId);
+      const ok = await rebuildStudentProgressSummary(studentId);
+      if (!ok) {
+        console.warn(
+          `[onExamResultWriteStudentProgressSummary] Sin contexto de institución para ${studentId}; studentSummaries no actualizado (revisar userLookup)`
+        );
+      }
     } catch (err) {
       console.error('[onExamResultWriteStudentProgressSummary]', err);
       throw err;

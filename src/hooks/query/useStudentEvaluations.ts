@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/AuthContext";
 import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 import { fetchEvaluationsFromStudentSummary } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
 import type { ExamResult, ExamScore } from "@/hooks/query/studentEvaluations.types";
+import { phaseStatusKeys } from "@/hooks/query/usePhaseStatusForSubjects";
 
 export type { ExamResult, ExamScore };
 
@@ -35,3 +37,18 @@ export function useStudentEvaluations() {
 
 /** Clave de query para invalidar evaluaciones (ej. tras enviar un examen). */
 export { EVALUATIONS_QUERY_KEY };
+
+/**
+ * Tras escribir en `results/`, React Query debe olvidar la caché que lee `studentSummaries`.
+ * Hay dos matices:
+ * - La invalidación por prefijo `["student-evaluations"]` cubre `["student-evaluations", uid]`.
+ * - El resumen denormalizado se escribe en Cloud Function (asíncrono): el primer refetch puede
+ *   llegar antes de que exista el doc actualizado; por eso se programa un segundo invalidate.
+ */
+export function invalidateStudentEvaluationsAfterExamSave(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: [...EVALUATIONS_QUERY_KEY] });
+  void queryClient.invalidateQueries({ queryKey: [...phaseStatusKeys.all] });
+  setTimeout(() => {
+    void queryClient.invalidateQueries({ queryKey: [...EVALUATIONS_QUERY_KEY] });
+  }, 2500);
+}

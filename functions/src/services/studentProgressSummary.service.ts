@@ -10,6 +10,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { db } from '../config/firebase.config';
 import {
   EXPECTED_SUBJECT_COUNT,
+  isKnownSubjectSlug,
   subjectLabelToSlug,
   type SubjectSlug,
 } from '../config/subjectSlugs';
@@ -107,6 +108,7 @@ type BestBySubject = Map<
 /**
  * Recorre todas las variantes de nombre de subcolección y conserva por materia
  * el examen con mayor puntaje (empate: el más reciente por timestamp).
+ * Las lecturas por carpeta legacy van en paralelo (antes: N round-trips secuenciales).
  */
 async function collectBestPerSubjectForPhase(
   firestore: Firestore,
@@ -117,21 +119,25 @@ async function collectBestPerSubjectForPhase(
   const folders = PHASE_FOLDERS[phaseKey];
   const seenExamIds = new Set<string>();
 
-  for (const folder of folders) {
-    const snap = await firestore
-      .collection('results')
-      .doc(studentId)
-      .collection(folder)
-      .get();
+  const snaps = await Promise.all(
+    folders.map((folder) =>
+      firestore.collection('results').doc(studentId).collection(folder).get()
+    )
+  );
 
+  for (const snap of snaps) {
     for (const doc of snap.docs) {
       if (seenExamIds.has(doc.id)) continue;
       const data = doc.data();
       if (!isCompletedExam(data)) continue;
 
-      const slug = subjectLabelToSlug(
+      const fromFields = subjectLabelToSlug(
         (data.subject as string) || (data.examTitle as string) || ''
       );
+      // El doc en results suele llamarse como el slug (p. ej. `fisica`). Si subject/examTitle
+      // vienen vacíos o con texto no mapeable, antes se omitía la materia del resumen.
+      const slug: SubjectSlug | null =
+        fromFields ?? (isKnownSubjectSlug(doc.id) ? (doc.id as SubjectSlug) : null);
       if (!slug) continue;
 
       const score = extractScore(data);
@@ -190,16 +196,6 @@ function maxTimestamp(
     if (!max || c.submittedAt.toMillis() > max.toMillis()) max = c.submittedAt;
   }
   return max;
-}
-
-function emptyPhaseBlock(): PhaseProgressBlock {
-  return {
-    submittedCount: 0,
-    isComplete: false,
-    phaseAvg: null,
-    completedAt: null,
-    subjects: {},
-  };
 }
 
 function buildPhaseBlock(best: BestBySubject): PhaseProgressBlock {
@@ -351,7 +347,8 @@ function contextFromStudentDoc(
 }
 
 /**
- * Resuelve institución: userLookup O(n) instituciones como respaldo.
+ * Resuelve institución: userLookup + doc estudiantes/{uid} bajo esa institución.
+ * Si falta estudiantes pero userLookup tiene institutionId, devuelve contexto mínimo (solo institutionId).
  */
 export async function resolveStudentInstitution(
   firestore: Firestore,
@@ -370,6 +367,12 @@ export async function resolveStudentInstitution(
         if (stSnap.exists) {
           return contextFromStudentDoc(institutionId, stSnap.data());
         }
+        // userLookup apunta a la institución pero no hay doc en estudiantes (sync viejo, migración, etc.):
+        // igual escribimos studentSummaries con metadatos mínimos para no bloquear el resumen de results/.
+        console.warn(
+          `[studentProgressSummary] userLookup OK pero falta estudiantes/${studentId} en inst ${institutionId}; contexto mínimo`
+        );
+        return { institutionId };
       }
     }
   } catch (e) {
@@ -396,25 +399,26 @@ export async function rebuildStudentProgressSummary(
     return false;
   }
 
-  const gradeNameResolved =
-    (await resolveGradeDisplayNameFromInstitution(
+  const keys: ProgressPhaseKey[] = ['first', 'second', 'third'];
+  const [gradeFromInstitution, firstBest, secondBest, thirdBest] = await Promise.all([
+    resolveGradeDisplayNameFromInstitution(
       firestore,
       ctx.institutionId,
       ctx.sedeId,
       ctx.gradeId
-    )) ?? ctx.gradeName;
+    ),
+    collectBestPerSubjectForPhase(firestore, studentId, 'first'),
+    collectBestPerSubjectForPhase(firestore, studentId, 'second'),
+    collectBestPerSubjectForPhase(firestore, studentId, 'third'),
+  ]);
+
+  const gradeNameResolved = gradeFromInstitution ?? ctx.gradeName;
 
   const phases: Record<ProgressPhaseKey, PhaseProgressBlock> = {
-    first: emptyPhaseBlock(),
-    second: emptyPhaseBlock(),
-    third: emptyPhaseBlock(),
+    first: buildPhaseBlock(firstBest),
+    second: buildPhaseBlock(secondBest),
+    third: buildPhaseBlock(thirdBest),
   };
-
-  const keys: ProgressPhaseKey[] = ['first', 'second', 'third'];
-  for (const k of keys) {
-    const best = await collectBestPerSubjectForPhase(firestore, studentId, k);
-    phases[k] = buildPhaseBlock(best);
-  }
 
   let totalSubmitted = 0;
   let sumAll = 0;

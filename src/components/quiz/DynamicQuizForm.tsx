@@ -11,7 +11,7 @@ import { Label } from "#/ui/label"
 import { useNavigate } from "react-router-dom"
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
+import { invalidateStudentEvaluationsAfterExamSave } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import ImageGallery from "@/components/common/ImageGallery";
 import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
@@ -28,6 +28,7 @@ import {
   type StudentProgressSummaryPack,
 } from "@/services/quiz/validateExamPresentationGate";
 import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
+import { usePrefetchAdjacentQuizImagesLinear } from "@/hooks/usePrefetchAdjacentQuizImages";
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -89,6 +90,12 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
   /** Una sola lectura userLookup + studentSummaries por visita; reutilizada en validación final. */
   const summaryPackRef = useRef<StudentProgressSummaryPack | undefined>(undefined);
+
+  usePrefetchAdjacentQuizImagesLinear(
+    examState === "active" && !!quizData?.questions?.length,
+    quizData?.questions,
+    currentQuestion
+  );
 
   // Cargar cuestionario al montar el componente
   useEffect(() => {
@@ -374,7 +381,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      if (result?.success) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
 
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
       if (result.success && quizData.phase) {

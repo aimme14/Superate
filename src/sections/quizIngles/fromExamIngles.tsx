@@ -10,7 +10,7 @@ import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
+import { invalidateStudentEvaluationsAfterExamSave } from "@/hooks/query/useStudentEvaluations";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { useThemeContext } from "@/context/ThemeContext";
@@ -26,6 +26,7 @@ import {
   type StudentProgressSummaryPack,
 } from "@/services/quiz/validateExamPresentationGate";
 import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
+import { usePrefetchAdjacentQuizImagesGroups } from "@/hooks/usePrefetchAdjacentQuizImages";
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -126,6 +127,12 @@ const ExamWithFirebase = () => {
   // Ref para rastrear si un cierre es intencional
   const intentionalCloseRef = useRef<{ [key: string]: boolean }>({});
   const summaryPackRef = useRef<StudentProgressSummaryPack | undefined>(undefined);
+
+  usePrefetchAdjacentQuizImagesGroups(
+    examState === "active" && questionGroups.length > 0,
+    questionGroups,
+    currentGroupIndex
+  );
 
   // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
@@ -544,7 +551,7 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      if (result) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
 
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
       if (result && quizData.phase) {

@@ -8,11 +8,12 @@ import { Label } from "#/ui/label"
 import { useNavigate } from "react-router-dom"
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
+import { invalidateStudentEvaluationsAfterExamSave } from "@/hooks/query/useStudentEvaluations";
 import { fetchExamResultDocument, saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { shuffleArray } from "@/utils/arrayUtils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
+import { prefetchImageUrls, scheduleIdlePrefetch } from "@/utils/quiz/prefetchQuestionImages";
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -138,6 +139,18 @@ const ExamWithFirebase = () => {
     const timeLimitMinutes = shuffledQuestions.length * 2;
     setTimeLeft(timeLimitMinutes * 60);
   }, []);
+
+  useEffect(() => {
+    if (examState !== "active") return;
+    const qs = examData.questions;
+    const next = qs[currentQuestion + 1];
+    if (next?.imageUrl) prefetchImageUrls([next.imageUrl]);
+    const next2 = qs[currentQuestion + 2];
+    if (next2?.imageUrl) {
+      const url = next2.imageUrl;
+      scheduleIdlePrefetch(() => prefetchImageUrls([url]));
+    }
+  }, [examState, currentQuestion, examData.questions]);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: number) => {
@@ -317,7 +330,7 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, examData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      if (result) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)

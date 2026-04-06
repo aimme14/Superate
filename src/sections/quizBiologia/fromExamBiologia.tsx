@@ -9,7 +9,7 @@ import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
+import { invalidateStudentEvaluationsAfterExamSave } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { fetchExamResultDocument, saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
@@ -20,6 +20,7 @@ import { gradeLabelToBankCode } from "@/utils/gradeMapping";
 import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
 import { GroupedQuestionNotice } from "@/components/quiz/GroupedQuestionNotice";
 import ImageGallery from "@/components/common/ImageGallery";
+import { usePrefetchAdjacentQuizImagesLinear } from "@/hooks/usePrefetchAdjacentQuizImages";
 import DOMPurify from 'dompurify';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -177,6 +178,12 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+
+  usePrefetchAdjacentQuizImagesLinear(
+    examState === "active" && !!quizData?.questions?.length,
+    quizData?.questions,
+    currentQuestion
+  );
 
   // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
@@ -483,7 +490,7 @@ const ExamWithFirebase = () => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      if (result) queryClient.invalidateQueries({ queryKey: EVALUATIONS_QUERY_KEY });
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
 
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
       if (result && currentPhase) {
