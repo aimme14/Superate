@@ -577,16 +577,26 @@ class GeminiClient {
                                  error.status === 403;
         
         if (isPermissionError) {
-          const projectId = GEMINI_CONFIG.PROJECT_ID;
-          const serviceAccount = `${projectId}@appspot.gserviceaccount.com`;
-          const errorMessage = `Error de permisos (403): La cuenta de servicio de Firebase Functions no tiene permisos para usar Vertex AI. Por favor, otorga el rol 'Vertex AI User' (roles/aiplatform.user) a la cuenta de servicio '${serviceAccount}' en el proyecto '${projectId}'. Consulta SOLUCION_ERROR_403_VERTEX_AI.md para más detalles.`;
+          const vertexProjectId = GEMINI_CONFIG.PROJECT_ID;
+          // La identidad que llama a Vertex es la del proyecto donde corre Cloud Functions (GCLOUD_PROJECT),
+          // no necesariamente la del proyecto Vertex (VERTEX_AI_PROJECT_ID). Si difieren, el IAM debe
+          // otorgarse en vertexProjectId al miembro serviceAccount:... del proyecto de Firebase.
+          const firebaseProjectId =
+            process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || vertexProjectId;
+          const serviceAccount = `${firebaseProjectId}@appspot.gserviceaccount.com`;
+          const crossProject =
+            firebaseProjectId !== vertexProjectId
+              ? ` (Las funciones están en '${firebaseProjectId}' y Vertex en '${vertexProjectId}': otorga el rol en el proyecto Vertex '${vertexProjectId}' al miembro de la cuenta anterior.)`
+              : '';
+          const errorMessage = `Error de permisos (403): La cuenta de servicio que ejecuta Cloud Functions (${serviceAccount}) no tiene permiso para usar Vertex AI en el proyecto '${vertexProjectId}'. Otorga el rol 'Vertex AI User' (roles/aiplatform.user) a esa cuenta en el proyecto '${vertexProjectId}' (IAM → conceder acceso).${crossProject}`;
           
           console.error(`\n❌ ERROR DE PERMISOS DE VERTEX AI:`);
-          console.error(`   Cuenta de servicio: ${serviceAccount}`);
-          console.error(`   Proyecto: ${projectId}`);
-          console.error(`   Rol requerido: roles/aiplatform.user`);
-          console.error(`\n   Para solucionarlo, ejecuta:`);
-          console.error(`   gcloud projects add-iam-policy-binding ${projectId} \\`);
+          console.error(`   Proyecto Firebase (funciones): ${firebaseProjectId}`);
+          console.error(`   Cuenta de servicio que invoca la API: ${serviceAccount}`);
+          console.error(`   Proyecto Vertex (recurso/API): ${vertexProjectId}`);
+          console.error(`   Rol requerido en '${vertexProjectId}': roles/aiplatform.user`);
+          console.error(`\n   Ejemplo (si Vertex está en ${vertexProjectId} y las funciones en ${firebaseProjectId}):`);
+          console.error(`   gcloud projects add-iam-policy-binding ${vertexProjectId} \\`);
           console.error(`     --member="serviceAccount:${serviceAccount}" \\`);
           console.error(`     --role="roles/aiplatform.user"`);
           

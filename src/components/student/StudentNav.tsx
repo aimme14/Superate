@@ -5,7 +5,6 @@ import {
   ContactRound,
   NotepadText,
   BarChart2,
-  BookOpen,
   Menu,
   Route,
 } from "lucide-react";
@@ -15,7 +14,6 @@ import {
   prefetchResultados,
   prefetchPromedio,
   prefetchInformacion,
-  prefetchDashboardAndQuiz,
   prefetchRutaAcademica,
   prefetchPlanEstudioIA,
   prefetchSimulacrosIA,
@@ -229,14 +227,6 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
               });
             }
           }}
-        />
-        <NavItem
-          href="/dashboard#evaluacion"
-          icon={<BookOpen className="w-5 h-5" />}
-          text="Presentar prueba"
-          active={pathname === "/dashboard"}
-          theme={theme}
-          onPrefetch={() => prefetchDashboardAndQuiz()}
         />
       </nav>
 
