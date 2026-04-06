@@ -307,7 +307,7 @@ const ExamWithFirebase = () => {
       }
       const result = await saveExamResults(userId, examData.id, examResult);
       console.log('Examen guardado exitosamente:', result)
-      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient, userId);
       return result
     } catch (error) {
       console.error('Error guardando examen:', error)

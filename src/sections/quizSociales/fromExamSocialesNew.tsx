@@ -501,7 +501,7 @@ const ExamWithFirebase = () => {
 
       const result = await saveExamResults(userId, quizData.id, examResult);
       console.log('✅ Examen guardado exitosamente en Firebase:', result)
-      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient);
+      if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient, userId);
 
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
       if (result && currentPhase) {

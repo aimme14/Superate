@@ -51,18 +51,31 @@ export const onExamResultWriteStudentProgressSummary = onDocumentWritten(
   {
     document: 'results/{studentId}/{phaseName}/{examId}',
     region: REGION,
+    /** Misma base que el cliente (Firestore default). Evita ambigüedad si se añade otra DB. */
+    database: '(default)',
+    memory: '256MiB',
+    timeoutSeconds: 120,
   },
   async (event) => {
     const studentId = event.params.studentId as string;
+    const phaseName = event.params.phaseName as string;
+    const examDocId = event.params.examId as string;
     try {
       const ok = await rebuildStudentProgressSummary(studentId);
       if (!ok) {
         console.warn(
           `[onExamResultWriteStudentProgressSummary] Sin contexto de institución para ${studentId}; studentSummaries no actualizado (revisar userLookup)`
         );
+      } else {
+        console.log(
+          `[onExamResultWriteStudentProgressSummary] OK student=${studentId} phase=${phaseName} doc=${examDocId}`
+        );
       }
     } catch (err) {
-      console.error('[onExamResultWriteStudentProgressSummary]', err);
+      console.error(
+        `[onExamResultWriteStudentProgressSummary] student=${studentId} phase=${phaseName} doc=${examDocId}`,
+        err
+      );
       throw err;
     }
   }

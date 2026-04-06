@@ -39,16 +39,33 @@ export function useStudentEvaluations() {
 export { EVALUATIONS_QUERY_KEY };
 
 /**
- * Tras escribir en `results/`, React Query debe olvidar la caché que lee `studentSummaries`.
- * Hay dos matices:
- * - La invalidación por prefijo `["student-evaluations"]` cubre `["student-evaluations", uid]`.
- * - El resumen denormalizado se escribe en Cloud Function (asíncrono): el primer refetch puede
- *   llegar antes de que exista el doc actualizado; por eso se programa un segundo invalidate.
+ * Tras escribir en `results/`, sincroniza la caché que lee `studentSummaries` vía userLookup.
+ * - Invalidación por prefijo cubre todas las queries `student-evaluations`.
+ * - Con `userId`, fuerza refetch activo de ese estudiante (mejor que solo marcar stale con staleTime ∞).
+ * - La Cloud Function escribe el resumen de forma asíncrona: refuerzos a 2,5s y 5s.
  */
-export function invalidateStudentEvaluationsAfterExamSave(queryClient: QueryClient): void {
+function refreshStudentEvaluationsQueries(
+  queryClient: QueryClient,
+  userId: string | undefined
+): void {
   void queryClient.invalidateQueries({ queryKey: [...EVALUATIONS_QUERY_KEY] });
+  if (userId) {
+    void queryClient.invalidateQueries({
+      queryKey: [...EVALUATIONS_QUERY_KEY, userId],
+    });
+    void queryClient.refetchQueries({
+      queryKey: [...EVALUATIONS_QUERY_KEY, userId],
+      type: 'active',
+    });
+  }
+}
+
+export function invalidateStudentEvaluationsAfterExamSave(
+  queryClient: QueryClient,
+  userId?: string
+): void {
+  refreshStudentEvaluationsQueries(queryClient, userId);
   void queryClient.invalidateQueries({ queryKey: [...phaseStatusKeys.all] });
-  setTimeout(() => {
-    void queryClient.invalidateQueries({ queryKey: [...EVALUATIONS_QUERY_KEY] });
-  }, 2500);
+  setTimeout(() => refreshStudentEvaluationsQueries(queryClient, userId), 2500);
+  setTimeout(() => refreshStudentEvaluationsQueries(queryClient, userId), 5000);
 }

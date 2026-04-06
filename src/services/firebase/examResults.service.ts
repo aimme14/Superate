@@ -177,6 +177,9 @@ async function removeObsoleteSameSubjectDocs(
  * con docId = slug de materia cuando aplica (un solo documento por materia y fase).
  * y registra la prueba en el contador central (examRegistry) para el dashboard del admin.
  *
+ * La ruta coincide con el trigger `onExamResultWriteStudentProgressSummary`; el cliente debe
+ * usar el mismo proyecto Firebase (`VITE_FIREBASE_PROJECT_ID`) que el despliegue de Functions.
+ *
  * @param userId - ID del estudiante
  * @param examId - ID del cuestionario (quiz); se guarda también en el campo examId del payload
  * @param examData - Datos del examen (phase, subject o examTitle, y el resto que se guarda)
