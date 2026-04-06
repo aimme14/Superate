@@ -12,7 +12,7 @@ import {
   pdfCacheKeyUrl,
   setCachedPdfBlob,
 } from '@/lib/pdfViewerCache'
-import { viewerPdfHandoffKey } from '@/utils/simulacroViewerUrl'
+import { getSimulacroPdfUrl, type SimulacroPdfTipo } from '@/utils/simulacroViewerUrl'
 import { simulacrosService } from '@/services/firebase/simulacros.service'
 
 // Worker de PDF.js (sin esto el PDF no carga)
@@ -117,7 +117,7 @@ export default function ViewerPdfPage() {
     }
 
     async function load() {
-      /** Consolidado: URL en localStorage (id sintético; handoff comparte pestaña nueva con target=_blank). */
+      /** Consolidado (`sid`): una lectura a `Simulacros/consolidado_1`, misma fuente que la lista de ruta académica. */
       if (sid && tipo && PDF_TIPO_KEYS.includes(tipo)) {
         setLoadingFetch(true)
         setError(null)
@@ -133,23 +133,29 @@ export default function ViewerPdfPage() {
           return
         }
 
-        const handoffKey = viewerPdfHandoffKey(sid, tipo)
-        let handoffUrl: string | null = null
         try {
-          handoffUrl = localStorage.getItem(handoffKey)
-        } catch {
-          handoffUrl = null
-        }
-        if (!handoffUrl) {
-          setError(
-            'No se encontró el enlace al PDF. Abre el documento desde el listado de simulacros (no uses un marcador de una sesión anterior).'
-          )
-          setLoadingFetch(false)
-          return
-        }
-
-        try {
-          const fetchRes = await fetch(handoffUrl, { mode: 'cors' })
+          const res = await simulacrosService.getConsolidadoShard1()
+          if (cancelled) return
+          if (!res.success) {
+            setError(res.error?.message ?? 'No se pudo cargar el consolidado de simulacros.')
+            setLoadingFetch(false)
+            return
+          }
+          const sim = res.data.find((s) => s.id === sid)
+          if (!sim) {
+            setError(
+              'No se encontró este simulacro en el consolidado. Vuelve al listado de simulacros o actualiza la página.'
+            )
+            setLoadingFetch(false)
+            return
+          }
+          const url = getSimulacroPdfUrl(sim, tipo as SimulacroPdfTipo)
+          if (!url) {
+            setError('Este PDF no está disponible para este simulacro.')
+            setLoadingFetch(false)
+            return
+          }
+          const fetchRes = await fetch(url, { mode: 'cors' })
           if (cancelled) return
           if (!fetchRes.ok) throw new Error(`Error ${fetchRes.status}`)
           const blob = await fetchRes.blob()
@@ -157,11 +163,6 @@ export default function ViewerPdfPage() {
           void setCachedPdfBlob(cacheKey, blob)
           setPdfBlob(blob)
           setError(null)
-          try {
-            localStorage.removeItem(handoffKey)
-          } catch {
-            // ignore
-          }
         } catch (err) {
           if (!cancelled) applyFetchError(err, 'url')
         } finally {
