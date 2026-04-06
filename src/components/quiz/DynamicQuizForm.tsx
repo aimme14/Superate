@@ -21,10 +21,13 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
-import { dbService } from "@/services/firebase/db.service";
 import { getPhaseName } from "@/utils/firestoreHelpers";
 import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
-import { validateExamPresentationGate } from "@/services/quiz/validateExamPresentationGate";
+import {
+  validateExamPresentationGate,
+  type StudentProgressSummaryPack,
+} from "@/services/quiz/validateExamPresentationGate";
+import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -66,7 +69,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, awaiting_validation, welcome, active, completed, already_taken
   const [validationChecking, setValidationChecking] = useState(false)
-  const gradeIdRef = useRef<string | undefined>(undefined)
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
@@ -85,6 +87,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+  /** Una sola lectura userLookup + studentSummaries por visita; reutilizada en validación final. */
+  const summaryPackRef = useRef<StudentProgressSummaryPack | undefined>(undefined);
 
   // Cargar cuestionario al montar el componente
   useEffect(() => {
@@ -93,30 +97,22 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
       try {
         setExamState('loading');
-        
-        // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
-        const userResult = await dbService.getUserById(userId);
-        if (userResult.success && userResult.data) {
-          const studentData = userResult.data;
-          const gradeId = studentData.gradeId || studentData.grade;
 
-          if (gradeId) {
-            gradeIdRef.current = gradeId;
-            const accessCheck = await checkPhaseAccess(userId, gradeId, phase);
-            if (!accessCheck.canAccess) {
-              setExamState('blocked');
-              notifyError({
-                title: 'Acceso bloqueado',
-                message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
-              });
-              return;
-            }
-            // Validación de intentos previos: solo al pulsar "Comprobar acceso" (runValidationFromSummary)
-          } else {
-            gradeIdRef.current = undefined;
-          }
+        const summaryPack = await fetchStudentProgressSummaryByUserId(userId);
+        summaryPackRef.current = summaryPack;
+        const summary = summaryPack?.summary ?? null;
+
+        // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
+        const accessCheck = await checkPhaseAccess(userId, phase, { summary });
+        if (!accessCheck.canAccess) {
+          setExamState('blocked');
+          notifyError({
+            title: 'Acceso bloqueado',
+            message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
+          });
+          return;
         }
-        
+
         // SEGUNDO: Generar el cuestionario solo si no está bloqueado
         const quizResult = await quizGeneratorService.generateQuiz(subject, phase, grade, userId);
         
@@ -148,19 +144,14 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
   const runValidationFromSummary = useCallback(async () => {
     if (!userId || !quizData) return;
-    const gradeId = gradeIdRef.current;
-    if (!gradeId) {
-      notifyError({ title: 'Datos incompletos', message: 'No se encontró el grado del estudiante.' });
-      return;
-    }
     setValidationChecking(true);
     try {
       const outcome = await validateExamPresentationGate({
         userId,
-        gradeId,
         phase,
         subjectLabel: subject,
         quizId: quizData.id,
+        summaryPack: summaryPackRef.current,
       });
       if (outcome.type === 'blocked') {
         setExamState('blocked');

@@ -8,7 +8,6 @@ import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { dbService } from "@/services/firebase/db.service";
 import { useAuthContext } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
@@ -18,11 +17,15 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Question } from "@/services/firebase/question.service";
 import { useNotification } from "@/hooks/ui/useNotification";
-import { processExamResults } from "@/utils/phaseIntegration";
+import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
 import { gradeLabelToBankCode } from "@/utils/gradeMapping";
 import ImageGallery from "@/components/common/ImageGallery";
 import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
-import { validateExamPresentationGate } from "@/services/quiz/validateExamPresentationGate";
+import {
+  validateExamPresentationGate,
+  type StudentProgressSummaryPack,
+} from "@/services/quiz/validateExamPresentationGate";
+import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -95,7 +98,6 @@ const ExamWithFirebase = () => {
   const answersRef = useRef<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, awaiting_validation, welcome, active, completed, already_taken, no_questions
   const [validationChecking, setValidationChecking] = useState(false)
-  const gradeIdRef = useRef<string | undefined>(undefined)
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
@@ -123,6 +125,7 @@ const ExamWithFirebase = () => {
   const [openSelects, setOpenSelects] = useState<{ [key: string]: boolean }>({});
   // Ref para rastrear si un cierre es intencional
   const intentionalCloseRef = useRef<{ [key: string]: boolean }>({});
+  const summaryPackRef = useRef<StudentProgressSummaryPack | undefined>(undefined);
 
   // Cargar cuestionario dinámico al montar el componente
   useEffect(() => {
@@ -144,37 +147,25 @@ const ExamWithFirebase = () => {
         if (isMounted) {
           setExamState('loading');
         }
-        
+
+        const summaryPack = await fetchStudentProgressSummaryByUserId(userId);
+        summaryPackRef.current = summaryPack;
+        const summary = summaryPack?.summary ?? null;
+
         // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
-        const userResult = await dbService.getUserById(userId);
-        if (userResult.success && userResult.data) {
-          const studentData = userResult.data;
-          const gradeId = studentData.gradeId || studentData.grade;
-
-          if (gradeId) {
-            gradeIdRef.current = gradeId;
-            const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service');
-            const checkPhaseAccess = async (uid: string, gId: string, ph: 'first' | 'second' | 'third') => {
-              const accessResult = await phaseAuthorizationService.canStudentAccessPhase(uid, gId, ph);
-              return accessResult.success ? accessResult.data : { canAccess: false, reason: 'Error verificando acceso' };
-            };
-
-            const accessCheck = await checkPhaseAccess(userId, gradeId, currentPhase);
-            if (!accessCheck.canAccess) {
-              console.log(`[fromExamIngles] Acceso bloqueado: ${accessCheck.reason}`);
-              if (isMounted) {
-                setExamState('blocked');
-                notifyError({
-                  title: 'Acceso bloqueado',
-                  message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
-                });
-              }
-              return;
-            }
-          } else {
-            gradeIdRef.current = undefined;
+        const accessCheck = await checkPhaseAccess(userId, currentPhase, { summary });
+        if (!accessCheck.canAccess) {
+          console.log(`[fromExamIngles] Acceso bloqueado: ${accessCheck.reason}`);
+          if (isMounted) {
+            setExamState('blocked');
+            notifyError({
+              title: 'Acceso bloqueado',
+              message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
+            });
           }
+          return;
         }
+
         
         // Obtener el grado del usuario desde el contexto
         const userGradeName = (user as any)?.gradeName || (user as any)?.grade;
@@ -282,19 +273,14 @@ const ExamWithFirebase = () => {
 
   const runValidationFromSummary = useCallback(async () => {
     if (!userId || !quizData) return;
-    const gradeId = gradeIdRef.current;
-    if (!gradeId) {
-      notifyError({ title: 'Datos incompletos', message: 'No se encontró el grado del estudiante.' });
-      return;
-    }
     setValidationChecking(true);
     try {
       const outcome = await validateExamPresentationGate({
         userId,
-        gradeId,
         phase: currentPhase,
         subjectLabel: examConfig.subject,
         quizId: quizData.id,
+        summaryPack: summaryPackRef.current,
       });
       if (outcome.type === 'blocked') {
         setExamState('blocked');

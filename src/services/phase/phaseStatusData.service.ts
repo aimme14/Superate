@@ -5,7 +5,6 @@
 
 import { collection, getDocs, getFirestore } from "firebase/firestore";
 import { firebaseApp } from "@/services/firebase/db.service";
-import { dbService } from "@/services/firebase/db.service";
 import { phaseAuthorizationService } from "@/services/phase/phaseAuthorization.service";
 import { getPhaseName } from "@/utils/firestoreHelpers";
 import type { PhaseType } from "@/interfaces/phase.interface";
@@ -121,8 +120,9 @@ function defaultPhaseState(phase: PhaseType): PhaseState {
 
 /**
  * Obtiene todos los datos de estado de fases para un estudiante.
- * Modo summary-only: usa studentSummaries como fuente canónica del estado
- * para evitar lecturas de results/ en el flujo de actualización de módulos.
+ * Solo lee userLookup + studentSummaries (vía fetchStudentProgressSummaryByUserId) y flags globales;
+ * sin getUserById extra. Si aún no existe doc en studentSummaries, `summary` es null: fase I puede
+ * habilitarse según flags; materias sin entradas en el resumen.
  */
 export async function fetchPhaseStatusForStudent(
   userId: string
@@ -132,21 +132,16 @@ export async function fetchPhaseStatusForStudent(
     isPhase3Complete: false,
   };
 
-  const userResult = await dbService.getUserById(userId);
-  if (!userResult.success || !userResult.data) return empty;
+  const summaryPack = await fetchStudentProgressSummaryByUserId(userId);
+  if (!summaryPack?.institutionId) return empty;
 
-  const studentData = userResult.data as { gradeId?: string; grade?: string };
-  const gradeId = studentData.gradeId || studentData.grade;
-  if (!gradeId) return empty;
+  const summary = summaryPack.summary ?? null;
 
   const phases: PhaseType[] = ["first", "second", "third"];
 
-  const summaryPack = await fetchStudentProgressSummaryByUserId(userId);
-  const summary = summaryPack?.summary ?? null;
-
   const accessResults = await Promise.all(
     phases.map((p) =>
-      phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, p, { summary })
+      phaseAuthorizationService.canStudentAccessPhase(userId, p, { summary })
     )
   );
   const phaseStatesBySubject: Record<string, Record<PhaseType, PhaseState>> = {};

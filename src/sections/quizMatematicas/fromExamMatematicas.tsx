@@ -2,7 +2,7 @@ import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -12,11 +12,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { EVALUATIONS_QUERY_KEY } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
-import { validateExamPresentationGate } from "@/services/quiz/validateExamPresentationGate";
+import {
+  validateExamPresentationGate,
+  type StudentProgressSummaryPack,
+} from "@/services/quiz/validateExamPresentationGate";
+import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
-import { dbService } from "@/services/firebase/db.service";
 import { checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { processExamResults } from "@/utils/phaseIntegration";
@@ -165,7 +168,6 @@ const ExamWithFirebase = () => {
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [examState, setExamState] = useState('loading') // loading, awaiting_validation, welcome, active, completed, already_taken, no_questions
   const [validationChecking, setValidationChecking] = useState(false)
-  const gradeIdRef = useRef<string | undefined>(undefined)
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
@@ -185,6 +187,7 @@ const ExamWithFirebase = () => {
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
   const [examStartTime, setExamStartTime] = useState<number>(0);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
+  const summaryPackRef = useRef<StudentProgressSummaryPack | undefined>(undefined);
 
   const buildValidationCacheKey = useCallback(() => {
     if (!userId) return null;
@@ -246,30 +249,24 @@ const ExamWithFirebase = () => {
         if (isMounted) {
           setExamState('loading');
         }
-        
-        // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
-        const userResult = await dbService.getUserById(userId);
-        if (userResult.success && userResult.data) {
-          const studentData = userResult.data;
-          const gradeId = studentData.gradeId || studentData.grade;
 
-          if (gradeId) {
-            gradeIdRef.current = gradeId;
-            const accessCheck = await checkPhaseAccess(userId, gradeId, currentPhase);
-            if (!accessCheck.canAccess) {
-              if (isMounted) {
-                setExamState('blocked');
-                notifyError({
-                  title: 'Acceso bloqueado',
-                  message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
-                });
-              }
-              return;
-            }
-          } else {
-            gradeIdRef.current = undefined;
+        const summaryPack = await fetchStudentProgressSummaryByUserId(userId);
+        summaryPackRef.current = summaryPack;
+        const summary = summaryPack?.summary ?? null;
+
+        // PRIMERO: Verificar acceso y bloqueo ANTES de generar el cuestionario
+        const accessCheck = await checkPhaseAccess(userId, currentPhase, { summary });
+        if (!accessCheck.canAccess) {
+          if (isMounted) {
+            setExamState('blocked');
+            notifyError({
+              title: 'Acceso bloqueado',
+              message: accessCheck.reason || 'No tienes acceso a esta fase. Debes completar la fase anterior primero.'
+            });
           }
+          return;
         }
+
         
         // Obtener el grado del usuario desde el contexto
         const userGradeName = (user as any)?.gradeName || (user as any)?.grade;
@@ -317,15 +314,15 @@ const ExamWithFirebase = () => {
         const validationKey = buildValidationCacheKey();
         if (hasRecentValidation(validationKey)) {
           setExamState('welcome');
-        } else if (gradeIdRef.current) {
+        } else {
           setValidationChecking(true);
           try {
             const outcome = await validateExamPresentationGate({
               userId,
-              gradeId: gradeIdRef.current,
               phase: currentPhase,
               subjectLabel: currentSubject,
               quizId: quiz.id,
+              summaryPack: summaryPackRef.current,
             });
 
             if (!isMounted) return;
@@ -359,8 +356,6 @@ const ExamWithFirebase = () => {
               setValidationChecking(false);
             }
           }
-        } else {
-          setExamState('awaiting_validation');
         }
 
         // Limpiar el timeout ya que la carga fue exitosa
@@ -404,19 +399,14 @@ const ExamWithFirebase = () => {
 
   const runValidationFromSummary = useCallback(async () => {
     if (!userId || !quizData) return;
-    const gradeId = gradeIdRef.current;
-    if (!gradeId) {
-      notifyError({ title: 'Datos incompletos', message: 'No se encontró el grado del estudiante.' });
-      return;
-    }
     setValidationChecking(true);
     try {
       const outcome = await validateExamPresentationGate({
         userId,
-        gradeId,
         phase: currentPhase,
         subjectLabel: currentSubject,
         quizId: quizData.id,
+        summaryPack: summaryPackRef.current,
       });
       if (outcome.type === 'blocked') {
         clearValidationCache(buildValidationCacheKey());

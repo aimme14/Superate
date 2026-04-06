@@ -14,20 +14,30 @@ export type ExamGateOutcome =
   | { type: 'already_taken'; examSnapshot: Record<string, unknown> }
   | { type: 'welcome' }
 
+/** Resultado de fetchStudentProgressSummaryByUserId (reutilizar en la misma pantalla evita lecturas duplicadas). */
+export type StudentProgressSummaryPack = Awaited<ReturnType<typeof fetchStudentProgressSummaryByUserId>>
+
 export async function validateExamPresentationGate(params: {
   userId: string
-  gradeId: string
   phase: 'first' | 'second' | 'third'
   subjectLabel: string
   quizId: string
+  /**
+   * Pack ya obtenido en esta pantalla (p. ej. antes de checkPhaseAccess).
+   * Si se omite, se llama a fetchStudentProgressSummaryByUserId aquí.
+   */
+  summaryPack?: StudentProgressSummaryPack
 }): Promise<ExamGateOutcome> {
-  const { userId, gradeId, phase, subjectLabel, quizId } = params
+  const { userId, phase, subjectLabel, quizId, summaryPack } = params
   const { phaseAuthorizationService } = await import('@/services/phase/phaseAuthorization.service')
 
-  const pack = await fetchStudentProgressSummaryByUserId(userId)
+  const pack =
+    summaryPack !== undefined
+      ? summaryPack
+      : await fetchStudentProgressSummaryByUserId(userId)
   const summary = pack?.summary ?? null
 
-  const currentPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, phase, {
+  const currentPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, phase, {
     summary,
   })
   if (!currentPhaseAccess.success || !currentPhaseAccess.data?.canAccess) {
@@ -54,7 +64,7 @@ export async function validateExamPresentationGate(params: {
     phase === 'first' ? 'second' : phase === 'second' ? 'third' : null
   let nextPhaseAuthorized = false
   if (nextPhase) {
-    const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, gradeId, nextPhase, {
+    const nextPhaseAccess = await phaseAuthorizationService.canStudentAccessPhase(userId, nextPhase, {
       summary,
     })
     nextPhaseAuthorized = nextPhaseAccess.success && nextPhaseAccess.data?.canAccess === true

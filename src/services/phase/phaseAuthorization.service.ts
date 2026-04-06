@@ -344,11 +344,12 @@ class PhaseAuthorizationService {
 
   /**
    * Verifica si un estudiante puede acceder a una fase.
-   * Fase II/III: requiere `phases[anterior].isComplete` en studentSummaries (pasar `summary` para evitar lecturas duplicadas).
+   * Criterios: flags globales (`Autorizacion_fases`) + progreso en `studentSummaries` (fases II/III).
+   * No usa `gradeId`: la autorización por fase no depende del grado en el modelo actual.
+   * Pasar `summary` evita lecturas extra de Firestore cuando el llamador ya cargó el resumen.
    */
   async canStudentAccessPhase(
     studentId: string,
-    _gradeId: string,
     phase: PhaseType,
     options?: { summary?: StudentProgressSummaryDoc | null }
   ): Promise<Result<{ canAccess: boolean; reason?: string }>> {

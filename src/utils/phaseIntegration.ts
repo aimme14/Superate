@@ -8,6 +8,7 @@ import { countUniqueCompletedSubjectsInPhase } from '@/services/phase/phaseStatu
 import { dbService } from '@/services/firebase/db.service';
 import { PhaseType } from '@/interfaces/phase.interface';
 import { getPhaseName } from '@/utils/firestoreHelpers';
+import type { StudentProgressSummaryDoc } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary';
 
 /**
  * Procesa los resultados de un examen completado según la fase
@@ -193,12 +194,13 @@ export async function processExamResults(
 }
 
 /**
- * Verifica si un estudiante puede acceder a una fase específica
+ * Verifica si un estudiante puede acceder a una fase específica (flags globales + studentSummaries).
+ * @param summary - Si ya cargaste `studentSummaries` en la misma pantalla, pásalo para evitar lecturas duplicadas.
  */
 export async function checkPhaseAccess(
   userId: string,
-  gradeId: string,
-  phase: PhaseType | string | undefined
+  phase: PhaseType | string | undefined,
+  options?: { summary?: StudentProgressSummaryDoc | null }
 ): Promise<{ canAccess: boolean; reason?: string }> {
   try {
     if (!phase || !['first', 'second', 'third'].includes(phase)) {
@@ -206,11 +208,7 @@ export async function checkPhaseAccess(
     }
 
     const phaseType = phase as PhaseType;
-    const accessResult = await phaseAuthorizationService.canStudentAccessPhase(
-      userId,
-      gradeId,
-      phaseType
-    );
+    const accessResult = await phaseAuthorizationService.canStudentAccessPhase(userId, phaseType, options);
 
     if (!accessResult.success) {
       return { canAccess: false, reason: 'Error al verificar acceso' };
