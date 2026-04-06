@@ -1,5 +1,29 @@
 import { OFFLINE_USER_MESSAGE } from '@/constants/networkMessages'
-import { getErrorMessage, isNetworkErrorLike, normalizeText } from '@/utils/networkError'
+import { getAuth } from 'firebase/auth'
+import { getErrorCode, getErrorMessage, isNetworkErrorLike, normalizeText } from '@/utils/networkError'
+
+/** Código Firebase en ErrorAPI normalizado (p. ej. details.code). */
+function getUnderlyingFirebaseCode(error: unknown): string | null {
+  const top = getErrorCode(error)
+  if (top === 'permission-denied') return top
+  if (error && typeof error === 'object' && 'details' in error) {
+    const d = (error as { details?: { code?: string } }).details
+    if (d && typeof d.code === 'string') return d.code
+  }
+  return top
+}
+
+/**
+ * Errores de permiso en Firestore justo después de cerrar sesión son esperables (queries en carrera).
+ * No deben mostrarse como fallo global al usuario.
+ */
+export function shouldSuppressQueryErrorWhileLoggedOut(error: unknown): boolean {
+  if (typeof window === 'undefined') return false
+  if (getAuth().currentUser) return false
+  if (getUnderlyingFirebaseCode(error) === 'permission-denied') return true
+  const msg = getErrorMessage(error).toLowerCase()
+  return msg.includes('permiso') || msg.includes('permission-denied')
+}
 
 /**
  * Título y descripción amigables para toasts de errores de React Query.

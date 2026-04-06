@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/hooks/ui/use-toast'
-import { getQueryErrorToastContent } from '@/utils/queryErrorToast'
+import { getQueryErrorToastContent, shouldSuppressQueryErrorWhileLoggedOut } from '@/utils/queryErrorToast'
 
 const TOAST_DEBOUNCE_MS = 2000
 
@@ -23,6 +23,7 @@ export function GlobalQueryErrorToaster() {
       const meta = query.meta as { suppressGlobalError?: boolean } | undefined
       if (meta?.suppressGlobalError) return
       const error = query.state.error
+      if (shouldSuppressQueryErrorWhileLoggedOut(error)) return
       if (Date.now() - lastToastRef.current < TOAST_DEBOUNCE_MS) return
       lastToastRef.current = Date.now()
       const { title, description } = getQueryErrorToastContent(error)

@@ -170,6 +170,8 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
   const signout = async (): Promise<void> => {
     return handler('Cerrando session...', async () => {
       try {
+        // Evita lecturas a Firestore en carrera cuando el token aún no se ha invalidado del todo
+        await queryClient.cancelQueries()
         const result = await logoutFB()
         if (!result.success) throw result.error
         result.success && setAuthStatus()

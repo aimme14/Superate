@@ -36,7 +36,7 @@ export function useCurrentUser(uid: string | undefined, enabled: boolean = true)
     enabled: Boolean(uid) && enabled,
     staleTime: STALE_TIME_MS,
     gcTime: Infinity,
-    retry: 1,
+    retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     // Solo refrescar por logout/login, refresh manual o invalidación explícita.
