@@ -19,6 +19,7 @@ import { StrengthsRadarChart } from "@/components/charts/StrengthsRadarChart"
 import { SubjectsProgressChart } from "@/components/charts/SubjectsProgressChart"
 import { SubjectsDetailedSummary } from "@/components/charts/SubjectsDetailedSummary"
 import { useNotification } from "@/hooks/ui/useNotification"
+import { useIsLgUp } from "@/hooks/ui/use-lg"
 import { VocabularyBank } from "@/components/studyPlan/VocabularyBank"
 import { TipsICFESSection } from "@/components/studyPlan/TipsICFESSection"
 import { HerramientasIASection } from "@/components/studyPlan/HerramientasIASection"
@@ -79,11 +80,32 @@ import {
 } from "lucide-react"
 
 // Componente de gráfico de rendimiento con materias expandibles
-function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data: SubjectAnalysis[], theme?: 'light' | 'dark', subjectsWithTopics?: SubjectWithTopics[] }) {
+function PerformanceChart({
+  data,
+  theme = 'light',
+  subjectsWithTopics,
+  expandedSubjectNames,
+  onExpandedSubjectNamesChange,
+}: {
+  data: SubjectAnalysis[];
+  theme?: 'light' | 'dark';
+  subjectsWithTopics?: SubjectWithTopics[];
+  /** Si se define junto con onExpandedSubjectNamesChange, el acordeón es controlado (p. ej. sincronizado con otra tarjeta). */
+  expandedSubjectNames?: string[];
+  onExpandedSubjectNamesChange?: (value: string[]) => void;
+}) {
+  const accordionControlled =
+    expandedSubjectNames !== undefined && onExpandedSubjectNamesChange !== undefined;
   // Si tenemos datos agrupados por materia y tema, usar esos
   if (subjectsWithTopics && subjectsWithTopics.length > 0) {
     return (
-      <Accordion type="multiple" className="w-full">
+      <Accordion
+        type="multiple"
+        className="w-full"
+        {...(accordionControlled
+          ? { value: expandedSubjectNames, onValueChange: onExpandedSubjectNamesChange }
+          : {})}
+      >
         {subjectsWithTopics.map((subject) => (
           <AccordionItem key={subject.name} value={subject.name} className={cn("border-b", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
             <AccordionTrigger className={cn("hover:no-underline py-3 md:py-2", theme === 'dark' ? 'text-white' : '')}>
@@ -128,9 +150,27 @@ function PerformanceChart({ data, theme = 'light', subjectsWithTopics }: { data:
 }
 
 // Componente de fortalezas y debilidades por materia
-function StrengthsWeaknessesChart({ subjectsWithTopics, theme = 'light' }: { subjectsWithTopics: SubjectWithTopics[], theme?: 'light' | 'dark' }) {
+function StrengthsWeaknessesChart({
+  subjectsWithTopics,
+  theme = 'light',
+  expandedSubjectNames,
+  onExpandedSubjectNamesChange,
+}: {
+  subjectsWithTopics: SubjectWithTopics[];
+  theme?: 'light' | 'dark';
+  expandedSubjectNames?: string[];
+  onExpandedSubjectNamesChange?: (value: string[]) => void;
+}) {
+  const accordionControlled =
+    expandedSubjectNames !== undefined && onExpandedSubjectNamesChange !== undefined;
   return (
-    <Accordion type="multiple" className="w-full">
+    <Accordion
+      type="multiple"
+      className="w-full"
+      {...(accordionControlled
+        ? { value: expandedSubjectNames, onValueChange: onExpandedSubjectNamesChange }
+        : {})}
+    >
       {subjectsWithTopics.map((subject) => {
         // Filtrar materias que tengan al menos fortalezas, debilidades o neutros
         const hasData = subject.strengths.length > 0 || subject.weaknesses.length > 0 || subject.neutrals.length > 0;
@@ -1500,6 +1540,9 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
   const [loadingHerramientasIA, setLoadingHerramientasIA] = useState(false);
   const [herramientasIAError, setHerramientasIAError] = useState(false);
   const [shouldLoadSecondary, setShouldLoadSecondary] = useState(false);
+  /** Materias expandidas en la fila Rendimiento / Fortalezas (Resumen, una fase). Solo se usa en desktop (`lg+`) para sincronizar ambas tarjetas. */
+  const [expandedOverviewSubjects, setExpandedOverviewSubjects] = useState<string[]>([]);
+  const isLgUp = useIsLgUp();
   useUserInstitution();
   const { theme } = useThemeContext();
 
@@ -1629,6 +1672,10 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       document.removeEventListener('touchstart', handlePointerOutside);
     };
   }, [mobileOverviewDiagnosisFilterOpen]);
+
+  useEffect(() => {
+    setExpandedOverviewSubjects([]);
+  }, [selectedPhase]);
 
   // Procesar evaluaciones desde React Query (cache compartido con Resultados)
   useEffect(() => {
@@ -3112,7 +3159,13 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   </CardHeader>
                   <CardContent className="px-4 md:px-6 pb-4 md:pb-6 pt-0">
                     {currentData.subjectsWithTopics.length > 0 ? (
-                      <PerformanceChart data={currentData.subjects} subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
+                      <PerformanceChart
+                        data={currentData.subjects}
+                        subjectsWithTopics={currentData.subjectsWithTopics}
+                        theme={theme}
+                        expandedSubjectNames={isLgUp ? expandedOverviewSubjects : undefined}
+                        onExpandedSubjectNamesChange={isLgUp ? setExpandedOverviewSubjects : undefined}
+                      />
                     ) : currentData.subjects.length > 0 ? (
                       <PerformanceChart data={currentData.subjects} theme={theme} />
                     ) : (
@@ -3138,7 +3191,12 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                   </CardHeader>
                   <CardContent className="px-4 md:px-6 pb-4 md:pb-6 pt-0">
                     {currentData.subjectsWithTopics.length > 0 ? (
-                      <StrengthsWeaknessesChart subjectsWithTopics={currentData.subjectsWithTopics} theme={theme} />
+                      <StrengthsWeaknessesChart
+                        subjectsWithTopics={currentData.subjectsWithTopics}
+                        theme={theme}
+                        expandedSubjectNames={isLgUp ? expandedOverviewSubjects : undefined}
+                        onExpandedSubjectNamesChange={isLgUp ? setExpandedOverviewSubjects : undefined}
+                      />
                     ) : (
                       <div className="space-y-4">
                         <div>
