@@ -50,6 +50,7 @@ import { getWhatsAppUrl } from '@/components/WhatsAppFab'
 import { displayNameFromSubjectSlug, fetchGradeSummaryByContext, type GradeSummaryDoc } from '@/services/teacher/gradeSummary.service'
 import { examResultsFromSummaryData, type StudentProgressSummaryDoc } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
 import { canonicalizeTopicName } from '@/utils/topicCanonicalization'
+import { AcademicReportSection, type AcademicPhaseKey } from '@/components/teacher/AcademicReportSection'
 
 const db = getFirestore(firebaseApp)
 const RANKING_INITIAL_VISIBLE = 10
@@ -1464,9 +1465,12 @@ function StudentDetailDialog({
             </div>
 
             <Tabs defaultValue="resumen" className="space-y-4">
-              <TabsList className={cn('grid w-full grid-cols-2', theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-100')}>
+              <TabsList className={cn('grid w-full grid-cols-3', theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-100')}>
                 <TabsTrigger value="resumen" className={cn(theme === 'dark' ? 'data-[state=active]:bg-zinc-700' : 'data-[state=active]:bg-white')}>Resumen</TabsTrigger>
                 <TabsTrigger value="diagnostico" className={cn(theme === 'dark' ? 'data-[state=active]:bg-zinc-700' : 'data-[state=active]:bg-white')}>Diagnóstico</TabsTrigger>
+                <TabsTrigger value="reporteAcademico" className={cn(theme === 'dark' ? 'data-[state=active]:bg-zinc-700' : 'data-[state=active]:bg-white')}>
+                  Reporte académico
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="resumen" className="space-y-4">
                 <Card className={cn(theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200')}>
@@ -1499,6 +1503,26 @@ function StudentDetailDialog({
                     )}
                   </CardContent>
                 </Card>
+              </TabsContent>
+              <TabsContent value="reporteAcademico" className="space-y-4">
+                {selectedPhase === 'all' ? (
+                  <p className={cn('text-sm text-center py-6', theme === 'dark' ? 'text-zinc-400' : 'text-gray-600')}>
+                    Selecciona Fase I, II o III (arriba) para ver o generar el reporte académico con IA.
+                  </p>
+                ) : studentId ? (
+                  <AcademicReportSection
+                    studentId={studentId}
+                    phase={
+                      (selectedPhase === 'phase1'
+                        ? 'first'
+                        : selectedPhase === 'phase2'
+                          ? 'second'
+                          : 'third') as AcademicPhaseKey
+                    }
+                    studentSummary={studentSummary}
+                    theme={theme}
+                  />
+                ) : null}
               </TabsContent>
               <TabsContent value="diagnostico" className="space-y-6">
                 {subjectsError || phasesError ? (

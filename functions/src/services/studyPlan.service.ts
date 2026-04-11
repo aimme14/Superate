@@ -569,8 +569,8 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         examResults
       );
 
-      // 4. Generar contenido con Gemini (con timeout extendido para respuestas largas)
-      console.log(`\n🤖 Enviando request a Gemini (esto puede tardar varios minutos)...`);
+      // 4. Generar contenido con Gemini (tope 30s, alineado con Cloud Functions)
+      console.log(`\n🤖 Enviando request a Gemini...`);
       const result = await geminiCentralizedService.generateContent({
         userId: input.studentId,
         prompt,
@@ -578,7 +578,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         images: [],
         options: {
           retries: 3,
-          timeout: 600000, // 10 minutos para respuestas largas
+          timeout: GEMINI_CONFIG.GENERATION_SUMMARY_AND_PLAN_TIMEOUT_MS,
         },
       });
 

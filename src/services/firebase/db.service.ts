@@ -540,7 +540,10 @@ class DatabaseService {
         ...institutionData,
         isActive: institutionData.isActive !== undefined ? institutionData.isActive : true
       }
-      
+      // No persistir en el doc raíz de institución (fuente de verdad: subcolección estudiantes/)
+      delete (institutionWithDefaults as { students?: unknown }).students
+      delete (institutionWithDefaults as { studentCount?: unknown }).studentCount
+
       const docRef = doc(this.getCollection('institutions'))
       const institutionWithId = {
         ...institutionWithDefaults,
@@ -754,6 +757,10 @@ class DatabaseService {
       }
       
       const currentInstitution = currentInstitutionResult.data
+      // No persistir en el doc raíz de institución (fuente de verdad: subcolección estudiantes/)
+      delete (institutionData as { students?: unknown }).students
+      delete (institutionData as { studentCount?: unknown }).studentCount
+
       const currentIsActive = currentInstitution?.isActive ?? true // Por defecto true si no está definido
       const newIsActive = institutionData.isActive !== undefined ? institutionData.isActive : currentIsActive
       

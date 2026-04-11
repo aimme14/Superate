@@ -5,7 +5,7 @@
  */
 
 import { getStudentDatabase } from '../utils/firestoreHelpers';
-import { geminiClient } from '../config/gemini.config';
+import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
 import { jsonrepair } from 'jsonrepair';
 import { geminiCentralizedService } from './geminiService';
 
@@ -289,7 +289,7 @@ export async function generateAndSaveTips(options?: {
     processName: 'tips_icfes',
     images: [],
     options: {
-      timeout: 120000,
+      timeout: GEMINI_CONFIG.REQUEST_TIMEOUT_MS,
       retries: 2,
     },
   });

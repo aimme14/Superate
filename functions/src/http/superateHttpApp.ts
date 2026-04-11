@@ -16,6 +16,7 @@ import {
   handleGetStudentSummary,
   handleStudentSummaryPost,
 } from './studentSummaryUnified';
+import { verifyBearerIdToken } from './studentSummaryAuth.middleware';
 
 function cors(
   res: express.Response,
@@ -34,7 +35,10 @@ export function createSuperateHttpApp(): express.Express {
     if (req.method === 'OPTIONS') {
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.set('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Secret');
+      res.set(
+        'Access-Control-Allow-Headers',
+        'Content-Type, X-Admin-Secret, Authorization'
+      );
       res.status(204).send('');
       return;
     }
@@ -515,17 +519,18 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  // Resumen académico unificado + aliases
-  app.post('/studentSummary', handleStudentSummaryPost);
-  app.post('/checkAndGenerateSummary', (req, res) => {
+  // Resumen académico unificado + aliases (Bearer ID token + docente activo + alcance)
+  const studentSummaryAuth = [verifyBearerIdToken];
+  app.post('/studentSummary', ...studentSummaryAuth, handleStudentSummaryPost);
+  app.post('/checkAndGenerateSummary', ...studentSummaryAuth, (req, res) => {
     req.body = { ...req.body, mode: 'ensure' };
     void handleStudentSummaryPost(req, res);
   });
-  app.post('/generateStudentSummary', (req, res) => {
+  app.post('/generateStudentSummary', ...studentSummaryAuth, (req, res) => {
     req.body = { ...req.body, mode: 'generate' };
     void handleStudentSummaryPost(req, res);
   });
-  app.get('/getStudentSummary', handleGetStudentSummary);
+  app.get('/getStudentSummary', ...studentSummaryAuth, handleGetStudentSummary);
 
   app.get('/getVocabularyWords', async (req, res) => {
     cors(res, 'GET, OPTIONS');

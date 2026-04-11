@@ -1,6 +1,7 @@
 /**
  * Sincroniza custom claims de Firebase Auth con Firestore (users, userLookup, institución, rol).
  * Las reglas usan request.auth.token.* cuando claimsRev está presente; si no, fallback legacy.
+ * campusId / gradeId / jornada vienen del doc de rol (profesores, estudiantes, etc.) para evitar lecturas extra.
  */
 
 import { auth, db } from '../config/firebase.config';
@@ -13,7 +14,7 @@ const ROLE_TO_COLLECTION: Record<string, string> = {
 };
 
 /** Versión de esquema de claims en el token (subir si cambian campos obligatorios). */
-export const CLAIMS_SCHEMA_REV = 1;
+export const CLAIMS_SCHEMA_REV = 2;
 
 export interface SuperateAuthClaims {
   role: string;
@@ -21,8 +22,33 @@ export interface SuperateAuthClaims {
   active: boolean;
   institutionId: string;
   institutionActive: boolean;
+  /** Sede; vacío si el rol no aplica o no está definido */
+  campusId: string;
+  /** Grado; vacío si el rol no aplica o no está definido */
+  gradeId: string;
+  /** p. ej. mañana | tarde | única; vacío si no aplica */
+  jornada: string;
   /** Entero; si está en el token, las reglas pueden usar claims sin lecturas extra */
   claimsRev: number;
+}
+
+function scopeFromMemberDoc(data: FirebaseFirestore.DocumentData | undefined): {
+  campusId: string;
+  gradeId: string;
+  jornada: string;
+} {
+  if (!data) {
+    return { campusId: '', gradeId: '', jornada: '' };
+  }
+  const campusRaw = data.campusId ?? data.campus ?? data.sedeId;
+  const campusId =
+    typeof campusRaw === 'string' && campusRaw.trim() ? campusRaw.trim() : '';
+  const gradeRaw = data.gradeId ?? data.grade;
+  const gradeId =
+    typeof gradeRaw === 'string' && gradeRaw.trim() ? gradeRaw.trim() : '';
+  const jornada =
+    typeof data.jornada === 'string' && data.jornada.trim() ? data.jornada.trim() : '';
+  return { campusId, gradeId, jornada };
 }
 
 async function setDeniedClaims(uid: string): Promise<void> {
@@ -32,6 +58,9 @@ async function setDeniedClaims(uid: string): Promise<void> {
     active: false,
     institutionId: '',
     institutionActive: false,
+    campusId: '',
+    gradeId: '',
+    jornada: '',
     claimsRev: CLAIMS_SCHEMA_REV,
   };
   await auth.setCustomUserClaims(uid, claims as unknown as { [key: string]: unknown });
@@ -55,6 +84,9 @@ export async function computeSuperateClaims(uid: string): Promise<SuperateAuthCl
         active: ok,
         institutionId: '',
         institutionActive: true,
+        campusId: '',
+        gradeId: '',
+        jornada: '',
         claimsRev: CLAIMS_SCHEMA_REV,
       };
     }
@@ -87,12 +119,17 @@ export async function computeSuperateClaims(uid: string): Promise<SuperateAuthCl
 
   const active = memberActive === true && institutionActive === true;
 
+  const scope = scopeFromMemberDoc(roleSnap.data());
+
   return {
     role,
     admin: false,
     active,
     institutionId,
     institutionActive,
+    campusId: scope.campusId,
+    gradeId: scope.gradeId,
+    jornada: scope.jornada,
     claimsRev: CLAIMS_SCHEMA_REV,
   };
 }

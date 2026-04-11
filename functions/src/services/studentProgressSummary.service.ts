@@ -243,7 +243,7 @@ function pickStudentNameFromStudent(
   return undefined;
 }
 
-function normalizeJornada(value: unknown): 'mañana' | 'tarde' | undefined {
+export function normalizeJornada(value: unknown): 'mañana' | 'tarde' | undefined {
   if (typeof value !== 'string') return undefined;
   const v = value.trim().toLowerCase();
   if (v === 'manana' || v === 'mañana') return 'mañana';

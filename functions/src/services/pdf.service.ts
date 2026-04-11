@@ -192,50 +192,67 @@ class PDFService {
   }
 
   /**
-   * Sube el PDF a Firebase Storage y retorna la URL pública
+   * Ruta fija en el bucket: `pdfs/{studentId}/resumen_{phase}_{studentId}.pdf`
+   * (phase = first | second | third). Al regenerar el reporte IA se sobrescribe.
    */
-  async uploadPDFToStorage(
-    pdfBuffer: Buffer,
+  static canonicalSummaryPdfPath(
     studentId: string,
-    phase: 'first' | 'second' | 'third',
-    filename?: string
-  ): Promise<string> {
-    try {
-      const phaseName = phase === 'first' ? 'fase1' : phase === 'second' ? 'fase2' : 'fase3';
-      const timestamp = Date.now();
-      const pdfFilename = filename || `resumen_${phaseName}_${studentId}_${timestamp}.pdf`;
-      const filePath = `pdfs/${studentId}/${pdfFilename}`;
-
-      const bucket = storage.bucket();
-      const file = bucket.file(filePath);
-
-      // Subir el archivo
-      await file.save(pdfBuffer, {
-        metadata: {
-          contentType: 'application/pdf',
-          cacheControl: 'public, max-age=31536000',
-        },
-      });
-
-      // Hacer el archivo público
-      await file.makePublic();
-
-      // Obtener URL pública
-      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-
-      return publicUrl;
-    } catch (error: any) {
-      console.error('Error subiendo PDF a Storage:', error);
-      throw new Error(`Error subiendo PDF: ${error.message}`);
-    }
+    phase: 'first' | 'second' | 'third'
+  ): string {
+    return `pdfs/${studentId}/resumen_${phase}_${studentId}.pdf`;
   }
 
   /**
-   * Genera PDF y lo sube a Storage, retornando la URL pública
+   * Si el archivo canónico ya existe, devuelve su URL pública sin regenerar.
+   */
+  /** Borra el PDF canónico (p. ej. tras regenerar el reporte IA con `mode: 'generate'`). */
+  async deleteCanonicalPdfIfExists(
+    studentId: string,
+    phase: 'first' | 'second' | 'third'
+  ): Promise<void> {
+    const filePath = PDFService.canonicalSummaryPdfPath(studentId, phase);
+    const file = storage.bucket().file(filePath);
+    const [exists] = await file.exists();
+    if (exists) {
+      await file.delete({ ignoreNotFound: true });
+    }
+  }
+
+  async getCanonicalPdfPublicUrlIfExists(
+    studentId: string,
+    phase: 'first' | 'second' | 'third'
+  ): Promise<string | null> {
+    const filePath = PDFService.canonicalSummaryPdfPath(studentId, phase);
+    const bucket = storage.bucket();
+    const file = bucket.file(filePath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return null;
+    }
+    return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+  }
+
+  /**
+   * Sube bytes a una ruta dentro del bucket y devuelve URL pública.
+   */
+  async uploadPdfBufferToPath(pdfBuffer: Buffer, filePath: string): Promise<string> {
+    const bucket = storage.bucket();
+    const file = bucket.file(filePath);
+    await file.save(pdfBuffer, {
+      metadata: {
+        contentType: 'application/pdf',
+        cacheControl: 'public, max-age=31536000',
+      },
+    });
+    await file.makePublic();
+    return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+  }
+
+  /**
+   * Genera PDF y lo sube a la ruta canónica en Storage.
    */
   async generateAndUploadPDF(options: PDFGenerationOptions): Promise<PDFGenerationResult> {
     try {
-      // Generar PDF
       const pdfResult = await this.generateSummaryPDF(options);
 
       if (!pdfResult.success || !pdfResult.pdfBuffer) {
@@ -245,11 +262,13 @@ class PDFService {
         };
       }
 
-      // Subir a Storage
-      const downloadUrl = await this.uploadPDFToStorage(
-        pdfResult.pdfBuffer,
+      const filePath = PDFService.canonicalSummaryPdfPath(
         options.studentId,
         options.phase
+      );
+      const downloadUrl = await this.uploadPdfBufferToPath(
+        pdfResult.pdfBuffer,
+        filePath
       );
 
       return {

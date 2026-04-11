@@ -441,6 +441,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Resumen académico IA (Cloud Functions escribe con Admin SDK). Cliente: snapshot en AcademicReportSection.
+    // Misma lógica que studentSummaries: propio uid, mismo institutionId vía userLookup del estudiante, o admin.
+    match /ResumenStudent/{studentId}/{phase}/resumenActual {
+      allow read: if isAdminOrToken() ||
+        request.auth.uid == studentId ||
+        (
+          exists(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)) &&
+          sameInstitutionMemberOrToken(
+            get(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)).data.institutionId
+          )
+        );
+      allow write: if false;
+    }
+
     // Regla por defecto: denegar acceso a todo lo dem?s
     match /{document=**} {
       allow read, write: if false;

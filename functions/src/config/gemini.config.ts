@@ -15,6 +15,9 @@ import { VertexAI } from '@google-cloud/vertexai';
 import * as path from 'path';
 import * as fs from 'fs';
 
+/** Tope por defecto para Vertex (alineado con `timeoutSeconds: 30` de Cloud Functions). */
+const VERTEX_REQUEST_TIMEOUT_MS = 30_000;
+
 /**
  * Configuración de Gemini
  * Todos los valores se leen desde variables de entorno (.env)
@@ -25,15 +28,18 @@ export const GEMINI_CONFIG = {
   MODEL_NAME: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   VERTEX_AI_CREDENTIALS: process.env.VERTEX_AI_CREDENTIALS || './serviceAccountKey-ia.json',
   PROMPT_VERSION: '2.5.0',
+
+  /** Alias: plan de estudio / resumen académico (mismo valor que `REQUEST_TIMEOUT_MS`). */
+  GENERATION_SUMMARY_AND_PLAN_TIMEOUT_MS: VERTEX_REQUEST_TIMEOUT_MS,
+
+  /** Timeout base para `generateContent` (texto o imágenes); reintentos no lo superan salvo `options.timeout`. */
+  REQUEST_TIMEOUT_MS: VERTEX_REQUEST_TIMEOUT_MS,
+  /** Antes distinto para >4 imágenes; mismo tope que las Functions. */
+  REQUEST_TIMEOUT_MULTIPLE_IMAGES_MS: VERTEX_REQUEST_TIMEOUT_MS,
   
   // Límites de rate limiting (valores fijos, no configurables desde .env)
   MAX_REQUESTS_PER_MINUTE: 10, // Reducido para evitar errores 429
   DELAY_BETWEEN_REQUESTS_MS: 2000, // Aumentado a 2 segundos entre requests
-  
-  // Timeouts (valores fijos, no configurables desde .env)
-  // 7 minutos para prompts largos con múltiples imágenes (más de 4 imágenes)
-  REQUEST_TIMEOUT_MS: 420000, // Timeout base (7 minutos)
-  REQUEST_TIMEOUT_MULTIPLE_IMAGES_MS: 600000, // 10 minutos para preguntas con más de 4 imágenes
   
   // Reintentos (valores fijos, no configurables desde .env)
   MAX_RETRIES: 3, // 3 intentos: base, +50%, +100%
@@ -274,22 +280,16 @@ class GeminiClient {
 
     const maxRetries = options.retries ?? GEMINI_CONFIG.MAX_RETRIES;
     const imageCount = images.length;
-    
-    // Determinar timeout base según número de imágenes
+    const timeoutCap = options.timeout ?? GEMINI_CONFIG.REQUEST_TIMEOUT_MS;
+
     let baseTimeout: number = GEMINI_CONFIG.REQUEST_TIMEOUT_MS;
-    if (imageCount > 0) {
-      if (imageCount > 4) {
-        baseTimeout = GEMINI_CONFIG.REQUEST_TIMEOUT_MULTIPLE_IMAGES_MS;
-      } else {
-        // Timeout intermedio para 1-4 imágenes
-        baseTimeout = Math.floor(GEMINI_CONFIG.REQUEST_TIMEOUT_MS * 1.5);
-      }
-      console.log(`📷 Procesando ${imageCount} imagen(es) con timeout de ${(baseTimeout / 60000).toFixed(1)} minutos`);
-    }
-    
-    // Si se especifica un timeout en opciones, usarlo como base
     if (options.timeout) {
       baseTimeout = options.timeout;
+    }
+    if (imageCount > 0) {
+      console.log(
+        `📷 Procesando ${imageCount} imagen(es) con timeout de ${(Math.min(baseTimeout, timeoutCap) / 1000).toFixed(0)}s`
+      );
     }
     
     let lastError: Error | null = null;
@@ -304,14 +304,16 @@ class GeminiClient {
         // Aplicar rate limiting
         await this.applyRateLimiting();
         
-        // Calcular timeout progresivo: intento 1 = base, intento 2 = +50%, intento 3 = +100%
+        // Reintentos: subir tope por intento pero no pasar de timeoutCap (30s por defecto = mismo que Cloud Functions)
         let currentTimeout: number = baseTimeout;
         if (attempt === 2) {
-          currentTimeout = Math.floor(baseTimeout * 1.5); // +50%
-          console.log(`⏱️ Intento 2: Aumentando timeout a ${(currentTimeout / 60000).toFixed(1)} minutos (+50%)`);
+          currentTimeout = Math.floor(baseTimeout * 1.5);
         } else if (attempt === 3) {
-          currentTimeout = baseTimeout * 2; // +100%
-          console.log(`⏱️ Intento 3: Aumentando timeout a ${(currentTimeout / 60000).toFixed(1)} minutos (+100%)`);
+          currentTimeout = baseTimeout * 2;
+        }
+        currentTimeout = Math.min(currentTimeout, timeoutCap);
+        if (attempt > 1) {
+          console.log(`⏱️ Intento ${attempt}: timeout ${(currentTimeout / 1000).toFixed(0)}s (tope ${(timeoutCap / 1000).toFixed(0)}s)`);
         }
         
         console.log(`🤖 Generando contenido con Gemini Vertex AI (intento ${attempt}/${maxRetries})...`);
@@ -622,11 +624,10 @@ class GeminiClient {
           } else if (isTimeoutError) {
             // Para timeouts, esperar un poco más pero no tanto como 429
             delayTime = 15000 + (GEMINI_CONFIG.RETRY_DELAY_MS * attempt);
-            const nextTimeout = attempt === 1 
-              ? Math.floor(baseTimeout * 1.5) 
-              : baseTimeout * 2;
+            let nextTimeout = attempt === 1 ? Math.floor(baseTimeout * 1.5) : baseTimeout * 2;
+            nextTimeout = Math.min(nextTimeout, timeoutCap);
             console.log(`⚠️ Timeout detectado en intento ${attempt}. El prompt puede ser muy largo${imageCount > 0 ? ` o hay ${imageCount} imagen(es) que procesar` : ''}.`);
-            console.log(`   El siguiente intento usará timeout de ${(nextTimeout / 60000).toFixed(1)} minutos. Esperando ${(delayTime / 1000).toFixed(1)}s...`);
+            console.log(`   El siguiente intento usará timeout de ${(nextTimeout / 1000).toFixed(0)}s. Esperando ${(delayTime / 1000).toFixed(1)}s...`);
           } else {
             console.log(`⏳ Reintentando en ${(delayTime / 1000).toFixed(1)}s...`);
           }
