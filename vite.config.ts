@@ -61,7 +61,18 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    strictPort: true
+    strictPort: true,
+    // Misma ruta que en producción (`.../superateHttp/...`); el navegador llama same-origin y no aplica CORS.
+    proxy: {
+      '/superateHttp': {
+        target: 'https://us-central1-superate-6c730.cloudfunctions.net',
+        changeOrigin: true,
+        secure: true,
+        /** Debe cubrir generación de plan de estudio (Cloud Function hasta ~540s). */
+        timeout: 600_000,
+        proxyTimeout: 600_000,
+      },
+    },
   },
 
   /* shadcn/ui */

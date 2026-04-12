@@ -15,8 +15,14 @@ import { VertexAI } from '@google-cloud/vertexai';
 import * as path from 'path';
 import * as fs from 'fs';
 
-/** Tope por defecto para Vertex (alineado con `timeoutSeconds: 30` de Cloud Functions). */
+/** Tope para llamadas Vertex cortas (justificaciones, imágenes, etc.). */
 const VERTEX_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Plan de estudio y resúmenes académicos largos.
+ * Debe ser menor que `timeoutSeconds` de `superateHttp` (Cloud Functions, p. ej. 540s).
+ */
+const VERTEX_LONG_GENERATION_TIMEOUT_MS = 300_000;
 
 /**
  * Configuración de Gemini
@@ -29,12 +35,12 @@ export const GEMINI_CONFIG = {
   VERTEX_AI_CREDENTIALS: process.env.VERTEX_AI_CREDENTIALS || './serviceAccountKey-ia.json',
   PROMPT_VERSION: '2.5.0',
 
-  /** Alias: plan de estudio / resumen académico (mismo valor que `REQUEST_TIMEOUT_MS`). */
-  GENERATION_SUMMARY_AND_PLAN_TIMEOUT_MS: VERTEX_REQUEST_TIMEOUT_MS,
+  /** Plan de estudio / resumen académico (generaciones largas). */
+  GENERATION_SUMMARY_AND_PLAN_TIMEOUT_MS: VERTEX_LONG_GENERATION_TIMEOUT_MS,
 
   /** Timeout base para `generateContent` (texto o imágenes); reintentos no lo superan salvo `options.timeout`. */
   REQUEST_TIMEOUT_MS: VERTEX_REQUEST_TIMEOUT_MS,
-  /** Antes distinto para >4 imágenes; mismo tope que las Functions. */
+  /** Antes distinto para >4 imágenes; mismo tope corto que la mayoría de rutas. */
   REQUEST_TIMEOUT_MULTIPLE_IMAGES_MS: VERTEX_REQUEST_TIMEOUT_MS,
   
   // Límites de rate limiting (valores fijos, no configurables desde .env)

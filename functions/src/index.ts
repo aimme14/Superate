@@ -68,11 +68,16 @@ async function displayNamesForAcademicPdf(
 // Ej.: .../superateHttp/health, .../superateHttp/getStudyPlan
 // =============================
 
+/** HTTP unificada: incluye generación de plan de estudio (IA) y puede tardar varios minutos. */
+const SUPERATE_HTTP_TIMEOUT_SECONDS = 540;
+/** En Cloud Functions 1ª gen la CPU va ligada a la memoria; 256MB ≈ la mitad de 512MB. */
+const SUPERATE_HTTP_MEMORY = '256MB' as const;
+
 export const superateHttp = functions
   .region(REGION)
   .runWith({
-    timeoutSeconds: 30,
-    memory: '256MB',
+    timeoutSeconds: SUPERATE_HTTP_TIMEOUT_SECONDS,
+    memory: SUPERATE_HTTP_MEMORY,
     secrets: ['YOUTUBE_API_KEY', 'GOOGLE_CSE_API_KEY', 'GOOGLE_CSE_ID'],
   })
   .https.onRequest(createSuperateHttpApp());
