@@ -1,20 +1,10 @@
 /**
- * Reporte académico IA por fase: lectura Firestore, callables (sin HTTP público) y PDF.
+ * Reporte académico IA por fase (una generación por fase): Firestore, callables y PDF.
  */
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Loader2, FileDown, RefreshCw, Sparkles } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { Loader2, FileDown, Sparkles } from 'lucide-react'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import type { StudentProgressSummaryDoc } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
 import {
@@ -34,7 +24,7 @@ type Props = {
   phase: AcademicPhaseKey
   studentSummary: StudentProgressSummaryDoc | null
   theme: 'light' | 'dark'
-  /** Invocado tras generar/regenerar para refrescar datos externos si aplica */
+  /** Invocado tras generar el reporte para refrescar datos externos si aplica */
   onReportChanged?: () => void
 }
 
@@ -49,7 +39,6 @@ export function AcademicReportSection({
   const [persisted, setPersisted] = useState<PersistedSummary | null | undefined>(undefined)
   const [generateBusy, setGenerateBusy] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
-  const [regenOpen, setRegenOpen] = useState(false)
 
   useEffect(() => {
     setPersisted(undefined)
@@ -78,34 +67,6 @@ export function AcademicReportSection({
         toast({
           title: 'Respuesta inesperada',
           description: 'No se recibió el resumen. Revisa la consola o inténtalo de nuevo.',
-          variant: 'destructive',
-        })
-      }
-      onReportChanged?.()
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error de red o permisos'
-      toast({ title: 'Error', description: msg, variant: 'destructive' })
-    } finally {
-      setGenerateBusy(false)
-    }
-  }, [studentId, phase, onReportChanged, toast])
-
-  const handleRegenerateConfirm = useCallback(async () => {
-    setRegenOpen(false)
-    setGenerateBusy(true)
-    try {
-      const raw = await callGenerateStudentAcademicSummary(studentId, phase, 'generate')
-      const errMsg = getCallableErrorMessage(raw)
-      if (errMsg) {
-        toast({ title: 'No se pudo regenerar', description: errMsg, variant: 'destructive' })
-        return
-      }
-      const extracted = persistedSummaryFromCallableResult(raw)
-      if (extracted) setPersisted(extracted)
-      else {
-        toast({
-          title: 'Respuesta inesperada',
-          description: 'No se recibió el resumen regenerado.',
           variant: 'destructive',
         })
       }
@@ -160,30 +121,17 @@ export function AcademicReportSection({
 
       <div className="flex flex-wrap gap-2">
         {hasDoc && (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              variant="default"
-              disabled={pdfBusy || generateBusy}
-              onClick={() => void handleDownloadPdf()}
-              className="gap-1.5"
-            >
-              {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-              Descargar PDF
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={generateBusy}
-              onClick={() => setRegenOpen(true)}
-              className="gap-1.5"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Regenerar
-            </Button>
-          </>
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            disabled={pdfBusy || generateBusy}
+            onClick={() => void handleDownloadPdf()}
+            className="gap-1.5"
+          >
+            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            Descargar PDF
+          </Button>
         )}
         {canOfferGenerate && (
           <Button
@@ -209,23 +157,6 @@ export function AcademicReportSection({
       {hasDoc && persisted && (
         <ReportBody summary={persisted} theme={theme} />
       )}
-
-      <AlertDialog open={regenOpen} onOpenChange={setRegenOpen}>
-        <AlertDialogContent className={theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : ''}>
-          <AlertDialogHeader>
-            <AlertDialogTitle className={theme === 'dark' ? 'text-white' : ''}>
-              ¿Regenerar reporte académico?
-            </AlertDialogTitle>
-            <AlertDialogDescription className={theme === 'dark' ? 'text-zinc-400' : ''}>
-              ¿Estás seguro? Esto reemplazará el reporte actual y volverá a usar el modelo de IA para esta fase.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleRegenerateConfirm()}>Regenerar</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
