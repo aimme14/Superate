@@ -66,6 +66,24 @@ async function studentSummaryAuthHeaders(): Promise<HeadersInit> {
 
 
 
+/** JWT con custom claims actualizados (p. ej. `role: teacher`) antes de callables. */
+
+async function ensureCallableAuthToken(): Promise<void> {
+
+  const user = authService.auth.currentUser;
+
+  if (!user) {
+
+    throw new Error('Debes iniciar sesión para usar el resumen académico.');
+
+  }
+
+  await user.getIdToken(true);
+
+}
+
+
+
 /**
 
  * Resumen académico generado por IA
@@ -77,6 +95,9 @@ export interface AcademicSummary {
   resumen_general: string;
 
   analisis_competencial: string | Record<string, string>;
+
+  /** Fase III (v2): texto continuo formal; opcional en documentos antiguos */
+  sintesis_institucional?: string;
 
   fortalezas_academicas: string[];
 
@@ -128,6 +149,14 @@ export interface PersistedSummary {
 
     gradeId?: string;
 
+    /** Nombre de sede / campus */
+
+    sede?: string;
+
+    /** Jornada (Mañana, Tarde, Única, …) */
+
+    jornada?: string;
+
   };
 
   metricasGlobales?: {
@@ -143,6 +172,12 @@ export interface PersistedSummary {
     temasDebiles: { materia: string; tema: string; puntaje: number }[];
 
     nivelGeneralDesempeno: string;
+
+    /** Puntaje por materia (PDF / informes); opcional en documentos antiguos */
+    resumenPorMateria?: { materia: string; puntaje: number; nivel: string }[];
+
+    /** Todos los ejes evaluados por materia (PDF); opcional en documentos anteriores a este campo */
+    ejesEvaluados?: { materia: string; tema: string; puntaje: number }[];
 
   };
 
@@ -274,6 +309,8 @@ export async function callGenerateStudentAcademicSummary(
 
 ): Promise<unknown> {
 
+  await ensureCallableAuthToken();
+
   const f = getFunctions(firebaseApp, STUDENT_SUMMARY_FUNCTIONS_REGION);
 
   const fn = httpsCallable<
@@ -305,6 +342,8 @@ export async function callGetStudentAcademicSummaryPdfUrl(
   phase: 'first' | 'second' | 'third'
 
 ): Promise<string> {
+
+  await ensureCallableAuthToken();
 
   const f = getFunctions(firebaseApp, STUDENT_SUMMARY_FUNCTIONS_REGION);
 

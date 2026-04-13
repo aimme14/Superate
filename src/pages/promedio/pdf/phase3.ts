@@ -162,6 +162,37 @@ export const generatePhase3PDFHTML = (
   };
 
   const evolutionSVG = phase1Subjects && phase2Subjects ? generateEvolutionChartSVG() : null;
+
+  const acRaw = summary?.resumen?.analisis_competencial;
+  let resumenAnalisisHtml = '';
+  if (acRaw) {
+    if (typeof acRaw === 'string' && acRaw.trim()) {
+      resumenAnalisisHtml = `
+        <div class="section">
+          <h2>Análisis competencial</h2>
+          <p>${acRaw}</p>
+        </div>`;
+    } else if (typeof acRaw === 'object' && acRaw !== null) {
+      const parts = Object.entries(acRaw as Record<string, string>)
+        .map(([materia, texto]) => `<h3>${materia}</h3><p style="text-align: justify;">${texto}</p>`)
+        .join('');
+      resumenAnalisisHtml = `
+        <div class="section">
+          <h2>Análisis competencial</h2>
+          ${parts}
+        </div>`;
+    }
+  }
+  const sint = summary?.resumen?.sintesis_institucional;
+  const resumenSintesisHtml =
+    typeof sint === 'string' && sint.trim()
+      ? `
+        <div class="section">
+          <h2>Síntesis institucional</h2>
+          <p style="text-align: justify;">${sint}</p>
+        </div>`
+      : '';
+
   return `
     <!DOCTYPE html>
     <html>
@@ -711,6 +742,9 @@ export const generatePhase3PDFHTML = (
           <h2>Resumen General</h2>
           <p>${summary.resumen.resumen_general}</p>
         </div>
+
+        ${resumenAnalisisHtml}
+        ${resumenSintesisHtml}
 
         <!-- Fortalezas Académicas -->
         <div class="section fortalezas">

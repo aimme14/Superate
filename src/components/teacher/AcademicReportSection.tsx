@@ -213,6 +213,22 @@ function ReportBody({ summary, theme }: { summary: PersistedSummary; theme: 'lig
         </section>
       ) : null}
 
+      {r.sintesis_institucional?.trim() ? (
+        <section>
+          <h3 className={cn('text-sm font-semibold mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            Síntesis institucional
+          </h3>
+          <p
+            className={cn(
+              'text-sm leading-relaxed whitespace-pre-wrap',
+              theme === 'dark' ? 'text-zinc-300' : 'text-gray-700'
+            )}
+          >
+            {r.sintesis_institucional}
+          </p>
+        </section>
+      ) : null}
+
       {r.fortalezas_academicas?.length ? (
         <section>
           <h3 className={cn('text-sm font-semibold mb-2', theme === 'dark' ? 'text-white' : 'text-gray-900')}>

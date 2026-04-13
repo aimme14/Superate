@@ -1,6 +1,23 @@
 /**
- * Prompts por fase para el resumen académico con IA (sin condicionales de fase mezclados).
- * Separado del servicio para mantenibilidad y medición de tamaño.
+ * Prompts por fase para el resumen académico con IA.
+ *
+ * CAMBIOS v2 respecto a la versión anterior:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. Fase I: el bloque de materias ya NO envía puntajes numéricos crudos ni
+ *    conteos de correctas/total. Solo descripciones cualitativas pre-interpretadas.
+ *    → El modelo genera insight pedagógico en lugar de repetir números.
+ *
+ * 2. Fase I: se agrega REGLA CRÍTICA anti-redundancia entre resumen_general y
+ *    analisis_competencial.
+ *
+ * 3. Fase II: el contexto de Fase I se reduce a lo imprescindible para la comparación;
+ *    no se incluye el análisis largo de IA de Fase I (evita parafraseo).
+ *
+ * 4. Fase III: analisis_competencial como objeto por materia (consistencia con
+ *    Fases I y II). Se agrega sintesis_institucional para el texto continuo formal.
+ *
+ * 5. formatPhase1MateriasBlock → cualitativo (formatPhase1MateriasBlockQualitative).
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 /** Subconjunto de métricas usado en los prompts (alineado con GlobalMetrics del servicio) */
@@ -17,14 +34,11 @@ export interface PromptGlobalMetrics {
   };
 }
 
-/** Regla MCER / Inglés — referencia única en todos los prompts */
-export const INGLES_MCER_RULE = `Inglés: enfócate solo en el nivel MCER (A1–C2); identifica el nivel y explícalo en lenguaje claro. Prohibido referirse a "prueba 1", "pruebas del 1 al 7" o numeración de ítems.`;
-
-/** Pie de formato JSON compartido (estructura esperada por el parser del servicio) */
-export const JSON_OUTPUT_CLOSING = `Responde ÚNICAMENTE con un objeto JSON válido (sin markdown fuera del JSON).`;
-
-// --- Tipos locales para payloads serializados en el prompt ---
-
+/**
+ * Payload por materia para Fase I.
+ * puntaje y conteos se usan internamente para derivar etiquetas;
+ * NO se serializan directamente en el prompt (ver formatPhase1MateriasBlockQualitative).
+ */
 export interface MateriaPhase1Payload {
   materia: string;
   nivel: string;
@@ -43,11 +57,7 @@ export interface MateriaPhase1Payload {
   patronesTiempo?: { impulsividad: number; dificultadCognitiva: number };
 }
 
-/**
- * Payload por materia **solo para Fase II y III** (lo que se envía al modelo).
- * No incluye puntajes numéricos, tiempos, temasDetallados ni conteos: únicamente
- * nivel global de la materia y mapa tema/competencia → nivel cualitativo.
- */
+/** Payload reducido para Fase II y III — solo nivel cualitativo y competencias */
 export interface MateriaPhase23Payload {
   materia: string;
   nivel: string;
@@ -75,66 +85,115 @@ export interface PreviousPhaseBundle {
   };
 }
 
-function formatPhase1MateriasBlock(rows: MateriaPhase1Payload[]): string {
-  return rows
-    .map(
-      (r) => `**${r.materia}**
-- Nivel de desempeño: ${r.nivel} (Puntaje: ${r.puntaje.toFixed(1)}%)
-- Competencias/Temas evaluados:
-${r.temasDetallados
-  .map(
-    (t) =>
-      `  • ${t.tema}: ${t.puntaje.toFixed(1)}% (${t.correctas}/${t.totalPreguntas} correctas)${t.tiempoPromedioSegundos ? ` - Tiempo promedio: ${t.tiempoPromedioSegundos.toFixed(1)}s` : ''}${t.patronTiempo ? ` - Patrón: ${t.patronTiempo === 'impulsivo' ? 'Impulsividad (respuestas rápidas e incorrectas)' : t.patronTiempo === 'dificultad_cognitiva' ? 'Dificultad cognitiva (respuestas lentas e incorrectas)' : 'Normal'}` : ''}`
-  )
-  .join('\n')}
-${r.tiempoPromedioPorPregunta ? `- Tiempo promedio por pregunta: ${r.tiempoPromedioPorPregunta.toFixed(1)} segundos` : ''}
-${r.patronesTiempo ? `- Patrones de tiempo: ${r.patronesTiempo.impulsividad.toFixed(1)}% impulsividad, ${r.patronesTiempo.dificultadCognitiva.toFixed(1)}% dificultad cognitiva` : ''}`
-    )
-    .join('\n');
+export const INGLES_MCER_RULE =
+  'Inglés: enfócate exclusivamente en el nivel MCER (A1–C2). ' +
+  'Identifica el nivel, explícalo en lenguaje claro para la familia y sugiere la ruta de avance al siguiente nivel. ' +
+  'Prohibido referirse a "prueba 1", "pruebas del 1 al 7" o numeración de ítems.';
+
+export const JSON_OUTPUT_CLOSING =
+  'Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin texto fuera del JSON).';
+
+/** Convierte un puntaje numérico a descripción de severidad cualitativa. */
+function severityLabel(pct: number): string {
+  if (pct >= 80) return 'área consolidada (nivel Superior)';
+  if (pct >= 60) return 'buen dominio con oportunidades puntuales (nivel Alto)';
+  if (pct >= 40) return 'comprensión parcial, requiere refuerzo (nivel Básico)';
+  if (pct >= 35) return 'debilidad leve — muy cerca del umbral Básico (nivel Bajo)';
+  if (pct > 0) return 'debilidad estructural — fundamentos por construir (nivel Bajo)';
+  return 'sin aciertos registrados — intervención inmediata (nivel Bajo)';
+}
+
+function patronLabel(patron?: string): string {
+  if (patron === 'impulsivo') return 'respuestas rápidas e incorrectas (impulsividad)';
+  if (patron === 'dificultad_cognitiva') return 'respuestas lentas e incorrectas (dificultad cognitiva)';
+  return 'tiempo de respuesta normal';
 }
 
 /**
- * Serializa únicamente { materia, nivel, competencias } por materia (nada más llega al modelo).
+ * Serializa Fase I en formato cualitativo (sin % ni fracciones crudas en el prompt).
+ */
+function formatPhase1MateriasBlockQualitative(rows: MateriaPhase1Payload[]): string {
+  return rows
+    .map((r) => {
+      const temas = r.temasDetallados
+        .map((t) => {
+          const sev = severityLabel(t.puntaje);
+          const patronInfo = t.patronTiempo ? ` | patrón: ${patronLabel(t.patronTiempo)}` : '';
+          return `  • ${t.tema}: ${sev}${patronInfo}`;
+        })
+        .join('\n');
+
+      const impPct = r.patronesTiempo?.impulsividad ?? 0;
+      const difPct = r.patronesTiempo?.dificultadCognitiva ?? 0;
+      let patronGlobal = '';
+      if (impPct > 15) {
+        patronGlobal = `\n- Patrón global: impulsividad marcada (afecta ${
+          impPct > 50 ? 'más de la mitad' : 'parte considerable'
+        } de las respuestas)`;
+      } else if (difPct > 15) {
+        patronGlobal = '\n- Patrón global: dificultad cognitiva (tiempo elevado en respuestas incorrectas)';
+      }
+
+      return (
+        `**${r.materia}** — Nivel general: ${r.nivel}` +
+        `\nTemas evaluados:\n${temas}` +
+        patronGlobal
+      );
+    })
+    .join('\n\n');
+}
+
+/**
+ * Serializa Fase II / III: materia, nivel global y competencias (sin puntajes).
  */
 export function formatPhase23MateriasBlock(rows: MateriaPhase23Payload[]): string {
   return rows
     .map((r) =>
-      JSON.stringify(
-        {
-          materia: r.materia,
-          nivel: r.nivel,
-          competencias: r.competencias,
-        },
-        null,
-        2
-      )
+      JSON.stringify({ materia: r.materia, nivel: r.nivel, competencias: r.competencias }, null, 2)
     )
     .join('\n\n');
 }
 
 function formatGlobalMetricsPhase1(gm: PromptGlobalMetrics): string {
-  let s = `- Nivel general de desempeño: ${gm.nivelGeneralDesempeno}
-- Materias con desempeño favorable: ${gm.materiasFuertes.join(', ') || 'Ninguna'}
-- Materias que requieren fortalecimiento: ${gm.materiasDebiles.join(', ') || 'Ninguna'}`;
+  let s =
+    `- Nivel general: ${gm.nivelGeneralDesempeno}\n` +
+    `- Materias con desempeño favorable: ${gm.materiasFuertes.join(', ') || 'Ninguna'}\n` +
+    `- Materias que requieren fortalecimiento: ${gm.materiasDebiles.join(', ') || 'Ninguna'}`;
+
   if (gm.debilidadesLeves.length > 0) {
-    s += `\n- Debilidades leves (35-39%): ${gm.debilidadesLeves.map((d) => `${d.materia} - ${d.tema} (${d.puntaje.toFixed(1)}%)`).join(', ')}`;
+    s +=
+      '\n- Debilidades leves (cerca del umbral Básico): ' +
+      gm.debilidadesLeves.map((d) => `${d.materia} — ${d.tema}`).join(', ');
   }
   if (gm.debilidadesEstructurales.length > 0) {
-    s += `\n- Debilidades estructurales (<35%): ${gm.debilidadesEstructurales.map((d) => `${d.materia} - ${d.tema} (${d.puntaje.toFixed(1)}%)`).join(', ')}`;
+    s +=
+      '\n- Debilidades estructurales (sin base conceptual): ' +
+      gm.debilidadesEstructurales.map((d) => `${d.materia} — ${d.tema}`).join(', ');
   }
   if (gm.patronesGlobalesTiempo) {
-    s += `\n- Patrones globales de tiempo:
-  • Tiempo promedio por pregunta: ${gm.patronesGlobalesTiempo.promedioGeneralSegundos.toFixed(1)} s
-  • Impulsividad (rápidas e incorrectas): ${gm.patronesGlobalesTiempo.porcentajeImpulsividad.toFixed(1)}%
-  • Dificultad cognitiva (lentas e incorrectas): ${gm.patronesGlobalesTiempo.porcentajeDificultadCognitiva.toFixed(1)}%`;
+    const p = gm.patronesGlobalesTiempo;
+    s += '\n- Patrones de tiempo globales:';
+    if (p.porcentajeImpulsividad > 10) {
+      s += `\n  • Impulsividad significativa (respuestas rápidas e incorrectas) — ${
+        p.porcentajeImpulsividad > 50 ? 'mayoría' : 'parte importante'
+      } de las preguntas`;
+    }
+    if (p.porcentajeDificultadCognitiva > 10) {
+      s += '\n  • Dificultad cognitiva (respuestas lentas e incorrectas) detectada';
+    }
+    if (p.porcentajeImpulsividad <= 10 && p.porcentajeDificultadCognitiva <= 10) {
+      s += '\n  • Sin patrones de tiempo problemáticos';
+    }
   }
   return s;
 }
 
 function formatGlobalMetricsPhase23(gm: PromptGlobalMetrics): string {
-  return `- Nivel general de desempeño: ${gm.nivelGeneralDesempeno}
-- Materias con desempeño favorable: ${gm.materiasFuertes.join(', ') || 'Ninguna'}
-- Materias que requieren fortalecimiento: ${gm.materiasDebiles.join(', ') || 'Ninguna'}`;
+  return (
+    `- Nivel general: ${gm.nivelGeneralDesempeno}\n` +
+    `- Materias con desempeño favorable: ${gm.materiasFuertes.join(', ') || 'Ninguna'}\n` +
+    `- Materias que requieren fortalecimiento: ${gm.materiasDebiles.join(', ') || 'Ninguna'}`
+  );
 }
 
 function buildJustificacionPedagogicaTemplate(gm: PromptGlobalMetrics): string {
@@ -144,21 +203,25 @@ function buildJustificacionPedagogicaTemplate(gm: PromptGlobalMetrics): string {
   const lev = gm.debilidadesLeves.length > 0;
 
   const parts: string[] = [];
-  if (imp) parts.push(`"impulsividad": ["Estrategia 1…", "Estrategia 2…"]`);
-  if (dif) parts.push(`"dificultad_cognitiva": ["Estrategia 1…", "Estrategia 2…"]`);
+  if (imp) parts.push(`"impulsividad": ["Estrategia 1 concreta…", "Estrategia 2 concreta…"]`);
+  if (dif) parts.push(`"dificultad_cognitiva": ["Estrategia 1 concreta…", "Estrategia 2 concreta…"]`);
   if (est) parts.push(`"debilidades_estructurales": ["Estrategia 1…", "Estrategia 2…"]`);
   if (lev) parts.push(`"debilidades_leves": ["Estrategia 1…", "Estrategia 2…"]`);
-  const estrategiasInner = parts.length ? parts.join(',\n      ') : '';
+
+  const estrategiasBlock =
+    parts.length > 0
+      ? `,\n    "estrategias_por_patron": {\n      ${parts.join(',\n      ')}\n    }`
+      : '';
 
   return `"justificacion_pedagogica": {
     "contenidos_prioritarios": [
       {
         "materia": "Nombre de la materia",
-        "tema": "Nombre del tema/competencia",
-        "justificacion": "Fundamenta por qué se prioriza (40-60 palabras): severidad, impacto, estándares del grado, patrones de tiempo.",
-        "tipo_actividad_recomendada": "Tipo de actividad más efectiva según el patrón (20-30 palabras)."
+        "tema": "Nombre del tema",
+        "justificacion": "Por qué se prioriza: severidad, impacto en Saber 11, patrón de tiempo asociado (40-60 palabras).",
+        "tipo_actividad_recomendada": "Tipo de actividad más efectiva según el patrón detectado (20-30 palabras)."
       }
-    ]${estrategiasInner ? `,\n    "estrategias_por_patron": {\n      ${estrategiasInner}\n    }` : ''}
+    ]${estrategiasBlock}
   }`;
 }
 
@@ -171,132 +234,165 @@ export function buildPhase1Prompt(params: {
 }): string {
   const { materiasData, globalMetrics, academicContext, materiasLista } = params;
 
-  return `Actúa como doctor en educación, especialista en diagnóstico pedagógico y evaluación tipo ICFES/Saber 11. Tu enfoque es comprender el perfil de desempeño para fundamentar la intervención.
+  return `Eres un doctor en educación especialista en diagnóstico pedagógico y evaluación tipo ICFES/Saber 11.
+Tu rol es generar un informe diagnóstico que oriente la intervención docente y comunique con claridad a las familias.
+Redacción: técnica pero comprensible; explica términos como "competencias", "desempeño", "nivel MCER" la primera vez que los uses.
 
-Incluye competencias del ICFES, diagnóstico integral, patrones de tiempo (impulsividad vs dificultad cognitiva), estándares por grado e intervención pedagógica.
+═══════════════════════════════════════════════════════
+CONTEXTO
+═══════════════════════════════════════════════════════
+Fase evaluativa: Fase I (diagnóstico inicial)
+${academicContext.grado ? `Grado: ${academicContext.grado}` : ''}
 
-Redacción: técnica y comprensible para familias; explica términos como "competencias" o "desempeño".
+═══════════════════════════════════════════════════════
+PERFIL POR MATERIA — Fase I
+═══════════════════════════════════════════════════════
+${formatPhase1MateriasBlockQualitative(materiasData)}
 
-═══════════════════════════════════════════════════════════════
-CONTEXTO ACADÉMICO
-═══════════════════════════════════════════════════════════════
-Fase evaluativa ACTUAL: Fase I
-${academicContext.grado ? `Grado: ${academicContext.grado}` : 'Grado: No especificado'}
-
-═══════════════════════════════════════════════════════════════
-RESULTADOS POR MATERIA — Fase I
-═══════════════════════════════════════════════════════════════
-${formatPhase1MateriasBlock(materiasData)}
-
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 MÉTRICAS GLOBALES — Fase I
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 ${formatGlobalMetricsPhase1(globalMetrics)}
 
-═══════════════════════════════════════════════════════════════
-INSTRUCCIONES — Fase I (diagnóstico)
-═══════════════════════════════════════════════════════════════
-- Basa el análisis solo en Fase I. No compares con otros estudiantes.
-- Usa porcentajes internamente para razonar; en el texto para familia prioriza lenguaje cualitativo.
-- Diferencia debilidades leves (35-39%) vs estructurales (<35%).
-- Interpreta patrones de tiempo e indica tipos de actividad más efectivos según el patrón.
-- ${INGLES_MCER_RULE}
-- Sin saludos ni despedidas; sin lenguaje clínico.
-- "analisis_competencial" debe ser un objeto JSON con exactamente una clave por materia (${materiasLista}); cada valor es el análisis de esa materia.
+═══════════════════════════════════════════════════════
+REGLAS OBLIGATORIAS
+═══════════════════════════════════════════════════════
+1. ANTI-REDUNDANCIA: "resumen_general" describe SOLO tendencias globales (nivel general, patrón de tiempo dominante, distribución de fortalezas). NO menciona materias específicas ni temas concretos; esos detalles van exclusivamente en "analisis_competencial".
+2. "analisis_competencial" es un objeto con una clave por materia (${materiasLista}). Cada valor analiza ESA materia: qué competencias dominó, cuáles le fallan, qué patrón de tiempo se observa y qué tipo de actividad sería más efectiva. Sin mencionar puntajes exactos en el texto.
+3. ${INGLES_MCER_RULE}
+4. No compares con otros estudiantes. Sin saludos ni despedidas. Sin lenguaje clínico.
+5. Diferencia debilidades leves (cerca del umbral básico) de estructurales (sin base conceptual) — y propón distintas estrategias para cada tipo.
 
-═══════════════════════════════════════════════════════════════
-FORMATO DE RESPUESTA (JSON)
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
+FORMATO JSON ESPERADO
+═══════════════════════════════════════════════════════
 {
-  "resumen_general": "150-200 palabras. Visión global del estado en las 7 materias (orden sugerido: Biología, Ciencias Sociales, Física, Matemáticas, Química, Lenguaje, Inglés con nivel MCER). Sin listar temas finos; cierra con compromiso de estudio.",
-  "analisis_competencial": { "Matemáticas": "…", "Lenguaje": "…", "Ciencias Sociales": "…", "Biologia": "…", "Quimica": "…", "Física": "…", "Inglés": "…" },
-  "fortalezas_academicas": ["…", "…", "…"],
-  "aspectos_por_mejorar": ["…", "…", "…"],
-  "recomendaciones_enfoque_saber11": ["…", "…", "…"],
+  "resumen_general": "120-150 palabras. Tendencia global únicamente: nivel general, patrón de tiempo dominante, distribución entre áreas. Cierra con frase motivadora orientada al estudio estratégico. Sin mencionar materias o temas específicos.",
+
+  "analisis_competencial": {
+    "Matemáticas": "80-110 palabras: competencias dominadas, vacíos detectados, patrón de tiempo si aplica, actividad recomendada.",
+    "Lenguaje": "80-110 palabras",
+    "Ciencias Sociales": "80-110 palabras",
+    "Biologia": "80-110 palabras",
+    "Quimica": "80-110 palabras",
+    "Física": "80-110 palabras",
+    "Inglés": "80-110 palabras — incluye nivel MCER y ruta al siguiente nivel"
+  },
+
+  "fortalezas_academicas": [
+    "Fortaleza 1 (tema específico + materia + descripción breve del dominio demostrado)",
+    "Fortaleza 2",
+    "Fortaleza 3"
+  ],
+
+  "aspectos_por_mejorar": [
+    "Aspecto 1 (qué mejorar + por qué importa para Saber 11)",
+    "Aspecto 2",
+    "Aspecto 3"
+  ],
+
+  "recomendaciones_enfoque_saber11": [
+    "Recomendación 1 — acción concreta y aplicable",
+    "Recomendación 2",
+    "Recomendación 3"
+  ],
+
   ${buildJustificacionPedagogicaTemplate(globalMetrics)}
 }
 
-${JSON_OUTPUT_CLOSING}
-
-Genera el JSON del análisis completo de Fase I.`;
+${JSON_OUTPUT_CLOSING}`;
 }
 
-/** Fase II — comparación con Fase I */
+/** Fase II — comparación con Fase I (contexto compacto de Fase I, sin análisis IA completo) */
 export function buildPhase2Prompt(params: {
   materiasData: MateriaPhase23Payload[];
   globalMetrics: PromptGlobalMetrics;
   academicContext: AcademicContextPrompt;
   materiasLista: string;
   previousPhase: PreviousPhaseBundle;
-  comparativeContextBlock: string;
-  phase1AnalysisBlock: string;
 }): string {
-  const {
-    materiasData,
-    globalMetrics,
-    academicContext,
-    materiasLista,
-    previousPhase,
-    comparativeContextBlock,
-    phase1AnalysisBlock,
-  } = params;
+  const { materiasData, globalMetrics, academicContext, materiasLista, previousPhase } = params;
 
   const debiles = previousPhase.metrics.materiasDebiles;
   const debilesStr = debiles.length ? debiles.join(', ') : 'ninguna';
 
-  const reglaPrimeraOracionFaseII =
+  const impRaw = previousPhase.metrics.patronesGlobalesTiempo?.porcentajeImpulsividad ?? 0;
+  const phase1ContextCompact = [
+    `Nivel general en Fase I: ${previousPhase.metrics.nivelGeneralDesempeno}`,
+    `Materias débiles en Fase I: ${debilesStr}`,
+    previousPhase.metrics.debilidadesEstructurales.length > 0
+      ? `Vacíos estructurales en Fase I: ${previousPhase.metrics.debilidadesEstructurales
+          .slice(0, 4)
+          .map((d) => `${d.materia}/${d.tema}`)
+          .join(', ')}`
+      : '',
+    impRaw > 20 ? 'Patrón dominante en Fase I: impulsividad' : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const reglaPrimeraOracion =
     debiles.length > 0
-      ? `REGLA ÚNICA (materias débiles en Fase I: ${debilesStr}): en analisis_competencial, el texto de cada una de esas materias debe empezar declarando de forma explícita si el desempeño mejoró, se mantuvo o empeoró respecto a Fase I; no repitas el nombre de la materia (ya es la clave del JSON). Varía la redacción entre materias. Si hubo mejora, incluye un reconocimiento breve. Si se mantuvo o empeoró, enfoca en hábitos de estudio y dedicación, no en culpar el plan.`
+      ? `REGLA — materias débiles en Fase I (${debilesStr}): en "analisis_competencial", el texto de CADA UNA de esas materias debe comenzar declarando explícitamente si el desempeño mejoró, se mantuvo o empeoró respecto a Fase I. Varía la redacción entre materias. Si mejoró: reconocimiento breve. Si se mantuvo o empeoró: énfasis en hábitos y estrategia, sin culpar el plan de estudio.`
       : '';
 
-  return `Actúa como doctor en educación, especialista en evaluación ICFES/Saber 11. Comunica con claridad a familias: explica "competencias (habilidades)", "desempeño (rendimiento)", niveles con glosas (Superior=excelente, etc.).
+  return `Eres un doctor en educación especialista en evaluación ICFES/Saber 11.
+Comunica con claridad a familias: explica términos técnicos entre paréntesis la primera vez.
 
-═══════════════════════════════════════════════════════════════
-CONTEXTO ACADÉMICO
-═══════════════════════════════════════════════════════════════
-Fase evaluativa ACTUAL: Fase II
+═══════════════════════════════════════════════════════
+CONTEXTO
+═══════════════════════════════════════════════════════
+Fase evaluativa: Fase II (seguimiento y comparación)
 ${academicContext.grado ? `Grado: ${academicContext.grado}` : ''}
 
-${comparativeContextBlock}
-${phase1AnalysisBlock}
+REFERENCIA FASE I (usar solo para comparación — no reproducir):
+${phase1ContextCompact}
+⚠️ No copies ni parafrasees el análisis narrativo completo de Fase I. Genera análisis nuevo basado en los resultados de Fase II.
 
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 RESULTADOS POR MATERIA — Fase II
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 ${formatPhase23MateriasBlock(materiasData)}
 
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 MÉTRICAS GLOBALES — Fase II
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 ${formatGlobalMetricsPhase23(globalMetrics)}
 
-═══════════════════════════════════════════════════════════════
-INSTRUCCIONES — Fase II
-═══════════════════════════════════════════════════════════════
-- Análisis principalmente en resultados de Fase II; el contexto de Fase I es para comparación explícita donde aplique.
-- ${reglaPrimeraOracionFaseII ? `${reglaPrimeraOracionFaseII}\n- ` : ''}Evita redundancia entre resumen_general y analisis_competencial.
-- ${INGLES_MCER_RULE}
-- Sin puntajes numéricos explícitos en el texto; sin comparar con otros estudiantes; sin saludos.
+═══════════════════════════════════════════════════════
+REGLAS OBLIGATORIAS
+═══════════════════════════════════════════════════════
+1. ANTI-REDUNDANCIA: "resumen_general" y "analisis_competencial" no deben repetir los mismos puntos. El resumen describe la tendencia general de Fase II vs Fase I; el análisis entra al detalle por materia.
+2. ${reglaPrimeraOracion ? `${reglaPrimeraOracion}\n3. ` : ''}${INGLES_MCER_RULE}
+${reglaPrimeraOracion ? '4.' : '3.'} Sin puntajes numéricos explícitos en el texto. Sin comparar con otros estudiantes. Sin saludos.
 
-═══════════════════════════════════════════════════════════════
-FORMATO DE RESPUESTA (JSON)
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
+FORMATO JSON ESPERADO
+═══════════════════════════════════════════════════════
 {
-  "resumen_general": "≈100 palabras en 3 párrafos: (1) propósito de Fase II y tendencia general vs Fase I; (2) mención de materias que eran débiles (${debilesStr}) y si mejoraron/se mantuvieron/empeoraron; (3) cierre sobre dedicación o reconocimiento.",
-  "analisis_competencial": { "Matemáticas": "70-100 palabras", "Lenguaje": "…", "Ciencias Sociales": "…", "Biologia": "…", "Quimica": "…", "Física": "…", "Inglés": "…" },
-  "fortalezas_academicas": ["…", "…"],
-  "aspectos_por_mejorar": ["…", "…"],
-  "recomendaciones_enfoque_saber11": ["…", "…"]
+  "resumen_general": "~100 palabras en 2-3 párrafos: (1) tendencia general de Fase II; (2) evolución de las materias débiles (${debilesStr}) — mejora, estabilidad o retroceso; (3) cierre motivador o de reconocimiento según el caso.",
+
+  "analisis_competencial": {
+    "Matemáticas": "70-100 palabras: estado actual en Fase II + comparación puntual con Fase I si aplica.",
+    "Lenguaje": "70-100 palabras",
+    "Ciencias Sociales": "70-100 palabras",
+    "Biologia": "70-100 palabras",
+    "Quimica": "70-100 palabras",
+    "Física": "70-100 palabras",
+    "Inglés": "70-100 palabras — nivel MCER actual y avance o retroceso vs Fase I"
+  },
+
+  "fortalezas_academicas": ["Fortaleza 1", "Fortaleza 2"],
+  "aspectos_por_mejorar": ["Aspecto 1", "Aspecto 2"],
+  "recomendaciones_enfoque_saber11": ["Recomendación 1", "Recomendación 2"]
 }
 
-Incluye obligatoriamente las 7 materias en analisis_competencial: ${materiasLista}.
+Incluye obligatoriamente las 7 materias en "analisis_competencial": ${materiasLista}.
 
-${JSON_OUTPUT_CLOSING}
-
-Genera el JSON del análisis completo de Fase II.`;
+${JSON_OUTPUT_CLOSING}`;
 }
 
-/** Fase III — informe estilo Saber / trayectoria */
+/** Fase III — informe estilo Saber 11 / trayectoria */
 export function buildPhase3Prompt(params: {
   materiasData: MateriaPhase23Payload[];
   globalMetrics: PromptGlobalMetrics;
@@ -306,48 +402,61 @@ export function buildPhase3Prompt(params: {
 }): string {
   const { materiasData, globalMetrics, academicContext, materiasLista, trajectoryBlock } = params;
 
-  return `Eres un evaluador con enfoque institucional ICFES / Ministerio de Educación. Informe riguroso, formal y comprensible para familias; explica términos técnicos brevemente.
+  return `Eres un evaluador institucional con enfoque ICFES / Ministerio de Educación.
+Redacta un informe riguroso, formal y comprensible para familias. Explica brevemente los términos técnicos.
 
-═══════════════════════════════════════════════════════════════
-CONTEXTO ACADÉMICO
-═══════════════════════════════════════════════════════════════
-Fase evaluativa ACTUAL: Fase III
+═══════════════════════════════════════════════════════
+CONTEXTO
+═══════════════════════════════════════════════════════
+Fase evaluativa: Fase III (informe final — proyección Saber 11)
 ${academicContext.grado ? `Grado: ${academicContext.grado}` : ''}
 
 ${trajectoryBlock}
 
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 RESULTADOS POR MATERIA — Fase III
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 ${formatPhase23MateriasBlock(materiasData)}
 
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 MÉTRICAS GLOBALES — Fase III
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
 ${formatGlobalMetricsPhase23(globalMetrics)}
 
-═══════════════════════════════════════════════════════════════
-INSTRUCCIONES — Fase III
-═══════════════════════════════════════════════════════════════
-- Simula rigor de informe oficial Saber 11: competencias, niveles, coherencia entre áreas, preparación para prueba oficial.
-- Integra la trayectoria Fase I → II → III sin citar puntajes numéricos explícitos.
-- ${INGLES_MCER_RULE}
-- Sin comparar con otros estudiantes; sin lenguaje clínico; sin saludos.
+═══════════════════════════════════════════════════════
+REGLAS OBLIGATORIAS
+═══════════════════════════════════════════════════════
+1. Integra la trayectoria Fase I → II → III de forma narrativa, sin citar puntajes numéricos explícitos.
+2. "analisis_competencial" es un objeto con una clave por materia — igual que en Fases I y II: análisis breve por área y trayectoria.
+3. "sintesis_institucional" es el texto continuo formal estilo informe Saber (300-400 palabras), voz institucional; no repitas listado por materia (eso va en analisis_competencial).
+4. "resumen_general" es síntesis breve (150-200 palabras): estado tras las tres fases y posicionamiento frente a Saber 11; no dupliques la síntesis institucional completa.
+5. ${INGLES_MCER_RULE}
+6. Sin comparar con otros estudiantes. Sin saludos ni despedidas.
 
-═══════════════════════════════════════════════════════════════
-FORMATO DE RESPUESTA (JSON)
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
+FORMATO JSON ESPERADO
+═══════════════════════════════════════════════════════
 {
-  "resumen_general": "300-400 palabras: estado tras Fase I y II, condición frente a Saber 11, síntesis integral.",
-  "analisis_competencial": "300-400 palabras: texto continuo institucional (puede usar términos técnicos explicados).",
-  "fortalezas_academicas": ["…", "…"],
-  "aspectos_por_mejorar": ["…", "…"],
-  "recomendaciones_enfoque_saber11": ["…", "…"]
+  "resumen_general": "150-200 palabras: estado final tras las tres fases, posicionamiento frente a Saber 11, trayectoria global (sin repetir el detalle por materia).",
+
+  "analisis_competencial": {
+    "Matemáticas": "80-100 palabras: trayectoria y estado final en Fase III.",
+    "Lenguaje": "80-100 palabras",
+    "Ciencias Sociales": "80-100 palabras",
+    "Biologia": "80-100 palabras",
+    "Quimica": "80-100 palabras",
+    "Física": "80-100 palabras",
+    "Inglés": "80-100 palabras — nivel MCER final y proyección"
+  },
+
+  "sintesis_institucional": "300-400 palabras en texto continuo formal. Integra competencias, niveles, coherencia entre áreas y preparación para Saber 11. Puede usar términos técnicos con explicación breve.",
+
+  "fortalezas_academicas": ["Fortaleza 1", "Fortaleza 2", "Fortaleza 3"],
+  "aspectos_por_mejorar": ["Aspecto 1", "Aspecto 2"],
+  "recomendaciones_enfoque_saber11": ["Recomendación 1", "Recomendación 2", "Recomendación 3"]
 }
 
-${JSON_OUTPUT_CLOSING}
+Materias cubiertas: ${materiasLista}.
 
-Materias cubiertas en datos: ${materiasLista}.
-
-Genera el JSON del análisis completo de Fase III.`;
+${JSON_OUTPUT_CLOSING}`;
 }

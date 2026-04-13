@@ -1,8 +1,23 @@
 /**
  * Servicio de Resumen Académico del Estudiante
- * 
+ *
  * Genera resúmenes académicos estilo ICFES/Saber 11 con IA
- * basados en los resultados de las 7 evaluaciones del estudiante
+ * basados en los resultados de las 7 evaluaciones del estudiante.
+ *
+ * CAMBIOS v2 (métricas y persistencia):
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. `calculateGlobalMetrics`: un solo origen para % impulsividad / dificultad cognitiva
+ *    global — `NormalizedEvaluationResult.patronesTiempo` por evaluación. Se eliminó
+ *    la doble suma que mezclaba `temasDetallados.patronTiempo` con heurística 30%.
+ *
+ * 2. `normalizeEvaluationResults`: contadores enteros para preguntas rápidas/lentas
+ *    incorrectas; `patronesTiempo` por materia deriva de esos contadores / total.
+ *
+ * 3. `removeUndefinedValues`: además de quitar `undefined`, convierte `NaN` e
+ *    `Infinity` en `null` (Firestore no los soporta bien en todos los contextos).
+ *
+ * 4. Documentos nuevos usan `version: 'v2'`. Parser IA: `sintesis_institucional` opcional.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import * as dotenv from 'dotenv';
@@ -89,6 +104,8 @@ interface GlobalMetrics {
   temasFuertes: { materia: string; tema: string; puntaje: number }[];
   temasDebiles: { materia: string; tema: string; puntaje: number }[];
   nivelGeneralDesempeno: PerformanceLevel;
+  /** Puntaje por materia (0–100) para informes/PDF; añadido en v2 */
+  resumenPorMateria?: { materia: string; puntaje: number; nivel: PerformanceLevel }[];
   // Métricas adicionales para diagnóstico pedagógico
   debilidadesLeves: { materia: string; tema: string; puntaje: number }[]; // 35-39% (cerca de Básico)
   debilidadesEstructurales: { materia: string; tema: string; puntaje: number }[]; // <35% (muy por debajo)
@@ -97,6 +114,8 @@ interface GlobalMetrics {
     porcentajeImpulsividad: number;
     porcentajeDificultadCognitiva: number;
   };
+  /** Todos los ejes/temas evaluados por materia (incluye 60–69%, antes omitidos en fuertes/débiles) */
+  ejesEvaluados?: { materia: string; tema: string; puntaje: number }[];
 }
 
 /**
@@ -108,6 +127,73 @@ interface AcademicContext {
   institutionId?: string;
   sedeId?: string;
   gradeId?: string;
+  /** Nombre de sede / campus para informes (PDF) */
+  sede?: string;
+  /** Jornada escolar legible (Mañana, Tarde, Única, …) */
+  jornada?: string;
+}
+
+function pickSedeNombreFromUserData(
+  userData: admin.firestore.DocumentData | undefined
+): string | undefined {
+  if (!userData) return undefined;
+  const keys = ['campusName', 'sedeNombre', 'sedeName', 'nombreSede'] as const;
+  for (const k of keys) {
+    const v = userData[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function resolveSedeNombreFromInstitution(
+  institutionData: admin.firestore.DocumentData | undefined,
+  campusId: string | undefined
+): string | undefined {
+  if (!campusId || !institutionData?.campuses || !Array.isArray(institutionData.campuses)) {
+    return undefined;
+  }
+  const c = institutionData.campuses.find((campus: { id?: string }) => campus.id === campusId);
+  return typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : undefined;
+}
+
+function pickJornadaLabel(jornada: unknown): string | undefined {
+  if (typeof jornada !== 'string') return undefined;
+  const v = jornada.trim();
+  if (!v) return undefined;
+  const lower = v.toLowerCase();
+  if (lower === 'mañana' || lower === 'manana') return 'Mañana';
+  if (lower === 'tarde') return 'Tarde';
+  if (lower === 'única' || lower === 'unica') return 'Única';
+  return v.charAt(0).toUpperCase() + v.slice(1);
+}
+
+async function enrichContextWithSedeYJornada(
+  studentDb: admin.firestore.Firestore,
+  institutionId: string | undefined,
+  userData: admin.firestore.DocumentData | undefined,
+  context: AcademicContext
+): Promise<void> {
+  const campusId = (userData?.campusId || userData?.campus) as string | undefined;
+  let sedeNombre = pickSedeNombreFromUserData(userData);
+  if (!sedeNombre && campusId && institutionId) {
+    try {
+      const instSnap = await studentDb
+        .collection('superate')
+        .doc('auth')
+        .collection('institutions')
+        .doc(institutionId)
+        .get();
+      if (instSnap.exists) {
+        sedeNombre = resolveSedeNombreFromInstitution(instSnap.data(), campusId);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`⚠️ Error resolviendo nombre de sede: ${msg}`);
+    }
+  }
+  if (sedeNombre) context.sede = sedeNombre;
+  const j = pickJornadaLabel(userData?.jornada);
+  if (j) context.jornada = j;
 }
 
 /**
@@ -116,6 +202,8 @@ interface AcademicContext {
 interface AcademicSummary {
   resumen_general: string;
   analisis_competencial: string | { [materia: string]: string }; // Puede ser string (backward compatibility) o objeto por materias
+  /** Fase III: texto continuo formal (v2 prompts); opcional por compatibilidad con resúmenes antiguos */
+  sintesis_institucional?: string;
   fortalezas_academicas: string[];
   aspectos_por_mejorar: string[];
   recomendaciones_enfoque_saber11: string[];
@@ -324,11 +412,11 @@ class StudentSummaryService {
         const temas: { tema: string; puntaje: number; nivel: PerformanceLevel }[] = [];
         const temasDetallados: NormalizedEvaluationResult['temasDetallados'] = [];
         
-        // Variables para análisis de tiempo
+        // Variables para análisis de tiempo (contadores — fuente única para patronesTiempo por materia)
         let tiempoTotalSegundos = 0;
         let preguntasConTiempo = 0;
-        const preguntasRapidasIncorrectas: number[] = [];
-        const preguntasLentasIncorrectas: number[] = [];
+        let preguntasRapidasIncorrectas = 0;
+        let preguntasLentasIncorrectas = 0;
         
         if (evalData.questionDetails && Array.isArray(evalData.questionDetails)) {
           // Agrupar por tema con datos detallados
@@ -373,13 +461,13 @@ class StudentSummaryService {
               // Detectar patrones: rápida e incorrecta (impulsividad)
               if (!q.isCorrect && tiempoPregunta < tiempoRapido) {
                 topicStats[topic].rapidasIncorrectas++;
-                preguntasRapidasIncorrectas.push(tiempoPregunta);
+                preguntasRapidasIncorrectas++;
               }
-              
+
               // Detectar patrones: lenta e incorrecta (dificultad cognitiva)
               if (!q.isCorrect && tiempoPregunta > tiempoLento) {
                 topicStats[topic].lentasIncorrectas++;
-                preguntasLentasIncorrectas.push(tiempoPregunta);
+                preguntasLentasIncorrectas++;
               }
             }
           });
@@ -429,12 +517,14 @@ class StudentSummaryService {
           ? tiempoTotalSegundos / preguntasConTiempo 
           : undefined;
         
-        // Calcular porcentajes de patrones de tiempo
         const totalPreguntas = evalData.questionDetails?.length || 0;
-        const patronesTiempo = totalPreguntas > 0 ? {
-          impulsividad: (preguntasRapidasIncorrectas.length / totalPreguntas) * 100,
-          dificultadCognitiva: (preguntasLentasIncorrectas.length / totalPreguntas) * 100,
-        } : undefined;
+        const patronesTiempo =
+          totalPreguntas > 0
+            ? {
+                impulsividad: (preguntasRapidasIncorrectas / totalPreguntas) * 100,
+                dificultadCognitiva: (preguntasLentasIncorrectas / totalPreguntas) * 100,
+              }
+            : undefined;
 
         normalizedResults.set(subject, {
           materia: subject,
@@ -467,6 +557,8 @@ class StudentSummaryService {
         nivelGeneralDesempeno: PerformanceLevel.BAJO,
         debilidadesLeves: [],
         debilidadesEstructurales: [],
+        resumenPorMateria: [],
+        ejesEvaluados: [],
       };
     }
 
@@ -505,9 +597,8 @@ class StudentSummaryService {
     let preguntasLentasIncorrectasGlobal = 0;
     let totalPreguntasGlobal = 0;
 
-    normalizedResults.forEach(result => {
-      // Analizar temas
-      result.temasDetallados.forEach(temaDet => {
+    normalizedResults.forEach((result) => {
+      result.temasDetallados.forEach((temaDet) => {
         if (temaDet.puntaje >= 70) {
           temasFuertes.push({
             materia: result.materia,
@@ -520,8 +611,7 @@ class StudentSummaryService {
             tema: temaDet.tema,
             puntaje: temaDet.puntaje,
           });
-          
-          // Clasificar debilidades: leves (35-39%) vs estructurales (<35%)
+
           if (temaDet.puntaje >= 35 && temaDet.puntaje < 40) {
             debilidadesLeves.push({
               materia: result.materia,
@@ -536,27 +626,23 @@ class StudentSummaryService {
             });
           }
         }
-        
-        // Acumular métricas de tiempo
+
         totalPreguntasGlobal += temaDet.totalPreguntas;
         if (temaDet.tiempoPromedioSegundos) {
           tiempoTotalGlobal += temaDet.tiempoPromedioSegundos * temaDet.totalPreguntas;
           preguntasConTiempoGlobal += temaDet.totalPreguntas;
         }
-        
-        // Contar patrones de tiempo (aproximación basada en porcentajes)
-        if (temaDet.patronTiempo === 'impulsivo') {
-          preguntasRapidasIncorrectasGlobal += Math.round(temaDet.totalPreguntas * 0.3);
-        } else if (temaDet.patronTiempo === 'dificultad_cognitiva') {
-          preguntasLentasIncorrectasGlobal += Math.round(temaDet.totalPreguntas * 0.3);
-        }
       });
-      
-      // También usar datos de patronesTiempo si están disponibles
-      if (result.patronesTiempo) {
+
+      // Patrones globales: solo desde el agregado por evaluación (evita doble conteo con heurísticas por tema)
+      if (result.patronesTiempo && result.temasDetallados.length > 0) {
         const totalPreguntasMateria = result.temasDetallados.reduce((sum, t) => sum + t.totalPreguntas, 0);
-        preguntasRapidasIncorrectasGlobal += Math.round(totalPreguntasMateria * result.patronesTiempo.impulsividad / 100);
-        preguntasLentasIncorrectasGlobal += Math.round(totalPreguntasMateria * result.patronesTiempo.dificultadCognitiva / 100);
+        preguntasRapidasIncorrectasGlobal += Math.round(
+          (totalPreguntasMateria * result.patronesTiempo.impulsividad) / 100
+        );
+        preguntasLentasIncorrectasGlobal += Math.round(
+          (totalPreguntasMateria * result.patronesTiempo.dificultadCognitiva) / 100
+        );
       }
     });
 
@@ -577,6 +663,29 @@ class StudentSummaryService {
         : 0,
     } : undefined;
 
+    const resumenPorMateria = normalizedResults
+      .map((r) => ({
+        materia: r.materia,
+        puntaje: Math.round(r.puntaje * 10) / 10,
+        nivel: r.nivel,
+      }))
+      .sort((a, b) => b.puntaje - a.puntaje);
+
+    const ejesEvaluados: { materia: string; tema: string; puntaje: number }[] = [];
+    normalizedResults.forEach((result) => {
+      result.temasDetallados.forEach((temaDet) => {
+        ejesEvaluados.push({
+          materia: result.materia,
+          tema: typeof temaDet.tema === 'string' ? temaDet.tema.trim() : String(temaDet.tema),
+          puntaje: Math.round(temaDet.puntaje * 10) / 10,
+        });
+      });
+    });
+    ejesEvaluados.sort((a, b) => {
+      if (a.materia !== b.materia) return a.materia.localeCompare(b.materia, 'es');
+      return a.tema.localeCompare(b.tema, 'es');
+    });
+
     return {
       promedioGeneral,
       materiasFuertes,
@@ -587,6 +696,8 @@ class StudentSummaryService {
       debilidadesLeves,
       debilidadesEstructurales,
       patronesGlobalesTiempo,
+      resumenPorMateria,
+      ejesEvaluados,
     };
   }
 
@@ -681,7 +792,9 @@ class StudentSummaryService {
               if (gradeId) {
                 context.gradeId = gradeId;
               }
-              
+
+              await enrichContextWithSedeYJornada(studentDb, institutionId, userData, context);
+
               return context;
             }
           }
@@ -767,7 +880,9 @@ class StudentSummaryService {
         if (gradeId) {
           context.gradeId = gradeId;
         }
-        
+
+        await enrichContextWithSedeYJornada(studentDb, institutionId, userData, context);
+
         return context;
       }
 
@@ -844,6 +959,10 @@ class StudentSummaryService {
           ? parsed.recomendaciones_enfoque_saber11
           : [],
       };
+
+      if (typeof parsed.sintesis_institucional === 'string' && parsed.sintesis_institucional.trim()) {
+        summary.sintesis_institucional = parsed.sintesis_institucional.trim();
+      }
       
       // Agregar justificación pedagógica si está presente (Fase I)
       if (parsed.justificacion_pedagogica) {
@@ -858,130 +977,78 @@ class StudentSummaryService {
   }
 
   /**
-   * Obtiene el resumen completo de fases anteriores para contexto comparativo
-   * Retorna tanto las métricas como el análisis completo generado por IA
-   * Para Fase III, retorna solo Fase II (la más reciente)
+   * Fase anterior inmediata con métricas persistidas (p. ej. Fase I al generar Fase II).
    */
   private async getPreviousPhaseMetrics(
     studentId: string,
     currentPhase: 'first' | 'second' | 'third'
   ): Promise<{ phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null> {
+    const prevPhaseMap: Partial<Record<'first' | 'second' | 'third', 'first' | 'second'>> = {
+      second: 'first',
+      third: 'second',
+    };
+    const prevPhase = prevPhaseMap[currentPhase];
+    if (!prevPhase) return null;
+
     try {
-      const studentDb = getStudentDatabase();
-      
-      // Determinar qué fases anteriores buscar
-      const previousPhases: ('first' | 'second' | 'third')[] = [];
-      if (currentPhase === 'second') {
-        previousPhases.push('first');
-      } else if (currentPhase === 'third') {
-        previousPhases.push('second'); // Para Fase III, solo retornamos Fase II (la más reciente)
-      }
+      const snapshot = await getStudentDatabase()
+        .collection('ResumenStudent')
+        .doc(studentId)
+        .collection(prevPhase)
+        .doc('resumenActual')
+        .get();
 
-      // Obtener el resumen más reciente de las fases anteriores
-      for (const prevPhase of previousPhases) {
-        try {
-          const summaryRef = studentDb
-            .collection('ResumenStudent')
-            .doc(studentId)
-            .collection(prevPhase)
-            .doc('resumenActual');
-          
-          const snapshot = await summaryRef.get();
-          if (snapshot.exists) {
-            const data = snapshot.data() as PersistedSummary;
-            if (data.metricasGlobales) {
-              const phaseName = prevPhase === 'first' ? 'Fase I' : prevPhase === 'second' ? 'Fase II' : 'Fase III';
-              return {
-                phase: phaseName,
-                metrics: data.metricasGlobales,
-                fullSummary: data, // Incluir el resumen completo para tener acceso al análisis de IA
-              };
-            }
-          }
-        } catch (error: any) {
-          console.warn(`⚠️ Error obteniendo métricas de ${prevPhase}:`, error.message);
-        }
-      }
+      if (!snapshot.exists) return null;
+      const data = snapshot.data() as PersistedSummary;
+      if (!data.metricasGlobales) return null;
 
-      return null;
+      const phaseName = prevPhase === 'first' ? 'Fase I' : 'Fase II';
+      return { phase: phaseName, metrics: data.metricasGlobales, fullSummary: data };
     } catch (error: any) {
-      console.warn('⚠️ Error obteniendo métricas de fases anteriores:', error.message);
+      console.warn(`⚠️ Error obteniendo métricas de ${prevPhase}:`, error.message);
       return null;
     }
   }
 
-  /**
-   * Obtiene información de todas las fases anteriores necesarias para Fase III
-   * Retorna información completa de Fase I y Fase II
-   */
+  /** Resúmenes de Fase I y II para contexto de prompt Fase III */
   private async getAllPreviousPhasesForPhase3(
     studentId: string
   ): Promise<{
     phase1: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
     phase2: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
   }> {
+    const db = getStudentDatabase();
+
+    const fetchPhase = async (
+      phaseKey: 'first' | 'second',
+      phaseLabel: string
+    ): Promise<{ phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null> => {
+      try {
+        const snap = await db
+          .collection('ResumenStudent')
+          .doc(studentId)
+          .collection(phaseKey)
+          .doc('resumenActual')
+          .get();
+        if (!snap.exists) return null;
+        const data = snap.data() as PersistedSummary;
+        if (!data.metricasGlobales) return null;
+        return { phase: phaseLabel, metrics: data.metricasGlobales, fullSummary: data };
+      } catch (e: any) {
+        console.warn(`⚠️ Error obteniendo ${phaseLabel}:`, e.message);
+        return null;
+      }
+    };
+
     try {
-      const studentDb = getStudentDatabase();
-      
-      let phase1Data: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null = null;
-      let phase2Data: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null = null;
-
-      // Obtener Fase I
-      try {
-        const phase1Ref = studentDb
-          .collection('ResumenStudent')
-          .doc(studentId)
-          .collection('first')
-          .doc('resumenActual');
-        
-        const phase1Snap = await phase1Ref.get();
-        if (phase1Snap.exists) {
-          const data = phase1Snap.data() as PersistedSummary;
-          if (data.metricasGlobales) {
-            phase1Data = {
-              phase: 'Fase I',
-              metrics: data.metricasGlobales,
-              fullSummary: data,
-            };
-          }
-        }
-      } catch (error: any) {
-        console.warn('⚠️ Error obteniendo métricas de Fase I:', error.message);
-      }
-
-      // Obtener Fase II
-      try {
-        const phase2Ref = studentDb
-          .collection('ResumenStudent')
-          .doc(studentId)
-          .collection('second')
-          .doc('resumenActual');
-        
-        const phase2Snap = await phase2Ref.get();
-        if (phase2Snap.exists) {
-          const data = phase2Snap.data() as PersistedSummary;
-          if (data.metricasGlobales) {
-            phase2Data = {
-              phase: 'Fase II',
-              metrics: data.metricasGlobales,
-              fullSummary: data,
-            };
-          }
-        }
-      } catch (error: any) {
-        console.warn('⚠️ Error obteniendo métricas de Fase II:', error.message);
-      }
-
-      return {
-        phase1: phase1Data,
-        phase2: phase2Data,
-      };
-    } catch (error: any) {
-      console.warn('⚠️ Error obteniendo fases anteriores para Fase III:', error.message);
-      return {
-        phase1: null,
-        phase2: null,
-      };
+      const [phase1, phase2] = await Promise.all([
+        fetchPhase('first', 'Fase I'),
+        fetchPhase('second', 'Fase II'),
+      ]);
+      return { phase1, phase2 };
+    } catch (e: any) {
+      console.warn('⚠️ Error obteniendo fases anteriores para Fase III:', e.message);
+      return { phase1: null, phase2: null };
     }
   }
 
@@ -1008,146 +1075,34 @@ class StudentSummaryService {
     };
   }
 
-  /**
-   * Bloques contextuales para Fase II (comparación con la fase anterior).
-   */
-  private buildPhase2ComparativeSections(
-    previousPhaseMetrics: {
-      phase: string;
-      metrics: GlobalMetrics;
-      fullSummary?: PersistedSummary;
-    } | null,
-    normalizedResults: NormalizedEvaluationResult[]
-  ): { comparativeContextBlock: string; phase1AnalysisBlock: string } {
-    if (!previousPhaseMetrics) {
-      return { comparativeContextBlock: '', phase1AnalysisBlock: '' };
-    }
-
-    const phase2MateriaLevels: { [key: string]: string } = {};
-    normalizedResults.forEach((r) => {
-      phase2MateriaLevels[r.materia] = String(r.nivel);
-    });
-
-    const temasDebilesPorMateria: { [materia: string]: string[] } = {};
-    (previousPhaseMetrics.metrics.temasDebiles ?? []).forEach(({ materia, tema }) => {
-      if (!temasDebilesPorMateria[materia]) {
-        temasDebilesPorMateria[materia] = [];
-      }
-      temasDebilesPorMateria[materia].push(tema);
-    });
-
-    let phase1AnalysisBlock = '';
-    if (previousPhaseMetrics.fullSummary?.resumen) {
-      const phase1Resumen = previousPhaseMetrics.fullSummary.resumen;
-      let analisisCompetencialFase1 = '';
-      if (typeof phase1Resumen.analisis_competencial === 'object' && phase1Resumen.analisis_competencial !== null) {
-        analisisCompetencialFase1 = Object.entries(phase1Resumen.analisis_competencial)
-          .map(([materia, analisis]) => `**${materia}**:\n${analisis}`)
-          .join('\n\n');
-      } else if (typeof phase1Resumen.analisis_competencial === 'string') {
-        analisisCompetencialFase1 = phase1Resumen.analisis_competencial;
-      }
-      phase1AnalysisBlock = `
-═══════════════════════════════════════════════════════════════
-📋 ANÁLISIS COMPLETO DE ${previousPhaseMetrics.phase} (referencia IA)
-═══════════════════════════════════════════════════════════════
-**RESUMEN GENERAL — ${previousPhaseMetrics.phase}:**
-${phase1Resumen.resumen_general || 'No disponible'}
-
-**ANÁLISIS COMPETENCIAL — ${previousPhaseMetrics.phase}:**
-${analisisCompetencialFase1 || 'No disponible'}
-
-**FORTALEZAS — ${previousPhaseMetrics.phase}:**
-${phase1Resumen.fortalezas_academicas?.length ? phase1Resumen.fortalezas_academicas.map((f) => `- ${f}`).join('\n') : 'Ninguna'}
-
-**ASPECTOS POR MEJORAR — ${previousPhaseMetrics.phase}:**
-${phase1Resumen.aspectos_por_mejorar?.length ? phase1Resumen.aspectos_por_mejorar.map((a) => `- ${a}`).join('\n') : 'Ninguno'}
-${phase1Resumen.justificacion_pedagogica?.contenidos_prioritarios?.length ? `
-**CONTENIDOS PRIORITARIOS — ${previousPhaseMetrics.phase}:**
-${phase1Resumen.justificacion_pedagogica.contenidos_prioritarios
-  .map((cp) => `- **${cp.materia} - ${cp.tema}**: ${cp.justificacion}`)
-  .join('\n')}
-` : ''}
-`;
-    }
-
-    const materiasDebilesPrev = previousPhaseMetrics.metrics.materiasDebiles ?? [];
-    const compDetail =
-      materiasDebilesPrev.length > 0
-        ? `\n📊 Comparación ${previousPhaseMetrics.phase} → Fase II (materias débiles en ${previousPhaseMetrics.phase}):\n\n${materiasDebilesPrev
-            .map((materia) => {
-              const nivelFase2 = phase2MateriaLevels[materia] || 'No evaluada';
-              const temasDebiles = temasDebilesPorMateria[materia] || [];
-              const temasTexto =
-                temasDebiles.length > 0
-                  ? `\n  • Temas débiles en ${previousPhaseMetrics.phase}: ${temasDebiles.join(', ')}`
-                  : '';
-              return `- **${materia}**: Nivel en Fase II: ${nivelFase2}${temasTexto}`;
-            })
-            .join('\n\n')}`
-        : '\n- No hubo materias marcadas como débiles en la fase anterior.';
-
-    const debEstruct =
-      previousPhaseMetrics.metrics.debilidadesEstructurales?.length
-        ? `\n⚠️ Debilidades estructurales en ${previousPhaseMetrics.phase}:\n${previousPhaseMetrics.metrics.debilidadesEstructurales.map((d) => `- ${d.materia} - ${d.tema}`).join('\n')}`
-        : '';
-    const debLeves =
-      previousPhaseMetrics.metrics.debilidadesLeves?.length
-        ? `\n📋 Debilidades leves en ${previousPhaseMetrics.phase}:\n${previousPhaseMetrics.metrics.debilidadesLeves.map((d) => `- ${d.materia} - ${d.tema}`).join('\n')}`
-        : '';
-
-    const comparativeContextBlock = `
-═══════════════════════════════════════════════════════════════
-CONTEXTO COMPARATIVO — ${previousPhaseMetrics.phase}
-═══════════════════════════════════════════════════════════════
-- Nivel general en ${previousPhaseMetrics.phase}: ${previousPhaseMetrics.metrics.nivelGeneralDesempeno}
-- Materias favorables: ${(previousPhaseMetrics.metrics.materiasFuertes ?? []).join(', ') || 'Ninguna'}
-- Materias a fortalecer: ${materiasDebilesPrev.join(', ') || 'Ninguna'}
-${compDetail}
-${debEstruct}
-${debLeves}
-
-⚠️ Usa este contexto solo como referencia; el análisis principal debe basarse en los resultados de Fase II mostrados abajo. Sin puntajes numéricos explícitos en la redacción final.
-`;
-
-    return { comparativeContextBlock, phase1AnalysisBlock };
-  }
-
-  /** Trayectoria Fase I → II → III para prompts de Fase III */
+  /** Trayectoria compacta Fase I → II para prompt Fase III (sin volcar análisis competencial completo) */
   private buildPhase3TrajectoryBlock(phase3PreviousPhases: {
     phase1: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
     phase2: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null;
   }): string {
-    let phase1Section = '';
-    if (phase3PreviousPhases.phase1?.fullSummary?.resumen) {
-      const r = phase3PreviousPhases.phase1.fullSummary.resumen;
-      phase1Section = `
-📌 ${phase3PreviousPhases.phase1.phase}
-Resumen: ${r.resumen_general || 'N/D'}
-Métricas: nivel ${phase3PreviousPhases.phase1.metrics.nivelGeneralDesempeno}; fuertes: ${phase3PreviousPhases.phase1.metrics.materiasFuertes.join(', ') || '—'}; débiles: ${phase3PreviousPhases.phase1.metrics.materiasDebiles.join(', ') || '—'}
-Fortalezas: ${r.fortalezas_academicas?.length ? r.fortalezas_academicas.map((x) => `- ${x}`).join('\n') : '—'}
-A mejorar: ${r.aspectos_por_mejorar?.length ? r.aspectos_por_mejorar.map((x) => `- ${x}`).join('\n') : '—'}
-`;
-    }
-    let phase2Section = '';
-    if (phase3PreviousPhases.phase2?.fullSummary?.resumen) {
-      const r = phase3PreviousPhases.phase2.fullSummary.resumen;
-      phase2Section = `
-📌 ${phase3PreviousPhases.phase2.phase}
-Resumen: ${r.resumen_general || 'N/D'}
-Métricas: nivel ${phase3PreviousPhases.phase2.metrics.nivelGeneralDesempeno}; fuertes: ${phase3PreviousPhases.phase2.metrics.materiasFuertes.join(', ') || '—'}; débiles: ${phase3PreviousPhases.phase2.metrics.materiasDebiles.join(', ') || '—'}
-Fortalezas: ${r.fortalezas_academicas?.length ? r.fortalezas_academicas.map((x) => `- ${x}`).join('\n') : '—'}
-A mejorar: ${r.aspectos_por_mejorar?.length ? r.aspectos_por_mejorar.map((x) => `- ${x}`).join('\n') : '—'}
-`;
-    }
-    return `
-═══════════════════════════════════════════════════════════════
-TRAYECTORIA Fase I → Fase II → Fase III
-═══════════════════════════════════════════════════════════════
-${phase1Section}
-${phase2Section}
-Integra trayectoria y estado actual para Saber 11, sin citar puntajes numéricos explícitos.
-`;
+    const section = (
+      p: { phase: string; metrics: GlobalMetrics; fullSummary?: PersistedSummary } | null
+    ): string => {
+      if (!p?.fullSummary?.resumen) return '';
+      const r = p.fullSummary.resumen;
+      const m = p.metrics;
+      return (
+        `\n📌 ${p.phase}\n` +
+        `Nivel: ${m.nivelGeneralDesempeno} | Fuertes: ${m.materiasFuertes.join(', ') || '—'} | Débiles: ${m.materiasDebiles.join(', ') || '—'}\n` +
+        `Resumen: ${r.resumen_general || 'N/D'}\n` +
+        `Fortalezas: ${r.fortalezas_academicas?.length ? r.fortalezas_academicas.map((x) => `- ${x}`).join('\n') : '—'}\n` +
+        `A mejorar: ${r.aspectos_por_mejorar?.length ? r.aspectos_por_mejorar.map((x) => `- ${x}`).join('\n') : '—'}`
+      );
+    };
+
+    return (
+      `═══════════════════════════════════════════════════════════════\n` +
+      `TRAYECTORIA Fase I → Fase II → Fase III\n` +
+      `═══════════════════════════════════════════════════════════════` +
+      section(phase3PreviousPhases.phase1) +
+      section(phase3PreviousPhases.phase2) +
+      `\n\nIntegra esta trayectoria en el análisis. Sin citar puntajes numéricos explícitos.`
+    );
   }
 
   private toPreviousPhaseBundle(
@@ -1216,10 +1171,6 @@ Integra trayectoria y estado actual para Saber 11, sin citar puntajes numéricos
         this.toMateriaPhase23Payload(r)
       );
       const previousPhaseMetrics = await this.getPreviousPhaseMetrics(studentId, phase);
-      const { comparativeContextBlock, phase1AnalysisBlock } = this.buildPhase2ComparativeSections(
-        previousPhaseMetrics,
-        normalizedResults
-      );
       const previousBundle = this.toPreviousPhaseBundle(previousPhaseMetrics);
       return buildPhase2Prompt({
         materiasData,
@@ -1227,8 +1178,6 @@ Integra trayectoria y estado actual para Saber 11, sin citar puntajes numéricos
         academicContext,
         materiasLista,
         previousPhase: previousBundle,
-        comparativeContextBlock,
-        phase1AnalysisBlock,
       });
     }
 
@@ -1283,36 +1232,29 @@ Integra trayectoria y estado actual para Saber 11, sin citar puntajes numéricos
   }
 
   /**
-   * Guarda el resumen en Firestore
-   * Estructura: ResumenStudent/{studentId}/{phase}/resumenActual
-   * Donde phase es: 'first', 'second', o 'third'
-   */
-  /**
-   * Elimina propiedades undefined de un objeto recursivamente
-   * Firestore no acepta valores undefined
+   * Limpia el documento antes de `set` en Firestore: sin `undefined`, y sin NaN/Infinity
+   * en números (orden: nullish → número → array → objeto).
    */
   private removeUndefinedValues(obj: any): any {
     if (obj === null || obj === undefined) {
       return null;
     }
-    
-    if (Array.isArray(obj)) {
-      return obj.map(item => this.removeUndefinedValues(item));
+    if (typeof obj === 'number') {
+      return Number.isFinite(obj) ? obj : null;
     }
-    
+    if (Array.isArray(obj)) {
+      return obj.map((item) => this.removeUndefinedValues(item));
+    }
     if (typeof obj === 'object') {
-      const cleaned: any = {};
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          const value = obj[key];
-          if (value !== undefined) {
-            cleaned[key] = this.removeUndefinedValues(value);
-          }
+      const cleaned: Record<string, unknown> = {};
+      for (const key of Object.keys(obj)) {
+        const value = (obj as Record<string, unknown>)[key];
+        if (value !== undefined) {
+          cleaned[key] = this.removeUndefinedValues(value);
         }
       }
       return cleaned;
     }
-    
     return obj;
   }
 
@@ -1437,7 +1379,7 @@ Integra trayectoria y estado actual para Saber 11, sin citar puntajes numéricos
         studentId,
         phase,
         fecha: new Date().toISOString().split('T')[0],
-        version: 'v1',
+        version: 'v2',
         fuente: 'IA',
         resumen: academicSummary,
         metadata: {
