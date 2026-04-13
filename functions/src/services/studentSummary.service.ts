@@ -207,21 +207,6 @@ interface AcademicSummary {
   fortalezas_academicas: string[];
   aspectos_por_mejorar: string[];
   recomendaciones_enfoque_saber11: string[];
-  // Campos adicionales para Fase I (diagnóstico pedagógico)
-  justificacion_pedagogica?: {
-    contenidos_prioritarios: Array<{
-      materia: string;
-      tema: string;
-      justificacion: string; // Por qué se prioriza
-      tipo_actividad_recomendada: string; // Qué tipo de actividad será más efectiva
-    }>;
-    estrategias_por_patron?: {
-      impulsividad?: string[];
-      dificultad_cognitiva?: string[];
-      debilidades_estructurales?: string[];
-      debilidades_leves?: string[];
-    };
-  };
 }
 
 /**
@@ -963,12 +948,7 @@ class StudentSummaryService {
       if (typeof parsed.sintesis_institucional === 'string' && parsed.sintesis_institucional.trim()) {
         summary.sintesis_institucional = parsed.sintesis_institucional.trim();
       }
-      
-      // Agregar justificación pedagógica si está presente (Fase I)
-      if (parsed.justificacion_pedagogica) {
-        summary.justificacion_pedagogica = parsed.justificacion_pedagogica;
-      }
-      
+
       return summary;
     } catch (error: any) {
       console.error('Error generando resumen con IA:', error);

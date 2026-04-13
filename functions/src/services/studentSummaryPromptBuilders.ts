@@ -78,9 +78,6 @@ export interface PreviousPhaseBundle {
       analisis_competencial?: string | Record<string, string>;
       fortalezas_academicas?: string[];
       aspectos_por_mejorar?: string[];
-      justificacion_pedagogica?: {
-        contenidos_prioritarios?: Array<{ materia: string; tema: string; justificacion: string }>;
-      };
     };
   };
 }
@@ -196,35 +193,6 @@ function formatGlobalMetricsPhase23(gm: PromptGlobalMetrics): string {
   );
 }
 
-function buildJustificacionPedagogicaTemplate(gm: PromptGlobalMetrics): string {
-  const imp = gm.patronesGlobalesTiempo && gm.patronesGlobalesTiempo.porcentajeImpulsividad > 10;
-  const dif = gm.patronesGlobalesTiempo && gm.patronesGlobalesTiempo.porcentajeDificultadCognitiva > 10;
-  const est = gm.debilidadesEstructurales.length > 0;
-  const lev = gm.debilidadesLeves.length > 0;
-
-  const parts: string[] = [];
-  if (imp) parts.push(`"impulsividad": ["Estrategia 1 concreta…", "Estrategia 2 concreta…"]`);
-  if (dif) parts.push(`"dificultad_cognitiva": ["Estrategia 1 concreta…", "Estrategia 2 concreta…"]`);
-  if (est) parts.push(`"debilidades_estructurales": ["Estrategia 1…", "Estrategia 2…"]`);
-  if (lev) parts.push(`"debilidades_leves": ["Estrategia 1…", "Estrategia 2…"]`);
-
-  const estrategiasBlock =
-    parts.length > 0
-      ? `,\n    "estrategias_por_patron": {\n      ${parts.join(',\n      ')}\n    }`
-      : '';
-
-  return `"justificacion_pedagogica": {
-    "contenidos_prioritarios": [
-      {
-        "materia": "Nombre de la materia",
-        "tema": "Nombre del tema",
-        "justificacion": "Por qué se prioriza: severidad, impacto en Saber 11, patrón de tiempo asociado (40-60 palabras).",
-        "tipo_actividad_recomendada": "Tipo de actividad más efectiva según el patrón detectado (20-30 palabras)."
-      }
-    ]${estrategiasBlock}
-  }`;
-}
-
 /** Fase I — diagnóstico pedagógico */
 export function buildPhase1Prompt(params: {
   materiasData: MateriaPhase1Payload[];
@@ -295,9 +263,7 @@ FORMATO JSON ESPERADO
     "Recomendación 1 — acción concreta y aplicable",
     "Recomendación 2",
     "Recomendación 3"
-  ],
-
-  ${buildJustificacionPedagogicaTemplate(globalMetrics)}
+  ]
 }
 
 ${JSON_OUTPUT_CLOSING}`;
