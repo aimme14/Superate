@@ -279,6 +279,8 @@ class GeminiClient {
     options: {
       retries?: number;
       timeout?: number;
+      /** Vertex: fuerza salida JSON (reduce texto extra y mejora parseo). */
+      responseMimeType?: 'application/json';
     } = {}
   ): Promise<{ text: string; metadata: any }> {
     // Asegurar que VertexAI esté inicializado con las credenciales correctas
@@ -385,9 +387,18 @@ class GeminiClient {
         console.log(`      - Tamaño del prompt: ${(prompt.length / 1024).toFixed(2)} KB`);
         
         // Vertex AI estructura para contenido multimodal
-        const request = {
+        const request: {
+          contents: { role: string; parts: any[] }[];
+          generationConfig?: typeof generationConfig & { responseMimeType?: string };
+        } = {
           contents: [{ role: 'user', parts }],
         };
+        if (options.responseMimeType) {
+          request.generationConfig = {
+            ...generationConfig,
+            responseMimeType: options.responseMimeType,
+          };
+        }
         
         // Log de verificación de la estructura FINAL
         const imagePartsCount = parts.filter(p => p.inlineData).length;

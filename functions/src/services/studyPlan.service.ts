@@ -16,6 +16,7 @@ import { geminiCentralizedService } from './geminiService';
 import {
   getSubjectConfig,
   getTopicCode,
+  type SubjectWithTopics,
   VIDEOS_PER_TOPIC,
 } from '../config/subjects.config';
 import * as admin from 'firebase-admin';
@@ -28,6 +29,21 @@ import {
   getLegacyAnswerIAPhaseAlternates,
   getLegacyResultsPhaseAlternates,
 } from '../utils/resultsPhasePath';
+
+/** Sin salida a consola en producción (Cloud Logging). Solo emulador o NODE_ENV=development. */
+const SP_CONSOLE =
+  process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'development';
+
+function spLog(...args: unknown[]): void {
+  if (SP_CONSOLE) console.log(...args);
+}
+function spWarn(...args: unknown[]): void {
+  if (SP_CONSOLE) console.warn(...args);
+}
+function spErr(...args: unknown[]): void {
+  if (SP_CONSOLE) console.error(...args);
+}
+
 /**
  * Tipos para el plan de estudio
  */
@@ -130,11 +146,17 @@ class StudyPlanService {
     >
   >();
 
+  /** Firestore superate-6c730 (una sola instancia por proceso). */
+  private studentDbCache: admin.firestore.Firestore | null = null;
+
   /**
    * Obtiene una instancia de Firestore para el proyecto superate-6c730
    * donde están almacenados los resultados de los estudiantes
    */
   private getStudentDatabase(): admin.firestore.Firestore {
+    if (this.studentDbCache) {
+      return this.studentDbCache;
+    }
     try {
       // Intentar obtener la app existente para superate-6c730
       let studentApp: admin.app.App;
@@ -153,9 +175,9 @@ class StudyPlanService {
               credential: admin.credential.cert(serviceAccount),
               projectId: 'superate-6c730',
             }, 'superate-6c730');
-            console.log('✅ Base de datos de estudiantes (superate-6c730) inicializada con credenciales locales');
+            spLog('✅ Base de datos de estudiantes (superate-6c730) inicializada con credenciales locales');
           } catch (error: any) {
-            console.warn('⚠️ Error cargando credenciales locales, intentando con credenciales por defecto:', error.message);
+            spWarn('⚠️ Error cargando credenciales locales, intentando con credenciales por defecto:', error.message);
             // Fallback: usar credenciales por defecto
             studentApp = admin.initializeApp({
               projectId: 'superate-6c730',
@@ -165,17 +187,17 @@ class StudyPlanService {
           // Producción (Cloud Functions): usar credenciales por defecto
           // Esto funcionará si las credenciales de superate-ia tienen acceso a superate-6c730
           // O si ambos proyectos están en la misma organización de GCP
-          console.log('📝 Usando credenciales por defecto para acceder a superate-6c730');
+          spLog('📝 Usando credenciales por defecto para acceder a superate-6c730');
           studentApp = admin.initializeApp({
             projectId: 'superate-6c730',
           }, 'superate-6c730');
         }
       }
       
-      // Obtener Firestore
-      return studentApp.firestore();
+      this.studentDbCache = studentApp.firestore();
+      return this.studentDbCache;
     } catch (error: any) {
-      console.error('❌ Error obteniendo base de datos de estudiantes:', error);
+      spErr('❌ Error obteniendo base de datos de estudiantes:', error);
       throw new Error(`No se pudo acceder a la base de datos superate-6c730: ${error.message}`);
     }
   }
@@ -204,10 +226,10 @@ class StudyPlanService {
     subject: string
   ): Promise<any[]> {
     try {
-      console.log(`\n🔍 Buscando resultados para:`);
-      console.log(`   Estudiante: ${studentId}`);
-      console.log(`   Fase: ${phase}`);
-      console.log(`   Materia: ${subject}`);
+      spLog(`\n🔍 Buscando resultados para:`);
+      spLog(`   Estudiante: ${studentId}`);
+      spLog(`   Fase: ${phase}`);
+      spLog(`   Materia: ${subject}`);
 
       const canonicalPhase = getCanonicalResultsPhaseSubcollection(phase);
       const phaseNamesToTry = [
@@ -216,13 +238,13 @@ class StudyPlanService {
       ];
 
       // Obtener la base de datos correcta (superate-6c730)
-      console.log(`\n📊 Obteniendo acceso a base de datos superate-6c730...`);
+      spLog(`\n📊 Obteniendo acceso a base de datos superate-6c730...`);
       const studentDb = this.getStudentDatabase();
-      console.log(`   ✅ Base de datos obtenida`);
+      spLog(`   ✅ Base de datos obtenida`);
 
       // Normalizar el nombre de la materia para comparación
       const normalizedSubject = this.normalizeSubjectName(subject);
-      console.log(`   Materia normalizada: "${normalizedSubject}"`);
+      spLog(`   Materia normalizada: "${normalizedSubject}"`);
 
       const results: any[] = [];
       let totalDocsFound = 0;
@@ -231,17 +253,17 @@ class StudyPlanService {
       // Un solo intento con lectura típica: canónico (getPhaseName en cliente). Si la subcolección está vacía, probar legacy.
       for (const phaseName of phaseNamesToTry) {
         try {
-          console.log(`\n   🔎 Buscando en subcolección: "results/${studentId}/${phaseName}"`);
+          spLog(`\n   🔎 Buscando en subcolección: "results/${studentId}/${phaseName}"`);
           const phaseRef = studentDb.collection('results').doc(studentId).collection(phaseName);
           const phaseSnap = await phaseRef.get();
 
           if (phaseSnap.empty) {
-            console.log(`      📄 Sin documentos en "${phaseName}", siguiente variante`);
+            spLog(`      📄 Sin documentos en "${phaseName}", siguiente variante`);
             continue;
           }
 
           totalDocsFound += phaseSnap.size;
-          console.log(`      📄 Documentos encontrados en "${phaseName}": ${phaseSnap.size}`);
+          spLog(`      📄 Documentos encontrados en "${phaseName}": ${phaseSnap.size}`);
 
           phaseSnap.docs.forEach((doc) => {
             docsChecked++;
@@ -249,42 +271,42 @@ class StudyPlanService {
             const examSubject = data.subject || '';
             const normalizedExamSubject = this.normalizeSubjectName(examSubject);
 
-            console.log(`      📋 Examen ${doc.id}:`);
-            console.log(`         - Materia en documento: "${examSubject}" (normalizada: "${normalizedExamSubject}")`);
-            console.log(`         - Coincide: ${normalizedExamSubject === normalizedSubject ? '✅ SÍ' : '❌ NO'}`);
+            spLog(`      📋 Examen ${doc.id}:`);
+            spLog(`         - Materia en documento: "${examSubject}" (normalizada: "${normalizedExamSubject}")`);
+            spLog(`         - Coincide: ${normalizedExamSubject === normalizedSubject ? '✅ SÍ' : '❌ NO'}`);
 
             if (normalizedExamSubject === normalizedSubject) {
               results.push({
                 ...data,
                 examId: doc.id,
               });
-              console.log(`         ✅ Agregado a resultados`);
+              spLog(`         ✅ Agregado a resultados`);
             }
           });
 
           // Solo una carpeta de fase por estudiante (evita duplicar si hubiera dos variantes pobladas).
           break;
         } catch (error: any) {
-          console.warn(`      ⚠️ Error accediendo a "${phaseName}": ${error.message}`);
+          spWarn(`      ⚠️ Error accediendo a "${phaseName}": ${error.message}`);
         }
       }
 
-      console.log(`\n📊 RESUMEN DE BÚSQUEDA:`);
-      console.log(`   Total de documentos encontrados: ${totalDocsFound}`);
-      console.log(`   Documentos revisados: ${docsChecked}`);
-      console.log(`   Resultados que coinciden con "${subject}": ${results.length}`);
+      spLog(`\n📊 RESUMEN DE BÚSQUEDA:`);
+      spLog(`   Total de documentos encontrados: ${totalDocsFound}`);
+      spLog(`   Documentos revisados: ${docsChecked}`);
+      spLog(`   Resultados que coinciden con "${subject}": ${results.length}`);
 
       if (results.length === 0 && totalDocsFound > 0) {
-        console.warn(`\n⚠️ ADVERTENCIA: Se encontraron ${totalDocsFound} documento(s) pero ninguno coincide con la materia "${subject}"`);
-        console.warn(`   Esto puede deberse a:`);
-        console.warn(`   - Diferencia en el nombre de la materia (mayúsculas/minúsculas, espacios)`);
-        console.warn(`   - El campo "subject" no está presente en los documentos`);
+        spWarn(`\n⚠️ ADVERTENCIA: Se encontraron ${totalDocsFound} documento(s) pero ninguno coincide con la materia "${subject}"`);
+        spWarn(`   Esto puede deberse a:`);
+        spWarn(`   - Diferencia en el nombre de la materia (mayúsculas/minúsculas, espacios)`);
+        spWarn(`   - El campo "subject" no está presente en los documentos`);
       }
 
       return results;
     } catch (error: any) {
-      console.error(`\n❌ Error obteniendo resultados para ${studentId} en ${phase}/${subject}:`, error);
-      console.error(`   Stack:`, error.stack);
+      spErr(`\n❌ Error obteniendo resultados para ${studentId} en ${phase}/${subject}:`, error);
+      spErr(`   Stack:`, error.stack);
       throw error;
     }
   }
@@ -358,8 +380,8 @@ class StudyPlanService {
    */
   private logPracticeExercisesStatus(parsed: any, context: string): void {
     if (!parsed.practice_exercises) {
-      console.error(`❌ [${context}] parsed.practice_exercises es ${typeof parsed.practice_exercises}`);
-      console.error(`   Keys disponibles en parsed: ${Object.keys(parsed).join(', ')}`);
+      spErr(`❌ [${context}] parsed.practice_exercises es ${typeof parsed.practice_exercises}`);
+      spErr(`   Keys disponibles en parsed: ${Object.keys(parsed).join(', ')}`);
       // Buscar variantes del nombre
       const possibleKeys = Object.keys(parsed).filter(k => 
         k.toLowerCase().includes('practice') || 
@@ -367,32 +389,46 @@ class StudyPlanService {
         k.toLowerCase().includes('ejercicio')
       );
       if (possibleKeys.length > 0) {
-        console.warn(`   ⚠️ Se encontraron posibles claves relacionadas: ${possibleKeys.join(', ')}`);
+        spWarn(`   ⚠️ Se encontraron posibles claves relacionadas: ${possibleKeys.join(', ')}`);
       }
     } else if (!Array.isArray(parsed.practice_exercises)) {
-      console.error(`❌ [${context}] parsed.practice_exercises existe pero NO es un array, es: ${typeof parsed.practice_exercises}`);
-      console.error(`   Valor: ${JSON.stringify(parsed.practice_exercises).substring(0, 200)}`);
+      spErr(`❌ [${context}] parsed.practice_exercises existe pero NO es un array, es: ${typeof parsed.practice_exercises}`);
+      spErr(`   Valor: ${JSON.stringify(parsed.practice_exercises).substring(0, 200)}`);
     } else {
-      console.log(`✅ [${context}] parsed.practice_exercises existe y es un array con ${parsed.practice_exercises.length} elemento(s)`);
+      spLog(`✅ [${context}] parsed.practice_exercises existe y es un array con ${parsed.practice_exercises.length} elemento(s)`);
       if (parsed.practice_exercises.length > 0) {
-        console.log(`   Primer ejercicio (muestra): ${JSON.stringify(parsed.practice_exercises[0]).substring(0, 150)}...`);
+        spLog(`   Primer ejercicio (muestra): ${JSON.stringify(parsed.practice_exercises[0]).substring(0, 150)}...`);
       }
     }
   }
 
-  /**
-   * Para Inglés se usan solo los nombres canónicos "Parte 1".."Parte 7" (sin nombres alternativos)
-   * para que el contenido (videos, enlaces) cargue correctamente por tema.
-   */
-  private transformEnglishTopicName(topicName: string): string {
-    return topicName;
+  private extractJsonObjectFromModelText(raw: string): string {
+    const t = raw
+      .replace(/```json\n?([\s\S]*?)\n?```/gi, '$1')
+      .replace(/```\n?([\s\S]*?)\n?```/g, '$1')
+      .trim();
+    const first = t.indexOf('{');
+    const last = t.lastIndexOf('}');
+    if (first === -1 || last < first) {
+      throw new Error('No se encontró un objeto JSON en la respuesta del modelo');
+    }
+    return t.slice(first, last + 1);
+  }
+
+  private parseModelJsonToStudyPlan(raw: string): StudyPlanResponse {
+    const jsonString = this.extractJsonObjectFromModelText(raw);
+    try {
+      return JSON.parse(jsonString) as StudyPlanResponse;
+    } catch {
+      const repaired = jsonrepair(jsonString);
+      return JSON.parse(repaired) as StudyPlanResponse;
+    }
   }
 
   /**
    * Construye el prompt maestro para generar el plan de estudio
    */
   private buildStudyPlanPrompt(
-    studentId: string,
     phase: string,
     subject: string,
     weaknesses: StudentWeakness[],
@@ -404,11 +440,7 @@ class StudyPlanService {
       const questionDetails = exam.questionDetails || [];
       questionDetails.forEach((q: any) => {
         if (q.topic) {
-          // Para inglés, transformar los nombres de temas
-          const topicName = this.isEnglishSubject(subject)
-            ? this.transformEnglishTopicName(q.topic)
-            : q.topic;
-          allTopics.add(topicName);
+          allTopics.add(q.topic);
         }
       });
     });
@@ -421,12 +453,7 @@ class StudyPlanService {
         `- ${q.questionText.substring(0, 100)}${q.questionText.length > 100 ? '...' : ''}`
       ).join('\n');
       
-      // Para inglés, transformar el nombre del tema en la descripción de debilidades
-      const displayTopic = this.isEnglishSubject(subject)
-        ? this.transformEnglishTopicName(w.topic)
-        : w.topic;
-      
-      return `**${displayTopic}**: ${w.percentage}% de aciertos (${w.correct}/${w.total} correctas)
+      return `**${w.topic}**: ${w.percentage}% de aciertos (${w.correct}/${w.total} correctas)
 Preguntas de ejemplo:
 ${sampleQuestions}`;
     }).join('\n\n');
@@ -444,9 +471,9 @@ ${sampleQuestions}`;
 
     return `Eres un experto en educación secundaria y preparación ICFES Saber 11. Diseñas planes de estudio personalizados basados en el desempeño real del estudiante.
 
---- Datos del estudiante ---
+--- Contexto académico (sin datos personales identificables) ---
 
-**Estudiante:** ${studentId} | **Fase:** ${phase} | **Materia:** ${subject}
+**Fase:** ${phase} | **Materia:** ${subject}
 
 **Temas del cuestionario:** ${topicsList || 'No especificados'}
 
@@ -461,7 +488,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después. Es
 
 {
   "student_info": {
-    "studentId": "${studentId}",
+    "studentId": "",
     "phase": "${phase}",
     "subject": "${subject}",
     "weaknesses": [
@@ -527,13 +554,13 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         throw new Error('Servicio de Gemini no está disponible');
       }
 
-      console.log(`\n📚 Generando plan de estudio para:`);
-      console.log(`   Estudiante: ${input.studentId}`);
-      console.log(`   Fase: ${input.phase}`);
-      console.log(`   Materia: ${input.subject}`);
+      spLog(`\n📚 Generando plan de estudio para:`);
+      spLog(`   Estudiante: ${input.studentId}`);
+      spLog(`   Fase: ${input.phase}`);
+      spLog(`   Materia: ${input.subject}`);
 
       // 1. Obtener resultados del estudiante
-      console.log(`\n📊 Obteniendo resultados del estudiante...`);
+      spLog(`\n📊 Obteniendo resultados del estudiante...`);
       const examResults = await this.getStudentResults(
         input.studentId,
         input.phase,
@@ -544,33 +571,32 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         throw new Error(`No se encontraron resultados para el estudiante ${input.studentId} en la fase ${input.phase} para la materia ${input.subject}`);
       }
 
-      console.log(`   ✅ Encontrados ${examResults.length} examen(es) completado(s)`);
+      spLog(`   ✅ Encontrados ${examResults.length} examen(es) completado(s)`);
 
       // 2. Calcular debilidades
-      console.log(`\n🔍 Calculando debilidades...`);
+      spLog(`\n🔍 Calculando debilidades...`);
       const weaknesses = this.calculateWeaknesses(examResults);
       
       if (weaknesses.length === 0) {
         throw new Error('No se identificaron debilidades. El estudiante tiene un buen desempeño en todos los temas.');
       }
 
-      console.log(`   ✅ Identificadas ${weaknesses.length} debilidad(es):`);
+      spLog(`   ✅ Identificadas ${weaknesses.length} debilidad(es):`);
       weaknesses.forEach(w => {
-        console.log(`      - ${w.topic}: ${w.percentage}% (${w.correct}/${w.total})`);
+        spLog(`      - ${w.topic}: ${w.percentage}% (${w.correct}/${w.total})`);
       });
 
       // 3. Construir prompt
-      console.log(`\n📝 Construyendo prompt para Gemini...`);
+      spLog(`\n📝 Construyendo prompt para Gemini...`);
       const prompt = this.buildStudyPlanPrompt(
-        input.studentId,
         input.phase,
         input.subject,
         weaknesses,
         examResults
       );
 
-      // 4. Generar contenido con Gemini (tope 30s, alineado con Cloud Functions)
-      console.log(`\n🤖 Enviando request a Gemini...`);
+      // 4. Generar contenido con Gemini (modo JSON + timeout alineado con Cloud Functions)
+      spLog(`\n🤖 Enviando request a Gemini (application/json)...`);
       const result = await geminiCentralizedService.generateContent({
         userId: input.studentId,
         prompt,
@@ -579,517 +605,51 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         options: {
           retries: 3,
           timeout: GEMINI_CONFIG.GENERATION_SUMMARY_AND_PLAN_TIMEOUT_MS,
+          responseMimeType: 'application/json',
         },
       });
 
-      // Verificar respuesta de Gemini ANTES del parsing
-      console.log(`\n📋 RESPUESTA DE GEMINI RECIBIDA:`);
-      console.log(`   Tamaño total: ${result.text.length} caracteres`);
-      
-      // Buscar si hay referencias a practice_exercises en el texto crudo
-      const hasPracticeExercisesInText = result.text.toLowerCase().includes('practice_exercises') || 
-                                         result.text.toLowerCase().includes('"practice_exercises"') ||
-                                         result.text.toLowerCase().includes("'practice_exercises'");
-      console.log(`   ¿Contiene "practice_exercises" en el texto?: ${hasPracticeExercisesInText ? '✅ SÍ' : '❌ NO'}`);
-      
-      // Buscar si hay arrays de ejercicios
-      const exerciseMatches = result.text.match(/(?:practice_exercises|practiceExercises).*?\[/gi);
-      if (exerciseMatches) {
-        console.log(`   ✅ Se encontraron ${exerciseMatches.length} referencia(s) a practice_exercises con array`);
-        exerciseMatches.forEach((match, idx) => {
-          console.log(`      ${idx + 1}. ${match.substring(0, 100)}...`);
-        });
-      } else {
-        console.warn(`   ⚠️ No se encontraron referencias a practice_exercises con arrays en el texto`);
-      }
-      
-      // Mostrar últimos 1000 caracteres para ver si está truncado
-      if (result.text.length > 1000) {
-        console.log(`   Últimos 500 caracteres de la respuesta:`);
-        console.log(`   "${result.text.substring(result.text.length - 500)}"`);
-      }
+      spLog(`study_plan: respuesta ${result.text.length} caracteres`);
 
-      // 5. Parsear respuesta JSON con manejo robusto de errores
-      console.log(`\n📥 Parseando respuesta de Gemini...`);
       let parsed: StudyPlanResponse;
-      
       try {
-        // Limpiar la respuesta: eliminar bloques de código markdown
-        let cleanedText = result.text.replace(/```json\n?([\s\S]*?)\n?```/g, '$1');
-        cleanedText = cleanedText.replace(/```\n?([\s\S]*?)\n?```/g, '$1');
-        
-        // Buscar el JSON: desde la primera llave hasta la última
-        const firstBrace = cleanedText.indexOf('{');
-        const lastBrace = cleanedText.lastIndexOf('}');
-        
-        if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-          throw new Error('No se encontró estructura JSON válida en la respuesta');
-        }
-        
-        let jsonString = cleanedText.substring(firstBrace, lastBrace + 1);
-        
-        // Detectar y completar estructuras incompletas
-        const openBrackets = (jsonString.match(/\[/g) || []).length;
-        const closeBrackets = (jsonString.match(/\]/g) || []).length;
-        const openBraces = (jsonString.match(/\{/g) || []).length;
-        const closeBraces = (jsonString.match(/\}/g) || []).length;
-        
-        // Si hay más corchetes abiertos que cerrados, cerrar los arrays
-        if (openBrackets > closeBrackets) {
-          const missingBrackets = openBrackets - closeBrackets;
-          jsonString += ']'.repeat(missingBrackets);
-          console.log(`⚠️ Completando ${missingBrackets} corchete(s) de array faltante(s)`);
-        }
-        
-        // Si hay más llaves abiertas que cerradas, cerrar los objetos
-        if (openBraces > closeBraces) {
-          const missingBraces = openBraces - closeBraces;
-          jsonString += '}'.repeat(missingBraces);
-          console.log(`⚠️ Completando ${missingBraces} llave(s) de objeto faltante(s)`);
-        }
-        
-        // Limpieza básica (pero preservar escapes válidos)
-        jsonString = jsonString
-          .replace(/([{,]\s*)'(\w+)'\s*:/g, '$1"$2":') // Comillas simples en propiedades
-          .replace(/:\s*'([^']*)'/g, ': "$1"') // Comillas simples en valores
-          .replace(/,(\s*[}\]])/g, '$1') // Trailing commas
-          // NO reemplazar \n ni \" aquí - son válidos en JSON strings
-          // Solo normalizar espacios múltiples fuera de strings
-          .replace(/(?<!")\s+(?!")/g, ' '); // Espacios múltiples (pero no dentro de strings)
-        
-        // Intentar parsear
-        parsed = JSON.parse(jsonString);
-        console.log('✅ JSON parseado exitosamente');
-        
-        // Verificar INMEDIATAMENTE después del parsing si practice_exercises existe
-        this.logPracticeExercisesStatus(parsed, 'después del parsing inicial');
-      } catch (parseError: any) {
-        console.warn('⚠️ Falló el parsing JSON inicial. Intentando limpieza agresiva...');
-        
-        try {
-          // Estrategia más agresiva
-          let cleanedText = result.text
-            .replace(/```json\n?([\s\S]*?)\n?```/g, '$1')
-            .replace(/```\n?([\s\S]*?)\n?```/g, '$1');
-          
-          const firstBrace = cleanedText.indexOf('{');
-          let lastBrace = cleanedText.lastIndexOf('}');
-          
-          // Si no hay llave de cierre, intentar completar el JSON
-          if (lastBrace === -1 || lastBrace <= firstBrace) {
-            const lastQuote = cleanedText.lastIndexOf('"');
-            if (lastQuote > firstBrace) {
-              cleanedText = cleanedText.substring(0, lastQuote + 1) + '}';
-              lastBrace = cleanedText.length - 1;
-            } else {
-              throw new Error('JSON parece estar truncado y no se puede completar');
-            }
-          }
-          
-          let jsonString = cleanedText.substring(firstBrace, lastBrace + 1);
-          
-          // Detectar y completar estructuras incompletas
-          const openBrackets = (jsonString.match(/\[/g) || []).length;
-          const closeBrackets = (jsonString.match(/\]/g) || []).length;
-          const openBraces = (jsonString.match(/\{/g) || []).length;
-          const closeBraces = (jsonString.match(/\}/g) || []).length;
-          
-          if (openBrackets > closeBrackets) {
-            jsonString += ']'.repeat(openBrackets - closeBrackets);
-          }
-          
-          if (openBraces > closeBraces) {
-            jsonString += '}'.repeat(openBraces - closeBraces);
-          }
-          
-          // Limpieza más agresiva (pero cuidadosa)
-          jsonString = jsonString
-            .replace(/([{,]\s*)'(\w+)'\s*:/g, '$1"$2":')
-            .replace(/:\s*'([^']*)'/g, ': "$1"')
-            .replace(/,(\s*[}\]])/g, '$1')
-            .replace(/\n\s*\n/g, '\n')
-            // NO reemplazar \n ni \" aquí - pueden ser válidos en strings JSON
-            .replace(/\s+/g, ' '); // Solo normalizar espacios múltiples
-          
-          parsed = JSON.parse(jsonString);
-          console.log('✅ JSON parseado con estrategia alternativa');
-          this.logPracticeExercisesStatus(parsed, 'después del parsing alternativo');
-        } catch (secondError: any) {
-          console.error('❌ Falló el parsing agresivo');
-          console.error('   Error:', secondError.message);
-          
-          // Intentar extraer la posición del error
-          const positionMatch = secondError.message.match(/position (\d+)/);
-          if (positionMatch) {
-            const position = parseInt(positionMatch[1]);
-            console.error(`   Posición del error: ${position}`);
-            console.error(`   Tamaño total de la respuesta: ${result.text.length} caracteres`);
-            
-            // Mostrar contexto alrededor del error
-            const contextStart = Math.max(0, position - 200);
-            const contextEnd = Math.min(result.text.length, position + 200);
-            const context = result.text.substring(contextStart, contextEnd);
-            console.error(`   Contexto alrededor del error:`);
-            console.error(`   "${context}"`);
-            
-            // Intentar corregir el error en esa posición específica
-            try {
-              console.log('🔧 Intentando corregir error en posición específica...');
-              let jsonString = result.text
-                .replace(/```json\n?([\s\S]*?)\n?```/g, '$1')
-                .replace(/```\n?([\s\S]*?)\n?```/g, '$1');
-              
-              const firstBrace = jsonString.indexOf('{');
-              let lastBrace = jsonString.lastIndexOf('}');
-              
-              if (firstBrace !== -1 && lastBrace > firstBrace) {
-                jsonString = jsonString.substring(firstBrace, lastBrace + 1);
-                
-                // Intentar corregir el problema en la posición específica
-                // Si el error es "Expected ',' or '}'", probablemente hay una comilla sin cerrar o un carácter problemático
-                if (position < jsonString.length) {
-                  console.log(`   🔧 Analizando error en posición ${position}...`);
-                  
-                  // Mostrar contexto del error (más amplio para mejor diagnóstico)
-                  const contextStart = Math.max(0, position - 200);
-                  const contextEnd = Math.min(jsonString.length, position + 200);
-                  const context = jsonString.substring(contextStart, contextEnd);
-                  console.log(`   Contexto ampliado (posiciones ${contextStart}-${contextEnd}): "${context}"`);
-                  
-                  // Buscar el problema específico: "Expected ',' or '}'"
-                  // Esto generalmente significa que hay un valor sin cerrar o una estructura incompleta
-                  const beforeError = jsonString.substring(Math.max(0, position - 100), position);
-                  const afterError = jsonString.substring(position, Math.min(jsonString.length, position + 100));
-                  console.log(`   Antes del error: "${beforeError.substring(Math.max(0, beforeError.length - 50))}"`);
-                  console.log(`   Después del error: "${afterError.substring(0, 50)}"`);
-                  
-                  // Estrategia 1: Verificar si hay una comilla sin cerrar
-                  let quoteCount = 0;
-                  let inString = false;
-                  for (let i = 0; i < position; i++) {
-                    if (jsonString[i] === '"' && (i === 0 || jsonString[i - 1] !== '\\')) {
-                      inString = !inString;
-                      quoteCount++;
-                    }
-                  }
-                  
-                  console.log(`   Estado: ${inString ? 'Dentro de string' : 'Fuera de string'}, Comillas encontradas: ${quoteCount}`);
-                  
-                  // Si estamos dentro de un string y el error es "Expected ',' or '}'", 
-                  // probablemente el string no está cerrado correctamente
-                  if (inString) {
-                    console.log('   🔧 Detectado: Estamos dentro de un string sin cerrar');
-                    // Buscar hacia adelante para encontrar dónde debería cerrarse el string
-                    let closePosition = position;
-                    while (closePosition < jsonString.length && 
-                           jsonString[closePosition] !== '"' && 
-                           jsonString[closePosition] !== ',' && 
-                           jsonString[closePosition] !== '}') {
-                      closePosition++;
-                    }
-                    
-                    // Si encontramos una comilla, verificar si está escapada
-                    if (closePosition < jsonString.length && jsonString[closePosition] === '"') {
-                      if (closePosition === 0 || jsonString[closePosition - 1] !== '\\') {
-                        // La comilla está correctamente cerrada, el problema es otro
-                        console.log('   ℹ️ La comilla parece estar cerrada correctamente');
-                      }
-                    } else {
-                      // Insertar comilla de cierre antes del siguiente carácter problemático
-                      console.log(`   🔧 Insertando comilla de cierre en posición ${closePosition}`);
-                      jsonString = jsonString.substring(0, closePosition) + '"' + jsonString.substring(closePosition);
-                    }
-                  }
-                  
-                  // Estrategia 2: Buscar caracteres problemáticos comunes
-                  const problemChars = ['\n', '\r', '\t'];
-                  for (const char of problemChars) {
-                    const charIndex = jsonString.indexOf(char, Math.max(0, position - 100));
-                    if (charIndex !== -1 && charIndex < position + 100) {
-                      console.log(`   ⚠️ Carácter problemático encontrado en posición ${charIndex}: ${JSON.stringify(char)}`);
-                      // Reemplazar con espacio si está fuera de un string
-                      if (!inString) {
-                        jsonString = jsonString.substring(0, charIndex) + ' ' + jsonString.substring(charIndex + 1);
-                      }
-                    }
-                  }
-                  
-                  // Limpieza final
-                  jsonString = jsonString
-                    .replace(/([{,]\s*)'(\w+)'\s*:/g, '$1"$2":')
-                    .replace(/:\s*'([^']*)'/g, ': "$1"')
-                    .replace(/,(\s*[}\]])/g, '$1');
-                  
-                  // Completar estructuras
-                  const openBrackets = (jsonString.match(/\[/g) || []).length;
-                  const closeBrackets = (jsonString.match(/\]/g) || []).length;
-                  const openBraces = (jsonString.match(/\{/g) || []).length;
-                  const closeBraces = (jsonString.match(/\}/g) || []).length;
-                  
-                  if (openBrackets > closeBrackets) {
-                    jsonString += ']'.repeat(openBrackets - closeBrackets);
-                  }
-                  if (openBraces > closeBraces) {
-                    jsonString += '}'.repeat(openBraces - closeBraces);
-                  }
-                  
-                  // Intentar parsear de nuevo
-                  try {
-                    parsed = JSON.parse(jsonString);
-                    console.log('✅ JSON corregido y parseado exitosamente');
-                    this.logPracticeExercisesStatus(parsed, 'después del parsing corregido');
-                  } catch (retryError: any) {
-                    console.error('   ❌ Aún falla después de corrección:', retryError.message);
-                    // Si aún falla, lanzar el error original
-                    throw secondError;
-                  }
-                } else {
-                  throw secondError;
-                }
-              } else {
-                throw secondError;
-              }
-            } catch (fixError: any) {
-              console.error('❌ No se pudo corregir el error automáticamente con estrategias manuales');
-              console.error('   Intentando usar jsonrepair como último recurso...');
-              
-              try {
-                // Usar jsonrepair como último recurso
-                let cleanedText = result.text
-                  .replace(/```json\n?([\s\S]*?)\n?```/g, '$1')
-                  .replace(/```\n?([\s\S]*?)\n?```/g, '$1');
-                
-                const firstBrace = cleanedText.indexOf('{');
-                const lastBrace = cleanedText.lastIndexOf('}');
-                
-                if (firstBrace !== -1 && lastBrace > firstBrace) {
-                  let jsonString = cleanedText.substring(firstBrace, lastBrace + 1);
-                  
-                  // Usar jsonrepair para reparar el JSON
-                  const repairedJson = jsonrepair(jsonString);
-                  parsed = JSON.parse(repairedJson);
-                  console.log('✅ JSON reparado exitosamente con jsonrepair');
-                  this.logPracticeExercisesStatus(parsed, 'después del parsing con jsonrepair');
-                } else {
-                  throw new Error('No se encontró estructura JSON válida para reparar');
-                }
-              } catch (repairError: any) {
-                console.error('❌ jsonrepair también falló:', repairError.message);
-                console.error('   Primeros 2000 caracteres:', result.text.substring(0, 2000));
-                console.error('   Últimos 500 caracteres:', result.text.substring(Math.max(0, result.text.length - 500)));
-                
-                // Intentar extraer y reparar el JSON parcial antes de fallar completamente
-                try {
-                  const firstBrace = result.text.indexOf('{');
-                  if (firstBrace !== -1) {
-                    // Intentar encontrar el punto de truncamiento y cerrar el JSON manualmente
-                    let jsonString = result.text.substring(firstBrace);
-                    
-                    // Buscar el último objeto/array completo antes del error
-                    const errorPosition = repairError.message.includes('position') 
-                      ? parseInt(repairError.message.match(/position (\d+)/)?.[1] || '0')
-                      : jsonString.length;
-                    
-                    console.log(`   🔍 Error en posición ${errorPosition} de ${jsonString.length} caracteres`);
-                    console.log(`   🔍 Tipo de error: ${repairError.message}`);
-                    
-                    // Estrategia mejorada: buscar hacia atrás desde el error para encontrar un punto seguro de corte
-                    let safeCutPosition = errorPosition;
-                    
-                    // Si el error es "Colon expected", probablemente hay un problema de sintaxis
-                    // Buscar hacia atrás para encontrar el último objeto/array válido
-                    if (repairError.message.includes('Colon expected')) {
-                      console.log('   🔧 Error "Colon expected" detectado. Buscando punto seguro de corte...');
-                      
-                      // Buscar hacia atrás desde el error para encontrar un cierre válido
-                      let braceDepth = 0;
-                      let bracketDepth = 0;
-                      let inString = false;
-                      let escapeNext = false;
-                      
-                      for (let i = errorPosition - 1; i >= 0; i--) {
-                        const char = jsonString[i];
-                        
-                        if (escapeNext) {
-                          escapeNext = false;
-                          continue;
-                        }
-                        
-                        if (char === '\\') {
-                          escapeNext = true;
-                          continue;
-                        }
-                        
-                        if (char === '"' && !escapeNext) {
-                          inString = !inString;
-                          continue;
-                        }
-                        
-                        if (!inString) {
-                          if (char === '}') braceDepth++;
-                          else if (char === '{') {
-                            braceDepth--;
-                            if (braceDepth === 0 && bracketDepth === 0) {
-                              // Encontramos un objeto completo
-                              safeCutPosition = i + 1;
-                              break;
-                            }
-                          } else if (char === ']') bracketDepth++;
-                          else if (char === '[') {
-                            bracketDepth--;
-                            if (braceDepth === 0 && bracketDepth === 0) {
-                              // Encontramos un array completo
-                              safeCutPosition = i + 1;
-                              break;
-                            }
-                          } else if ((char === ',' || char === ':') && braceDepth === 0 && bracketDepth === 0) {
-                            // Punto seguro de corte
-                            safeCutPosition = i + 1;
-                            break;
-                          }
-                        }
-                      }
-                      
-                      // Si no encontramos un punto seguro, usar una posición más conservadora
-                      if (safeCutPosition === errorPosition) {
-                        safeCutPosition = Math.max(0, errorPosition - 5000); // Retroceder 5KB
-                        console.log(`   ⚠️ No se encontró punto seguro, usando posición conservadora: ${safeCutPosition}`);
-                      } else {
-                        console.log(`   ✅ Punto seguro encontrado en posición: ${safeCutPosition}`);
-                      }
-                    }
-                    
-                    // Extraer JSON hasta el punto seguro
-                    let truncatedJson = jsonString.substring(0, safeCutPosition);
-                    
-                    // Buscar el último objeto completo válido
-                    const lastBrace = truncatedJson.lastIndexOf('}');
-                    if (lastBrace > 0) {
-                      // Intentar extraer solo hasta el último objeto completo
-                      const beforeLastBrace = truncatedJson.substring(0, lastBrace + 1);
-                      
-                      // Verificar si podemos parsear hasta aquí
-                      try {
-                        const testParsed = JSON.parse(beforeLastBrace);
-                        if (testParsed.diagnostic_summary || testParsed.study_plan_summary) {
-                          truncatedJson = beforeLastBrace;
-                          console.log(`   ✅ Usando JSON hasta el último objeto completo (posición ${lastBrace})`);
-                        }
-                      } catch (e) {
-                        // Continuar con la estrategia original
-                      }
-                    }
-                    
-                    // Contar llaves y corchetes abiertos
-                    const openBraces = (truncatedJson.match(/\{/g) || []).length;
-                    const closeBraces = (truncatedJson.match(/\}/g) || []).length;
-                    const openBrackets = (truncatedJson.match(/\[/g) || []).length;
-                    const closeBrackets = (truncatedJson.match(/\]/g) || []).length;
-                    
-                    // Cerrar arrays primero
-                    if (openBrackets > closeBrackets) {
-                      truncatedJson += ']'.repeat(openBrackets - closeBrackets);
-                    }
-                    
-                    // Cerrar objetos
-                    if (openBraces > closeBraces) {
-                      truncatedJson += '}'.repeat(openBraces - closeBraces);
-                    }
-                    
-                    // Limpiar trailing commas antes de cerrar
-                    truncatedJson = truncatedJson.replace(/,(\s*[}\]])/g, '$1');
-                    
-                    // Intentar parsear el JSON parcial reparado
-                    try {
-                      const partialParsed = JSON.parse(truncatedJson);
-                      console.log('⚠️ Se logró parsear un JSON parcial (puede estar incompleto)');
-                      
-                      // Si tiene al menos la estructura básica, usarlo
-                      if (partialParsed.diagnostic_summary && partialParsed.study_plan_summary) {
-                        parsed = partialParsed;
-                        console.log('✅ Usando JSON parcial reparado (puede faltar contenido)');
-                        // Continuar con el flujo normal, pero con datos parciales
-                      } else {
-                        throw new Error('JSON parcial no tiene estructura mínima válida');
-                      }
-                    } catch (parseError: any) {
-                      console.error(`   ❌ No se pudo parsear JSON parcial: ${parseError.message}`);
-                      throw new Error('JSON parcial no se pudo parsear');
-                    }
-                  } else {
-                    throw repairError;
-                  }
-                } catch (partialError: any) {
-                  console.error('❌ No se pudo recuperar JSON parcial:', partialError.message);
-                
-                // Guardar la respuesta completa en un log para análisis posterior
-                console.error(`\n📋 RESPUESTA COMPLETA DE GEMINI (${result.text.length} caracteres):`);
-                console.error(result.text);
-                
-                  throw new Error(`Error parseando respuesta JSON después de múltiples intentos (incluyendo jsonrepair): ${repairError.message}. La respuesta de Gemini puede estar mal formada o truncada. Tamaño: ${result.text.length} caracteres. Por favor, intenta generar el plan nuevamente.`);
-                }
-              }
-            }
-          } else {
-            console.error('   Primeros 2000 caracteres:', result.text.substring(0, 2000));
-            console.error('   Últimos 500 caracteres:', result.text.substring(Math.max(0, result.text.length - 500)));
-            throw new Error(`Error parseando respuesta JSON después de múltiples intentos: ${secondError.message}. La respuesta de Gemini puede estar mal formada o truncada.`);
-          }
-        }
+        parsed = this.parseModelJsonToStudyPlan(result.text);
+      } catch (parseErr: unknown) {
+        const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        spErr('study_plan: error parseando JSON:', msg);
+        throw parseErr instanceof Error
+          ? parseErr
+          : new Error('Error parseando plan de estudio: ' + msg);
       }
 
-      // 6. Validar estructura
+      // student_info canónico (UID y debilidades reales no se envían al modelo; se aplican aquí)
+      parsed.student_info = {
+        studentId: input.studentId,
+        phase: input.phase,
+        subject: input.subject,
+        weaknesses,
+      };
+
+      this.logPracticeExercisesStatus(parsed, 'plan parseado');
+
+      // 5. Validar estructura mínima
       if (!parsed.diagnostic_summary || !parsed.study_plan_summary) {
         throw new Error('La respuesta de Gemini no tiene la estructura esperada');
       }
 
-      // Inicializar practice_exercises si no existe o está undefined
       if (!parsed.practice_exercises || !Array.isArray(parsed.practice_exercises)) {
-        console.warn(`⚠️ Advertencia: practice_exercises no existe o no es un array, inicializando como array vacío`);
         parsed.practice_exercises = [];
       }
 
-      // Validar y loggear información sobre ejercicios
-      console.log(`\n📝 EJERCICIOS DE PRÁCTICA:`);
-      console.log(`   Total recibidos: ${parsed.practice_exercises.length}`);
-      
       if (parsed.practice_exercises.length === 0) {
-        console.error(`❌ ERROR CRÍTICO: No se generaron ejercicios de práctica. El plan de estudio requiere ejercicios para ser útil.`);
-        console.error(`   Esto puede deberse a:`);
-        console.error(`   1. Gemini no generó los ejercicios (truncamiento o límite de tokens)`);
-        console.error(`   2. El parsing JSON falló y eliminó los ejercicios`);
-        console.error(`   3. El prompt no fue lo suficientemente claro`);
-        console.error(`\n🔍 DIAGNÓSTICO:`);
-        console.error(`   Verificando si los ejercicios están en la respuesta cruda de Gemini...`);
-        
-        // Buscar ejercicios en el texto original
-        const originalText = result.text;
-        const exercisePatterns = [
-          /"practice_exercises"\s*:\s*\[/i,
-          /practice_exercises.*?\[.*?\{/is,
-          /"question"\s*:/i,
-          /"options"\s*:\s*\[/i
-        ];
-        
-        const foundPatterns = exercisePatterns.map((pattern, idx) => {
-          const matches = originalText.match(pattern);
-          return { pattern: idx, found: !!matches, count: matches ? matches.length : 0 };
-        });
-        
-        console.error(`   Patrones encontrados en respuesta original:`);
-        foundPatterns.forEach((fp, idx) => {
-          console.error(`      ${idx + 1}. ${fp.found ? '✅ Encontrado' : '❌ NO encontrado'} (${fp.count} ocurrencia(s))`);
-        });
-        
-        // Si no hay ejercicios, intentar regenerarlos con un prompt más simple y directo
-        console.error(`\n🔧 SOLUCIÓN: Los ejercicios NO están en la respuesta.`);
-        console.error(`   El plan se guardará sin ejercicios, pero esto afectará la utilidad del plan.`);
-        console.error(`   Recomendación: Verificar límites de tokens de Gemini o dividir la generación en dos pasos.`);
-      } else if (parsed.practice_exercises.length !== StudyPlanService.TARGET_EXERCISE_COUNT) {
-        console.warn(`⚠️ Advertencia: Se esperaban ${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios, pero se recibieron ${parsed.practice_exercises.length}`);
-        console.warn(`   El plan de estudio seguirá guardándose, pero puede estar incompleto.`);
-      } else {
-        console.log(`✅ Se generaron correctamente ${parsed.practice_exercises.length} ejercicios de práctica`);
+        spErr('study_plan: practice_exercises vacío (tokens/modelo)');
+        spErr('   muestra (400 chars):', result.text.substring(0, 400));
+      } else if (
+        parsed.practice_exercises.length !== StudyPlanService.TARGET_EXERCISE_COUNT
+      ) {
+        spWarn(
+          `study_plan: se esperaban ${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios, hay ${parsed.practice_exercises.length}`
+        );
       }
 
       // Validar y normalizar estructura de cada ejercicio
@@ -1120,7 +680,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
               if (!option.trim().toUpperCase().startsWith(expectedPrefix.toUpperCase())) {
                 // Intentar normalizar: agregar el prefijo si falta
                 if (!option.trim().toUpperCase().match(/^[A-D]\)\s/)) {
-                  console.warn(`   🔧 Normalizando opción ${optIdx + 1} del ejercicio ${idx + 1}: agregando prefijo "${expectedPrefix}"`);
+                  spWarn(`   🔧 Normalizando opción ${optIdx + 1} del ejercicio ${idx + 1}: agregando prefijo "${expectedPrefix}"`);
                   parsed.practice_exercises[idx].options[optIdx] = `${expectedPrefix}${option.trim()}`;
                 }
               }
@@ -1135,59 +695,60 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
             validationErrors.push(`correctAnswer "${exercise.correctAnswer}" no es válido (debe ser A, B, C o D)`);
           } else if (exercise.correctAnswer !== normalizedAnswer) {
             // Normalizar correctAnswer si tiene formato incorrecto
-            console.warn(`   🔧 Normalizando correctAnswer del ejercicio ${idx + 1}: "${exercise.correctAnswer}" -> "${normalizedAnswer}"`);
+            spWarn(`   🔧 Normalizando correctAnswer del ejercicio ${idx + 1}: "${exercise.correctAnswer}" -> "${normalizedAnswer}"`);
             parsed.practice_exercises[idx].correctAnswer = normalizedAnswer;
           }
         }
         
         if (validationErrors.length > 0) {
           invalidExercises.push(idx);
-          console.warn(`⚠️ Ejercicio ${idx + 1} tiene problemas: ${validationErrors.join(', ')}`);
+          spWarn(`⚠️ Ejercicio ${idx + 1} tiene problemas: ${validationErrors.join(', ')}`);
         }
       });
 
       if (invalidExercises.length > 0) {
-        console.warn(`⚠️ ${invalidExercises.length} ejercicio(s) tienen estructura inválida (índices: ${invalidExercises.join(', ')})`);
+        spWarn(`⚠️ ${invalidExercises.length} ejercicio(s) tienen estructura inválida (índices: ${invalidExercises.join(', ')})`);
         // Filtrar ejercicios inválidos para evitar errores en el frontend
         parsed.practice_exercises = parsed.practice_exercises.filter((_, idx) => !invalidExercises.includes(idx));
-        console.log(`   Se guardarán ${parsed.practice_exercises.length} ejercicio(s) válido(s)`);
+        spLog(`   Se guardarán ${parsed.practice_exercises.length} ejercicio(s) válido(s)`);
       }
 
       const grade = this.normalizeGradeForPath(input.grade);
-      if (!parsed.student_info) parsed.student_info = {} as StudyPlanResponse['student_info'];
       (parsed.student_info as { grade?: string }).grade = grade;
-      console.log(`   📋 Grado (student_info): ${grade}`);
+      spLog(`   📋 Grado (student_info): ${grade}`);
 
       // Todos los temas de la materia (videos y enlaces; no solo debilidades).
+      const subjectConfigForResources = getSubjectConfig(input.subject);
       const allTopicNamesForSubjectGen =
-        getSubjectConfig(input.subject)?.topics.map((t) => t.name) ?? [];
+        subjectConfigForResources?.topics.map((t) => t.name) ?? [];
 
-      // Videos: 1 lectura Firestore → YoutubeLinks/consolidado_{materiaCode}; reparto por tema en memoria.
-      console.log(
-        `\n📹 Videos: 1 lectura consolidado (${allTopicNamesForSubjectGen.length} tema(s) en materia)...`
-      );
-      parsed.video_resources = await this.buildVideoResourcesFromYoutubeConsolidado(
-        input.subject,
-        allTopicNamesForSubjectGen
-      );
+      const [videoResources, studyLinks] = await Promise.all([
+        this.buildVideoResourcesFromYoutubeConsolidado(
+          input.subject,
+          allTopicNamesForSubjectGen,
+          subjectConfigForResources
+        ),
+        this.buildStudyLinksFromWebLinksConsolidated(
+          input.subject,
+          allTopicNamesForSubjectGen,
+          subjectConfigForResources
+        ),
+      ]);
+      parsed.video_resources = videoResources;
+      parsed.study_links = studyLinks;
       if (parsed.video_resources.length === 0) {
-        console.warn(`⚠️ Sin videos en YoutubeLinks/consolidado para esta materia; el plan sigue sin video_resources.`);
+        spWarn(
+          `⚠️ Sin videos en YoutubeLinks/consolidado para esta materia; el plan sigue sin video_resources.`
+        );
       }
 
-      // Enlaces: 1 lectura Firestore → WebLinks/consolidado_{materiaCode}; filtrado por tema en memoria.
-      console.log(`\n🔗 Enlaces: 1 lectura consolidado...`);
-      parsed.study_links = await this.buildStudyLinksFromWebLinksConsolidated(
-        input.subject,
-        allTopicNamesForSubjectGen
-      );
-
       // 7. Guardar en Firestore (practice_exercises solo en AnswerIA; sin EjerciciosIA)
-      console.log(`\n💾 Guardando plan de estudio en Firestore...`);
-      console.log(`   📊 Resumen antes de guardar:`);
-      console.log(`      - Topics: ${parsed.topics?.length || 0}`);
-      console.log(`      - Videos: ${parsed.video_resources?.length || 0}`);
-      console.log(`      - Enlaces: ${parsed.study_links?.length || 0}`);
-      console.log(`      - Ejercicios de práctica: ${parsed.practice_exercises?.length || 0}`);
+      spLog(`\n💾 Guardando plan de estudio en Firestore...`);
+      spLog(`   📊 Resumen antes de guardar:`);
+      spLog(`      - Topics: ${parsed.topics?.length || 0}`);
+      spLog(`      - Videos: ${parsed.video_resources?.length || 0}`);
+      spLog(`      - Enlaces: ${parsed.study_links?.length || 0}`);
+      spLog(`      - Ejercicios de práctica: ${parsed.practice_exercises?.length || 0}`);
       
       // Validación: el plan debe estar completo antes de guardar y retornar
       if (!parsed.topics || !Array.isArray(parsed.topics) || parsed.topics.length === 0) {
@@ -1204,7 +765,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
 
       // Enlaces web: si no hay ninguno, se permite el plan pero se registra advertencia (los links solo vienen de WebLinks/caché)
       if (!hasLinks) {
-        console.warn('⚠️ El plan se generó sin enlaces web. Agrega enlaces en WebLinks (admin) para la materia y temas del plan.');
+        spWarn('⚠️ El plan se generó sin enlaces web. Agrega enlaces en WebLinks (admin) para la materia y temas del plan.');
         parsed.study_links = parsed.study_links || [];
       }
 
@@ -1229,24 +790,29 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
           .filter((l) => l.url && l.url.startsWith('http'));
         const removed = parsed.study_links.length - validLinks.length;
         if (removed > 0) {
-          console.warn(`⚠️ Se omitieron ${removed} enlace(s) sin título o URL válida. Se conservan ${validLinks.length} enlace(s) válido(s).`);
+          spWarn(`⚠️ Se omitieron ${removed} enlace(s) sin título o URL válida. Se conservan ${validLinks.length} enlace(s) válido(s).`);
         }
         parsed.study_links = validLinks;
       }
 
-      // Verificar que los ejercicios tengan campos válidos
-      const incompleteExercises = parsed.practice_exercises.filter(e => !e.question || !e.options || !e.correctAnswer);
-      if (incompleteExercises.length > 0) {
-        throw new Error(`${incompleteExercises.length} ejercicio(s) incompleto(s)`);
+      const stillBad = parsed.practice_exercises.filter(
+        (e) =>
+          !e.question ||
+          !e.options ||
+          e.options.length !== 4 ||
+          !e.correctAnswer
+      );
+      if (stillBad.length > 0) {
+        throw new Error(`${stillBad.length} ejercicio(s) incompleto(s) tras validación`);
       }
-      
+
       await this.saveStudyPlan(input, parsed);
 
       const processingTime = Date.now() - startTime;
-      console.log(`\n✅ Plan de estudio generado y guardado exitosamente en ${(processingTime / 1000).toFixed(1)}s`);
-      console.log(`   ✅ Videos: ${parsed.video_resources.length}`);
-      console.log(`   ✅ Enlaces (desde WebLinks): ${parsed.study_links.length}`);
-      console.log(`   ✅ Ejercicios: ${parsed.practice_exercises.length}`);
+      spLog(`\n✅ Plan de estudio generado y guardado exitosamente en ${(processingTime / 1000).toFixed(1)}s`);
+      spLog(`   ✅ Videos: ${parsed.video_resources.length}`);
+      spLog(`   ✅ Enlaces (desde WebLinks): ${parsed.study_links.length}`);
+      spLog(`   ✅ Ejercicios: ${parsed.practice_exercises.length}`);
 
       return {
         success: true,
@@ -1254,7 +820,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         processingTimeMs: processingTime,
       };
     } catch (error: any) {
-      console.error(`❌ Error generando plan de estudio:`, error);
+      spErr(`❌ Error generando plan de estudio:`, error);
       
       return {
         success: false,
@@ -1274,16 +840,8 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     studyPlan: StudyPlanResponse
   ): Promise<void> {
     try {
-      // Mapear fase a nombre de subcolección
-      const phaseMap: Record<string, string> = {
-        first: 'Fase I',
-        second: 'Fase II',
-        third: 'Fase III',
-      };
-      
-      const phaseName = phaseMap[input.phase];
-      
-      // Obtener la base de datos correcta (superate-6c730)
+      const phaseName = getCanonicalAnswerIAPhaseSubcollection(input.phase);
+
       const studentDb = this.getStudentDatabase();
       
       // Estructura: AnswerIA/{studentId}/{phaseName}/{subject}
@@ -1306,32 +864,17 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
 
       // Validar que practice_exercises existe antes de guardar
       if (!dataToSave.practice_exercises || !Array.isArray(dataToSave.practice_exercises)) {
-        console.warn(`   ⚠️ practice_exercises no existe o no es un array antes de guardar, inicializando como array vacío`);
+        spWarn(`   ⚠️ practice_exercises no existe o no es un array antes de guardar, inicializando como array vacío`);
         dataToSave.practice_exercises = [];
       }
 
-      console.log(`   📝 Verificando estructura antes de guardar:`);
-      console.log(`      - practice_exercises existe: ${!!dataToSave.practice_exercises}`);
-      console.log(`      - practice_exercises es array: ${Array.isArray(dataToSave.practice_exercises)}`);
-      console.log(`      - Cantidad de ejercicios: ${dataToSave.practice_exercises?.length || 0}`);
+      spLog(`   📝 Antes de guardar: ${dataToSave.practice_exercises?.length ?? 0} ejercicio(s)`);
 
       await docRef.set(dataToSave, { merge: true });
 
-      console.log(`   ✅ Plan guardado en: AnswerIA/${input.studentId}/${phaseName}/${input.subject}`);
-      
-      // Verificar que se guardó correctamente
-      const verificationDoc = await docRef.get();
-      if (verificationDoc.exists) {
-        const savedData = verificationDoc.data();
-        const savedExercisesCount = savedData?.practice_exercises?.length || 0;
-        console.log(`   ✅ Verificación: Plan guardado correctamente con ${savedExercisesCount} ejercicio(s) de práctica`);
-        
-        if (savedExercisesCount === 0 && studyPlan.practice_exercises && studyPlan.practice_exercises.length > 0) {
-          console.error(`   ❌ ERROR: Se intentaron guardar ${studyPlan.practice_exercises.length} ejercicios pero se guardaron 0`);
-        }
-      }
+      spLog(`   ✅ Plan guardado: AnswerIA/${input.studentId}/${phaseName}/${input.subject}`);
     } catch (error: any) {
-      console.error('❌ Error guardando plan de estudio:', error);
+      spErr('❌ Error guardando plan de estudio:', error);
       throw error;
     }
   }
@@ -1371,33 +914,40 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
           const data = docSnap.data() as StudyPlanResponse;
 
           if (!data.practice_exercises || !Array.isArray(data.practice_exercises)) {
-            console.warn(`⚠️ Plan de estudio recuperado pero practice_exercises no existe o no es un array`);
-            console.warn(`   Estudiante: ${studentId}, Fase: ${phaseName}, Materia: ${subject}`);
+            spWarn(`⚠️ Plan de estudio recuperado pero practice_exercises no existe o no es un array`);
+            spWarn(`   Estudiante: ${studentId}, Fase: ${phaseName}, Materia: ${subject}`);
             data.practice_exercises = [];
           } else {
-            console.log(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
+            spLog(`✅ Plan recuperado con ${data.practice_exercises.length} ejercicio(s) de práctica`);
           }
 
-          const allTopicNamesForSubject = getSubjectConfig(subject)?.topics.map((t) => t.name) ?? [];
-          data.study_links = await this.buildStudyLinksFromWebLinksConsolidated(
-            subject,
-            allTopicNamesForSubject
-          );
-
-          data.video_resources = await this.buildVideoResourcesFromYoutubeConsolidado(
-            subject,
-            allTopicNamesForSubject
-          );
+          const subjectCfg = getSubjectConfig(subject);
+          const allTopicNamesForSubject =
+            subjectCfg?.topics.map((t) => t.name) ?? [];
+          const [links, videos] = await Promise.all([
+            this.buildStudyLinksFromWebLinksConsolidated(
+              subject,
+              allTopicNamesForSubject,
+              subjectCfg
+            ),
+            this.buildVideoResourcesFromYoutubeConsolidado(
+              subject,
+              allTopicNamesForSubject,
+              subjectCfg
+            ),
+          ]);
+          data.study_links = links;
+          data.video_resources = videos;
 
           return data;
         } catch (error: any) {
-          console.warn(`   ⚠️ Error buscando en ${phaseName}:`, error.message);
+          spWarn(`   ⚠️ Error buscando en ${phaseName}:`, error.message);
         }
       }
 
       return null;
     } catch (error: any) {
-      console.error('Error obteniendo plan de estudio:', error);
+      spErr('Error obteniendo plan de estudio:', error);
       return null;
     }
   }
@@ -1466,7 +1016,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       .doc(docId)
       .get();
     if (!snap.exists) {
-      console.warn(`   ⚠️ YoutubeLinks: no existe ${docId}`);
+      spWarn(`   ⚠️ YoutubeLinks: no existe ${docId}`);
       return [];
     }
     const raw = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
@@ -1479,7 +1029,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       .filter((x) => x?.url || x?.videoId)
       .sort((a, b) => orderOrTime(a) - orderOrTime(b))
       .map((x) => parseVideoRow(x));
-    console.log(
+    spLog(
       `   📦 YoutubeLinks ${docId}: ${allVideosForSubject.length} video(s) (1 lectura)`
     );
     return allVideosForSubject;
@@ -1490,9 +1040,10 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
    */
   private async buildVideoResourcesFromYoutubeConsolidado(
     subject: string,
-    topicDisplayNames: string[]
+    topicDisplayNames: string[],
+    cachedSubjectConfig?: SubjectWithTopics
   ): Promise<StudyPlanResponse['video_resources']> {
-    const subjectConfig = getSubjectConfig(subject);
+    const subjectConfig = cachedSubjectConfig ?? getSubjectConfig(subject);
     const materiaCode = subjectConfig?.code;
     if (!materiaCode || topicDisplayNames.length === 0) {
       return [];
@@ -1503,7 +1054,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     for (const topicName of uniqueTopics) {
       const topicCode = getTopicCode(subject, topicName);
       if (!topicCode) {
-        console.warn(
+        spWarn(
           `   ⚠️ YoutubeLinks: sin topicCode materia="${subject}" tema="${topicName}"`
         );
         continue;
@@ -1528,7 +1079,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         }));
       out.push(...slice);
     }
-    console.log(
+    spLog(
       `   ✅ video_resources: consolidado_${materiaCode} (1 lectura) → ${out.length} video(s) en ${uniqueTopics.length} tema(s)`
     );
     return out;
@@ -1538,7 +1089,6 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
    * Enlaces web por tema: solo WebLinks/consolidado_{materiaCode} (filtrado por topicCode en items).
    */
   private async getLinksForTopic(
-    grade: string,
     subject: string,
     topic: string
   ): Promise<Array<{
@@ -1548,12 +1098,12 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     topic?: string;
   }>> {
     try {
-      console.log(`   📋 Obteniendo enlaces web para topic: "${topic}" (desde caché)`);
-      const cachedLinks = await this.getCachedLinks(grade, subject, topic);
-      console.log(`   📦 Enlaces en caché para "${topic}": ${cachedLinks.length}`);
+      spLog(`   📋 Obteniendo enlaces web para topic: "${topic}" (desde caché)`);
+      const cachedLinks = await this.getCachedLinks(subject, topic);
+      spLog(`   📦 Enlaces en caché para "${topic}": ${cachedLinks.length}`);
       return cachedLinks.map((link) => ({ ...link, topic }));
     } catch (error: any) {
-      console.error(`❌ Error obteniendo enlaces para topic "${topic}":`, error.message);
+      spErr(`❌ Error obteniendo enlaces para topic "${topic}":`, error.message);
       return [];
     }
   }
@@ -1566,14 +1116,13 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     _phase: 'first' | 'second' | 'third',
     subject: string,
     topic: string,
-    grade?: string
+    _grade?: string
   ): Promise<Array<{
     title: string;
     url: string;
     description: string;
   }>> {
-    const g = this.normalizeGradeForPath(grade);
-    return this.getLinksForTopic(g, subject, topic);
+    return this.getLinksForTopic(subject, topic);
   }
 
   private getOrLoadWebLinksConsolidated(
@@ -1603,7 +1152,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     const docId = `consolidado_${materiaCode}`;
     const snap = await studentDb.collection(StudyPlanService.WEBLINKS_COLLECTION).doc(docId).get();
     if (!snap.exists) {
-      console.warn(`   ⚠️ WebLinks: no existe ${docId}`);
+      spWarn(`   ⚠️ WebLinks: no existe ${docId}`);
       return [];
     }
     const raw = snap.data() as { items?: admin.firestore.DocumentData[] } | undefined;
@@ -1616,7 +1165,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       .filter((x) => x?.url || x?.link)
       .sort((a, b) => orderOrTime(a) - orderOrTime(b))
       .map((x) => parseLinkDoc(x));
-    console.log(`   📦 WebLinks ${docId}: ${allLinksForSubject.length} enlace(s) (1 lectura)`);
+    spLog(`   📦 WebLinks ${docId}: ${allLinksForSubject.length} enlace(s) (1 lectura)`);
     return allLinksForSubject;
   }
 
@@ -1625,13 +1174,14 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
    */
   private async buildStudyLinksFromWebLinksConsolidated(
     subject: string,
-    topicIds: string[]
+    topicIds: string[],
+    cachedSubjectConfig?: SubjectWithTopics
   ): Promise<Array<{ title: string; url: string; description: string; topic?: string }>> {
     if (topicIds.length === 0) return [];
-    const subjectConfig = getSubjectConfig(subject);
+    const subjectConfig = cachedSubjectConfig ?? getSubjectConfig(subject);
     const materiaCode = subjectConfig?.code;
     if (!materiaCode) {
-      console.warn(`   ⚠️ WebLinks: sin código de materia para "${subject}"`);
+      spWarn(`   ⚠️ WebLinks: sin código de materia para "${subject}"`);
       return [];
     }
     const allLinksForSubject = await this.getOrLoadWebLinksConsolidated(materiaCode);
@@ -1640,7 +1190,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     for (const topicId of uniqueTopics) {
       const topicCode = getTopicCode(subject, topicId);
       if (!topicCode) {
-        console.warn(`   ⚠️ WebLinks: sin topicCode materia="${subject}" tema="${topicId}"`);
+        spWarn(`   ⚠️ WebLinks: sin topicCode materia="${subject}" tema="${topicId}"`);
         continue;
       }
       const links = allLinksForSubject
@@ -1652,7 +1202,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         .map((l) => ({ ...l, topic: topicId }));
       total.push(...links);
     }
-    console.log(
+    spLog(
       `   ✅ study_links: consolidado_${materiaCode} (1 lectura) → ${total.length} enlace(s) en ${uniqueTopics.length} tema(s)`
     );
     return total;
@@ -1662,10 +1212,8 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
    * Un tema: misma única lectura consolidado que el plan completo (caché en memoria por materia).
    */
   private async getCachedLinks(
-    _grade: string,
     subject: string,
-    topic: string,
-    _phase?: 'first' | 'second' | 'third'
+    topic: string
   ): Promise<Array<{
     title: string;
     url: string;
@@ -1675,7 +1223,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     try {
       return await this.buildStudyLinksFromWebLinksConsolidated(subject, [topic]);
     } catch (error: any) {
-      console.error(`❌ Error obteniendo enlaces desde consolidado:`, error.message);
+      spErr(`❌ Error obteniendo enlaces desde consolidado:`, error.message);
       return [];
     }
   }

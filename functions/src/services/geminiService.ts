@@ -3,6 +3,7 @@ import { geminiClient } from '../config/gemini.config';
 interface GeminiCallOptions {
   retries?: number;
   timeout?: number;
+  responseMimeType?: 'application/json';
 }
 
 interface GeminiCallInput {
@@ -10,6 +11,7 @@ interface GeminiCallInput {
   prompt: string;
   processName: string;
   images?: Array<{ mimeType: string; data: string; context: string }>;
+  /** Reenviado a Vertex (retries, timeout, responseMimeType, etc.). */
   options?: GeminiCallOptions;
 }
 
