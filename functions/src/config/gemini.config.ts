@@ -26,10 +26,11 @@ const VERTEX_LONG_GENERATION_TIMEOUT_MS = 300_000;
 
 /**
  * Configuración de Gemini
- * Todos los valores se leen desde variables de entorno (.env)
+ * Región/modelo/credenciales locales desde .env; el proyecto de Vertex AI es fijo en superate-ia
+ * (las Functions pueden desplegarse en otro proyecto Firebase; IAM cruza al dar Vertex AI User allí).
  */
 export const GEMINI_CONFIG = {
-  PROJECT_ID: process.env.VERTEX_AI_PROJECT_ID || process.env.GEMINI_PROJECT_ID || 'superate-ia',
+  PROJECT_ID: 'superate-ia',
   REGION: process.env.VERTEX_AI_REGION || process.env.GEMINI_REGION || 'us-central1',
   MODEL_NAME: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   VERTEX_AI_CREDENTIALS: process.env.VERTEX_AI_CREDENTIALS || './serviceAccountKey-ia.json',
