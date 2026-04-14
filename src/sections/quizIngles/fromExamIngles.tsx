@@ -80,6 +80,8 @@ const examConfig = {
   module: "Módulo de Inglés",
 };
 
+const VALIDATION_SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6 horas (mismo criterio que Matemáticas)
+
 const ExamWithFirebase = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -127,6 +129,46 @@ const ExamWithFirebase = () => {
   // Ref para rastrear si un cierre es intencional
   const intentionalCloseRef = useRef<{ [key: string]: boolean }>({});
   const summaryPackRef = useRef<StudentProgressSummaryPack | undefined>(undefined);
+
+  const buildValidationCacheKey = useCallback(() => {
+    if (!userId) return null;
+    return `quiz_validation_ok:${userId}:${currentPhase}:${examConfig.subject}`;
+  }, [userId, currentPhase]);
+
+  const hasRecentValidation = useCallback((key: string | null) => {
+    if (!key) return false;
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return false;
+      const ts = Number(raw);
+      if (!Number.isFinite(ts)) return false;
+      if (Date.now() - ts > VALIDATION_SESSION_TTL_MS) {
+        sessionStorage.removeItem(key);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const markValidationAsRecent = useCallback((key: string | null) => {
+    if (!key) return;
+    try {
+      sessionStorage.setItem(key, String(Date.now()));
+    } catch {
+      // Ignorar errores de storage
+    }
+  }, []);
+
+  const clearValidationCache = useCallback((key: string | null) => {
+    if (!key) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Sin impacto funcional
+    }
+  }, []);
 
   usePrefetchAdjacentQuizImagesGroups(
     examState === "active" && questionGroups.length > 0,
@@ -203,64 +245,111 @@ const ExamWithFirebase = () => {
 
         const quiz = quizResult.data;
         console.log('Cuestionario generado exitosamente:', quiz);
-        
-        if (isMounted) {
-          setQuizData(quiz);
-          
-          // Agrupar preguntas por informativeText para inglés
-          if (quiz.subject === 'Inglés') {
-            const groups: Question[][] = [];
-            let currentGroup: Question[] = [];
-            let currentInformativeText = '';
-            
-            quiz.questions.forEach((question, index) => {
-              const informativeText = question.informativeText || '';
-              const informativeImages = JSON.stringify(question.informativeImages || []);
-              const groupKey = `${informativeText}_${informativeImages}`;
-              
-              // Si tiene informativeText, agrupar
-              if (informativeText && informativeText.trim() !== '' && question.subjectCode === 'IN') {
-                if (groupKey !== currentInformativeText) {
-                  // Nuevo grupo
-                  if (currentGroup.length > 0) {
-                    groups.push([...currentGroup]);
-                  }
-                  currentGroup = [question];
-                  currentInformativeText = groupKey;
-                } else {
-                  // Mismo grupo
-                  currentGroup.push(question);
-                }
-              } else {
-                // Pregunta individual sin grupo
+
+        if (!isMounted) return;
+
+        setQuizData(quiz);
+
+        // Agrupar preguntas por informativeText para inglés
+        if (quiz.subject === 'Inglés') {
+          const groups: Question[][] = [];
+          let currentGroup: Question[] = [];
+          let currentInformativeText = '';
+
+          quiz.questions.forEach((question, index) => {
+            const informativeText = question.informativeText || '';
+            const informativeImages = JSON.stringify(question.informativeImages || []);
+            const groupKey = `${informativeText}_${informativeImages}`;
+
+            // Si tiene informativeText, agrupar
+            if (informativeText && informativeText.trim() !== '' && question.subjectCode === 'IN') {
+              if (groupKey !== currentInformativeText) {
+                // Nuevo grupo
                 if (currentGroup.length > 0) {
                   groups.push([...currentGroup]);
-                  currentGroup = [];
-                  currentInformativeText = '';
                 }
-                groups.push([question]);
+                currentGroup = [question];
+                currentInformativeText = groupKey;
+              } else {
+                // Mismo grupo
+                currentGroup.push(question);
               }
-              
-              // Si es la última pregunta, agregar el grupo actual
-              if (index === quiz.questions.length - 1 && currentGroup.length > 0) {
+            } else {
+              // Pregunta individual sin grupo
+              if (currentGroup.length > 0) {
                 groups.push([...currentGroup]);
+                currentGroup = [];
+                currentInformativeText = '';
               }
+              groups.push([question]);
+            }
+
+            // Si es la última pregunta, agregar el grupo actual
+            if (index === quiz.questions.length - 1 && currentGroup.length > 0) {
+              groups.push([...currentGroup]);
+            }
+          });
+
+          setQuestionGroups(groups);
+          setCurrentGroupIndex(0);
+          console.log(`✅ Preguntas agrupadas en ${groups.length} grupos para inglés`);
+        } else {
+          // Para otras materias, cada pregunta es un grupo individual
+          const individualGroups = quiz.questions.map(q => [q]);
+          setQuestionGroups(individualGroups);
+          setCurrentGroupIndex(0);
+        }
+
+        // Calcular tiempo límite: usar el del quiz o 2 minutos por pregunta como fallback
+        const timeLimitMinutes = quiz.timeLimit || (quiz.questions.length * 2);
+        setTimeLeft(timeLimitMinutes * 60);
+
+        const validationKey = buildValidationCacheKey();
+        if (hasRecentValidation(validationKey)) {
+          setExamState('welcome');
+        } else {
+          setValidationChecking(true);
+          try {
+            const outcome = await validateExamPresentationGate({
+              userId,
+              phase: currentPhase,
+              subjectLabel: examConfig.subject,
+              quizId: quiz.id,
+              summaryPack: summaryPackRef.current,
             });
-            
-            setQuestionGroups(groups);
-            setCurrentGroupIndex(0);
-            console.log(`✅ Preguntas agrupadas en ${groups.length} grupos para inglés`);
-          } else {
-            // Para otras materias, cada pregunta es un grupo individual
-            const individualGroups = quiz.questions.map(q => [q]);
-            setQuestionGroups(individualGroups);
-            setCurrentGroupIndex(0);
+
+            if (!isMounted) return;
+
+            if (outcome.type === 'blocked') {
+              clearValidationCache(validationKey);
+              setExamState('blocked');
+              notifyError({
+                title: 'Examen bloqueado',
+                message:
+                  'Este examen está bloqueado. Verifica que la fase esté habilitada y que hayas completado la fase anterior.',
+              });
+              return;
+            }
+
+            if (outcome.type === 'already_taken') {
+              clearValidationCache(validationKey);
+              setExistingExamData(outcome.examSnapshot);
+              setExamState('already_taken');
+              return;
+            }
+
+            markValidationAsRecent(validationKey);
+            setExamState('welcome');
+          } catch (err) {
+            console.error('[fromExamIngles] Validación automática:', err);
+            if (isMounted) {
+              setExamState('awaiting_validation');
+            }
+          } finally {
+            if (isMounted) {
+              setValidationChecking(false);
+            }
           }
-          
-          // Calcular tiempo límite: usar el del quiz o 2 minutos por pregunta como fallback
-          const timeLimitMinutes = quiz.timeLimit || (quiz.questions.length * 2);
-          setTimeLeft(timeLimitMinutes * 60);
-          setExamState('awaiting_validation');
         }
       } catch (error) {
         console.error('Error cargando cuestionario:', error);
@@ -276,7 +365,16 @@ const ExamWithFirebase = () => {
       isMounted = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [userId, currentPhase, user]);
+  }, [
+    userId,
+    currentPhase,
+    user,
+    notifyError,
+    buildValidationCacheKey,
+    hasRecentValidation,
+    markValidationAsRecent,
+    clearValidationCache,
+  ]);
 
   const runValidationFromSummary = useCallback(async () => {
     if (!userId || !quizData) return;
@@ -290,6 +388,7 @@ const ExamWithFirebase = () => {
         summaryPack: summaryPackRef.current,
       });
       if (outcome.type === 'blocked') {
+        clearValidationCache(buildValidationCacheKey());
         setExamState('blocked');
         notifyError({
           title: 'Examen bloqueado',
@@ -298,10 +397,12 @@ const ExamWithFirebase = () => {
         return;
       }
       if (outcome.type === 'already_taken') {
+        clearValidationCache(buildValidationCacheKey());
         setExistingExamData(outcome.examSnapshot);
         setExamState('already_taken');
         return;
       }
+      markValidationAsRecent(buildValidationCacheKey());
       setExamState('welcome');
     } catch (err) {
       console.error('[fromExamIngles] Validación:', err);
@@ -309,7 +410,15 @@ const ExamWithFirebase = () => {
     } finally {
       setValidationChecking(false);
     }
-  }, [userId, quizData, currentPhase, notifyError]);
+  }, [
+    userId,
+    quizData,
+    currentPhase,
+    notifyError,
+    buildValidationCacheKey,
+    clearValidationCache,
+    markValidationAsRecent,
+  ]);
 
   // Función para inicializar el seguimiento de tiempo de una pregunta
   const initializeQuestionTime = (questionId: string) => {
