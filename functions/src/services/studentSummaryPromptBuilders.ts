@@ -203,8 +203,8 @@ export function buildPhase1Prompt(params: {
   const { materiasData, globalMetrics, academicContext, materiasLista } = params;
 
   return `Eres un doctor en educación especialista en diagnóstico pedagógico y evaluación tipo ICFES/Saber 11.
-Tu rol es generar un informe diagnóstico que oriente la intervención docente y comunique con claridad a las familias.
-Redacción: técnica pero comprensible; explica términos como "competencias", "desempeño", "nivel MCER" la primera vez que los uses.
+Tu rol es generar un informe diagnóstico que oriente la intervención docente y deje notar el estado académico del estuciante.
+Redacción: técnica pero comprensible.
 
 ═══════════════════════════════════════════════════════
 CONTEXTO
@@ -225,7 +225,7 @@ ${formatGlobalMetricsPhase1(globalMetrics)}
 ═══════════════════════════════════════════════════════
 REGLAS OBLIGATORIAS
 ═══════════════════════════════════════════════════════
-1. ANTI-REDUNDANCIA: "resumen_general" describe SOLO tendencias globales (nivel general, patrón de tiempo dominante, distribución de fortalezas). NO menciona materias específicas ni temas concretos; esos detalles van exclusivamente en "analisis_competencial".
+1. ANTI-REDUNDANCIA: "resumen_general" describe SOLO tendencias globales (nivel general, patrón de tiempo dominante, distribución de fortalezas). NO menciona materias específicas ni temas concretos".
 2. "analisis_competencial" es un objeto con una clave por materia (${materiasLista}). Cada valor analiza ESA materia: qué competencias dominó, cuáles le fallan, qué patrón de tiempo se observa y qué tipo de actividad sería más efectiva. Sin mencionar puntajes exactos en el texto.
 3. ${INGLES_MCER_RULE}
 4. No compares con otros estudiantes. Sin saludos ni despedidas. Sin lenguaje clínico.
@@ -328,7 +328,7 @@ ${formatGlobalMetricsPhase23(globalMetrics)}
 ═══════════════════════════════════════════════════════
 REGLAS OBLIGATORIAS
 ═══════════════════════════════════════════════════════
-1. ANTI-REDUNDANCIA: "resumen_general" y "analisis_competencial" no deben repetir los mismos puntos. El resumen describe la tendencia general de Fase II vs Fase I; el análisis entra al detalle por materia.
+1. ANTI-REDUNDANCIA: "resumen_general" y "analisis_competencial" no deben repetir los mismos puntos. El resumen describe la tendencia general de Fase II vs Fase Idel estudiante. El analisis entra al detalle por materia.
 2. ${reglaPrimeraOracion ? `${reglaPrimeraOracion}\n3. ` : ''}${INGLES_MCER_RULE}
 ${reglaPrimeraOracion ? '4.' : '3.'} Sin puntajes numéricos explícitos en el texto. Sin comparar con otros estudiantes. Sin saludos.
 
@@ -369,7 +369,7 @@ export function buildPhase3Prompt(params: {
   const { materiasData, globalMetrics, academicContext, materiasLista, trajectoryBlock } = params;
 
   return `Eres un evaluador institucional con enfoque ICFES / Ministerio de Educación.
-Redacta un informe riguroso, formal y comprensible para familias. Explica brevemente los términos técnicos.
+Redacta un informe riguroso, formal y comprensible para los docentes.
 
 ═══════════════════════════════════════════════════════
 CONTEXTO
@@ -394,7 +394,7 @@ REGLAS OBLIGATORIAS
 ═══════════════════════════════════════════════════════
 1. Integra la trayectoria Fase I → II → III de forma narrativa, sin citar puntajes numéricos explícitos.
 2. "analisis_competencial" es un objeto con una clave por materia — igual que en Fases I y II: análisis breve por área y trayectoria.
-3. "sintesis_institucional" es el texto continuo formal estilo informe Saber (300-400 palabras), voz institucional; no repitas listado por materia (eso va en analisis_competencial).
+3. "sintesis_institucional" es el texto continuo formal estilo informe Saber (150-200 palabras), voz institucional; no repitas listado por materia (eso va en analisis_competencial).
 4. "resumen_general" es síntesis breve (150-200 palabras): estado tras las tres fases y posicionamiento frente a Saber 11; no dupliques la síntesis institucional completa.
 5. ${INGLES_MCER_RULE}
 6. Sin comparar con otros estudiantes. Sin saludos ni despedidas.
@@ -415,7 +415,7 @@ FORMATO JSON ESPERADO
     "Inglés": "80-100 palabras — nivel MCER final y proyección"
   },
 
-  "sintesis_institucional": "300-400 palabras en texto continuo formal. Integra competencias, niveles, coherencia entre áreas y preparación para Saber 11. Puede usar términos técnicos con explicación breve.",
+  "sintesis_institucional": "100-150 palabras en texto continuo formal. Integra competencias, niveles, coherencia entre áreas y preparación para Saber 11.",
 
   "fortalezas_academicas": ["Fortaleza 1", "Fortaleza 2", "Fortaleza 3"],
   "aspectos_por_mejorar": ["Aspecto 1", "Aspecto 2"],
