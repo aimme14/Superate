@@ -139,9 +139,12 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         return safeNum(sub?.byGrade?.[gradeId]?.avgPct)
       })
 
+    /** Fase I / II / III: azul, violeta y verde (alto contraste entre sí y sobre fondo oscuro) */
+    const phaseBarColors = ['#3b82f6', '#a855f7', '#22c55e'] as const
+
     return {
       backgroundColor: 'transparent',
-      color: ['#f59e0b', '#f97316', '#22c55e'],
+      color: [...phaseBarColors],
       grid: { left: 38, right: 12, top: 40, bottom: 52 },
       legend: {
         top: 8,
@@ -170,9 +173,27 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         splitLine: { lineStyle: { color: isDark ? '#3f3f46' : '#e2e8f0' } },
       },
       series: [
-        { name: 'Fase I', type: 'bar', barMaxWidth: 22, data: getPhaseData('first'), itemStyle: { borderRadius: [4, 4, 0, 0] } },
-        { name: 'Fase II', type: 'bar', barMaxWidth: 22, data: getPhaseData('second'), itemStyle: { borderRadius: [4, 4, 0, 0] } },
-        { name: 'Fase III', type: 'bar', barMaxWidth: 22, data: getPhaseData('third'), itemStyle: { borderRadius: [4, 4, 0, 0] } },
+        {
+          name: 'Fase I',
+          type: 'bar',
+          barMaxWidth: 22,
+          data: getPhaseData('first'),
+          itemStyle: { color: phaseBarColors[0], borderRadius: [4, 4, 0, 0] },
+        },
+        {
+          name: 'Fase II',
+          type: 'bar',
+          barMaxWidth: 22,
+          data: getPhaseData('second'),
+          itemStyle: { color: phaseBarColors[1], borderRadius: [4, 4, 0, 0] },
+        },
+        {
+          name: 'Fase III',
+          type: 'bar',
+          barMaxWidth: 22,
+          data: getPhaseData('third'),
+          itemStyle: { color: phaseBarColors[2], borderRadius: [4, 4, 0, 0] },
+        },
       ],
     }
   }, [institutionSummary, subjectEvolutionGradeFilter, isDark])
@@ -254,18 +275,35 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     return {
       backgroundColor: 'transparent',
       tooltip: { trigger: 'item' },
-      legend: {
-        bottom: 0,
-        type: 'scroll',
-        textStyle: { color: isDark ? '#d4d4d8' : '#334155', fontSize: 10 },
-      },
+      legend: { show: false },
       series: [
         {
           type: 'pie',
-          radius: ['35%', '65%'],
-          center: ['50%', '43%'],
-          label: { show: false },
-          emphasis: { label: { show: true, formatter: '{b}\n{c}%', color: isDark ? '#f4f4f5' : '#0f172a' } },
+          radius: ['32%', '58%'],
+          center: ['50%', '50%'],
+          avoidLabelOverlap: true,
+          minShowLabelAngle: 4,
+          label: {
+            show: true,
+            position: 'outside',
+            formatter: '{b}\n{c}%',
+            color: isDark ? '#e4e4e7' : '#334155',
+            fontSize: 10,
+            lineHeight: 14,
+          },
+          labelLine: {
+            show: true,
+            length: 10,
+            length2: 8,
+            lineStyle: { color: isDark ? '#52525b' : '#cbd5e1' },
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontWeight: 'bold',
+              color: isDark ? '#fafafa' : '#0f172a',
+            },
+          },
           data: entries,
         },
       ],
@@ -660,7 +698,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                   </CardHeader>
                   <CardContent>
                     {subjectsPieOption ? (
-                      <ReactECharts option={subjectsPieOption} style={{ height: 250 }} notMerge lazyUpdate />
+                      <ReactECharts option={subjectsPieOption} style={{ height: 300 }} notMerge lazyUpdate />
                     ) : (
                       <p className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-slate-500')}>Sin datos para mostrar</p>
                     )}
