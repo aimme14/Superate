@@ -27,7 +27,7 @@ interface SubjectTopicsAccordionProps {
 
 /**
  * Componente acordeón que muestra las materias de forma expandible.
- * Cada materia contiene un gráfico de líneas con sus temas.
+ * Cada materia contiene un gráfico de barras por eje (Fase I, II, III).
  * 
  * Ejemplo:
  * - [>] Matemáticas (85%) ↑

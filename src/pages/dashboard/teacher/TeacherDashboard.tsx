@@ -1803,7 +1803,7 @@ function CourseAnalysisTab({
             Rendimiento por Materia
           </CardTitle>
           <CardDescription className={cn(theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-            Evolución de temas a través de las 3 fases evaluativas (promedio del salón)
+            Por cada eje, tres barras (Fase I, II y III) para comparar el promedio del salón entre fases
           </CardDescription>
         </CardHeader>
         <CardContent>

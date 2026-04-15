@@ -3270,7 +3270,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
                         <CardDescription className={cn(
                           theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                         )}>
-                          Evolución de temas a través de las 3 fases evaluativas
+                          Por cada eje, tres barras (Fase I, II y III) para comparar tu avance entre fases
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
