@@ -32,12 +32,17 @@ export async function getRandomEjercicios(
   params: GetRandomEjerciciosParams
 ): Promise<GetRandomEjerciciosResult> {
   const { grade, subject, limit = 10 } = params;
-  const url = new URL(`${CLOUD_FUNCTIONS_HTTP_BASE}/getRandomEjerciciosIA`);
-  if (grade) url.searchParams.set('grade', grade);
-  if (subject) url.searchParams.set('subject', subject);
-  url.searchParams.set('limit', String(limit));
 
   try {
+    const path = `${CLOUD_FUNCTIONS_HTTP_BASE}/getRandomEjerciciosIA`;
+    const url =
+      path.startsWith('http://') || path.startsWith('https://')
+        ? new URL(path)
+        : new URL(path, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+    if (grade) url.searchParams.set('grade', grade);
+    if (subject) url.searchParams.set('subject', subject);
+    url.searchParams.set('limit', String(limit));
+
     const res = await fetch(url.toString());
     const json = await res.json();
     if (!res.ok) {
