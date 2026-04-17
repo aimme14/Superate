@@ -36,6 +36,14 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function formatTodayShort(date: Date = new Date()): string {
+  return date.toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 /** Etiqueta legible para tiempo total del simulacro (valor fijo en resultados). */
 function formatTotalDuration(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
@@ -266,7 +274,9 @@ export default function SimulacrosIAPage() {
                     )}
                   >
                     <Clock className="h-4 w-4" />
-                    <span className="font-mono font-semibold">{formatTime(timeRemaining)}</span>
+                    <span className="font-mono font-semibold tabular-nums">
+                      {formatTime(timeRemaining)}
+                    </span>
                   </div>
                   <span
                     className={cn(
@@ -444,16 +454,26 @@ export default function SimulacrosIAPage() {
                       </div>
                     </div>
                     {totalElapsedSec != null && (
-                      <div
-                        className={cn(
-                          "inline-flex w-full items-center justify-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold tabular-nums leading-tight sm:w-auto sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs",
-                          themeSafe === "dark"
-                            ? "border-amber-400/40 bg-amber-500/15 text-amber-200"
-                            : "border-amber-300 bg-amber-100 text-amber-900"
-                        )}
-                      >
-                        <Timer className="h-3 w-3 shrink-0 opacity-90 sm:h-3.5 sm:w-3.5" aria-hidden />
-                        <span>Tiempo total: {formatTotalDuration(totalElapsedSec)}</span>
+                      <div className="flex w-full flex-col items-center gap-0.5 sm:w-auto sm:items-end">
+                        <div
+                          className={cn(
+                            "inline-flex w-full items-center justify-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold tabular-nums leading-tight sm:w-auto sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs",
+                            themeSafe === "dark"
+                              ? "border-amber-400/40 bg-amber-500/15 text-amber-200"
+                              : "border-amber-300 bg-amber-100 text-amber-900"
+                          )}
+                        >
+                          <Timer className="h-3 w-3 shrink-0 opacity-90 sm:h-3.5 sm:w-3.5" aria-hidden />
+                          <span>Tiempo total: {formatTotalDuration(totalElapsedSec)}</span>
+                        </div>
+                        <span
+                          className={cn(
+                            "text-[10px] tabular-nums leading-none sm:text-[11px]",
+                            themeSafe === "dark" ? "text-amber-200/60" : "text-amber-900/70"
+                          )}
+                        >
+                          {formatTodayShort()}
+                        </span>
                       </div>
                     )}
                   </div>
