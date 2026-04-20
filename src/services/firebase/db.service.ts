@@ -17,7 +17,6 @@ import {
   getDoc,
   query,
   where,
-  documentId,
   doc,
   writeBatch,
 } from "firebase/firestore"
@@ -553,7 +552,15 @@ class DatabaseService {
       }
       await setDoc(docRef, institutionWithId)
       return success(institutionWithId)
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'crear institución'))) }
+    } catch (e: unknown) {
+      const fe = e as { code?: string; message?: string; name?: string }
+      logger.error('[createInstitution] Falló setDoc en Firestore', {
+        code: fe?.code,
+        message: fe?.message,
+        name: fe?.name,
+      })
+      return failure(new ErrorAPI(normalizeError(e, 'crear institución')))
+    }
   }
 
   /**
@@ -2862,10 +2869,13 @@ class DatabaseService {
    */
   private async findUserDocViaCollectionGroup(uid: string): Promise<Result<any>> {
     // Orden: mayoría de usuarios son estudiantes; menos consultas fallidas en vacío.
+    // Nota: en collectionGroup, where(documentId(), '==', uid) es inválido si uid es solo un
+    // segmento (Firestore exige la ruta completa del documento). Los docs creados con
+    // createUserInNewStructure incluyen el campo `uid` (Auth) — consultamos por ese campo.
     const subcollections = ['estudiantes', 'profesores', 'coordinadores', 'rectores'] as const
     for (const sub of subcollections) {
       try {
-        const q = query(collectionGroup(this.db, sub), where(documentId(), '==', uid))
+        const q = query(collectionGroup(this.db, sub), where('uid', '==', uid))
         const snap = await getDocs(q)
         if (snap.empty) continue
         const d = snap.docs[0]

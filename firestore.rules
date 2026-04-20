@@ -406,29 +406,10 @@ service cloud.firestore {
       allow delete: if request.auth.uid == userId && canAccessOrToken();
     }
 
-    // Registro global de pruebas (examRegistry/examCounter + un doc por cada intento registrado)
+    // examRegistry legacy: la app ya no escribe aquí; solo lectura admin.
     match /examRegistry/{docId} {
       allow read: if isAdminOrToken();
-      // Contador at?mico: crear o incrementar count de uno en uno
-      allow create: if canAccessOrToken() && docId == 'examCounter' &&
-        request.resource.data.keys().hasOnly(['count']) &&
-        request.resource.data.count is int &&
-        request.resource.data.count == 1;
-      allow update: if canAccessOrToken() && docId == 'examCounter' &&
-        request.resource.data.keys().hasOnly(['count']) &&
-        request.resource.data.count is int &&
-        resource.data.count is int &&
-        request.resource.data.count == resource.data.count + 1;
-      // Entrada por prueba presentada (id autogenerado)
-      allow create: if canAccessOrToken() && docId != 'examCounter' &&
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.keys().hasAll(['number', 'subject', 'phase', 'timestamp', 'userId']) &&
-        request.resource.data.number is int &&
-        request.resource.data.number >= 1 &&
-        request.resource.data.subject is string &&
-        request.resource.data.phase is string &&
-        request.resource.data.timestamp is string;
-      allow update, delete: if isAdminOrToken();
+      allow create, update, delete: if false;
     }
 
     // Vocabulario académico (definitionswords): la app solo lee vía Cloud Function (Admin SDK),

@@ -10,7 +10,6 @@ import {
 import type { DocumentData } from 'firebase/firestore'
 import { firebaseApp } from '@/services/firebase/db.service'
 import { getPhaseName, getAllPhases } from '@/utils/firestoreHelpers'
-import { examRegistryService } from '@/services/firebase/examRegistry.service'
 import { success, failure, Result } from '@/interfaces/db.interface'
 import ErrorAPI from '@/errors'
 import { normalizeError } from '@/errors/handler'
@@ -23,9 +22,8 @@ const db = getFirestore(firebaseApp)
 export type ExamPhase = 'first' | 'second' | 'third'
 
 /**
- * Datos mínimos del examen para guardar y registrar.
+ * Datos mínimos del examen para guardar.
  * phase debe ser first | second | third (o string equivalente).
- * subject o examTitle para el registro en el contador.
  */
 export interface ExamResultData {
   phase: ExamPhase | string
@@ -175,7 +173,6 @@ async function removeObsoleteSameSubjectDocs(
 /**
  * Guarda los resultados del examen en Firestore (results/{userId}/{phaseName}/{docId})
  * con docId = slug de materia cuando aplica (un solo documento por materia y fase).
- * y registra la prueba en el contador central (examRegistry) para el dashboard del admin.
  *
  * La ruta coincide con el trigger `onExamResultWriteStudentProgressSummary`; el cliente debe
  * usar el mismo proyecto Firebase (`VITE_FIREBASE_PROJECT_ID`) que el despliegue de Functions.
@@ -217,29 +214,6 @@ export async function saveExamResultsAndRegister(
       `[examResults] ✅ Examen guardado: results/${userId}/${phaseName}/${storageDocId} (quizId=${examId})`
     )
 
-    const subject =
-      (examData.subject || examData.examTitle || 'Sin materia') as string
-    try {
-      const registryResult = await examRegistryService.registerExam(
-        subject,
-        phase,
-        userId,
-        examId
-      )
-      if (registryResult.success) {
-        console.log(
-          `[examResults] ✅ Prueba registrada: #${registryResult.data.number} - ${subject} - ${phaseName}`
-        )
-      } else {
-        console.warn(
-          '[examResults] ⚠️ No se pudo registrar la prueba en el contador:',
-          registryResult.error
-        )
-      }
-    } catch (err) {
-      console.error('[examResults] ❌ Error al registrar prueba:', err)
-    }
-
     return success({ id: `${userId}_${storageDocId}` })
   } catch (e) {
     console.error('[examResults] ❌ Error al guardar examen:', e)
@@ -247,9 +221,7 @@ export async function saveExamResultsAndRegister(
   }
 }
 
-/**
- * Normaliza el valor de fase a first | second | third para registerExam.
- */
+/** Normaliza el valor de fase a first | second | third. */
 function normalizePhase(phase: string | undefined): ExamPhase {
   if (!phase) return 'first'
   const p = String(phase).toLowerCase()

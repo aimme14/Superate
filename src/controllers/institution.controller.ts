@@ -4,7 +4,7 @@ import ErrorAPI from '@/errors'
 import { dbService } from '@/services/firebase/db.service'
 import { getAuth } from 'firebase/auth'
 import { firebaseApp } from '@/services/db'
-
+import { logger } from '@/utils/logger'
 
 // Interfaces para las operaciones CRUD
 export interface CreateInstitutionData {
@@ -103,6 +103,7 @@ export const createInstitution = async (data: CreateInstitutionData): Promise<Re
     }
     return failure(result.error)
   } catch (error) {
+    logger.error('[createInstitution controller] Excepción no esperada', error)
     return failure(new ErrorAPI({ message: 'Error al crear la institución', statusCode: 500 }))
   }
 }
