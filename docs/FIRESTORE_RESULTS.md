@@ -9,8 +9,6 @@ La colección **`results`** almacena los resultados de las pruebas presentadas p
 - **docId:** slug de materia (`matematicas`, `lenguaje`, `ciencias_sociales`, `biologia`, `quimica`, `fisica`, `ingles`) — **como máximo 7 documentos por fase**, un intento por materia. El ID del cuestionario generado se guarda en el campo `examId` dentro del documento.
 - Cada documento en una subcolección de fase representa el resultado completado de esa materia en esa fase (un reintento sobrescribe el mismo doc y elimina duplicados previos con el mismo slug al guardar).
 
-El registro de pruebas mantiene un **contador** en `examRegistry/examCounter` (campo `count`), actualizado al guardar cada examen vía `examResults.service` y `examRegistryService.registerExam`.
-
 ## Permisos necesarios
 
 Cualquier herramienta o script que **lea** la colección **`results`** y sus subcolecciones por fase (`results/{userId}/fase I`, `Fase II`, `fase III`) necesita reglas que permitan esas lecturas en el contexto correspondiente (por ejemplo, administrador o backend con Admin SDK).
@@ -26,6 +24,6 @@ Cualquier herramienta o script que **lea** la colección **`results`** y sus sub
 - **Fuente correcta en UI:** reconstruir desde **`studentSummaries`** (vía `fetchEvaluationsFromStudentSummary`). La colección **`results/{uid}/{fase}/…`** sigue siendo la ruta de **escritura** al guardar cada examen y la base del resumen que actualiza el backend.
 - **Admin (pantallas que listan por estudiante):** informes por fase y el diálogo de detalle en análisis usan la misma reconstrucción desde resumen, no lecturas directas a subcolecciones de `results` por estudiante.
 
-## Desempeño y lecturas (cliente administrador — total global)
+## Desempeño y lecturas (cliente administrador — totales)
 
-- El total **“Pruebas presentadas”** sigue pudiendo leer **`examRegistry/examCounter`** (preferido). El fallback que escanea `results/` es costoso y solo aplica si ese contador no existe; no sustituye al resumen por estudiante anterior.
+- Un conteo global de pruebas requeriría agregaciones o consultas administradas; el resumen por estudiante sigue yendo por `studentSummaries` (y orígenes alineados con el análisis en el admin). La colección `examRegistry` (si existen documentos legacy) ya no se escribe desde el cliente.

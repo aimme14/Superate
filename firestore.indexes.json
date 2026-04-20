@@ -137,6 +137,26 @@
         { "fieldPath": "gradeId", "order": "ASCENDING" },
         { "fieldPath": "academicYear", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "estudiantes",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "profesores",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "coordinadores",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "rectores",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }]
     }
   ],
   "fieldOverrides": [

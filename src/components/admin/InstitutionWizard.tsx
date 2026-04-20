@@ -22,6 +22,48 @@ import { useNotification } from '@/hooks/ui/useNotification'
 import { Institution, Campus } from '@/interfaces/db.interface'
 import { useInstitutionMutations } from '@/hooks/query/useInstitutionQuery'
 import ImageUpload from '@/components/common/fields/ImageUpload'
+import { logger } from '@/utils/logger'
+
+/** Detalle técnico que HandlerErrorsFB guarda en `details` para errores de Firebase */
+type ApiErrorLike = {
+  message?: string
+  code?: string
+  statusCode?: number
+  details?: { message?: string; code?: string; name?: string }
+}
+
+function logWizardFailure(context: string, err: unknown) {
+  if (err && typeof err === 'object' && 'message' in err) {
+    const e = err as ApiErrorLike
+    logger.error(`[InstitutionWizard] ${context}`, {
+      message: e.message,
+      code: e.code,
+      statusCode: e.statusCode,
+      details: e.details,
+    })
+  } else {
+    logger.error(`[InstitutionWizard] ${context}`, err)
+  }
+}
+
+/** Mensaje para toast: en desarrollo añade código y mensaje original de Firebase */
+function formatWizardApiError(apiError: unknown, fallback: string): string {
+  if (!apiError || typeof apiError !== 'object') return fallback
+  const err = apiError as ApiErrorLike
+  const friendly = typeof err.message === 'string' && err.message.trim() ? err.message : fallback
+  const d = err.details
+  if (
+    import.meta.env.DEV &&
+    d &&
+    typeof d === 'object' &&
+    typeof d.message === 'string' &&
+    d.message.trim()
+  ) {
+    const code = d.code ?? err.code ?? 'sin código'
+    return `${friendly} — [${code}] ${d.message}`
+  }
+  return friendly
+}
 
 interface InstitutionWizardProps {
   isOpen: boolean
@@ -245,7 +287,12 @@ export default function InstitutionWizard({ isOpen, onClose, theme }: Institutio
       // Paso 1: Crear institución
       const institutionResult = await createInstitution.mutateAsync(wizardData.institution)
       if (!institutionResult.success) {
-        throw new Error(institutionResult.error?.message || 'Error al crear institución')
+        logWizardFailure('crear institución', institutionResult.error)
+        notifyError({
+          title: 'Error al crear la institución',
+          message: formatWizardApiError(institutionResult.error, 'Error al crear institución'),
+        })
+        return
       }
       
       const institution = institutionResult.data
@@ -286,9 +333,13 @@ export default function InstitutionWizard({ isOpen, onClose, theme }: Institutio
       }, 2000)
 
     } catch (error) {
-      notifyError({ 
-        title: 'Error', 
-        message: error instanceof Error ? error.message : 'Error al completar el proceso' 
+      logWizardFailure('completar wizard (sedes/grados u otro)', error)
+      notifyError({
+        title: 'Error',
+        message:
+          error instanceof Error
+            ? formatWizardApiError(error as ApiErrorLike, error.message)
+            : 'Error al completar el proceso',
       })
     } finally {
       setIsLoading(false)
