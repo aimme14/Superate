@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -76,8 +76,15 @@ export default function ViewerPdfPage() {
   const [pageNumber, setPageNumber] = useState(1)
   const [scale, setScale] = useState(1.2)
   const [error, setError] = useState<string | null>(null)
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
+  /** Blob (caché) o URL HTTPS: PDF.js puede cargar por streaming sin descargar todo el archivo antes de mostrar la UI */
+  const [pdfFile, setPdfFile] = useState<Blob | string | null>(null)
   const [loadingFetch, setLoadingFetch] = useState(true)
+  /** Tras cargar por URL, guardar blob en IndexedDB en segundo plano para la próxima visita */
+  const pendingIndexedDbWarmKey = useRef<string | null>(null)
+  const pdfFileRef = useRef<Blob | string | null>(null)
+  useEffect(() => {
+    pdfFileRef.current = pdfFile
+  }, [pdfFile])
 
   const pdfUrl = useMemo(() => {
     if (urlParam) {
@@ -117,17 +124,51 @@ export default function ViewerPdfPage() {
     }
 
     async function load() {
-      /** Consolidado (`sid`): una lectura a `Simulacros/consolidado_1`, misma fuente que la lista de ruta académica. */
+      const tipoOk = tipo && PDF_TIPO_KEYS.includes(tipo as PdfTipo)
+
+      /**
+       * Ruta rápida (lista ruta académica): `url` en la query → sin Firestore;
+       * PDF.js recibe la URL y puede renderizar sin esperar a bajar todo el archivo como Blob.
+       */
+      if (pdfUrl) {
+        setLoadingFetch(true)
+        setError(null)
+        setPdfFile(null)
+
+        const cacheKey =
+          sid && tipoOk
+            ? pdfCacheKeySimulacro(sid, tipo)
+            : simulacroId && tipoOk
+              ? pdfCacheKeySimulacro(simulacroId, tipo)
+              : pdfCacheKeyUrl(pdfUrl)
+
+        const fromCache = await getCachedPdfBlob(cacheKey)
+        if (cancelled) return
+        if (fromCache) {
+          setPdfFile(fromCache)
+          setError(null)
+          setLoadingFetch(false)
+          return
+        }
+
+        pendingIndexedDbWarmKey.current = cacheKey
+        setPdfFile(pdfUrl)
+        setError(null)
+        setLoadingFetch(false)
+        return
+      }
+
+      /** Consolidado sin `url` en query (enlaces antiguos): una lectura a `Simulacros/consolidado_1`. */
       if (sid && tipo && PDF_TIPO_KEYS.includes(tipo)) {
         setLoadingFetch(true)
         setError(null)
-        setPdfBlob(null)
+        setPdfFile(null)
 
         const cacheKey = pdfCacheKeySimulacro(sid, tipo)
         const fromCache = await getCachedPdfBlob(cacheKey)
         if (cancelled) return
         if (fromCache) {
-          setPdfBlob(fromCache)
+          setPdfFile(fromCache)
           setError(null)
           setLoadingFetch(false)
           return
@@ -155,13 +196,8 @@ export default function ViewerPdfPage() {
             setLoadingFetch(false)
             return
           }
-          const fetchRes = await fetch(url, { mode: 'cors' })
-          if (cancelled) return
-          if (!fetchRes.ok) throw new Error(`Error ${fetchRes.status}`)
-          const blob = await fetchRes.blob()
-          if (cancelled) return
-          void setCachedPdfBlob(cacheKey, blob)
-          setPdfBlob(blob)
+          pendingIndexedDbWarmKey.current = cacheKey
+          setPdfFile(url)
           setError(null)
         } catch (err) {
           if (!cancelled) applyFetchError(err, 'url')
@@ -174,13 +210,13 @@ export default function ViewerPdfPage() {
       if (simulacroId && tipo && PDF_TIPO_KEYS.includes(tipo)) {
         setLoadingFetch(true)
         setError(null)
-        setPdfBlob(null)
+        setPdfFile(null)
 
         const cacheKey = pdfCacheKeySimulacro(simulacroId, tipo)
         const fromCache = await getCachedPdfBlob(cacheKey)
         if (cancelled) return
         if (fromCache) {
-          setPdfBlob(fromCache)
+          setPdfFile(fromCache)
           setError(null)
           setLoadingFetch(false)
           return
@@ -216,48 +252,11 @@ export default function ViewerPdfPage() {
             setLoadingFetch(false)
             return
           }
-          const fetchRes = await fetch(url, { mode: 'cors' })
-          if (cancelled) return
-          if (!fetchRes.ok) throw new Error(`Error ${fetchRes.status}`)
-          const blob = await fetchRes.blob()
-          if (cancelled) return
-          void setCachedPdfBlob(cacheKey, blob)
-          setPdfBlob(blob)
+          pendingIndexedDbWarmKey.current = cacheKey
+          setPdfFile(url)
           setError(null)
         } catch (err) {
           if (!cancelled) applyFetchError(err, 'storage')
-        } finally {
-          if (!cancelled) setLoadingFetch(false)
-        }
-        return
-      }
-
-      if (pdfUrl) {
-        setLoadingFetch(true)
-        setError(null)
-        setPdfBlob(null)
-
-        const cacheKey = pdfCacheKeyUrl(pdfUrl)
-        const fromCache = await getCachedPdfBlob(cacheKey)
-        if (cancelled) return
-        if (fromCache) {
-          setPdfBlob(fromCache)
-          setError(null)
-          setLoadingFetch(false)
-          return
-        }
-
-        try {
-          const fetchRes = await fetch(pdfUrl, { mode: 'cors' })
-          if (cancelled) return
-          if (!fetchRes.ok) throw new Error(`Error ${fetchRes.status}`)
-          const blob = await fetchRes.blob()
-          if (cancelled) return
-          void setCachedPdfBlob(cacheKey, blob)
-          setPdfBlob(blob)
-          setError(null)
-        } catch (err) {
-          if (!cancelled) applyFetchError(err, 'url')
         } finally {
           if (!cancelled) setLoadingFetch(false)
         }
@@ -276,7 +275,7 @@ export default function ViewerPdfPage() {
     }
   }, [sid, simulacroId, tipo, pdfUrl])
 
-  const file = useMemo(() => (pdfBlob ? pdfBlob : null), [pdfBlob])
+  const file = useMemo(() => pdfFile, [pdfFile])
 
   useEffect(() => {
     if (!sid && !simulacroId && !tipo && !urlParam) {
@@ -284,9 +283,26 @@ export default function ViewerPdfPage() {
     }
   }, [sid, simulacroId, tipo, urlParam])
 
+  const warmIndexedDbFromUrlIfNeeded = useCallback(() => {
+    const key = pendingIndexedDbWarmKey.current
+    const src = pdfFileRef.current
+    pendingIndexedDbWarmKey.current = null
+    if (!key || typeof src !== 'string') return
+    void fetch(src, { mode: 'cors' })
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status))
+        return r.blob()
+      })
+      .then((blob) => setCachedPdfBlob(key, blob))
+      .catch(() => {
+        /* caché opcional */
+      })
+  }, [])
+
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages)
     setPageNumber(1)
+    warmIndexedDbFromUrlIfNeeded()
   }
 
   const onDocumentLoadError = () => {
@@ -307,7 +323,7 @@ export default function ViewerPdfPage() {
     )
   }
 
-  if (error && !pdfBlob && !loadingFetch) {
+  if (error && !pdfFile && !loadingFetch) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="text-center text-red-600 max-w-md">
@@ -320,7 +336,7 @@ export default function ViewerPdfPage() {
     )
   }
 
-  if (loadingFetch || !pdfBlob) {
+  if (loadingFetch || !pdfFile) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="text-center text-gray-500">Cargando documento…</div>

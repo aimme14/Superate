@@ -36,17 +36,19 @@ export function getSimulacroPdfUrl(sim: Simulacro, tipo: SimulacroPdfTipo): stri
 
 /**
  * Abre el visor con URL corta.
- * - IDs `consolidado:...`: `sid` + `tipo` → el visor lee `Simulacros/consolidado_1` y resuelve la URL.
- * - Documentos reales (panel admin): `simulacroId` + `tipo` → `getById` en la colección Simulacros.
+ * - Siempre incluye `url` (Storage) cuando existe: el visor evita Firestore y deja que PDF.js cargue por streaming.
+ * - `sid`/`tipo` o `simulacroId`/`tipo` sirven para caché IndexedDB estable y enlaces legibles.
  */
 export function buildSimulacroViewerPdfPath(sim: Simulacro, tipo: SimulacroPdfTipo): string {
   const url = getSimulacroPdfUrl(sim, tipo)
   if (!url) return '#'
+  const q = new URLSearchParams()
+  q.set('tipo', tipo)
+  q.set('url', encodeURIComponent(url))
   if (sim.id.startsWith('consolidado:')) {
-    const q = new URLSearchParams()
     q.set('sid', sim.id)
-    q.set('tipo', tipo)
-    return `/viewer/pdf?${q.toString()}`
+  } else {
+    q.set('simulacroId', sim.id)
   }
-  return `/viewer/pdf?simulacroId=${encodeURIComponent(sim.id)}&tipo=${encodeURIComponent(tipo)}`
+  return `/viewer/pdf?${q.toString()}`
 }

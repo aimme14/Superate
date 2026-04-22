@@ -27,6 +27,9 @@ export function useSimulacros() {
       throw new Error(res.error?.message ?? "Error al cargar simulacros");
     },
     ...RUTA_ACADEMICA_SIMULACROS_CACHE,
+    /** Tras timeouts por contención (muchas pestañas PDF), recuperar sin Quedarse en skeleton eterno */
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(2500 + attemptIndex * 3500, 14000),
   });
 }
 

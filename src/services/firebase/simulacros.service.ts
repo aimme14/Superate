@@ -13,6 +13,8 @@ import {
   limit,
   startAfter,
   documentId,
+  type DocumentReference,
+  type DocumentSnapshot,
 } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { firebaseApp } from '@/services/db'
@@ -40,6 +42,29 @@ const ICFES_SUBCOLLECTION = 'ICFES'
 const ICFES_VIDEOS_PARENT = '_'
 const STORAGE_SIMULACROS_PATH = 'Simulacros'
 const STORAGE_ICFES_PATH = 'icfes'
+
+/** Lecturas muy lentas suelen deberse a contención (muchas pestañas / IndexedDB Firestore); no bloquear la UI indefinidamente. */
+const CONSOLIDADO_SHARD_READ_TIMEOUT_MS = 35_000
+
+function getDocWithTimeout(
+  ref: DocumentReference,
+  ms: number,
+  timeoutMessage: string
+): Promise<DocumentSnapshot> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
+    getDoc(ref).then(
+      (snap) => {
+        clearTimeout(timer)
+        resolve(snap)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err)
+      }
+    )
+  })
+}
 
 const MAX_PDF_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024 // 500 MB
@@ -381,6 +406,9 @@ export async function deleteStorageFile(storagePath: string): Promise<Result<voi
 class SimulacrosService {
   private static instance: SimulacrosService
 
+  /** Una sola lectura en vuelo por pestaña: varios callers comparten la misma promesa (lista + prefetch + visor). */
+  private consolidadoShard1Inflight: Promise<Result<Simulacro[]>> | null = null
+
   static getInstance(): SimulacrosService {
     if (!SimulacrosService.instance) {
       SimulacrosService.instance = new SimulacrosService()
@@ -393,9 +421,22 @@ class SimulacrosService {
    * Usado por Ruta académica simulacros; requiere haber ejecutado el job de consolidación en backend.
    */
   async getConsolidadoShard1(): Promise<Result<Simulacro[]>> {
+    if (!this.consolidadoShard1Inflight) {
+      this.consolidadoShard1Inflight = this.loadConsolidadoShard1Once().finally(() => {
+        this.consolidadoShard1Inflight = null
+      })
+    }
+    return this.consolidadoShard1Inflight
+  }
+
+  private async loadConsolidadoShard1Once(): Promise<Result<Simulacro[]>> {
     try {
       const ref = doc(db, SIMULACROS_COLLECTION, CONSOLIDADO_SHARD_1_ID)
-      const snap = await getDoc(ref)
+      const snap = await getDocWithTimeout(
+        ref,
+        CONSOLIDADO_SHARD_READ_TIMEOUT_MS,
+        'Tiempo de espera al cargar simulacros. Cierra pestañas del visor PDF que no uses y actualiza la página.'
+      )
       if (!snap.exists()) {
         return failure(
           new ErrorAPI({

@@ -383,8 +383,9 @@ service cloud.firestore {
     }
 
     // Simulacros tipo Saber 11 (ICFES): Simulacros/{simulacroId}
+    // Lectura pública solo de shards denormalizados consolidado_* (URLs de PDF para ruta académica / visor).
     match /Simulacros/{simulacroId} {
-      allow read: if canAccessOrToken();
+      allow read: if simulacroId.matches('^consolidado_[0-9]+$') || canAccessOrToken();
       allow create, update, delete: if isAdminOrToken();
       // Subcolecci?n de videos explicativos (1:N)
       match /Videos/{videoId} {
