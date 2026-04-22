@@ -49,6 +49,21 @@ export function pdfCacheKeyUrl(pdfUrl: string): string {
   return `u:${simpleHash(pdfUrl)}`
 }
 
+/** Evita segundo fetch de warm en la misma pestaña/sesión (p. ej. StrictMode o doble evento). */
+const sessionIndexedDbWarmKeys = new Set<string>()
+
+/** Devuelve true solo la primera vez por clave hasta limpiar caché / recargar página. */
+export function tryTakeSessionIndexedDbWarmOnce(key: string): boolean {
+  if (sessionIndexedDbWarmKeys.has(key)) return false
+  sessionIndexedDbWarmKeys.add(key)
+  return true
+}
+
+/** Si el warm falla en red, permite reintentar en la misma sesión. */
+export function releaseSessionIndexedDbWarmSlot(key: string): void {
+  sessionIndexedDbWarmKeys.delete(key)
+}
+
 function simpleHash(s: string): string {
   let h = 2166136261
   for (let i = 0; i < s.length; i++) {
@@ -91,6 +106,7 @@ export async function setCachedPdfBlob(key: string, blob: Blob): Promise<void> {
 
 /** Borra todos los PDFs en caché (logout / limpieza explícita). */
 export async function clearPdfViewerCache(): Promise<void> {
+  sessionIndexedDbWarmKeys.clear()
   try {
     const db = await openDb()
     await new Promise<void>((resolve, reject) => {

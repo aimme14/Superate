@@ -1,6 +1,7 @@
+import '@/lib/pdfjsWorker'
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Document, Page, pdfjs } from 'react-pdf'
+import { Document, Page } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { Button } from '@/components/ui/button'
@@ -11,12 +12,12 @@ import {
   pdfCacheKeySimulacro,
   pdfCacheKeyUrl,
   setCachedPdfBlob,
+  tryTakeSessionIndexedDbWarmOnce,
+  releaseSessionIndexedDbWarmSlot,
 } from '@/lib/pdfViewerCache'
 import { getSimulacroPdfUrl, type SimulacroPdfTipo } from '@/utils/simulacroViewerUrl'
 import { simulacrosService } from '@/services/firebase/simulacros.service'
-
-// Worker de PDF.js (sin esto el PDF no carga)
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+import { useIsMobile } from '@/hooks/ui/use-mobile'
 
 /** Tipos de PDF que se pueden abrir en el visor (por ID de simulacro + tipo) */
 const PDF_TIPO_KEYS = [
@@ -64,6 +65,7 @@ function getPdfUrlFromSimulacro(
 }
 
 export default function ViewerPdfPage() {
+  const isMobile = useIsMobile()
   const [searchParams] = useSearchParams()
   /** `simulacroid` por si el navegador normaliza mayúsculas en la query. */
   const simulacroId =
@@ -288,6 +290,7 @@ export default function ViewerPdfPage() {
     const src = pdfFileRef.current
     pendingIndexedDbWarmKey.current = null
     if (!key || typeof src !== 'string') return
+    if (!tryTakeSessionIndexedDbWarmOnce(key)) return
     void fetch(src, { mode: 'cors' })
       .then((r) => {
         if (!r.ok) throw new Error(String(r.status))
@@ -295,7 +298,7 @@ export default function ViewerPdfPage() {
       })
       .then((blob) => setCachedPdfBlob(key, blob))
       .catch(() => {
-        /* caché opcional */
+        releaseSessionIndexedDbWarmSlot(key)
       })
   }, [])
 
@@ -339,7 +342,7 @@ export default function ViewerPdfPage() {
   if (loadingFetch || !pdfFile) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="text-center text-gray-500">Cargando documento…</div>
+        <div className="text-center text-gray-500">Preparando visor…</div>
       </div>
     )
   }
@@ -417,7 +420,7 @@ export default function ViewerPdfPage() {
             <Page
               pageNumber={pageNumber}
               scale={scale}
-              renderTextLayer
+              renderTextLayer={!isMobile}
               renderAnnotationLayer
               className={cn('shadow')}
             />

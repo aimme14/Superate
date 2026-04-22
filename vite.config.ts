@@ -97,6 +97,7 @@ export default defineConfig({
           if (id.includes('node_modules/@radix-ui/')) return 'radix'
           if (id.includes('node_modules/framer-motion')) return 'framer-motion'
           if (id.includes('node_modules/@tanstack/')) return 'tanstack'
+          if (id.includes('node_modules/pdfjs-dist') || id.includes('node_modules/react-pdf')) return 'pdfjs'
           // React, ReactDOM y React Router en el mismo chunk para evitar
           // "Cannot read properties of undefined (reading 'createContext')" en producción.
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router')) return 'react-vendor'
