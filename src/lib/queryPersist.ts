@@ -1,7 +1,6 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import type { Persister } from '@tanstack/query-persist-client-core'
 import { clearIndexedDbPersistence, getFirestore } from 'firebase/firestore'
-import { firebaseApp } from '@/services/db'
 import { clearRutaPreparacionCache } from '@/lib/rutaPreparacionLocalCache'
 import { clearPdfViewerCache } from '@/lib/pdfViewerCache'
 
@@ -83,6 +82,7 @@ export const persistOptions = {
 function scheduleClearFirestoreIndexedDb(): void {
   void (async () => {
     try {
+      const { firebaseApp } = await import('@/services/db')
       await clearIndexedDbPersistence(getFirestore(firebaseApp))
     } catch {
       // Ignorar: pestaña compartida, Firestore en uso, etc.
