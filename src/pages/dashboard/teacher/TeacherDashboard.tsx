@@ -21,7 +21,8 @@ import {
   PieChart as PieChartIcon,
   RotateCw,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTeacherDashboardStats } from '@/hooks/query/useTeacherDashboardStats'
@@ -51,6 +52,7 @@ import { displayNameFromSubjectSlug, fetchGradeSummaryByContext, type GradeSumma
 import { examResultsFromSummaryData, type StudentProgressSummaryDoc } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
 import { canonicalizeTopicName } from '@/utils/topicCanonicalization'
 import { AcademicReportSection, type AcademicPhaseKey } from '@/components/teacher/AcademicReportSection'
+import { GradeReportModal } from '@/components/teacher/gradeReport/GradeReportModal'
 
 const db = getFirestore(firebaseApp)
 const RANKING_INITIAL_VISIBLE = 10
@@ -106,6 +108,7 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   const { toast } = useToast()
   const isMobile = useIsMobile()
   const [rebuildGradeBusy, setRebuildGradeBusy] = useState(false)
+  const [gradeReportOpen, setGradeReportOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('inicio')
   const [rankingFilters, setRankingFilters] = useState<{
     jornada: 'mañana' | 'tarde' | 'única' | 'todas'
@@ -155,6 +158,16 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
   const normalizedTeacherJornada =
     stats.jornada === 'mañana' || stats.jornada === 'tarde' ? stats.jornada : null
   const hasValidTeacherJornada = normalizedTeacherJornada !== null
+
+  /** Sede e institución legibles para el informe (sin IDs). */
+  const gradeReportMetaLine = useMemo(() => {
+    const parts: string[] = []
+    const campus = stats.campusName?.trim()
+    const inst = (institutionName || stats.institutionName)?.trim()
+    if (campus && !/^sede$/i.test(campus) && !looksLikeTechnicalId(campus)) parts.push(campus)
+    if (inst && !looksLikeTechnicalId(inst)) parts.push(inst)
+    return parts.length ? parts.join(' · ') : null
+  }, [stats.campusName, stats.institutionName, institutionName])
 
   const handleRebuildGradeSummary = async () => {
     if (!summaryContext.institutionId || !summaryContext.gradeId) return
@@ -279,7 +292,41 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
                 </div>
               </div>
               {!!summaryContext.institutionId && !!summaryContext.gradeId && (
-                <div className="flex items-center shrink-0">
+                <div className="flex items-center shrink-0 gap-2">
+                  <TooltipProvider delayDuration={200}>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={rebuildGradeBusy || gradeSummaryLoading || !gradeSummary}
+                            onClick={() => setGradeReportOpen(true)}
+                            title={
+                              gradeSummaryLoading || !gradeSummary
+                                ? 'Requiere resumen del grado actualizado'
+                                : 'Ver informe del grado'
+                            }
+                            aria-label="Ver informe del grado"
+                            className={cn(
+                              'h-10 w-10 rounded-lg border-2 border-white/40 bg-white/15 text-white shadow-sm hover:bg-white/25 hover:text-white disabled:opacity-50',
+                              isMobile ? 'shrink-0' : 'h-11 w-11'
+                            )}
+                          >
+                            <FileText className="h-5 w-5" aria-hidden />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        {gradeSummaryLoading
+                          ? 'Cargando resumen del grado…'
+                          : !gradeSummary
+                            ? 'Actualice el resumen del grado (icono circular) para generar el informe institucional.'
+                            : 'Informe del grado completo (todas las jornadas): narrativa, fases y evolución.'}
+                      </TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
                   <Button
                     type="button"
                     variant="ghost"
@@ -407,6 +454,15 @@ export default function TeacherDashboard({ theme }: TeacherDashboardProps) {
           </div>
         </div>
       )}
+
+      <GradeReportModal
+        open={gradeReportOpen}
+        onOpenChange={setGradeReportOpen}
+        gradeSummary={gradeSummary}
+        theme={theme === 'dark' ? 'dark' : 'light'}
+        teacherGradeDisplayName={stats.gradeName}
+        metaLine={gradeReportMetaLine}
+      />
     </div>
   )
 }

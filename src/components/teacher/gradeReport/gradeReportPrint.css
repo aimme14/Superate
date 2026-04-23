@@ -1,0 +1,135 @@
+/**
+ * Impresión del informe (Chrome/Edge → Guardar como PDF).
+ * Activar con class "grade-report-print-root-active" en <html> (GradeReportModal).
+ *
+ * Nota: los encabezados con fecha/URL son del cuadro de impresión del navegador;
+ * desactívalos en "Más opciones" → desmarcar encabezados y pies de página.
+ */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 1.5cm;
+  }
+
+  html.grade-report-print-root-active {
+    background: #fff !important;
+  }
+
+  /*
+   * Ocultar todo el documento y volver visible solo el contenido del modal del informe.
+   * Incluir el subtree completo del diálogo (no solo #grade-report-print-root): si no,
+   * wrappers intermedios quedan mal y Chrome imprime solo un fragmento o página en blanco.
+   */
+  html.grade-report-print-root-active body * {
+    visibility: hidden !important;
+  }
+
+  html.grade-report-print-root-active [data-radix-dialog-content],
+  html.grade-report-print-root-active [data-radix-dialog-content] * {
+    visibility: visible !important;
+  }
+
+  /*
+   * El Dialog usa fixed + translate + max-height + overflow; en impresión eso recorta
+   * el PDF a una "ventana" y deja casi todo fuera. Resetear al flujo normal del papel.
+   */
+  html.grade-report-print-root-active [data-radix-dialog-content] {
+    position: static !important;
+    inset: auto !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    translate: none !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    page-break-inside: auto !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html.grade-report-print-root-active [data-radix-dialog-content] > div {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  html.grade-report-print-root-active #grade-report-print-root {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    color: inherit !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html.grade-report-print-root-active #grade-report-print-root,
+  html.grade-report-print-root-active #grade-report-print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html.grade-report-print-root-active .grade-report-no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  html.grade-report-print-root-active [data-radix-dialog-content] > button:last-of-type {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  html.grade-report-print-root-active [data-radix-dialog-overlay] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  html.grade-report-print-root-active .grade-report-kpi-card,
+  html.grade-report-print-root-active .phase-card,
+  html.grade-report-print-root-active .grade-report-subjects-block,
+  html.grade-report-print-root-active .grade-report-narrative-block,
+  html.grade-report-print-root-active .grade-report-evolution-item {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  html.grade-report-print-root-active .grade-report-section {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  html.grade-report-print-root-active section.grade-report-section {
+    page-break-before: auto;
+  }
+
+  html.grade-report-print-root-active .grade-report-subjects-block table thead {
+    display: table-header-group;
+  }
+
+  html.grade-report-print-root-active .grade-report-subjects-block table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  html.grade-report-print-root-active .grade-report-section h3 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+}
