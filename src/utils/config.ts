@@ -1,4 +1,4 @@
-export const baseUrl = import.meta.env.VITE_NODE_ENV === 'production'
+export const baseUrl = import.meta.env.PROD
   ? 'https://rest-api-qvo9.onrender.com/api'
   : 'http://localhost:4000/api'
 

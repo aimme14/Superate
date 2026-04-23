@@ -6,6 +6,7 @@
  */
 
 const isProd = import.meta.env.PROD;
+const CHUNK_RELOAD_KEY = "superate_chunk_reload_once";
 
 /** Patrones que indican información sensible (no exponer en producción) */
 const SENSITIVE_PATTERNS = [
@@ -73,4 +74,57 @@ export function installProductionErrorHandler(): void {
     const sanitized = args.map(sanitizeArg);
     originalError("[Superate.IA]", ...sanitized);
   };
+
+  const shouldRecoverChunkError = (value: unknown): boolean => {
+    const text = value instanceof Error ? value.message : String(value ?? "");
+    const normalized = text.toLowerCase();
+    return (
+      normalized.includes("chunkloaderror") ||
+      normalized.includes("loading chunk") ||
+      normalized.includes("failed to fetch dynamically imported module") ||
+      normalized.includes("importing a module script failed")
+    );
+  };
+
+  const trySingleChunkRecoveryReload = (): boolean => {
+    try {
+      if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1") return false;
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+      window.location.reload();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const renderFatalFallback = (): void => {
+    const root = document.getElementById("root");
+    if (!root) return;
+    root.innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#05070d;color:#e4e4e7;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+        <div style="max-width:560px;width:100%;text-align:center;background:#111827;border:1px solid #27272a;border-radius:12px;padding:24px">
+          <h1 style="margin:0 0 10px;font-size:22px;color:#fff">No se pudo cargar la aplicación</h1>
+          <p style="margin:0 0 18px;line-height:1.45;color:#cbd5e1">Ocurrió un problema al iniciar Supérate.IA. Intenta recargar para continuar.</p>
+          <button id="superate-reload-btn" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer">Recargar</button>
+        </div>
+      </div>
+    `;
+    const btn = document.getElementById("superate-reload-btn");
+    btn?.addEventListener("click", () => window.location.reload());
+  };
+
+  window.addEventListener("error", (event) => {
+    if (shouldRecoverChunkError(event.error ?? event.message)) {
+      if (trySingleChunkRecoveryReload()) return;
+      renderFatalFallback();
+    }
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    if (shouldRecoverChunkError(event.reason)) {
+      event.preventDefault();
+      if (trySingleChunkRecoveryReload()) return;
+      renderFatalFallback();
+    }
+  });
 }
