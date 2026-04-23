@@ -42,6 +42,11 @@ function safeNum(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
+/** Escala de puntaje institucional 0-500 (misma lógica que «Promedio por fase»). */
+function toScore500(value: number | null | undefined): number {
+  return Math.round(safeNum(value) * 5 * 10) / 10
+}
+
 export default function RectorDashboard({ theme }: RectorDashboardProps) {
   const { institutionName, institutionLogo } = useUserInstitution()
   const [activeTab, setActiveTab] = useState<'inicio' | 'administrativos' | 'estudiantes'>('inicio')
@@ -134,9 +139,9 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       orderedSubjects.map((slug) => {
         const sub = institutionSummary.phases[phase]?.subjects?.[slug]
         if (gradeId === 'todas') {
-          return safeNum(sub?.avgPct)
+          return toScore500(sub?.avgPct)
         }
-        return safeNum(sub?.byGrade?.[gradeId]?.avgPct)
+        return toScore500(sub?.byGrade?.[gradeId]?.avgPct)
       })
 
     /** Fase I / II / III: azul, violeta y verde (alto contraste entre sí y sobre fondo oscuro) */
@@ -167,7 +172,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       yAxis: {
         type: 'value',
         min: 0,
-        max: 100,
+        max: 500,
         splitNumber: 5,
         axisLabel: { color: isDark ? '#a1a1aa' : '#64748b', fontSize: 10 },
         splitLine: { lineStyle: { color: isDark ? '#3f3f46' : '#e2e8f0' } },
@@ -201,7 +206,6 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
   const phaseBarOption = useMemo(() => {
     if (!institutionSummary) return null
     const labels = ['Fase I', 'Fase II', 'Fase III']
-    const toScore500 = (value: number | null | undefined) => Math.round(safeNum(value) * 5 * 10) / 10
     const data = [
       toScore500(institutionSummary.phases.first?.avgScore),
       toScore500(institutionSummary.phases.second?.avgScore),
@@ -268,7 +272,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     const entries = Object.entries(institutionSummary.phases[phaseFilter]?.subjects || {})
       .map(([slug, info]) => ({
         name: getSubjectLabel(slug),
-        value: safeNum(info?.avgPct),
+        value: toScore500(info?.avgPct),
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 7)
@@ -286,7 +290,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
           label: {
             show: true,
             position: 'outside',
-            formatter: '{b}\n{c}%',
+            formatter: '{b}\n{c}',
             color: isDark ? '#e4e4e7' : '#334155',
             fontSize: 10,
             lineHeight: 14,
@@ -351,7 +355,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       topics.forEach((topic) => {
         flatBars.push({
           category: topic.name,
-          value: topic.pct,
+          value: toScore500(topic.pct),
           subject: subjectLabel,
           topic: topic.name,
           avgPct: safeNum(subject?.avgPct),
@@ -370,7 +374,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
         formatter: (params: any) => {
           const d = params?.data
           if (!d) return 'Sin datos'
-          return `<b>${d.subject}</b><br/>Puntaje materia: <b>${d.avgPct}%</b><br/>${d.topic}: <b>${d.value}%</b>`
+          return `<b>${d.subject}</b><br/>Puntaje materia: <b>${toScore500(d.avgPct)}</b><br/>${d.topic}: <b>${d.value}</b>`
         },
       },
       xAxis: {
@@ -387,7 +391,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
       yAxis: {
         type: 'value',
         min: 0,
-        max: 100,
+        max: 500,
         splitNumber: 5,
         axisLabel: { color: isDark ? '#a1a1aa' : '#64748b', fontSize: 10 },
         splitLine: { lineStyle: { color: isDark ? '#3f3f46' : '#e2e8f0' } },
@@ -625,7 +629,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
                     </div>
                   </CardHeader>
                   <CardContent className="px-2.5 pt-0.5 pb-1.5">
-                    <div className={cn('text-[20px] leading-none font-bold', isDark ? 'text-white' : 'text-slate-900')}>{safeNum(institutionSummary.phases[phaseFilter]?.avgScore)}</div>
+                    <div className={cn('text-[20px] leading-none font-bold', isDark ? 'text-white' : 'text-slate-900')}>{toScore500(institutionSummary.phases[phaseFilter]?.avgScore)}</div>
                   </CardContent>
                 </Card>
               </div>
