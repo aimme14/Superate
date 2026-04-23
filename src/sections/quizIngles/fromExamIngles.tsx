@@ -27,6 +27,8 @@ import {
 } from "@/services/quiz/validateExamPresentationGate";
 import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
 import { usePrefetchAdjacentQuizImagesGroups } from "@/hooks/usePrefetchAdjacentQuizImages";
+import { QuizConnectionErrorScreen } from '@/components/quiz/QuizConnectionErrorScreen'
+import { resolveQuizLoadFailureExamState } from '@/utils/networkError'
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -99,7 +101,7 @@ const ExamWithFirebase = () => {
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const answersRef = useRef<{ [key: string]: string }>({});
-  const [examState, setExamState] = useState('loading') // loading, awaiting_validation, welcome, active, completed, already_taken, no_questions
+  const [examState, setExamState] = useState('loading') // loading, awaiting_validation, welcome, active, completed, already_taken, no_questions, network_error
   const [validationChecking, setValidationChecking] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -238,7 +240,7 @@ const ExamWithFirebase = () => {
         if (!quizResult.success) {
           console.error('Error generando cuestionario:', quizResult.error);
           if (isMounted) {
-            setExamState('no_questions');
+            setExamState(resolveQuizLoadFailureExamState(quizResult.error));
           }
           return;
         }
@@ -351,13 +353,28 @@ const ExamWithFirebase = () => {
             }
           }
         }
+
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       } catch (error) {
         console.error('Error cargando cuestionario:', error);
         if (isMounted) {
-          setExamState('no_questions');
+          setExamState(resolveQuizLoadFailureExamState(error));
         }
       }
     };
+
+    timeoutId = setTimeout(() => {
+      if (isMounted) {
+        setExamState(prevState => {
+          if (prevState === 'loading') {
+            return 'network_error';
+          }
+          return prevState;
+        });
+      }
+    }, 30000);
 
     loadQuiz();
 
@@ -2533,6 +2550,13 @@ const ExamWithFirebase = () => {
     >
       {examState === 'loading' && <LoadingScreen />}
       {examState === 'awaiting_validation' && <AwaitingValidationScreen />}
+      {examState === 'network_error' && (
+        <QuizConnectionErrorScreen
+          variant={appTheme === 'dark' ? 'dark' : 'light'}
+          onRetry={() => window.location.reload()}
+          onGoDashboard={() => navigate('/dashboard')}
+        />
+      )}
       {examState === 'welcome' && <WelcomeScreen />}
       {examState === 'active' && <ExamScreen />}
       {examState === 'completed' && <CompletedScreen />}

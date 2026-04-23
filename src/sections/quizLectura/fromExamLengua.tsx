@@ -19,6 +19,8 @@ import { processExamResults } from "@/utils/phaseIntegration";
 import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
 import { gradeLabelToBankCode } from "@/utils/gradeMapping";
 import { GroupedQuestionNotice } from "@/components/quiz/GroupedQuestionNotice";
+import { QuizConnectionErrorScreen } from '@/components/quiz/QuizConnectionErrorScreen'
+import { resolveQuizLoadFailureExamState } from '@/utils/networkError'
 import ImageGallery from "@/components/common/ImageGallery";
 import { usePrefetchAdjacentQuizImagesLinear } from "@/hooks/usePrefetchAdjacentQuizImages";
 import DOMPurify from 'dompurify';
@@ -158,7 +160,7 @@ const ExamWithFirebase = () => {
   // Estados principales
   const [quizData, setQuizData] = useState<GeneratedQuiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
-  const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions
+  const [examState, setExamState] = useState('loading') // loading, welcome, active, completed, already_taken, no_questions, network_error
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [maxReachedQuestion, setMaxReachedQuestion] = useState(0) // Última pregunta alcanzada por el estudiante
@@ -235,9 +237,9 @@ const ExamWithFirebase = () => {
             userGradeName,
             error: quizResult.error
           });
-          console.log('Mostrando pantalla de no hay preguntas...');
+          console.log('Mostrando pantalla según tipo de error...');
           if (isMounted) {
-            setExamState('no_questions');
+            setExamState(resolveQuizLoadFailureExamState(quizResult.error));
           }
           return;
         }
@@ -277,9 +279,9 @@ const ExamWithFirebase = () => {
 
       } catch (error) {
         console.error('Error cargando cuestionario:', error);
-        console.log('Mostrando pantalla de no hay preguntas por error...');
+        console.log('Mostrando pantalla según tipo de error...');
         if (isMounted) {
-          setExamState('no_questions');
+          setExamState(resolveQuizLoadFailureExamState(error));
         }
       }
     };
@@ -290,8 +292,8 @@ const ExamWithFirebase = () => {
       if (isMounted) {
         setExamState(prevState => {
           if (prevState === 'loading') {
-            console.log('Estado sigue en loading, mostrando pantalla de no hay preguntas...');
-            return 'no_questions';
+            console.log('Estado sigue en loading: probable problema de conexión o servidor lento.');
+            return 'network_error';
           }
           console.log('Estado ya cambió a:', prevState, '- no aplicando timeout');
           return prevState;
@@ -1903,8 +1905,8 @@ const ExamWithFirebase = () => {
   console.log('Estado actual del examen:', examState);
   console.log('UserId:', userId);
   console.log('QuizData:', quizData);
-  console.log('Estados disponibles:', ['loading', 'no_questions', 'welcome', 'active', 'completed', 'already_taken']);
-  console.log('Estado válido:', ['loading', 'no_questions', 'welcome', 'active', 'completed', 'already_taken'].includes(examState));
+  console.log('Estados disponibles:', ['loading', 'no_questions', 'network_error', 'welcome', 'active', 'completed', 'already_taken']);
+  console.log('Estado válido:', ['loading', 'no_questions', 'network_error', 'welcome', 'active', 'completed', 'already_taken'].includes(examState));
 
   // Renderizado principal
   const theme = getQuizTheme('lenguaje')
@@ -1914,6 +1916,13 @@ const ExamWithFirebase = () => {
       style={appTheme === 'dark' ? {} : getQuizBackgroundStyle(theme)}
     >
       {examState === 'loading' && <LoadingScreen />}
+      {examState === 'network_error' && (
+        <QuizConnectionErrorScreen
+          variant={appTheme === 'dark' ? 'dark' : 'light'}
+          onRetry={() => window.location.reload()}
+          onGoDashboard={() => navigate('/dashboard')}
+        />
+      )}
       {examState === 'no_questions' && <NoQuestionsScreen />}
       {examState === 'welcome' && <WelcomeScreen />}
       {examState === 'active' && <ExamScreen />}
@@ -1921,7 +1930,7 @@ const ExamWithFirebase = () => {
       {examState === 'already_taken' && <AlreadyTakenScreen />}
 
       {/* Debug: Mostrar estado si no hay pantalla activa */}
-      {!['loading', 'no_questions', 'welcome', 'active', 'completed', 'already_taken'].includes(examState) && (
+      {!['loading', 'no_questions', 'network_error', 'welcome', 'active', 'completed', 'already_taken'].includes(examState) && (
         <div className="max-w-2xl mx-auto p-8">
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             <strong>Estado desconocido:</strong> {examState}

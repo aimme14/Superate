@@ -9,6 +9,9 @@ const NETWORK_HINTS = [
   'timed out',
   'deadline exceeded',
   'deadline-exceeded',
+  'internet',
+  'conexion',
+  'sin conexion',
 ] as const
 
 const UNAVAILABLE_HINTS = [
@@ -48,8 +51,13 @@ export function getErrorMessage(error: unknown): string {
 
 export function getErrorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object') return null
-  const maybeCode = (error as { code?: unknown }).code
-  return typeof maybeCode === 'string' ? maybeCode : null
+  const o = error as { code?: unknown; details?: unknown }
+  if (typeof o.code === 'string') return o.code
+  if (o.details && typeof o.details === 'object') {
+    const dc = (o.details as { code?: unknown }).code
+    if (typeof dc === 'string') return dc
+  }
+  return null
 }
 
 /**
@@ -70,4 +78,12 @@ export function isNetworkErrorLike(error: unknown): boolean {
 
 export function isBrowserOffline(): boolean {
   return typeof navigator !== 'undefined' && !navigator.onLine
+}
+
+/**
+ * Pantalla del examen: si el fallo parece de red, mostrar mensaje de conexión;
+ * si no, el flujo histórico asume falta de preguntas en el banco.
+ */
+export function resolveQuizLoadFailureExamState(error: unknown): 'network_error' | 'no_questions' {
+  return isNetworkErrorLike(error) ? 'network_error' : 'no_questions'
 }
