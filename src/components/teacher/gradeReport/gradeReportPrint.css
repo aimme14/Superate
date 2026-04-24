@@ -2,6 +2,11 @@
  * Impresión del informe (Chrome/Edge → Guardar como PDF).
  * Activar con class "grade-report-print-root-active" en <html> (GradeReportModal).
  *
+ * Importante: NO usar visibility:hidden sobre body * — Chromium suele imprimir en blanco
+ * el subtree del Dialog (fixed + portal) aunque un descendiente tenga visibility:visible.
+ * En su lugar ocultamos solo #root y #radix-portals y reseteamos overflow del body
+ * (react-remove-scroll / Radix).
+ *
  * Nota: los encabezados con fecha/URL son del cuadro de impresión del navegador;
  * desactívalos en "Más opciones" → desmarcar encabezados y pies de página.
  */
@@ -14,27 +19,42 @@
 
   html.grade-report-print-root-active {
     background: #fff !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  html.grade-report-print-root-active body {
+    overflow: visible !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   /*
-   * Ocultar todo el documento y volver visible solo el contenido del modal del informe.
-   * Incluir el subtree completo del diálogo (no solo #grade-report-print-root): si no,
-   * wrappers intermedios quedan mal y Chrome imprime solo un fragmento o página en blanco.
+   * Ocultar la SPA y portales auxiliares (dropdowns, etc.), no todo el body con visibility.
+   * Los nodos del Dialog van portaled como hermanos directos de body (Radix).
    */
-  html.grade-report-print-root-active body * {
-    visibility: hidden !important;
-  }
-
-  html.grade-report-print-root-active [data-radix-dialog-content],
-  html.grade-report-print-root-active [data-radix-dialog-content] * {
-    visibility: visible !important;
+  html.grade-report-print-root-active #root,
+  html.grade-report-print-root-active #radix-portals {
+    display: none !important;
   }
 
   /*
-   * El Dialog usa fixed + translate + max-height + overflow; en impresión eso recorta
-   * el PDF a una "ventana" y deja casi todo fuera. Resetear al flujo normal del papel.
+   * Capa oscura del modal: no tiene role=dialog; el panel sí (DismissableLayer).
    */
-  html.grade-report-print-root-active [data-radix-dialog-content] {
+  html.grade-report-print-root-active .fixed.inset-0.z-50:not([role='dialog']) {
+    display: none !important;
+  }
+
+  /*
+   * El Dialog usa fixed + translate + max-height + overflow; en impresión recorta el PDF.
+   * Radix ≥1.1: marcamos el Content con data-grade-report-print-container en GradeReportModal.
+   */
+  html.grade-report-print-root-active [data-grade-report-print-container] {
     position: static !important;
     inset: auto !important;
     left: auto !important;
@@ -56,13 +76,18 @@
     border-radius: 0 !important;
     background: transparent !important;
     page-break-inside: auto !important;
-    -webkit-print-color-adjust: exact;
+    opacity: 1 !important;
+    animation: none !important;
+    visibility: visible !important;
     print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
-  html.grade-report-print-root-active [data-radix-dialog-content] > div {
+  html.grade-report-print-root-active [data-grade-report-print-container] > div {
     overflow: visible !important;
     max-height: none !important;
+    background: #fff !important;
+    background-image: none !important;
   }
 
   html.grade-report-print-root-active #grade-report-print-root {
@@ -74,16 +99,92 @@
     padding: 0 !important;
     margin: 0 !important;
     box-sizing: border-box !important;
-    background: transparent !important;
-    color: inherit !important;
+    background: #fff !important;
+    color: #171717 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
+  /*
+   * PDF en claro: sin fondos oscuros ni degradados; texto negro; bordes grises visibles.
+   */
   html.grade-report-print-root-active #grade-report-print-root,
   html.grade-report-print-root-active #grade-report-print-root * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    background-color: #fff !important;
+    background-image: none !important;
+    color: #171717 !important;
+    box-shadow: none !important;
+    ring-color: transparent !important;
+    --tw-ring-color: transparent !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    --tw-shadow: 0 0 #0000 !important;
+    --tw-shadow-colored: 0 0 #0000 !important;
+  }
+
+  /* Contenedor principal del informe (Card) */
+  html.grade-report-print-root-active #grade-report-print-root > div.rounded-2xl {
+    border: 1px solid #64748b !important;
+  }
+
+  /* Bloques con borde explícito en pantalla → mismo criterio en PDF */
+  html.grade-report-print-root-active #grade-report-print-root .grade-report-kpi-card,
+  html.grade-report-print-root-active #grade-report-print-root .phase-card,
+  html.grade-report-print-root-active #grade-report-print-root .grade-report-subjects-block,
+  html.grade-report-print-root-active #grade-report-print-root .grade-report-narrative-block,
+  html.grade-report-print-root-active #grade-report-print-root .grade-report-evolution-item {
+    border: 1px solid #94a3b8 !important;
+  }
+
+  /* Badge “Grado completo” y similares */
+  html.grade-report-print-root-active #grade-report-print-root [class*='inline-flex'][class*='rounded'] {
+    border: 1px solid #64748b !important;
+  }
+
+  /* Cabecera del informe: solo línea inferior */
+  html.grade-report-print-root-active #grade-report-print-root > div.rounded-2xl > div:first-child {
+    border-bottom: 1px solid #64748b !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+  }
+
+  html.grade-report-print-root-active #grade-report-print-root .grade-report-doc-header {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Controles y bloques con .grade-report-no-print no se imprimen (p. ej. botón Imprimir). */
+
+  /* KPI / fases / bloques internos ya tienen border por la regla [class*='rounded']; evitar doble borde en cabecera */
+  html.grade-report-print-root-active #grade-report-print-root h3 span.rounded-full {
+    background-color: #171717 !important;
+    border: none !important;
+  }
+
+  /* Insignia de fase (I, II, III): círculo con borde, sin relleno gris */
+  html.grade-report-print-root-active #grade-report-print-root .phase-card > div > span.rounded-full {
+    background-color: #fff !important;
+    border: 1px solid #64748b !important;
+    color: #171717 !important;
+  }
+
+  html.grade-report-print-root-active #grade-report-print-root svg {
+    color: #171717 !important;
+    stroke: currentColor !important;
+  }
+
+  /* Tabla: filas y cabecera legibles */
+  html.grade-report-print-root-active #grade-report-print-root table {
+    border-collapse: collapse !important;
+  }
+
+  html.grade-report-print-root-active #grade-report-print-root th,
+  html.grade-report-print-root-active #grade-report-print-root td {
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  html.grade-report-print-root-active #grade-report-print-root .grade-report-subjects-block [class*='border-b'] {
+    border-color: #cbd5e1 !important;
   }
 
   html.grade-report-print-root-active .grade-report-no-print {
@@ -91,12 +192,7 @@
     visibility: hidden !important;
   }
 
-  html.grade-report-print-root-active [data-radix-dialog-content] > button:last-of-type {
-    display: none !important;
-    visibility: hidden !important;
-  }
-
-  html.grade-report-print-root-active [data-radix-dialog-overlay] {
+  html.grade-report-print-root-active [data-grade-report-print-container] > button:last-of-type {
     display: none !important;
     visibility: hidden !important;
   }
@@ -131,5 +227,10 @@
   html.grade-report-print-root-active .grade-report-section h3 {
     page-break-after: avoid;
     break-after: avoid;
+  }
+
+  html.grade-report-print-root-active #grade-report-print-root .grade-report-narrative-block {
+    orphans: 3;
+    widows: 3;
   }
 }

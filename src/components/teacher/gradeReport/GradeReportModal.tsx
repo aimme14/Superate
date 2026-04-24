@@ -51,6 +51,7 @@ export function GradeReportModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-grade-report-print-container=""
         className={cn(
           'max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden border-0 p-0 gap-0 shadow-2xl sm:rounded-2xl',
           theme === 'dark'

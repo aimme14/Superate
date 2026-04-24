@@ -26,7 +26,12 @@ export function GradeReportCard({
   const dark = theme === 'dark'
 
   const handlePrint = () => {
-    window.print()
+    // Doble rAF: deja aplicar estilos de impresión / layout antes del compositor de PDF (Chromium).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print()
+      })
+    })
   }
 
   return (
@@ -41,41 +46,47 @@ export function GradeReportCard({
       >
         <div
           className={cn(
-            'relative border-b px-5 pb-5 pt-6 print:border-gray-300',
-            dark
-              ? 'border-zinc-700/80 bg-gradient-to-br from-blue-950/55 via-zinc-900 to-zinc-950'
-              : 'border-slate-100 bg-gradient-to-br from-slate-50 via-white to-blue-50/35'
+            'grade-report-doc-header relative border-b overflow-hidden',
+            dark ? 'border-zinc-700/80' : 'border-slate-200/90'
           )}
         >
           <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-500 opacity-95"
-            aria-hidden
-          />
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 space-y-2">
-              <p className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', dark ? 'text-blue-300/90' : 'text-blue-700')}>
-                Informe institucional
-              </p>
-              <CardTitle className={cn('text-2xl font-bold tracking-tight sm:text-[1.65rem]', dark ? 'text-white' : 'text-slate-900')}>
-                {report.gradeName}
-              </CardTitle>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant="secondary"
+            className={cn(
+              'flex flex-col gap-4 px-5 pb-5 pt-5 sm:flex-row sm:items-start sm:justify-between',
+              dark
+                ? 'bg-gradient-to-br from-zinc-900/98 via-zinc-900 to-blue-950/30'
+                : 'bg-gradient-to-br from-slate-50/90 via-white to-sky-50/25'
+            )}
+          >
+            <div className="min-w-0 flex-1 space-y-2">
+                <p
                   className={cn(
-                    'border font-medium',
-                    dark ? 'border-zinc-600/80 bg-zinc-800/80 text-zinc-200' : 'border-slate-200 bg-white text-slate-700'
+                    'text-[11px] font-semibold uppercase tracking-[0.2em]',
+                    dark ? 'text-blue-300/90' : 'text-blue-700'
                   )}
                 >
-                  {GRADE_REPORT_SCOPE_LABEL}
-                </Badge>
-              </div>
-              {metaLine ? (
-                <p className={cn('text-sm', dark ? 'text-zinc-400' : 'text-slate-600')}>{metaLine}</p>
-              ) : null}
-              <p className={cn('text-xs', dark ? 'text-zinc-500' : 'text-slate-500')}>
-                Año lectivo {report.academicYear} · Estudiantes en el resumen: {report.totalStudents}
-              </p>
+                  Informe institucional
+                </p>
+                <CardTitle className={cn('text-2xl font-bold tracking-tight sm:text-[1.65rem]', dark ? 'text-white' : 'text-slate-900')}>
+                  {report.gradeName}
+                </CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      'border font-medium',
+                      dark ? 'border-zinc-600/80 bg-zinc-800/80 text-zinc-200' : 'border-slate-200 bg-white text-slate-700'
+                    )}
+                  >
+                    {GRADE_REPORT_SCOPE_LABEL}
+                  </Badge>
+                </div>
+                {metaLine ? (
+                  <p className={cn('text-sm', dark ? 'text-zinc-400' : 'text-slate-600')}>{metaLine}</p>
+                ) : null}
+                <p className={cn('text-xs', dark ? 'text-zinc-500' : 'text-slate-500')}>
+                  Año lectivo {report.academicYear} · Estudiantes en el resumen: {report.totalStudents}
+                </p>
             </div>
             {showPrintButton && (
               <Button
