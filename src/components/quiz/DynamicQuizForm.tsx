@@ -1,3 +1,4 @@
+import { logger } from '@/utils/logger'
 import { Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2, Calculator, Timer, HelpCircle, Users, Play, Maximize, Database, X, Shield } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
@@ -329,7 +330,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       const totalExamTime = Math.floor((examEndTime - examStartTime) / 1000);
 
       // DEBUG: Verificar el valor de phase antes de crear examResult
-      console.log(`[DynamicQuizForm] 🔍 DEBUG - Valores de fase antes de guardar:`, {
+      logger.debug(`[DynamicQuizForm] 🔍 DEBUG - Valores de fase antes de guardar:`, {
         propPhase: phase,
         quizDataPhase: quizData.phase,
         phaseType: typeof quizData.phase,
@@ -372,7 +373,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       }
 
       // DEBUG: Verificar el valor de phase en examResult
-      console.log(`[DynamicQuizForm] 🔍 DEBUG - examResult.phase antes de guardar:`, {
+      logger.debug(`[DynamicQuizForm] 🔍 DEBUG - examResult.phase antes de guardar:`, {
         examResultPhase: examResult.phase,
         phaseType: typeof examResult.phase,
         isSecond: examResult.phase === 'second',
@@ -380,7 +381,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       });
 
       const result = await saveExamResults(userId, quizData.id, examResult);
-      console.log('Examen guardado exitosamente:', result)
+      logger.debug('Examen guardado exitosamente:', result)
       if (result?.success) invalidateStudentEvaluationsAfterExamSave(queryClient, userId);
 
       // Procesar resultados según la fase (análisis, actualización de progreso, etc.)
@@ -394,7 +395,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           );
 
           if (processResult.success) {
-            console.log('✅ Resultados procesados exitosamente');
+            logger.debug('✅ Resultados procesados exitosamente');
             if (quizData.phase === 'first') {
               notifySuccess({
                 title: 'Análisis completado',
@@ -487,25 +488,25 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         const isCurrentlyFullscreen = !!fullscreenElement;
         const isHidden = document.hidden;
         
-        console.log('Fullscreen change:', { isCurrentlyFullscreen, isHidden, examState });
+        logger.debug('Fullscreen change:', { isCurrentlyFullscreen, isHidden, examState });
 
         setIsFullscreen(isCurrentlyFullscreen);
 
         if (!isCurrentlyFullscreen) {
-          console.log('Salida de pantalla completa detectada durante examen activo');
+          logger.debug('Salida de pantalla completa detectada durante examen activo');
           
           // Verificar si también se cambió de pestaña
           if (isHidden) {
-            console.log('También se cambió de pestaña');
+            logger.debug('También se cambió de pestaña');
             // Se salió de pantalla completa Y cambió de pestaña
             setFullscreenExitWithTabChange(true);
             setTabChangeCount(prev => {
               const newCount = prev + 1;
-              console.log('Tab change count:', newCount);
+              logger.debug('Tab change count:', newCount);
               
               // Si es la segunda vez que sale de pantalla completa Y cambia de pestaña, finalizar
               if (newCount >= 2) {
-                console.log('Finalizando examen por segunda salida con cambio de pestaña');
+                logger.debug('Finalizando examen por segunda salida con cambio de pestaña');
                 setExamLocked(true);
                 handleSubmit(false, true);
               } else {
@@ -514,7 +515,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               return newCount;
             });
           } else {
-            console.log('Solo salida de pantalla completa, sin cambio de pestaña');
+            logger.debug('Solo salida de pantalla completa, sin cambio de pestaña');
             // Solo salió de pantalla completa (sin cambiar de pestaña)
             setFullscreenExitWithTabChange(false);
             setShowFullscreenExit(true);
@@ -594,7 +595,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         // No prevenir el comportamiento por defecto
         // Dejar que el navegador salga de pantalla completa
         // El evento fullscreenchange detectará el cambio y mostrará el modal
-        console.log('ESC presionado durante el examen');
+        logger.debug('ESC presionado durante el examen');
       }
     };
 
@@ -979,7 +980,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     const hasTabChange = fullscreenExitWithTabChange;
     const isLastWarning = tabChangeCount >= 1;
 
-    console.log('Mostrando modal FullscreenExit:', { hasTabChange, isLastWarning, tabChangeCount });
+    logger.debug('Mostrando modal FullscreenExit:', { hasTabChange, isLastWarning, tabChangeCount });
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">

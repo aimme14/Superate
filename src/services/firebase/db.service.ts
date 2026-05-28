@@ -63,7 +63,7 @@ class DatabaseService {
         }
       }
       
-      console.log(`✅ Usuarios obtenidos de nueva estructura: ${allUsers.length}`)
+      logger.debug(`✅ Usuarios obtenidos de nueva estructura: ${allUsers.length}`)
       return success(allUsers)
     } catch (e) { 
       return failure(new ErrorAPI(normalizeError(e, 'obtener usuarios'))) 
@@ -210,10 +210,10 @@ class DatabaseService {
         }))
       }
 
-      console.log('🆕 Creando usuario en nueva estructura jerárquica')
+      logger.debug('🆕 Creando usuario en nueva estructura jerárquica')
       return await this.createUserInNewStructure(auth, credentials)
     } catch (e) { 
-      console.log('❌ Error al guardar usuario en Firestore:', e)
+      logger.error('Error al guardar usuario en Firestore:', e)
       return failure(new ErrorAPI(normalizeError(e, 'Registrar credenciales del usuario'))) 
     }
   }
@@ -228,7 +228,7 @@ class DatabaseService {
   private deepCleanData(obj: any, depth: number = 0, excludeFields: string[] = ['role', 'uid', 'id', 'createdAt']): any {
     // Protección contra recursión infinita
     if (depth > 10) {
-      console.warn('⚠️ Profundidad máxima alcanzada al limpiar datos')
+      logger.warn('⚠️ Profundidad máxima alcanzada al limpiar datos')
       return null
     }
 
@@ -298,7 +298,7 @@ class DatabaseService {
       try {
         const result = await updateFn()
         if (attempt > 0) {
-          console.log(`✅ Actualización exitosa en el intento ${attempt + 1}`)
+          logger.debug(`✅ Actualización exitosa en el intento ${attempt + 1}`)
         }
         return success(result)
       } catch (error: any) {
@@ -308,15 +308,14 @@ class DatabaseService {
         if (error?.code === 'permission-denied' || 
             error?.code === 'not-found' ||
             error?.code === 'unauthenticated') {
-          console.error(`❌ Error no recuperable (${error?.code}), no se reintentará`)
+          logger.error(`Error no recuperable (${error?.code}), no se reintentará`)
           break
         }
         
         // Si es un error de red o timeout, reintentar
         if (attempt < maxRetries - 1) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 5000) // Backoff exponencial, máximo 5s
-          console.warn(`⚠️ Error en intento ${attempt + 1}/${maxRetries}, reintentando en ${delay}ms...`)
-          console.warn(`   Error: ${error?.message || error}`)
+          logger.warn(`Error en intento ${attempt + 1}/${maxRetries}, reintentando en ${delay}ms... Error: ${error?.message || error}`)
           await new Promise(resolve => setTimeout(resolve, delay))
         }
       }
@@ -394,7 +393,7 @@ class DatabaseService {
               }
             } catch (validationError) {
               // Si falla la validación, continuar con la actualización (no bloquear)
-              console.warn('⚠️ Error en validación de institución, continuando con actualización')
+              logger.warn('Error en validación de institución, continuando con actualización')
             }
           }
         }
@@ -403,7 +402,7 @@ class DatabaseService {
       // Actualizar exclusivamente en la nueva estructura jerárquica
       const newStructureResult = await this.updateUserInNewStructure(id, cleanedData)
       if (newStructureResult.success) {
-        console.log('✅ Usuario actualizado en nueva estructura jerárquica')
+        logger.debug('✅ Usuario actualizado en nueva estructura jerárquica')
         return newStructureResult
       }
       
@@ -442,12 +441,12 @@ class DatabaseService {
         
         if (userDocSnap.exists()) {
           await deleteDoc(userDocRef)
-          console.log(`✅ Usuario eliminado de colección antigua users: ${id}`)
+          logger.debug(`✅ Usuario eliminado de colección antigua users: ${id}`)
           deleted = true
         }
       } catch (oldStructureError: any) {
         // Si no existe en la colección antigua, no es un error
-        console.log('ℹ️ Usuario no encontrado en colección antigua users')
+        logger.debug('Usuario no encontrado en colección antigua users')
       }
       
       if (deleted) {
@@ -459,39 +458,6 @@ class DatabaseService {
     } catch (e) { 
       return failure(new ErrorAPI(normalizeError(e, 'eliminar usuario'))) 
     }
-  }
-  /*----------------------------------------------------*/
-
-  /*-----------------> test <-----------------*/
-  async setInitialTestState() {
-    try {
-      return await setDoc(doc(this.getCollection('test'), 'global'), { test_1: false, test_2: false, test_3: false }).then(() => success(undefined))
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'inicializar estado de pruebas'))) }
-  }
-
-  async getTestState() {
-    try {
-      const docSnap = await getDoc(doc(this.getCollection('test'), 'global'))
-      if (!docSnap.exists()) {// Inicializar estado por defecto si no existe
-        await this.setInitialTestState()
-        return success({ test_1: false, test_2: false, test_3: false })
-      }
-      return success(docSnap.data())
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'obtener estado de pruebas'))) }
-  }
-
-  async toggleTest(testNumber: number) {
-    try {
-      const currentState = await this.getTestState()
-      if (!currentState.success) throw currentState.error
-
-      const testKey = `test_${testNumber}`
-      const newState = {
-        ...currentState.data,
-        [testKey]: !currentState.data[testKey as keyof typeof currentState.data]
-      }
-      return await setDoc(doc(this.getCollection('test'), 'global'), newState).then(() => success(newState))
-    } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'actualizar estado de prueba'))) }
   }
   /*----------------------------------------------------*/
 
@@ -581,10 +547,10 @@ class DatabaseService {
    */
   private async updateUsersByInstitution(institutionId: string, isActive: boolean): Promise<void> {
     try {
-      console.log(`🔄 ${isActive ? 'Activando' : 'Desactivando'} usuarios de la institución ${institutionId}...`)
+      logger.debug(`🔄 ${isActive ? 'Activando' : 'Desactivando'} usuarios de la institución ${institutionId}...`)
       
       // Esperar un momento para asegurar que la actualización de la institución se haya completado completamente
-      console.log('⏳ Esperando a que la actualización de la institución se complete...')
+      logger.debug('⏳ Esperando a que la actualización de la institución se complete...')
       await new Promise(resolve => setTimeout(resolve, 2000)) // Aumentado a 2 segundos para dar más tiempo
       
       // Verificar nuevamente la institución para asegurar que tenemos los datos más recientes
@@ -592,18 +558,18 @@ class DatabaseService {
       let retries = 3
       
       while (!institutionResult.success && retries > 0) {
-        console.log(`⚠️ No se pudo obtener la institución, reintentando... (${retries} intentos restantes)`)
+        logger.debug(`⚠️ No se pudo obtener la institución, reintentando... (${retries} intentos restantes)`)
         await new Promise(resolve => setTimeout(resolve, 1000)) // Esperar 1 segundo antes de reintentar
         institutionResult = await this.getInstitutionById(institutionId)
         retries--
       }
       
       if (!institutionResult.success) {
-        console.warn('⚠️ No se pudo obtener la institución para actualización en cascada después de varios intentos')
+        logger.warn('⚠️ No se pudo obtener la institución para actualización en cascada después de varios intentos')
         return
       }
       
-      console.log(`✅ Institución verificada, procediendo a actualizar usuarios...`)
+      logger.debug(`✅ Institución verificada, procediendo a actualizar usuarios...`)
       
       // Actualizar usuarios en nueva estructura jerárquica
       const allUserDocs: any[] = []
@@ -624,11 +590,11 @@ class DatabaseService {
             })
           }
         } catch (error) {
-          console.warn(`⚠️ Error al obtener usuarios de rol ${role}:`, error)
+          logger.warn(`Error al obtener usuarios de rol ${role}:`, error)
         }
       }
       
-      console.log(`✅ Usuarios encontrados en nueva estructura: ${allUserDocs.length}`)
+      logger.debug(`✅ Usuarios encontrados en nueva estructura: ${allUserDocs.length}`)
       
       // Filtrar solo usuarios que no sean admin (los admins no pertenecen a instituciones)
       const usersToUpdate = allUserDocs.filter(user => {
@@ -636,10 +602,10 @@ class DatabaseService {
         return role && ['student', 'teacher', 'principal', 'rector'].includes(role)
       })
       
-      console.log(`📊 Usuarios encontrados para ${isActive ? 'activar' : 'desactivar'}: ${usersToUpdate.length}`)
+      logger.debug(`📊 Usuarios encontrados para ${isActive ? 'activar' : 'desactivar'}: ${usersToUpdate.length}`)
       
       if (usersToUpdate.length === 0) {
-        console.log('✅ No hay usuarios para actualizar')
+        logger.debug('✅ No hay usuarios para actualizar')
         return
       }
       
@@ -702,7 +668,7 @@ class DatabaseService {
         while (batchRetries > 0 && !batchSuccess) {
           try {
             await batches[i].commit()
-            console.log(`✅ Batch ${i + 1}/${batches.length} completado (${chunkSize} usuarios actualizados)`)
+            logger.debug(`✅ Batch ${i + 1}/${batches.length} completado (${chunkSize} usuarios actualizados)`)
             batchSuccess = true
             
             // Delay entre batches para no sobrecargar Firebase y dar tiempo a que se procesen
@@ -712,23 +678,23 @@ class DatabaseService {
           } catch (error) {
             batchRetries--
             if (batchRetries > 0) {
-              console.warn(`⚠️ Error al ejecutar batch ${i + 1}, reintentando... (${batchRetries} intentos restantes)`)
+              logger.warn(`Error al ejecutar batch ${i + 1}, reintentando... (${batchRetries} intentos restantes)`)
               await new Promise(resolve => setTimeout(resolve, 2000)) // Esperar 2 segundos antes de reintentar
             } else {
-              console.error(`❌ Error al ejecutar batch ${i + 1} después de reintentos:`, error)
+              logger.error(`Error al ejecutar batch ${i + 1} después de reintentos:`, error)
               // Continuar con los siguientes batches aunque uno falle
             }
           }
         }
       }
       
-      console.log(`✅ ${usersToUpdate.length} usuario(s) ${isActive ? 'activado(s)' : 'desactivado(s)'} exitosamente`)
+      logger.debug(`✅ ${usersToUpdate.length} usuario(s) ${isActive ? 'activado(s)' : 'desactivado(s)'} exitosamente`)
       
       // Esperar un momento adicional para asegurar que todas las actualizaciones se hayan propagado
       await new Promise(resolve => setTimeout(resolve, 1000))
       
     } catch (e) {
-      console.error(`❌ Error al ${isActive ? 'activar' : 'desactivar'} usuarios de la institución:`, e)
+      logger.error(`Error al ${isActive ? 'activar' : 'desactivar'} usuarios de la institución:`, e)
       // No lanzar error para no bloquear la actualización de la institución
       // Solo loguear el error
     }
@@ -744,8 +710,8 @@ class DatabaseService {
         }))
       }
 
-      console.log('🔍 Iniciando actualización de institución con ID:', id)
-      console.log('📊 Datos recibidos para actualizar:', Object.keys(institutionData))
+      logger.debug('🔍 Iniciando actualización de institución con ID:', id)
+      logger.debug('📊 Datos recibidos para actualizar:', Object.keys(institutionData))
       
       // Obtener el estado actual de la institución para detectar cambios en isActive
       let currentInstitutionResult = await this.getInstitutionById(id)
@@ -753,7 +719,7 @@ class DatabaseService {
       
       // Reintentar si falla la primera vez
       while (!currentInstitutionResult.success && retries > 0) {
-        console.warn(`⚠️ No se pudo obtener la institución, reintentando... (${retries} intentos restantes)`)
+        logger.warn(`⚠️ No se pudo obtener la institución, reintentando... (${retries} intentos restantes)`)
         await new Promise(resolve => setTimeout(resolve, 1000))
         currentInstitutionResult = await this.getInstitutionById(id)
         retries--
@@ -776,7 +742,7 @@ class DatabaseService {
       
       // Si hay cambio de activación, actualizar campus y grados en los datos antes de guardar
       if (isActivationChange && currentInstitution.campuses && currentInstitution.campuses.length > 0) {
-        console.log(`🔄 Actualizando campus y grados en cascada: ${newIsActive ? 'activando' : 'desactivando'}`)
+        logger.debug(`🔄 Actualizando campus y grados en cascada: ${newIsActive ? 'activando' : 'desactivando'}`)
         institutionData.campuses = currentInstitution.campuses.map((campus: any) => ({
           ...campus,
           isActive: newIsActive,
@@ -797,7 +763,7 @@ class DatabaseService {
       
       // Validar que haya datos para actualizar
       if (!cleanedData || Object.keys(cleanedData).length === 0) {
-        console.warn('⚠️ No hay datos válidos para actualizar')
+        logger.warn('⚠️ No hay datos válidos para actualizar')
         return failure(new ErrorAPI({ 
           message: 'No se proporcionaron datos válidos para actualizar', 
           statusCode: 400 
@@ -807,15 +773,15 @@ class DatabaseService {
       // Asegurar que updatedAt esté presente SIEMPRE
       cleanedData.updatedAt = new Date().toISOString().split('T')[0]
       
-      console.log('📋 Campos después de limpiar:', Object.keys(cleanedData))
-      console.log('📊 Total de campos a actualizar:', Object.keys(cleanedData).length)
+      logger.debug('📋 Campos después de limpiar:', Object.keys(cleanedData))
+      logger.debug('📊 Total de campos a actualizar:', Object.keys(cleanedData).length)
       
       const document = doc(this.getCollection('institutions'), id)
       
       // Ejecutar actualización con reintentos
       const updateResult = await this.executeUpdateWithRetry(async () => {
         await updateDoc(document, cleanedData)
-        console.log('✅ Institución guardada exitosamente en Firebase')
+        logger.debug('✅ Institución guardada exitosamente en Firebase')
         return undefined
       }, 3)
       
@@ -835,25 +801,25 @@ class DatabaseService {
       
       // Si se cambió el estado de activación, actualizar usuarios en cascada (completamente en segundo plano)
       if (isActivationChange) {
-        console.log(`🔄 Estado de activación cambió: ${currentIsActive} → ${newIsActive}`)
-        console.log(`⏳ Iniciando actualización en cascada de usuarios en segundo plano...`)
+        logger.debug(`🔄 Estado de activación cambió: ${currentIsActive} → ${newIsActive}`)
+        logger.debug(`⏳ Iniciando actualización en cascada de usuarios en segundo plano...`)
         
         // Ejecutar completamente en segundo plano sin bloquear - usar setTimeout para dar tiempo a que se complete la transacción
         setTimeout(() => {
           // Ejecutar en segundo plano sin bloquear
           this.updateUsersByInstitution(id, newIsActive)
             .then(() => {
-              console.log(`✅ Proceso en cascada completado para institución ${id}`)
+              logger.debug(`✅ Proceso en cascada completado para institución ${id}`)
             })
             .catch(error => {
-              console.error('❌ Error al actualizar usuarios en cascada (no crítico):', error)
+              logger.error('Error al actualizar usuarios en cascada (no crítico):', error)
             })
         }, 500) // Esperar 500ms antes de iniciar el proceso en cascada para asegurar que la transacción se complete
       }
       
       return result
     } catch (e: any) { 
-      console.error('❌ Error general al actualizar institución:', e)
+      logger.error('Error general al actualizar institución:', e)
       
       // Manejar errores específicos
       if (e?.code === 'not-found') {
@@ -1014,7 +980,7 @@ class DatabaseService {
       
       // Limpiar valores undefined del coordinador
       const cleanedPrincipal = this.cleanUndefinedValues(newPrincipal)
-      console.log('🧹 Coordinador limpiado de valores undefined')
+      logger.debug('🧹 Coordinador limpiado de valores undefined')
 
       // Actualizar la institución agregando el coordinador a la sede
       const updatedCampuses = [...institution.campuses]
@@ -1030,15 +996,15 @@ class DatabaseService {
         updatedAt: new Date().toISOString().split('T')[0]
       }
 
-      console.log('🔍 Preparando para actualizar institución con coordinador...')
-      console.log('📊 Coordinador creado:', newPrincipal.name)
+      logger.debug('🔍 Preparando para actualizar institución con coordinador...')
+      logger.debug('📊 Coordinador creado:', newPrincipal.name)
       
       const updateResult = await this.updateInstitution(institutionId, updatedInstitution)
       if (updateResult.success) {
-        console.log('✅ Institución actualizada exitosamente con coordinador')
+        logger.debug('✅ Institución actualizada exitosamente con coordinador')
         return success(cleanedPrincipal)
       }
-      console.error('❌ Error al actualizar institución:', updateResult.error)
+      logger.error('Error al actualizar institución:', updateResult.error)
       return failure(updateResult.error)
     } catch (e) {       return failure(new ErrorAPI(normalizeError(e, 'agregar coordinador a sede'))) }
   }
@@ -1198,7 +1164,7 @@ class DatabaseService {
       
       // Limpiar valores undefined del rector
       const cleanedRector = this.cleanUndefinedValues(newRector)
-      console.log('🧹 Rector limpiado de valores undefined')
+      logger.debug('🧹 Rector limpiado de valores undefined')
 
       // Actualizar la institución agregando el rector
       const updatedInstitution = {
@@ -1207,15 +1173,15 @@ class DatabaseService {
         updatedAt: new Date().toISOString().split('T')[0]
       }
 
-      console.log('🔍 Preparando para actualizar institución con rector...')
-      console.log('📊 Rector creado:', newRector.name)
+      logger.debug('🔍 Preparando para actualizar institución con rector...')
+      logger.debug('📊 Rector creado:', newRector.name)
       
       const updateResult = await this.updateInstitution(institutionId, updatedInstitution)
       if (updateResult.success) {
-        console.log('✅ Institución actualizada exitosamente con rector')
+        logger.debug('✅ Institución actualizada exitosamente con rector')
         return success(cleanedRector)
       }
-      console.error('❌ Error al actualizar institución:', updateResult.error)
+      logger.error('Error al actualizar institución:', updateResult.error)
       return failure(updateResult.error)
     } catch (e) {       
       return failure(new ErrorAPI(normalizeError(e, 'agregar rector a institución'))) 
@@ -1438,7 +1404,7 @@ class DatabaseService {
       
       // Limpiar valores undefined del docente
       const cleanedTeacher = this.cleanUndefinedValues(newTeacher)
-      console.log('🧹 Docente limpiado de valores undefined')
+      logger.debug('🧹 Docente limpiado de valores undefined')
 
       // Actualizar la institución agregando el docente al grado
       const updatedCampuses = [...institution.campuses]
@@ -1461,16 +1427,16 @@ class DatabaseService {
         updatedAt: new Date().toISOString().split('T')[0]
       }
 
-      console.log('🔍 Preparando para actualizar institución...')
-      console.log('📊 Docente creado:', newTeacher.name)
-      console.log('📊 Total de docentes en el grado:', updatedGrades[gradeIndex].teachers.length)
+      logger.debug('🔍 Preparando para actualizar institución...')
+      logger.debug('📊 Docente creado:', newTeacher.name)
+      logger.debug('📊 Total de docentes en el grado:', updatedGrades[gradeIndex].teachers.length)
       
       const updateResult = await this.updateInstitution(institutionId, updatedInstitution)
       if (updateResult.success) {
-        console.log('✅ Institución actualizada exitosamente')
+        logger.debug('✅ Institución actualizada exitosamente')
         return success(cleanedTeacher)
       }
-      console.error('❌ Error al actualizar institución:', updateResult.error)
+      logger.error('Error al actualizar institución:', updateResult.error)
       return failure(updateResult.error)
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'crear docente en grado'))) }
   }
@@ -1934,7 +1900,7 @@ class DatabaseService {
                 } catch (error: any) {
                   // Si es error de cuota, no intentar más
                   if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
-                    console.warn('⚠️ Cuota excedida, omitiendo enriquecimiento de datos')
+                    logger.warn('Cuota excedida, omitiendo enriquecimiento de datos')
                     return student // Retornar sin enriquecer
                   }
                 }
@@ -1972,7 +1938,7 @@ class DatabaseService {
             if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
               return student
             }
-            console.warn(`Error al enriquecer datos del estudiante ${student.id}:`, error)
+            logger.warn(`Error al enriquecer datos del estudiante ${student.id}:`, error)
             return student
           }
         })
@@ -2047,9 +2013,9 @@ class DatabaseService {
       
       // Obtener información del docente para saber su institución, sede y grado
       // Usar getUserById para obtener desde la nueva estructura jerárquica (incluye jornada)
-      const teacherResult = await this.getUserById(teacherId)
+      const teacherResult = await this.getUserByIdFromNewStructure(teacherId)
       if (!teacherResult.success) {
-        console.error('❌ getStudentsByTeacher - Error al obtener docente:', teacherResult.error)
+        logger.error('getStudentsByTeacher - Error al obtener docente:', teacherResult.error)
         return failure(teacherResult.error)
       }
 
@@ -2057,7 +2023,7 @@ class DatabaseService {
       
       // Verificar que sea un docente
       if (teacher.role !== 'teacher') {
-        console.error('❌ getStudentsByTeacher - El usuario no es un docente:', teacher.role)
+        logger.error('getStudentsByTeacher - El usuario no es un docente:', teacher.role)
         return failure(new ErrorAPI({ message: 'El usuario no es un docente', statusCode: 400 }))
       }
       
@@ -2078,7 +2044,7 @@ class DatabaseService {
         }
       }
       
-      console.log('👨‍🏫 getStudentsByTeacher - Datos del docente COMPLETOS:', {
+      logger.debug('👨‍🏫 getStudentsByTeacher - Datos del docente COMPLETOS:', {
         name: teacher.name,
         institutionId: teacher.institutionId,
         campusId: teacher.campusId,
@@ -2095,22 +2061,18 @@ class DatabaseService {
         // Verificar si jornada está en el objeto
         hasJornadaField: 'jornada' in teacher,
         jornadaInObject: (teacher as any).jornada,
-        // Mostrar el objeto completo del docente para debug
-        teacherObject: JSON.parse(JSON.stringify(teacher)) // Serializar para ver todos los campos
       })
       
       // Advertencia si el docente no tiene jornada
       if (!teacherJornada || teacherJornada.trim() === '') {
-        console.error(`❌ ERROR CRÍTICO: El docente "${teacher.name}" NO tiene jornada definida. Se mostrarán TODOS los estudiantes del grado sin filtrar por jornada.`)
-        console.error(`❌ Verificar en Firestore que el documento del docente tenga el campo "jornada" con valor "mañana", "tarde" o "única".`)
-        console.error(`❌ Ruta esperada: superate/auth/institutions/{institutionId}/profesores/{teacherId}`)
+        logger.warn(`Docente "${teacher.name}" sin jornada definida. Se mostrarán todos los estudiantes del grado sin filtrar por jornada. Ruta esperada: superate/auth/institutions/{institutionId}/profesores/{teacherId}`)
       } else {
-        console.log(`✅ Docente tiene jornada definida: "${teacherJornada}"`)
+        logger.debug(`✅ Docente tiene jornada definida: "${teacherJornada}"`)
       }
       
       // Validar que la jornada sea válida
       if (teacherJornada && !['mañana', 'tarde', 'única'].includes(teacherJornada)) {
-        console.warn(`⚠️ Jornada del docente no es válida: "${teacherJornada}". Se tratará como sin jornada.`)
+        logger.warn(`⚠️ Jornada del docente no es válida: "${teacherJornada}". Se tratará como sin jornada.`)
       }
       
       // Usar los campos correctos (pueden ser inst/campus/grade o institutionId/campusId/gradeId)
@@ -2132,7 +2094,7 @@ class DatabaseService {
       // NO agregar filtro de jornada aquí - lo haremos después en memoria para tener control total
       // Esto asegura que el filtro funcione correctamente sin depender de getFilteredStudents
       
-      console.log('🔍 getStudentsByTeacher - Filtros a aplicar:', filters)
+      logger.debug('🔍 getStudentsByTeacher - Filtros a aplicar:', filters)
       
       // Buscar estudiantes que coincidan con la institución, sede y grado del docente
       // NO incluir filtro de jornada aquí, lo haremos después para tener control total
@@ -2152,7 +2114,7 @@ class DatabaseService {
         
         if (hasValidJornada) {
           // Si el docente tiene jornada específica (mañana/tarde), solo mostrar estudiantes con esa jornada exacta
-          console.log(`🔍 FILTRANDO por jornada: docente tiene jornada "${teacherJornada}"`)
+          logger.debug(`🔍 FILTRANDO por jornada: docente tiene jornada "${teacherJornada}"`)
           
           // Normalizar jornadas para comparación (trim y lowercase para evitar problemas de formato)
           const normalizedTeacherJornada = teacherJornada.trim().toLowerCase()
@@ -2163,7 +2125,7 @@ class DatabaseService {
             const j = s.jornada || 'sin jornada'
             jornadaCountsBefore[j] = (jornadaCountsBefore[j] || 0) + 1
           })
-          console.log(`📊 Estudiantes por jornada ANTES del filtro:`, jornadaCountsBefore)
+          logger.debug(`📊 Estudiantes por jornada ANTES del filtro:`, jornadaCountsBefore)
           
           // Filtrar estrictamente por jornada exacta
           filteredStudents = studentsResult.data.filter((student: any) => {
@@ -2187,9 +2149,9 @@ class DatabaseService {
             const j = s.jornada || 'sin jornada'
             jornadaCountsAfter[j] = (jornadaCountsAfter[j] || 0) + 1
           })
-          console.log(`📊 Estudiantes por jornada DESPUÉS del filtro:`, jornadaCountsAfter)
+          logger.debug(`📊 Estudiantes por jornada DESPUÉS del filtro:`, jornadaCountsAfter)
           
-          console.log(`✅ FILTRADO COMPLETADO: docente="${teacherJornada}", estudiantes antes=${beforeCount}, después=${filteredStudents.length}`)
+          logger.debug(`✅ FILTRADO COMPLETADO: docente="${teacherJornada}", estudiantes antes=${beforeCount}, después=${filteredStudents.length}`)
           
           // Validación final: verificar que ningún estudiante tenga jornada incorrecta
           const incorrectJornada = filteredStudents.filter((s: any) => {
@@ -2200,9 +2162,9 @@ class DatabaseService {
           })
           
           if (incorrectJornada.length > 0) {
-            console.error(`❌ ERROR CRÍTICO: Se encontraron ${incorrectJornada.length} estudiantes con jornada incorrecta después del filtro`)
+            logger.error(`Se encontraron ${incorrectJornada.length} estudiantes con jornada incorrecta después del filtro`)
             incorrectJornada.forEach((s: any) => {
-              console.error(`  - ${s.name || s.email}: jornada="${s.jornada}" (debería ser "${teacherJornada}")`)
+              logger.error(`  - ${s.name || s.email}: jornada="${s.jornada}" (debería ser "${teacherJornada}")`)
             })
             // Filtrar nuevamente para asegurar que solo queden estudiantes con jornada correcta
             filteredStudents = filteredStudents.filter((s: any) => {
@@ -2211,12 +2173,12 @@ class DatabaseService {
               const tJornada = normalizedTeacherJornada
               return sJornada === tJornada
             })
-            console.log(`✅ Re-filtrado completado: ${filteredStudents.length} estudiantes con jornada correcta`)
+            logger.debug(`✅ Re-filtrado completado: ${filteredStudents.length} estudiantes con jornada correcta`)
           }
         } else {
           // Si el docente tiene jornada 'única' o no tiene jornada, mostrar todos los estudiantes del grado
-          console.log(`⚠️ Docente sin jornada específica (jornada: "${teacherJornada || 'no definida'}"). Mostrando TODOS los estudiantes del grado sin filtrar por jornada.`)
-          console.log(`📊 Total estudiantes del grado: ${beforeCount}`)
+          logger.debug(`⚠️ Docente sin jornada específica (jornada: "${teacherJornada || 'no definida'}"). Mostrando TODOS los estudiantes del grado sin filtrar por jornada.`)
+          logger.debug(`📊 Total estudiantes del grado: ${beforeCount}`)
           
           // Contar estudiantes por jornada para información
           const jornadaCounts: Record<string, number> = {}
@@ -2224,35 +2186,13 @@ class DatabaseService {
             const j = s.jornada || 'sin jornada'
             jornadaCounts[j] = (jornadaCounts[j] || 0) + 1
           })
-          console.log(`📊 Estudiantes por jornada:`, jornadaCounts)
+          logger.debug(`📊 Estudiantes por jornada:`, jornadaCounts)
           
           filteredStudents = studentsResult.data
         }
       }
 
-      // Validación final: verificar que ningún estudiante tenga jornada incorrecta
-      if (teacherJornada && teacherJornada !== 'única' && filteredStudents.length > 0) {
-        const incorrectJornadaStudents = filteredStudents.filter((s: any) => {
-          const sJornada = s.jornada?.trim().toLowerCase()
-          const tJornada = teacherJornada.trim().toLowerCase()
-          return sJornada && sJornada !== tJornada
-        })
-        
-        if (incorrectJornadaStudents.length > 0) {
-          console.error(`❌ ERROR CRÍTICO: Se encontraron ${incorrectJornadaStudents.length} estudiantes con jornada incorrecta después del filtro`)
-          incorrectJornadaStudents.forEach((s: any) => {
-            console.error(`  - ${s.name || s.email}: jornada="${s.jornada}" (debería ser "${teacherJornada}")`)
-          })
-          // Filtrar nuevamente para asegurar que solo queden estudiantes con jornada correcta
-          filteredStudents = filteredStudents.filter((s: any) => {
-            const sJornada = s.jornada?.trim().toLowerCase()
-            const tJornada = teacherJornada.trim().toLowerCase()
-            return sJornada === tJornada
-          })
-        }
-      }
-      
-      console.log('✅ getStudentsByTeacher - Resultado FINAL:', {
+      logger.debug('✅ getStudentsByTeacher - Resultado FINAL:', {
         success: studentsResult.success,
         countBeforeFilter: studentsResult.success ? studentsResult.data.length : 0,
         countAfterFilter: filteredStudents.length,
@@ -2267,7 +2207,7 @@ class DatabaseService {
 
       return success(filteredStudents)
     } catch (e) { 
-      console.error('❌ getStudentsByTeacher - Excepción:', e)
+      logger.error('getStudentsByTeacher - Excepción:', e)
       return failure(new ErrorAPI(normalizeError(e, 'obtener estudiantes por docente'))) 
     }
   }
@@ -2379,7 +2319,7 @@ class DatabaseService {
       // Obtener información del docente para saber su institución, sede y grado
       const teacherResult = await this.getTeacherById(teacherId)
       if (!teacherResult.success) {
-        console.warn('No se pudo obtener información del docente:', teacherResult.error)
+        logger.warn('No se pudo obtener información del docente:', teacherResult.error)
         return failure(teacherResult.error)
       }
 
@@ -2405,9 +2345,9 @@ class DatabaseService {
           }
         )
 
-        console.log(`✅ Estudiante ${studentId} asignado al docente ${teacherId}. Total estudiantes: ${updatedStudents.length}`)
+        logger.debug(`✅ Estudiante ${studentId} asignado al docente ${teacherId}. Total estudiantes: ${updatedStudents.length}`)
       } else {
-        console.log(`⚠️ Estudiante ${studentId} ya está asignado al docente ${teacherId}`)
+        logger.debug(`⚠️ Estudiante ${studentId} ya está asignado al docente ${teacherId}`)
       }
 
       return success(undefined)
@@ -2427,7 +2367,7 @@ class DatabaseService {
       // Obtener información del coordinador para saber su institución y sede
       const principalResult = await this.getPrincipalById(principalId)
       if (!principalResult.success) {
-        console.warn('No se pudo obtener información del coordinador:', principalResult.error)
+        logger.warn('No se pudo obtener información del coordinador:', principalResult.error)
         return failure(principalResult.error)
       }
 
@@ -2452,9 +2392,9 @@ class DatabaseService {
           }
         )
 
-        console.log(`✅ Estudiante ${studentId} asignado al coordinador ${principalId}. Total estudiantes: ${updatedStudents.length}`)
+        logger.debug(`✅ Estudiante ${studentId} asignado al coordinador ${principalId}. Total estudiantes: ${updatedStudents.length}`)
       } else {
-        console.log(`⚠️ Estudiante ${studentId} ya está asignado al coordinador ${principalId}`)
+        logger.debug(`⚠️ Estudiante ${studentId} ya está asignado al coordinador ${principalId}`)
       }
 
       return success(undefined)
@@ -2525,7 +2465,7 @@ class DatabaseService {
       // Obtener información del rector para saber su institución
       const rectorResult = await this.getRectorById(rectorId)
       if (!rectorResult.success) {
-        console.warn('No se pudo obtener información del rector:', rectorResult.error)
+        logger.warn('No se pudo obtener información del rector:', rectorResult.error)
         return failure(rectorResult.error)
       }
 
@@ -2549,9 +2489,9 @@ class DatabaseService {
           }
         )
 
-        console.log(`✅ Estudiante ${studentId} asignado al rector ${rectorId}. Total estudiantes: ${updatedStudents.length}`)
+        logger.debug(`✅ Estudiante ${studentId} asignado al rector ${rectorId}. Total estudiantes: ${updatedStudents.length}`)
       } else {
-        console.log(`⚠️ Estudiante ${studentId} ya está asignado al rector ${rectorId}`)
+        logger.debug(`⚠️ Estudiante ${studentId} ya está asignado al rector ${rectorId}`)
       }
 
       return success(undefined)
@@ -2569,7 +2509,7 @@ class DatabaseService {
   async removeStudentFromTeacher(teacherId: string, studentId: string): Promise<Result<void>> {
     try {
       // Esta función se implementaría si se necesita almacenar las asignaciones
-      console.log(`✅ Estudiante ${studentId} removido del docente ${teacherId}`)
+      logger.debug(`✅ Estudiante ${studentId} removido del docente ${teacherId}`)
       return success(undefined)
     } catch (e) { 
       return failure(new ErrorAPI(normalizeError(e, 'remover estudiante de docente'))) 
@@ -2583,7 +2523,7 @@ class DatabaseService {
    */
   async recalculateAllStudentCounts(): Promise<Result<void>> {
     try {
-      console.log('🔄 Iniciando recálculo de contadores de estudiantes...')
+      logger.debug('🔄 Iniciando recálculo de contadores de estudiantes...')
       
       // Obtener todas las instituciones
       const institutionsResult = await this.getAllInstitutions()
@@ -2594,7 +2534,7 @@ class DatabaseService {
       let totalUpdated = 0
 
       for (const institution of institutionsResult.data) {
-        console.log(`📊 Procesando institución: ${institution.name}`)
+        logger.debug(`📊 Procesando institución: ${institution.name}`)
         
         // Recalcular contador del rector
         if (institution.rector) {
@@ -2609,14 +2549,14 @@ class DatabaseService {
               studentCount,
               students: rectorStudentsResult.data.map(s => s.id)
             })
-            console.log(`✅ Rector ${institution.rector.name}: ${studentCount} estudiantes`)
+            logger.debug(`✅ Rector ${institution.rector.name}: ${studentCount} estudiantes`)
             totalUpdated++
           }
         }
 
         // Procesar sedes
         for (const campus of institution.campuses) {
-          console.log(`🏫 Procesando sede: ${campus.name}`)
+          logger.debug(`🏫 Procesando sede: ${campus.name}`)
           
           // Recalcular contador del coordinador
           if (campus.principal) {
@@ -2632,14 +2572,14 @@ class DatabaseService {
                 studentCount,
                 students: principalStudentsResult.data.map(s => s.id)
               })
-              console.log(`✅ Coordinador ${campus.principal.name}: ${studentCount} estudiantes`)
+              logger.debug(`✅ Coordinador ${campus.principal.name}: ${studentCount} estudiantes`)
               totalUpdated++
             }
           }
 
           // Procesar grados
           for (const grade of campus.grades) {
-            console.log(`📚 Procesando grado: ${grade.name}`)
+            logger.debug(`📚 Procesando grado: ${grade.name}`)
             
             // Recalcular contadores de docentes
             for (const teacher of grade.teachers || []) {
@@ -2656,7 +2596,7 @@ class DatabaseService {
                   studentCount,
                   students: teacherStudentsResult.data.map(s => s.id)
                 })
-                console.log(`✅ Docente ${teacher.name}: ${studentCount} estudiantes`)
+                logger.debug(`✅ Docente ${teacher.name}: ${studentCount} estudiantes`)
                 totalUpdated++
               }
             }
@@ -2664,10 +2604,10 @@ class DatabaseService {
         }
       }
 
-      console.log(`🎉 Recálculo completado. ${totalUpdated} usuarios actualizados.`)
+      logger.debug(`🎉 Recálculo completado. ${totalUpdated} usuarios actualizados.`)
       return success(undefined)
     } catch (e) { 
-      console.error('❌ Error en recálculo:', e)
+      logger.error('Error en recálculo:', e)
       return failure(new ErrorAPI(normalizeError(e, 'recalcular contadores de estudiantes'))) 
     }
   }
@@ -2681,7 +2621,7 @@ class DatabaseService {
   async removeStudentFromPrincipal(principalId: string, studentId: string): Promise<Result<void>> {
     try {
       // Esta función se implementaría si se necesita almacenar las asignaciones
-      console.log(`✅ Estudiante ${studentId} removido del coordinador ${principalId}`)
+      logger.debug(`✅ Estudiante ${studentId} removido del coordinador ${principalId}`)
       return success(undefined)
     } catch (e) { 
       return failure(new ErrorAPI(normalizeError(e, 'remover estudiante de coordinador'))) 
@@ -3053,7 +2993,7 @@ class DatabaseService {
       const userDocRef = doc(userCollection, userId)
 
       await updateDoc(userDocRef, cleanedData)
-      console.log(`✅ Usuario actualizado en nueva estructura: ${userDocRef.path}`)
+      logger.debug(`✅ Usuario actualizado en nueva estructura: ${userDocRef.path}`)
 
       return success(undefined)
     } catch (e) {
@@ -3150,7 +3090,7 @@ class DatabaseService {
             })
           })
         } catch (error) {
-          console.warn(`⚠️ Error al obtener ${roleCollection} de institución ${institutionId}:`, error)
+          logger.warn(`Error al obtener ${roleCollection} de institución ${institutionId}:`, error)
           continue
         }
       }

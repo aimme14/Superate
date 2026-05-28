@@ -5,7 +5,6 @@ import {
   setDoc, 
   updateDoc,
   getDoc, 
-  getDocFromServer,
   getDocs, 
   getCountFromServer,
   query, 
@@ -30,6 +29,7 @@ import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
 import { shuffleArray } from '@/utils/arrayUtils';
 import { SUBJECTS_CONFIG, DIFFICULTY_LEVELS } from '@/utils/subjects.config';
+import { logger } from '@/utils/logger';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -166,12 +166,12 @@ class QuestionService {
     
     // Si la imagen es menor a 200KB, no comprimir
     if (file.size <= maxSizeBeforeCompression) {
-      console.log(`ℹ️ Imagen de ${(file.size / 1024).toFixed(2)}KB no requiere compresión`);
+      logger.debug(`ℹ️ Imagen de ${(file.size / 1024).toFixed(2)}KB no requiere compresión`);
       return file;
     }
 
     try {
-      console.log(`🗜️ Comprimiendo imagen de ${(file.size / 1024).toFixed(2)}KB...`);
+      logger.debug(`🗜️ Comprimiendo imagen de ${(file.size / 1024).toFixed(2)}KB...`);
       
       // Crear una imagen desde el archivo
       const img = new Image();
@@ -250,11 +250,11 @@ class QuestionService {
       const compressedSize = (compressedFile.size / 1024).toFixed(2);
       const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
       
-      console.log(`✅ Imagen comprimida: ${originalSize}KB → ${compressedSize}KB (reducción del ${reduction}%)`);
+      logger.debug(`✅ Imagen comprimida: ${originalSize}KB → ${compressedSize}KB (reducción del ${reduction}%)`);
       
       return compressedFile;
     } catch (error) {
-      console.warn('⚠️ Error al comprimir imagen, usando imagen original:', error);
+      logger.warn('Error al comprimir imagen, usando imagen original:', error);
       return file; // Si falla la compresión, usar el archivo original
     }
   }
@@ -292,10 +292,10 @@ class QuestionService {
       const snapshot = await uploadBytes(storageRef, fileToUpload);
       const downloadURL = await getDownloadURL(snapshot.ref);
       
-      console.log('✅ Imagen subida exitosamente:', downloadURL);
+      logger.debug('✅ Imagen subida exitosamente:', downloadURL);
       return success(downloadURL);
     } catch (e) {
-      console.error('❌ Error al subir imagen:', e);
+      logger.error('Error al subir imagen:', e);
       return failure(new ErrorAPI(normalizeError(e, 'subir imagen')));
     }
   }
@@ -308,7 +308,7 @@ class QuestionService {
     try {
       // Si la imagen es una data URI (base64), no está en Storage, no hay nada que eliminar
       if (imageUrl.startsWith('data:')) {
-        console.log('ℹ️ La imagen es una data URI (base64), no se elimina de Storage');
+        logger.debug('ℹ️ La imagen es una data URI (base64), no se elimina de Storage');
         return success(undefined);
       }
 
@@ -326,11 +326,11 @@ class QuestionService {
             // Decodificar el path
             imagePath = decodeURIComponent(pathMatch[1]);
           } else {
-            console.warn('⚠️ No se pudo extraer la ruta de la URL de Storage:', imageUrl);
+            logger.warn('No se pudo extraer la ruta de la URL de Storage');
             return success(undefined); // No fallar, simplemente ignorar
           }
         } catch (urlError) {
-          console.warn('⚠️ Error al parsear URL de Storage:', imageUrl, urlError);
+          logger.warn('Error al parsear URL de Storage:', urlError);
           return success(undefined); // No fallar, simplemente ignorar
         }
       } else {
@@ -340,15 +340,15 @@ class QuestionService {
 
       const imageRef = ref(storage, imagePath);
       await deleteObject(imageRef);
-      console.log('✅ Imagen eliminada exitosamente de Storage:', imagePath);
+      logger.debug('✅ Imagen eliminada exitosamente de Storage:', imagePath);
       return success(undefined);
     } catch (e: any) {
       // Si el error es que el archivo no existe, no es crítico
       if (e?.code === 'storage/object-not-found') {
-        console.log('ℹ️ La imagen no existe en Storage (puede haber sido eliminada previamente)');
+        logger.debug('ℹ️ La imagen no existe en Storage (puede haber sido eliminada previamente)');
         return success(undefined);
       }
-      console.error('❌ Error al eliminar imagen:', e);
+      logger.error('Error al eliminar imagen:', e);
       // No fallar la eliminación completa si falla la eliminación de una imagen
       return success(undefined);
     }
@@ -395,7 +395,7 @@ class QuestionService {
           const jitter = Math.random() * 1000; // Jitter aleatorio para evitar thundering herd
           const totalDelay = delay + jitter;
           
-          console.log(`⚠️ Intento ${attempt + 1}/${maxRetries} falló. Reintentando en ${Math.round(totalDelay)}ms...`);
+          logger.debug(`⚠️ Intento ${attempt + 1}/${maxRetries} falló. Reintentando en ${Math.round(totalDelay)}ms...`);
           
           if (attempt < maxRetries - 1) {
             await new Promise(resolve => setTimeout(resolve, totalDelay));
@@ -424,7 +424,7 @@ class QuestionService {
       const normalizedGrade = String(grade || '').trim();
       const normalizedLevelCode = String(levelCode || '').trim();
 
-      console.log('🔢 Generando código con parámetros:', {
+      logger.debug('🔢 Generando código con parámetros:', {
         subjectCode: normalizedSubjectCode,
         topicCode: normalizedTopicCode,
         grade: normalizedGrade,
@@ -432,7 +432,7 @@ class QuestionService {
       });
 
       const counterKey = `${normalizedSubjectCode}${normalizedTopicCode}${normalizedGrade}${normalizedLevelCode}`;
-      console.log('🔑 Clave del contador:', counterKey);
+      logger.debug('🔑 Clave del contador:', counterKey);
       
       const counterRef = doc(db, 'superate', 'auth', 'counters', counterKey);
 
@@ -445,9 +445,9 @@ class QuestionService {
           if (counterDoc.exists()) {
             const existingCount = counterDoc.data().count || 0;
             currentCount = existingCount + 1;
-            console.log(`📊 Contador existente: ${existingCount}, nuevo: ${currentCount}`);
+            logger.debug(`📊 Contador existente: ${existingCount}, nuevo: ${currentCount}`);
           } else {
-            console.log('📊 No existe contador, iniciando en 1');
+            logger.debug('📊 No existe contador, iniciando en 1');
           }
 
           // Actualizar el contador
@@ -456,15 +456,15 @@ class QuestionService {
           // Generar el código con formato de 3 dígitos
           const serie = String(currentCount).padStart(3, '0');
           const generatedCode = `${counterKey}${serie}`;
-          console.log(`🔢 Código generado: ${generatedCode} (serie: ${serie})`);
+          logger.debug(`🔢 Código generado: ${generatedCode} (serie: ${serie})`);
           return generatedCode;
         });
       }, 5, 2000); // 5 reintentos con delay inicial de 2 segundos
 
-      console.log('✅ Código generado exitosamente:', newCode);
+      logger.debug('✅ Código generado exitosamente:', newCode);
       return success(newCode);
     } catch (e) {
-      console.error('❌ Error al generar código después de reintentos:', e);
+      logger.error('Error al generar código después de reintentos:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar código de pregunta')));
     }
   }
@@ -480,7 +480,7 @@ class QuestionService {
     userId: string
   ): Promise<Result<Question>> {
     try {
-      console.log('🚀 Iniciando creación de pregunta...');
+      logger.debug('🚀 Iniciando creación de pregunta...');
 
       // Validar que exactamente una opción sea correcta
       const correctOptions = questionData.options.filter(opt => opt.isCorrect);
@@ -557,10 +557,10 @@ class QuestionService {
 
       await setDoc(questionRef, firestoreData);
 
-      console.log('✅ Pregunta creada exitosamente:', question.code);
+      logger.debug('✅ Pregunta creada exitosamente:', question.code);
       return success(question);
     } catch (e) {
-      console.error('❌ Error al crear pregunta:', e);
+      logger.error('Error al crear pregunta:', e);
       return failure(new ErrorAPI(normalizeError(e, 'crear pregunta')));
     }
   }
@@ -602,7 +602,7 @@ class QuestionService {
 
       return success(question);
     } catch (e) {
-      console.error('❌ Error al obtener pregunta:', e);
+      logger.error('Error al obtener pregunta:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener pregunta')));
     }
   }
@@ -646,7 +646,7 @@ class QuestionService {
 
       return success(question);
     } catch (e) {
-      console.error('❌ Error al obtener pregunta por código:', e);
+      logger.error('Error al obtener pregunta por código:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener pregunta por código')));
     }
   }
@@ -668,7 +668,7 @@ class QuestionService {
       // Si falla, intentar como código
       return await this.getQuestionByCode(String(identifier));
     } catch (e) {
-      console.error('❌ Error al obtener pregunta:', e);
+      logger.error('Error al obtener pregunta:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener pregunta')));
     }
   }
@@ -681,7 +681,7 @@ class QuestionService {
   async getFilteredQuestions(filters: QuestionFilters): Promise<Result<Question[]>> {
     try {
       const normalizedFilters = this.normalizeQueryFilters(filters);
-      console.log('🔍 Buscando preguntas con filtros:', normalizedFilters);
+      logger.debug('🔍 Buscando preguntas con filtros:', normalizedFilters);
 
       const questionsRef = collection(db, 'superate', 'auth', 'questions');
       const conditions: any[] = [];
@@ -739,10 +739,10 @@ class QuestionService {
       // Ordenar por fecha de creación en el cliente
       questions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-      console.log(`✅ ${questions.length} preguntas encontradas`);
+      logger.debug(`✅ ${questions.length} preguntas encontradas`);
       return success(questions);
     } catch (e) {
-      console.error('❌ Error al filtrar preguntas:', e);
+      logger.error('Error al filtrar preguntas:', e);
       return failure(new ErrorAPI(normalizeError(e, 'filtrar preguntas')));
     }
   }
@@ -923,7 +923,7 @@ class QuestionService {
     count: number
   ): Promise<Result<Question[]>> {
     try {
-      console.log('🎲 Obteniendo preguntas aleatorias:', { filters, count });
+      logger.debug('🎲 Obteniendo preguntas aleatorias:', { filters, count });
 
       const timeoutMs = 15000;
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -936,7 +936,7 @@ class QuestionService {
         if (filters.grade) {
           const randResult = await this.getRandomQuestionsWithRand(filters, count);
           if (randResult.success && (randResult.data?.length ?? 0) >= count) {
-            console.log(`✅ Preguntas aleatorias (rand): ${randResult.data?.length}`);
+            logger.debug(`✅ Preguntas aleatorias (rand): ${randResult.data?.length}`);
             return randResult;
           }
         }
@@ -1052,8 +1052,8 @@ class QuestionService {
 
       // Si se está actualizando el código, verificar que sea válido
       if (updates.code && updates.code !== currentQuestion.code) {
-        console.log(`🔄 Actualizando código de pregunta: ${currentQuestion.code} → ${updates.code}`);
-        console.log('📋 Datos que se están actualizando:', {
+        logger.debug(`🔄 Actualizando código de pregunta: ${currentQuestion.code} → ${updates.code}`);
+        logger.debug('📋 Datos que se están actualizando:', {
           code: updates.code,
           subjectCode: updates.subjectCode,
           topicCode: updates.topicCode,
@@ -1063,7 +1063,7 @@ class QuestionService {
       }
 
       // Log de todos los updates para depuración
-      console.log('📤 Actualizando pregunta en Firestore:', {
+      logger.debug('📤 Actualizando pregunta en Firestore:', {
         questionId,
         updates: {
           ...updates,
@@ -1078,16 +1078,16 @@ class QuestionService {
       // Usar updateDoc para asegurar que los arrays se actualicen correctamente
       // updateDoc es más explícito para actualizaciones parciales
       await updateDoc(questionRef, updates);
-      console.log('✅ Pregunta actualizada en Firestore');
+      logger.debug('✅ Pregunta actualizada en Firestore');
 
       // Obtener la pregunta actualizada
       const updatedQuestion = await this.getQuestionById(questionId);
       if (updatedQuestion.success && updates.code) {
-        console.log('✅ Pregunta actualizada correctamente. Nuevo código:', updatedQuestion.data.code);
+        logger.debug('✅ Pregunta actualizada correctamente. Nuevo código:', updatedQuestion.data.code);
       }
       return updatedQuestion;
     } catch (e) {
-      console.error('❌ Error al actualizar pregunta:', e);
+      logger.error('Error al actualizar pregunta:', e);
       return failure(new ErrorAPI(normalizeError(e, 'actualizar pregunta')));
     }
   }
@@ -1100,14 +1100,14 @@ class QuestionService {
     try {
       // Validar que el ID existe
       if (!questionId || questionId.trim() === '') {
-        console.error('❌ Error: questionId es inválido o vacío');
+        logger.error('questionId es inválido o vacío');
         return failure(new ErrorAPI({ 
           message: 'ID de pregunta inválido', 
           statusCode: 400 
         }));
       }
 
-      console.log('🗑️ Iniciando eliminación de pregunta:', questionId);
+      logger.debug('🗑️ Iniciando eliminación de pregunta:', questionId);
 
       // Crear referencia al documento
       const questionRef = doc(db, 'superate', 'auth', 'questions', questionId);
@@ -1115,7 +1115,7 @@ class QuestionService {
       // Verificar que el documento existe antes de intentar eliminarlo
       const questionSnap = await getDoc(questionRef);
       if (!questionSnap.exists()) {
-        console.warn('⚠️ El documento no existe en Firestore:', questionId);
+        logger.warn('El documento no existe en Firestore:', questionId);
         return failure(new ErrorAPI({ 
           message: 'Pregunta no encontrada en la base de datos', 
           statusCode: 404 
@@ -1123,16 +1123,16 @@ class QuestionService {
       }
 
       const questionData = questionSnap.data();
-      console.log('📋 Datos de la pregunta a eliminar:', { id: questionSnap.id, code: questionData.code });
+      logger.debug('📋 Datos de la pregunta a eliminar:', { id: questionSnap.id, code: questionData.code });
 
       // Eliminar imágenes informativas
       if (questionData.informativeImages && Array.isArray(questionData.informativeImages) && questionData.informativeImages.length > 0) {
-        console.log('🖼️ Eliminando imágenes informativas:', questionData.informativeImages.length);
+        logger.debug('🖼️ Eliminando imágenes informativas:', questionData.informativeImages.length);
         for (const imageUrl of questionData.informativeImages) {
           try {
             await this.deleteImage(imageUrl);
           } catch (imageError) {
-            console.warn('⚠️ Error al eliminar imagen informativa:', imageUrl, imageError);
+            logger.warn('Error al eliminar imagen informativa:', imageError);
             // Continuar aunque falle la eliminación de una imagen
           }
         }
@@ -1140,12 +1140,12 @@ class QuestionService {
 
       // Eliminar imágenes de la pregunta
       if (questionData.questionImages && Array.isArray(questionData.questionImages) && questionData.questionImages.length > 0) {
-        console.log('🖼️ Eliminando imágenes de pregunta:', questionData.questionImages.length);
+        logger.debug('🖼️ Eliminando imágenes de pregunta:', questionData.questionImages.length);
         for (const imageUrl of questionData.questionImages) {
           try {
             await this.deleteImage(imageUrl);
           } catch (imageError) {
-            console.warn('⚠️ Error al eliminar imagen de pregunta:', imageUrl, imageError);
+            logger.warn('Error al eliminar imagen de pregunta:', imageError);
             // Continuar aunque falle la eliminación de una imagen
           }
         }
@@ -1153,13 +1153,13 @@ class QuestionService {
 
       // Eliminar imágenes de las opciones
       if (questionData.options && Array.isArray(questionData.options) && questionData.options.length > 0) {
-        console.log('🖼️ Eliminando imágenes de opciones');
+        logger.debug('🖼️ Eliminando imágenes de opciones');
         for (const option of questionData.options) {
           if (option && option.imageUrl) {
             try {
               await this.deleteImage(option.imageUrl);
             } catch (imageError) {
-              console.warn('⚠️ Error al eliminar imagen de opción:', option.imageUrl, imageError);
+              logger.warn('Error al eliminar imagen de opción:', imageError);
               // Continuar aunque falle la eliminación de una imagen
             }
           }
@@ -1167,111 +1167,22 @@ class QuestionService {
       }
 
       // Eliminar el documento de Firestore
-      console.log('🗑️ Eliminando documento de Firestore...');
-      console.log('📍 Ruta del documento:', questionRef.path);
-      console.log('📍 ID del documento:', questionRef.id);
-      console.log('📍 Ruta completa:', questionRef.path);
+      logger.debug('🗑️ Eliminando documento de Firestore...');
+      logger.debug('📍 Ruta del documento:', questionRef.path);
+      logger.debug('📍 ID del documento:', questionRef.id);
+      logger.debug('📍 Ruta completa:', questionRef.path);
       
       // Ejecutar deleteDoc - si hay un error, se lanzará aquí
       await deleteDoc(questionRef);
-      console.log('✅ deleteDoc ejecutado exitosamente');
+      logger.debug('✅ deleteDoc ejecutado exitosamente');
       
-      // Esperar un momento para que Firestore procese la eliminación
-      console.log('⏳ Esperando a que Firestore procese la eliminación...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Verificar múltiples veces que el documento realmente se eliminó
-      let verificationAttempts = 0;
-      const maxAttempts = 3;
-      let documentStillExists = false;
-      
-      while (verificationAttempts < maxAttempts) {
-        verificationAttempts++;
-        console.log(`🔍 Verificación ${verificationAttempts}/${maxAttempts}: Consultando documento desde el servidor...`);
-        
-        try {
-          // Forzar lectura desde el servidor (sin caché)
-          const verifySnap = await getDocFromServer(questionRef);
-          
-          if (verifySnap.exists()) {
-            console.error(`❌ Intento ${verificationAttempts}: El documento todavía existe`);
-            documentStillExists = true;
-            
-            if (verificationAttempts < maxAttempts) {
-              // Esperar un poco más antes del siguiente intento
-              console.log(`⏳ Esperando 1 segundo antes del siguiente intento...`);
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          } else {
-            console.log(`✅ Intento ${verificationAttempts}: Confirmado - El documento no existe (eliminación exitosa)`);
-            documentStillExists = false;
-            break; // Salir del bucle si confirmamos que no existe
-          }
-        } catch (verifyError: any) {
-          // Si hay un error de permisos, puede ser que no podamos leer pero el documento se eliminó
-          if (verifyError.code === 'permission-denied') {
-            console.warn(`⚠️ Intento ${verificationAttempts}: No se pudo verificar por permisos, pero deleteDoc fue exitoso`);
-            // Asumir que se eliminó correctamente si deleteDoc no lanzó error
-            documentStillExists = false;
-            break;
-          } else if (verifyError.code === 'not-found') {
-            // El documento no existe (éxito)
-            console.log(`✅ Intento ${verificationAttempts}: Documento no encontrado (eliminación exitosa)`);
-            documentStillExists = false;
-            break;
-          } else {
-            console.warn(`⚠️ Intento ${verificationAttempts}: Error al verificar:`, verifyError.message);
-            if (verificationAttempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-        }
-      }
-      
-      // Si después de todos los intentos el documento todavía existe, es un problema
-      if (documentStillExists) {
-        console.error('❌ ERROR CRÍTICO: El documento todavía existe después de múltiples verificaciones');
-        console.error('❌ Esto indica que deleteDoc no eliminó el documento realmente');
-        console.error('❌ Posibles causas:');
-        console.error('   1. Problema de permisos en las reglas de seguridad');
-        console.error('   2. Problema de sincronización de Firestore');
-        console.error('   3. El documento está en una ruta diferente');
-        
-        // Intentar una última vez
-        console.log('🔄 Intentando eliminación final...');
-        try {
-          await deleteDoc(questionRef);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          const finalVerify = await getDocFromServer(questionRef);
-          if (finalVerify.exists()) {
-            return failure(new ErrorAPI({ 
-              message: 'No se pudo eliminar el documento de Firestore después de múltiples intentos. Verifica las reglas de seguridad y que tengas permisos de administrador.', 
-              statusCode: 500 
-            }));
-          }
-        } catch (finalError: any) {
-          return failure(new ErrorAPI({ 
-            message: `Error al eliminar documento: ${finalError.message || 'Error desconocido'}. Verifica las reglas de seguridad de Firestore.`, 
-            statusCode: 500 
-          }));
-        }
-      }
-      
-      console.log('✅ Pregunta eliminada correctamente de la base de datos:', questionId);
-      
+      logger.debug('✅ Pregunta eliminada correctamente:', questionId);
       return success(undefined);
     } catch (e: any) {
-      console.error('❌ Error al eliminar pregunta:', e);
-      console.error('❌ Detalles del error:', {
-        code: e.code,
-        message: e.message,
-        stack: e.stack,
-        name: e.name
-      });
+      logger.error('Error al eliminar pregunta:', e);
       
       // Manejar errores específicos de Firestore
       if (e.code === 'permission-denied') {
-        console.error('❌ Error de permisos: El usuario no tiene permisos para eliminar esta pregunta');
         return failure(new ErrorAPI({ 
           message: 'No tienes permisos para eliminar esta pregunta. Verifica que eres administrador y que las reglas de seguridad de Firestore están configuradas correctamente.', 
           statusCode: 403 
@@ -1279,7 +1190,6 @@ class QuestionService {
       }
       
       if (e.code === 'not-found') {
-        console.error('❌ Error: La pregunta no existe en la base de datos');
         return failure(new ErrorAPI({ 
           message: 'La pregunta no existe en la base de datos', 
           statusCode: 404 
@@ -1301,35 +1211,7 @@ class QuestionService {
     byLevel: Record<string, number>;
     byGrade: Record<string, number>;
   }>> {
-    try {
-      const questionsRef = collection(db, 'superate', 'auth', 'questions');
-      const querySnapshot = await getDocs(questionsRef);
-
-      const stats = {
-        total: querySnapshot.size,
-        bySubject: {} as Record<string, number>,
-        byLevel: {} as Record<string, number>,
-        byGrade: {} as Record<string, number>,
-      };
-
-      querySnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        
-        // Contar por materia
-        stats.bySubject[data.subject] = (stats.bySubject[data.subject] || 0) + 1;
-        
-        // Contar por nivel
-        stats.byLevel[data.level] = (stats.byLevel[data.level] || 0) + 1;
-        
-        // Contar por grado
-        stats.byGrade[data.grade] = (stats.byGrade[data.grade] || 0) + 1;
-      });
-
-      return success(stats);
-    } catch (e) {
-      console.error('❌ Error al obtener estadísticas:', e);
-      return failure(new ErrorAPI(normalizeError(e, 'obtener estadísticas')));
-    }
+    return this.getQuestionStatsOptimized();
   }
 
   /**
@@ -1395,7 +1277,7 @@ class QuestionService {
 
       return success(stats);
     } catch (e) {
-      console.error('❌ Error al obtener estadísticas optimizadas:', e);
+      logger.error('Error al obtener estadísticas optimizadas:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener estadísticas')));
     }
   }

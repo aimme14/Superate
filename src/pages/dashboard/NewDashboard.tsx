@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect } from "react"
 import { AlertCircle } from "lucide-react"
 
 const InnovativeHero = lazy(() => import("../inovativeGero"))
-const Prueba = lazy(() => import("../prueba"))
 const Intento = lazy(() => import("../Intento"))
 import { useUserInstitution } from "@/hooks/query/useUserInstitution"
 import { useThemeContext } from "@/context/ThemeContext"
@@ -106,7 +105,6 @@ export function Home() {
               </p>
               <Suspense fallback={null}>
                 <Intento />
-                <Prueba />
               </Suspense>
             </div>
           </div>

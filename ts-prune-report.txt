@@ -1,0 +1,383 @@
+﻿\src\components\admin\questionBank\index.ts:1 - QuestionBankList
+\src\components\admin\questionBank\index.ts:13 - extractMatchingText
+\src\components\admin\questionBank\index.ts:2 - QuestionBankItem
+\src\components\admin\questionBank\index.ts:23 - extractMatchingGroupId
+\src\components\admin\questionBank\index.ts:3 - QuestionBankGroupedItem
+\src\components\admin\questionBank\index.ts:32 - sortQuestionsByCreationOrder
+\src\components\admin\questionBank\index.ts:45 - hasAIIssues
+\src\components\admin\questionBank\index.ts:5 - stripHtmlTags
+\src\components\admin\questionBank\index.ts:59 - GroupEntry
+\src\components\admin\questionBank\index.ts:72 - QuestionEntry
+\src\components\admin\questionBank\index.ts:78 - CombinedItem
+\src\components\admin\questionBank\index.ts:84 - getCombinedItems
+\src\components\admin\QuestionBankStats.tsx:8 - QuestionStats (used in module)
+\src\components\auth\RoleBasedRedirect.tsx:50 - useDashboardRoute
+\src\components\charts\AcademicRiskCard.tsx:16 - AcademicRiskCard
+\src\components\charts\ErrorPatternsChart.tsx:34 - ErrorPatternsChart
+\src\components\charts\PhaseProgressChart.tsx:33 - PhaseProgressChart
+\src\components\charts\TopicsHeatmap.tsx:25 - TopicsHeatmap
+\src\components\common\elements\Dialog.tsx:85 - default
+\src\components\common\elements\Drawer.tsx:133 - DrawerProps (used in module)
+\src\components\common\elements\HeaderPage.tsx:38 - PageHeader
+\src\components\common\elements\HeaderPage.tsx:8 - Stat (used in module)
+\src\components\common\elements\SubmitFooter.tsx:49 - default
+\src\components\common\fields\Area.tsx:75 - default
+\src\components\common\fields\AreaToggleable.tsx:102 - default
+\src\components\common\fields\Calendar.tsx:94 - default
+\src\components\common\fields\Checkbox.tsx:109 - default
+\src\components\common\fields\Date.tsx:113 - default
+\src\components\common\fields\ImagePreview.tsx:92 - default
+\src\components\common\fields\Input.tsx:12 - InputType (used in module)
+\src\components\common\fields\SelectMulti.tsx:76 - default
+\src\components\common\fields\StatusCheck.tsx:76 - default
+\src\components\common\PwaLifecycleToaster.tsx:11 - PwaLifecycleToaster
+\src\components\common\RichTextEditor.tsx:423 - RichTextEditorProps (used in module)
+\src\components\common\RouteLoadingFallback.tsx:35 - StudentOutletFallback (used in module)
+\src\components\common\RouteLoadingFallback.tsx:62 - MinimalRouteFallback (used in module)
+\src\components\common\RouteLoadingFallback.tsx:8 - PageRouteFallback (used in module)
+\src\components\common\ScientificCalculator.tsx:19 - ScientificCalculator
+\src\components\common\skeletons\SkeletonShort.tsx:24 - default
+\src\components\layout\RoleBasedNavigation.tsx:24 - default
+\src\components\quiz\GroupedQuestionNotice.tsx:6 - GroupedQuestionNoticeProps (used in module)
+\src\components\quiz\QuizProgressTracker.tsx:354 - default
+\src\components\student\ImprovementPlanViewer.tsx:59 - default
+\src\components\student\PhaseDashboard.tsx:9 - default
+\src\components\student\SimulacroQuestionSkeleton.tsx:13 - SimulacroQuestionSkeleton
+\src\components\studyPlan\HerramientasIASection.tsx:19 - HerramientasIASectionProps (used in module)
+\src\components\studyPlan\TipsICFESSection.tsx:17 - TipsICFESSectionProps (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:10 - GradeReportPhaseKey (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:112 - resolveGradeDisplayName (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:27 - GradeReportPhaseRow (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:39 - GradeReportImprovementTransition (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:46 - GradeReportImprovementIndex (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:5 - GRADE_REPORT_STABILITY_THRESHOLD (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:54 - DeriveGradeReportOptions (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:62 - GradeReportSubjectRow (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:88 - phaseHasReportData (used in module)
+\src\components\teacher\gradeReport\deriveGradeReport.ts:93 - looksLikeTechnicalId (used in module)
+\src\components\ui\alert-dialog.tsx:129 - AlertDialogPortal (used in module)
+\src\components\ui\alert-dialog.tsx:130 - AlertDialogOverlay (used in module)
+\src\components\ui\alert-dialog.tsx:131 - AlertDialogTrigger (used in module)
+\src\components\ui\badge.tsx:26 - BadgeProps (used in module)
+\src\components\ui\badge.tsx:36 - badgeVariants (used in module)
+\src\components\ui\button.tsx:41 - ButtonProps (used in module)
+\src\components\ui\calendar.tsx:8 - CalendarProps (used in module)
+\src\components\ui\calendar-dropdown.tsx:85 - Calendar (used in module)
+\src\components\ui\calendar-dropdown.tsx:9 - CalendarProps (used in module)
+\src\components\ui\carousel.tsx:253 - CarouselApi (used in module)
+\src\components\ui\chart.tsx:102 - ChartLegendContent (used in module)
+\src\components\ui\chart.tsx:16 - useChart
+\src\components\ui\chart.tsx:54 - ChartTooltip
+\src\components\ui\chart.tsx:98 - ChartLegend
+\src\components\ui\command.tsx:142 - CommandDialog (used in module)
+\src\components\ui\dialog.tsx:112 - DialogPortal (used in module)
+\src\components\ui\dialog.tsx:113 - DialogOverlay (used in module)
+\src\components\ui\dialog.tsx:115 - DialogClose (used in module)
+\src\components\ui\drawer.tsx:107 - DrawerPortal (used in module)
+\src\components\ui\drawer.tsx:108 - DrawerOverlay (used in module)
+\src\components\ui\drawer.tsx:109 - DrawerTrigger (used in module)
+\src\components\ui\dropdown-menu.tsx:192 - DropdownMenuCheckboxItem (used in module)
+\src\components\ui\dropdown-menu.tsx:193 - DropdownMenuRadioItem (used in module)
+\src\components\ui\dropdown-menu.tsx:196 - DropdownMenuShortcut (used in module)
+\src\components\ui\dropdown-menu.tsx:197 - DropdownMenuGroup (used in module)
+\src\components\ui\dropdown-menu.tsx:198 - DropdownMenuPortal (used in module)
+\src\components\ui\dropdown-menu.tsx:202 - DropdownMenuRadioGroup (used in module)
+\src\components\ui\faceted-filter.tsx:104 - FacetedFilter (used in module)
+\src\components\ui\faceted-filter.tsx:105 - FacetedFilterTrigger (used in module)
+\src\components\ui\faceted-filter.tsx:106 - FacetedFilterContent (used in module)
+\src\components\ui\faceted-filter.tsx:107 - FacetedFilterInput (used in module)
+\src\components\ui\faceted-filter.tsx:108 - FacetedFilterList (used in module)
+\src\components\ui\faceted-filter.tsx:109 - FacetedFilterEmpty (used in module)
+\src\components\ui\faceted-filter.tsx:110 - FacetedFilterGroup (used in module)
+\src\components\ui\faceted-filter.tsx:111 - FacetedFilterItem (used in module)
+\src\components\ui\faceted-filter.tsx:112 - FacetedFilterSeparator (used in module)
+\src\components\ui\faceted-filter.tsx:113 - FacetedFilterShortcut (used in module)
+\src\components\ui\form.tsx:168 - useFormField (used in module)
+\src\components\ui\form.tsx:169 - Form (used in module)
+\src\components\ui\form.tsx:172 - FormControl (used in module)
+\src\components\ui\form.tsx:173 - FormDescription (used in module)
+\src\components\ui\form.tsx:175 - FormField (used in module)
+\src\components\ui\hover-card.tsx:27 - HoverCard (used in module)
+\src\components\ui\hover-card.tsx:27 - HoverCardContent (used in module)
+\src\components\ui\hover-card.tsx:27 - HoverCardTrigger (used in module)
+\src\components\ui\input-searchable.tsx:4 - Option (used in module)
+\src\components\ui\kbd.tsx:19 - KbdProps (used in module)
+\src\components\ui\kbd.tsx:52 - Kbd (used in module)
+\src\components\ui\popover.tsx:31 - PopoverAnchor (used in module)
+\src\components\ui\portal.tsx:36 - Portal (used in module)
+\src\components\ui\portal.tsx:38 - PortalProps (used in module)
+\src\components\ui\scroll-area.tsx:46 - ScrollBar (used in module)
+\src\components\ui\select.tsx:178 - SelectGroup (used in module)
+\src\components\ui\select.tsx:182 - SelectLabel (used in module)
+\src\components\ui\select.tsx:184 - SelectSeparator (used in module)
+\src\components\ui\select.tsx:185 - SelectScrollUpButton (used in module)
+\src\components\ui\select.tsx:186 - SelectScrollDownButton (used in module)
+\src\components\ui\sheet.tsx:130 - SheetPortal (used in module)
+\src\components\ui\sheet.tsx:131 - SheetOverlay (used in module)
+\src\components\ui\sheet.tsx:133 - SheetClose (used in module)
+\src\components\ui\sheet.tsx:136 - SheetFooter (used in module)
+\src\components\ui\shell.tsx:25 - Shell (used in module)
+\src\components\ui\shell.tsx:25 - shellVariants (used in module)
+\src\components\ui\sidebar.tsx:753 - SidebarFooter (used in module)
+\src\components\ui\sidebar.tsx:755 - SidebarGroupAction (used in module)
+\src\components\ui\sidebar.tsx:758 - SidebarHeader (used in module)
+\src\components\ui\sidebar.tsx:759 - SidebarInput (used in module)
+\src\components\ui\sidebar.tsx:762 - SidebarMenuAction (used in module)
+\src\components\ui\sidebar.tsx:763 - SidebarMenuBadge (used in module)
+\src\components\ui\sidebar.tsx:766 - SidebarMenuSkeleton (used in module)
+\src\components\ui\sidebar.tsx:771 - SidebarRail (used in module)
+\src\components\ui\sidebar.tsx:772 - SidebarSeparator (used in module)
+\src\components\ui\table.tsx:112 - Table (used in module)
+\src\components\ui\table.tsx:113 - TableHeader (used in module)
+\src\components\ui\table.tsx:114 - TableBody (used in module)
+\src\components\ui\table.tsx:115 - TableFooter (used in module)
+\src\components\ui\table.tsx:116 - TableHead (used in module)
+\src\components\ui\table.tsx:117 - TableRow (used in module)
+\src\components\ui\table.tsx:118 - TableCell (used in module)
+\src\components\ui\table.tsx:119 - TableCaption (used in module)
+\src\components\ui\textarea.tsx:5 - TextareaProps (used in module)
+\src\components\ui\toggle.tsx:45 - Toggle (used in module)
+\src\components\ui\toggle-group.tsx:59 - ToggleGroup (used in module)
+\src\components\ui\toggle-group.tsx:59 - ToggleGroupItem (used in module)
+\src\components\WhatsAppFab.tsx:2 - WHATSAPP_NUMBER (used in module)
+\src\config\cloudFunctions.ts:21 - CLOUD_FUNCTIONS_BASE_URL (used in module)
+\src\config\rutaPreparacionCache.ts:9 - RUTA_PREPARACION_CACHE
+\src\constants\routes.ts:10 - STUDENT_HOME_ALIASES (used in module)
+\src\constants\routes.ts:13 - ROUTES_WITH_STUDENT_NAV (used in module)
+\src\context\DialogConfirmContext.tsx:11 - useDialogConfirmContext
+\src\controllers\admin.controller.ts:115 - updateUserByAdmin
+\src\controllers\admin.controller.ts:131 - deactivateUser
+\src\controllers\admin.controller.ts:153 - activateUser
+\src\controllers\admin.controller.ts:189 - getAdminEntityCounts
+\src\controllers\admin.controller.ts:201 - RegistrationConfig (used in module)
+\src\controllers\admin.controller.ts:25 - createUserByAdmin
+\src\controllers\admin.controller.ts:98 - getAllSystemUsers
+\src\controllers\auth.controller.ts:16 - LoginSuccessPayload (used in module)
+\src\controllers\teacher.controller.ts:559 - getTeachersByGrade (used in module)
+\src\controllers\user.controller.ts:19 - GetUserByIdOptions (used in module)
+\src\controllers\user.controller.ts:48 - getUserByQuery (used in module)
+\src\errors\handler.ts:13 - handlerService
+\src\errors\index.ts:18 - Validation (used in module)
+\src\errors\index.ts:30 - Forbidden
+\src\errors\index.ts:36 - NotFound (used in module)
+\src\errors\index.ts:49 - Conflict (used in module)
+\src\errors\index.ts:56 - ErrorProps (used in module)
+\src\errors\index.ts:64 - ErrorRecord
+\src\errors\index.ts:81 - defaultRecord
+\src\hooks\core\form\useAuthForm.ts:33 - useForgotPasswordForm
+\src\hooks\core\table\useAuthTable.ts:8 - useUserTable
+\src\hooks\core\useTabs.ts:20 - useTabs
+\src\hooks\core\useTabs.ts:56 - useTabNavigator
+\src\hooks\format\user\useUserDashboard.ts:53 - useUserDashboard
+\src\hooks\query\useAdminAnalysis.ts:20 - StudentAnalysis
+\src\hooks\query\useAdminMutations.ts:8 - useAdminMutations
+\src\hooks\query\useAITools.ts:17 - useAITools
+\src\hooks\query\useAITools.ts:9 - AI_TOOLS_KEYS (used in module)
+\src\hooks\query\useGradeAnalysis.ts:11 - GradeInstitutionAnalysis (used in module)
+\src\hooks\query\useGradeAnalysis.ts:129 - useGradeAnalysis
+\src\hooks\query\useInstitutionQuery.ts:141 - useAllGradeOptions
+\src\hooks\query\useInstitutionQuery.ts:33 - useInstitutions (used in module)
+\src\hooks\query\usePhaseStatusForSubjects.ts:84 - ALL_SUBJECTS (used in module)
+\src\hooks\query\usePhaseStatusForSubjects.ts:84 - PhaseState (used in module)
+\src\hooks\query\usePrincipalQuery.ts:14 - principalKeys (used in module)
+\src\hooks\query\useQuestionByIdOrCode.ts:14 - fetchQuestionByIdOrCode (used in module)
+\src\hooks\query\useQuestionByIdOrCode.ts:42 - QUESTION_QUERY_KEY (used in module)
+\src\hooks\query\useQuestions.ts:11 - QUESTIONS_KEYS (used in module)
+\src\hooks\query\useQuestions.ts:20 - useQuestions
+\src\hooks\query\useQuestions.ts:208 - useQuestionByCode
+\src\hooks\query\useRectorQuery.ts:138 - useFilteredRectors
+\src\hooks\query\useRectorQuery.ts:17 - rectorKeys (used in module)
+\src\hooks\query\useRectorQuery.ts:26 - useRectors (used in module)
+\src\hooks\query\useRectorStats.ts:7 - useRectorStats
+\src\hooks\query\useResources.ts:22 - ResourcesData (used in module)
+\src\hooks\query\useResources.ts:42 - useResources
+\src\hooks\query\useSimulacros.ts:40 - useSimulacrosList
+\src\hooks\query\useStudentEvaluations.ts:39 - EVALUATIONS_QUERY_KEY (used in module)
+\src\hooks\query\useStudentEvaluations.ts:9 - ExamScore (used in module)
+\src\hooks\query\useStudentQuery.ts:149 - useStudentOptions
+\src\hooks\query\useStudentQuery.ts:64 - useStudentsByPrincipal
+\src\hooks\query\useStudentRanking.ts:16 - studentRankingKeys (used in module)
+\src\hooks\query\useStudentRanking.ts:35 - useStudentRanking
+\src\hooks\query\useStudentRanking.ts:8 - RankingPhase (used in module)
+\src\hooks\query\useStudyPlanData.ts:194 - studyPlanKeys (used in module)
+\src\hooks\query\useStudyPlanData.ts:46 - SubjectWithTopics (used in module)
+\src\hooks\query\useStudyPlanData.ts:9 - StudyPlanData (used in module)
+\src\hooks\query\useTeacherQuery.ts:111 - useTeacherOptions
+\src\hooks\query\useTeacherQuery.ts:21 - teacherKeys (used in module)
+\src\hooks\query\useTeacherQuery.ts:33 - useTeachers (used in module)
+\src\hooks\query\useTeacherQuery.ts:48 - useTeacher
+\src\hooks\query\useTeacherQuery.ts:96 - useTeacherStats
+\src\hooks\query\useTeacherStudents.ts:27 - useTeacherStudentStats
+\src\hooks\query\useTeacherStudents.ts:8 - useTeacherStudents (used in module)
+\src\hooks\ui\useAnimatedBackground.ts:8 - useAnimatedBackground
+\src\hooks\ui\useAutoResizeTextarea.ts:10 - useAutoResizeTextarea
+\src\hooks\ui\useCalendar.ts:16 - WeekDay (used in module)
+\src\hooks\ui\useCalendar.ts:22 - MiniCalendarInfo (used in module)
+\src\hooks\ui\useCalendar.ts:27 - MonthDay (used in module)
+\src\hooks\ui\useCalendar.ts:3 - Event (used in module)
+\src\hooks\ui\useCalendar.ts:32 - CalendarHookResult (used in module)
+\src\hooks\ui\useCalendar.ts:65 - useCalendar
+\src\hooks\ui\useDebounce.ts:9 - useDebounce
+\src\hooks\ui\useInactivityTimeout.ts:11 - useInactivityTimeout
+\src\hooks\ui\use-toast.ts:74 - reducer (used in module)
+\src\interfaces\db.interface.ts:100 - Rector
+\src\interfaces\db.interface.ts:4 - Success (used in module)
+\src\interfaces\db.interface.ts:5 - Failure (used in module)
+\src\interfaces\db.interface.ts:82 - Student
+\src\interfaces\db.interface.ts:92 - Principal
+\src\interfaces\phase.interface.ts:37 - StudentPhaseProgress
+\src\interfaces\phase.interface.ts:6 - PhaseStatus (used in module)
+\src\interfaces\props.interface.ts:45 - CarouselProps
+\src\interfaces\props.interface.ts:50 - CarouselContext
+\src\interfaces\props.interface.ts:6 - EndpointParams
+\src\interfaces\props.interface.ts:71 - ConfirmTriggerProps
+\src\interfaces\props.interface.ts:80 - AddOn (used in module)
+\src\interfaces\props.interface.ts:87 - FormItems
+\src\interfaces\simulacro.interface.ts:23 - MATERIAS_CON_4_SECCIONES (used in module)
+\src\interfaces\studyPlan.interface.ts:8 - SubjectName
+\src\layouts\RoleProtectedRoute.tsx:46 - useRoleAccess
+\src\lib\queryPersist.ts:14 - QUERY_CACHE_BUSTER (used in module)
+\src\lib\queryPersist.ts:68 - persister (used in module)
+\src\lib\queryPersist.ts:8 - PERSIST_CACHE_KEY (used in module)
+\src\lib\rutaPreparacionLocalCache.ts:11 - RutaPreparacionLocalPayload (used in module)
+\src\lib\rutaPreparacionLocalCache.ts:22 - readRutaPreparacionCache (used in module)
+\src\lib\rutaPreparacionLocalCache.ts:44 - mergeRutaPreparacionCache
+\src\lib\utils.ts:14 - copyToClipboard
+\src\lib\utils.ts:22 - processFile
+\src\pages\dashboard\index.tsx:51 - default
+\src\pages\ExamAnalyzer.tsx:768 - default
+\src\pages\navigation\DocumentsHub.tsx:33 - default
+\src\pages\promedio\types.ts:5 - ExamScore (used in module)
+\src\pages\promedio\utils.ts:25 - getRankTrophyAndColors
+\src\pages\promedio\utils.ts:63 - getPerformanceLevel
+\src\pages\QuizIngles.tsx:13 - default
+\src\pages\QuizLectura.tsx:13 - default
+\src\pages\QuizNaturales.tsx:13 - default
+\src\pages\QuizSociales.tsx:13 - default
+\src\schemas\auth.schema.ts:31 - adminRegisterSchema (used in module)
+\src\schemas\auth.schema.ts:50 - AdminRegisterFormProps
+\src\scripts\createAdmin.ts:37 - default
+\src\scripts\diagnoseQuizIssues.ts:9 - diagnoseQuizIssues (used in module)
+\src\scripts\recalculateStudentCounts.ts:7 - recalculateStudentCounts (used in module)
+\src\scripts\runInitialization.ts:8 - runAllInitializations (used in module)
+\src\scripts\testImageUpload.ts:89 - default
+\src\sections\dashboard\user\CTASection.tsx:134 - default
+\src\sections\dashboard\user\NavigateSection.tsx:53 - default
+\src\sections\dashboard\user\StatsSection.tsx:39 - default
+\src\sections\dashboard\user\TasksSection.tsx:66 - default (used in module)
+\src\sections\documents\reusables\client\ClientFlowSection.tsx:87 - default
+\src\sections\HomeSection.tsx:82 - heroItems (used in module)
+\src\sections\quiz\FormExam.tsx:1370 - default
+\src\sections\quizSociales\fromExamSociales.tsx:1416 - default
+\src\services\ai\gemini.service.ts:272 - default
+\src\services\ai\promedioRecommendationsCache.ts:112 - setCachedPromedioRecommendations
+\src\services\ai\promedioRecommendationsCache.ts:12 - PROMEDIO_RECOMMENDATIONS_TTL_MS (used in module)
+\src\services\ai\promedioRecommendationsCache.ts:131 - clearPromedioRecommendationsCache
+\src\services\ai\promedioRecommendationsCache.ts:14 - CachedRecommendation (used in module)
+\src\services\ai\promedioRecommendationsCache.ts:35 - PromedioRecommendationPayload (used in module)
+\src\services\ai\promedioRecommendationsCache.ts:46 - buildPayloadFromAnalysisData
+\src\services\ai\promedioRecommendationsCache.ts:67 - buildPromedioRecommendationsHash
+\src\services\ai\promedioRecommendationsCache.ts:91 - getCachedPromedioRecommendations
+\src\services\firebase\aiTools.service.ts:41 - AI_TOOL_ICON_CACHE_CONTROL (used in module)
+\src\services\firebase\aiTools.service.ts:52 - ModuloRecomendado
+\src\services\firebase\aiTools.service.ts:77 - CreateAIToolInput (used in module)
+\src\services\firebase\aiTools.service.ts:88 - UpdateAIToolInput (used in module)
+\src\services\firebase\aiToolsConsolidado.service.ts:54 - FetchAIToolsConsolidadoOptions (used in module)
+\src\services\firebase\analyticsSnapshots.service.ts:165 - getOrBuildRectorInstitutionAverageSnapshot
+\src\services\firebase\analyticsSnapshots.service.ts:269 - getOrBuildRectorEvolutionSnapshot
+\src\services\firebase\ejerciciosIA.service.ts:15 - GetRandomEjerciciosParams (used in module)
+\src\services\firebase\ejerciciosIA.service.ts:21 - GetRandomEjerciciosResult (used in module)
+\src\services\firebase\examResults.service.ts:22 - ExamPhase (used in module)
+\src\services\firebase\examResults.service.ts:28 - ExamResultData (used in module)
+\src\services\firebase\examResults.service.ts:70 - resolveExamResultDocId (used in module)
+\src\services\firebase\question.service.ts:50 - IncorrectAnswerExplanation (used in module)
+\src\services\firebase\question.service.ts:58 - AIJustification (used in module)
+\src\services\firebase\resources.service.ts:62 - Resource (used in module)
+\src\services\firebase\simulacros.service.ts:160 - uploadPdfSimulacro (used in module)
+\src\services\firebase\simulacros.service.ts:191 - uploadPdfSimulacroSeccion2 (used in module)
+\src\services\firebase\simulacros.service.ts:222 - uploadPdfHojaRespuestasSeccion2 (used in module)
+\src\services\firebase\simulacros.service.ts:254 - uploadPdfHojaRespuestas (used in module)
+\src\services\firebase\simulacros.service.ts:288 - uploadVideoSimulacro
+\src\services\firebase\simulacros.service.ts:357 - uploadVideoIcfes
+\src\services\firebase\simulacros.service.ts:392 - deleteStorageFile (used in module)
+\src\services\firebase\tipsIAConsolidado.service.ts:54 - FetchTipsIAConsolidadoOptions (used in module)
+\src\services\phase\phase1AIAnalysis.service.ts:55 - Phase1ExamAnalysis (used in module)
+\src\services\phase\phase1AIAnalysis.service.ts:645 - default
+\src\services\phase\phaseAnalysis.service.ts:809 - default
+\src\services\phase\phaseStatusData.service.ts:47 - PhaseStatusData (used in module)
+\src\services\phase\phaseStatusData.service.ts:65 - getPhaseResultsDocs (used in module)
+\src\services\quiz\quizGenerator.service.ts:12 - QuizConfig (used in module)
+\src\services\quiz\validateExamPresentationGate.ts:12 - ExamGateOutcome (used in module)
+\src\services\ranking\studentRanking.service.ts:105 - calculateGlobalScoreFromEvaluations (used in module)
+\src\services\ranking\studentRanking.service.ts:70 - getPhaseEvaluationsForRanking (used in module)
+\src\services\rector\institutionSummary.service.ts:15 - InstitutionSubjectSummary (used in module)
+\src\services\rector\institutionSummary.service.ts:26 - InstitutionPhaseSummary (used in module)
+\src\services\rector\institutionSummary.service.ts:37 - InstitutionSummaryDoc (used in module)
+\src\services\rector\institutionSummary.service.ts:8 - InstitutionTopicSummary (used in module)
+\src\services\studentProgressSummary\studentSummaryDoc.ts:12 - SUBJECT_SLUG_TO_DISPLAY (used in module)
+\src\services\studentProgressSummary\studentSummaryDoc.ts:26 - displayNameFromSubjectKey
+\src\services\studentProgressSummary\studentSummaryDoc.ts:31 - fetchStudentProgressSummaryDoc
+\src\services\studentSummary\studentSummary.service.ts:37 - STUDENT_SUMMARY_FUNCTIONS_REGION (used in module)
+\src\services\studentSummary\studentSummary.service.ts:560 - studentSummaryService (used in module)
+\src\services\studentSummary\studentSummary.service.ts:564 - default
+\src\services\studentSummary\studentSummary.service.ts:93 - AcademicSummary (used in module)
+\src\services\teacher\gradeSummary.service.ts:100 - fetchGradeSummaryForTeacher
+\src\services\teacher\gradeSummary.service.ts:15 - GradeSubjectSummary (used in module)
+\src\services\teacher\gradeSummary.service.ts:53 - GradeSummaryContext (used in module)
+\src\services\teacher\gradeSummary.service.ts:59 - SUBJECT_SLUG_TO_DISPLAY (used in module)
+\src\services\teacher\gradeSummary.service.ts:6 - TeacherPhaseKey (used in module)
+\src\utils\adminSetup.ts:59 - checkAdminExists
+\src\utils\adminSetup.ts:73 - useAdminSetup
+\src\utils\config.ts:1 - baseUrl
+\src\utils\constants.tsx:100 - PRECIO_POR_ESTUDIANTE
+\src\utils\constants.tsx:67 - defaultStyles
+\src\utils\constants.tsx:68 - activeStyles
+\src\utils\constants.tsx:69 - tableTranslations
+\src\utils\createAdminUser.ts:8 - createAdminUser
+\src\utils\createAdminUser.ts:85 - checkAdminExists
+\src\utils\format.tsx:11 - formatDateTime
+\src\utils\format.tsx:125 - formatError (used in module)
+\src\utils\format.tsx:13 - formatDate
+\src\utils\format.tsx:18 - RenderFormat
+\src\utils\format.tsx:31 - getInspectionTags
+\src\utils\prefetchChunks.ts:10 - prefetchLogin (used in module)
+\src\utils\prefetchChunks.ts:102 - prefetchDashboardAndQuiz
+\src\utils\prefetchChunks.ts:14 - prefetchRegister (used in module)
+\src\utils\prefetchChunks.ts:18 - prefetchAbout (used in module)
+\src\utils\prefetchChunks.ts:22 - prefetchDashboard (used in module)
+\src\utils\prefetchChunks.ts:26 - prefetchQuiz (used in module)
+\src\utils\prefetchChunks.ts:54 - prefetchSimulacrosICFES
+\src\utils\prefetchChunks.ts:58 - prefetchTeacherDashboard
+\src\utils\prefetchChunks.ts:6 - prefetchHome (used in module)
+\src\utils\prefetchChunks.ts:62 - prefetchPrincipalDashboard
+\src\utils\prefetchChunks.ts:66 - prefetchRectorDashboard
+\src\utils\prefetchChunks.ts:70 - prefetchAdminDashboard
+\src\utils\prefetchChunks.ts:74 - prefetchNewDashboard
+\src\utils\quizGroupedQuestions.ts:11 - normalizeInformativeTextForGroup (used in module)
+\src\utils\quizGroupedQuestions.ts:16 - GroupedQuestionsMap (used in module)
+\src\utils\quizGroupedQuestions.ts:67 - GroupValidationResult (used in module)
+\src\utils\quizThemes.ts:216 - getQuizContainerClasses
+\src\utils\quizThemes.ts:234 - getAnswerOptionClasses
+\src\utils\quizThemes.ts:28 - quizThemes (used in module)
+\src\utils\quizThemes.ts:6 - QuizTheme (used in module)
+\src\utils\renderMath.tsx:82 - renderMathContent
+\src\utils\renderMath.tsx:95 - MathContent
+\src\utils\rutaPreparacionPrefetch.ts:28 - RutaPreparacionPrefetchOptions (used in module)
+\src\utils\simulacrosICFESPrefetch.ts:62 - clearSimulacrosICFESCache
+\src\utils\subjectResultDocId.ts:16 - SubjectSlug (used in module)
+\src\utils\subjectResultDocId.ts:6 - SUBJECT_SLUGS (used in module)
+\src\utils\subjectResultDocId.ts:64 - isKnownSubjectSlug
+\src\utils\subjects.config.ts:13 - Subject (used in module)
+\src\utils\subjects.config.ts:152 - getTopicByCode (used in module)
+\src\utils\subjects.config.ts:163 - getGradeNameByCode (used in module)
+\src\utils\subjects.config.ts:172 - getGradeCodeByName
+\src\utils\subjects.config.ts:181 - validateQuestionCode (used in module)
+\src\utils\subjects.config.ts:216 - decodeQuestionCode
+\src\utils\subjects.config.ts:8 - Topic (used in module)
+\src\utils\testRectorCreation.ts:38 - validateRectorData (used in module)
+\src\utils\testRectorCreation.ts:68 - debugRectorCreation
+\src\utils\testRectorCreation.ts:9 - testRectorCreation
+\src\utils\testTeacherCreation.ts:8 - testTeacherCreation (used in module)
+\src\utils\validation.ts:18 - isValidEmail
+\src\utils\validation.ts:28 - isNumeric
+\src\utils\validation.ts:6 - isValidUrl

@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import { 
   getAllTeachers, 
-  getTeacherById, 
   createTeacher, 
   updateTeacher, 
   deleteTeacher,
@@ -12,7 +11,6 @@ import {
   getTeachersByCampus,
   assignStudentToTeacher,
   removeStudentFromTeacher,
-  getTeacherStats,
   CreateTeacherData,
   UpdateTeacherData
 } from '@/controllers/teacher.controller'
@@ -40,22 +38,6 @@ export const useTeachers = () => {
       }
       throw new Error(result.error.message)
     },
-    ...ADMIN_LIST_CACHE,
-  })
-}
-
-// Hook para obtener un docente específico
-export const useTeacher = (id: string, enabled: boolean = true) => {
-  return useQuery({
-    queryKey: teacherKeys.detail(id),
-    queryFn: async () => {
-      const result = await getTeacherById(id)
-      if (result.success) {
-        return result.data
-      }
-      throw new Error(result.error.message)
-    },
-    enabled: enabled && !!id,
     ...ADMIN_LIST_CACHE,
   })
 }
@@ -90,41 +72,6 @@ export const useTeachersByCampus = (campusId: string, enabled: boolean = true) =
     enabled: enabled && !!campusId,
     ...ADMIN_LIST_CACHE,
   })
-}
-
-// Hook para obtener estadísticas de docentes
-export const useTeacherStats = () => {
-  return useQuery({
-    queryKey: teacherKeys.stats(),
-    queryFn: async () => {
-      const result = await getTeacherStats()
-      if (result.success) {
-        return result.data
-      }
-      throw new Error(result.error.message)
-    },
-    ...ADMIN_LIST_CACHE,
-  })
-}
-
-// Hook para obtener docentes como opciones para select
-export const useTeacherOptions = () => {
-  const { data: teachers, isLoading, error } = useTeachers()
-  
-  const options = teachers?.map(teacher => ({
-    label: teacher.name,
-    value: teacher.id,
-    email: teacher.email,
-    subjects: teacher.subjects,
-    institutionId: teacher.institutionId,
-    campusId: teacher.campusId
-  })) || []
-
-  return {
-    options,
-    isLoading,
-    error
-  }
 }
 
 // Mutations

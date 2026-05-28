@@ -15,28 +15,6 @@ export const QUESTIONS_KEYS = {
 }
 
 /**
- * Hook para cargar preguntas con filtros de servidor (subjectCode, topicCode, grade, levelCode).
- */
-export function useQuestions(filters: QuestionFilters = {}) {
-  const serverFilters = {
-    ...(filters.subjectCode && { subjectCode: filters.subjectCode }),
-    ...(filters.topicCode && { topicCode: filters.topicCode }),
-    ...(filters.grade && { grade: filters.grade }),
-    ...(filters.levelCode && { levelCode: filters.levelCode }),
-  }
-
-  return useQuery({
-    queryKey: QUESTIONS_KEYS.list(serverFilters),
-    queryFn: async (): Promise<Question[]> => {
-      const result = await questionService.getFilteredQuestions(serverFilters)
-      if (!result.success) throw result.error
-      return result.data
-    },
-    ...ADMIN_LIST_CACHE,
-  })
-}
-
-/**
  * Hook paginado para el banco de preguntas (cursor pagination).
  * Reduce lecturas porque no descarga todo el banco de una vez.
  *
@@ -199,29 +177,4 @@ export function useQuestionCacheActions() {
     upsertQuestions,
     removeQuestionsByIds,
   }
-}
-
-/**
- * Busca una pregunta exacta por su código.
- * Se usa cuando el usuario escribe un `code` completo en el campo de búsqueda.
- */
-export function useQuestionByCode(code: string | undefined, enabled: boolean) {
-  return useQuery({
-    queryKey: [...QUESTIONS_KEYS.all, 'by-code', code],
-    queryFn: async (): Promise<Question | null> => {
-      if (!code) return null
-      const result = await questionService.getQuestionByCode(code)
-      if (!result.success) {
-        // Si no existe, devolvemos null (no disparamos error en UI).
-        if ((result.error as any)?.statusCode === 404) return null
-        throw result.error
-      }
-      return result.data
-    },
-    enabled: enabled && !!code,
-    staleTime: 24 * 60 * 60 * 1000,
-    gcTime: 24 * 60 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  })
 }

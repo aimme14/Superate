@@ -94,7 +94,7 @@ async function resolveStudentProfileForStudyPlan(
       return { ok: true, studentData: sd };
     }
   }
-  const userResult = await dbService.getUserById(studentId);
+  const userResult = await dbService.getUserByIdFromNewStructure(studentId);
   if (!userResult.success || !userResult.data) {
     return { ok: false };
   }

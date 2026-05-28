@@ -2,15 +2,7 @@ import { lazy, Suspense } from "react"
 import { useParams, useSearchParams } from "react-router-dom"
 import Header from "@/sections/quiz/Header"
 
-// Lazy load: solo se carga el formulario de la materia seleccionada
-const ExamFormLecture = lazy(() => import("@/sections/quizLectura/fromExamLengua"))
-const ExamFormSociales = lazy(() => import("@/sections/quizSociales/fromExamSocialesNew"))
-const ExamFormNaturales = lazy(() => import("@/sections/quizNaturales/fromExamNaturales"))
-const ExamFormIngles = lazy(() => import("@/sections/quizIngles/fromExamIngles"))
-const ExamFormMath = lazy(() => import("@/sections/quizMatematicas/fromExamMatematicas"))
-const ExamFormBiologia = lazy(() => import("@/sections/quizBiologia/fromExamBiologia"))
-const ExamFormFisica = lazy(() => import("@/sections/quizFisica/fromExamFisica"))
-const ExamFormQuimica = lazy(() => import("@/sections/quizQuimica/fromExamQuimica"))
+const UnifiedExamForm = lazy(() => import("@/sections/quiz/UnifiedExamForm"))
 const DynamicQuizForm = lazy(() => import("@/components/quiz/DynamicQuizForm"))
 
 const QuizFallback = () => (
@@ -20,63 +12,49 @@ const QuizFallback = () => (
   </div>
 )
 
+const UNIFIED_SUBJECTS = new Set([
+  'Lenguaje', 'Matemáticas', 'Matematicas', 'Ciencias Sociales',
+  'Biologia', 'Física', 'Quimica', 'Inglés',
+])
+
 const Quiz = () => {
-  const { id = '' } = useParams();
-  const [searchParams] = useSearchParams();
-  
-  // Obtener parámetros para cuestionarios dinámicos
-  const subject = searchParams.get('subject');
-  const phase = searchParams.get('phase') as 'first' | 'second' | 'third' | null;
-  const grade = searchParams.get('grade');
-  
-  // Si hay parámetros de cuestionario dinámico, usar el componente específico
+  const { id = '' } = useParams()
+  const [searchParams] = useSearchParams()
+
+  const subject = searchParams.get('subject')
+  const phase = searchParams.get('phase') as 'first' | 'second' | 'third' | null
+  const grade = searchParams.get('grade')
+
+  // Ruta dinámica con subject + phase
   if (subject && phase) {
     return (
       <>
         <Header />
         <Suspense fallback={<QuizFallback />}>
-          {subject === 'Lenguaje' ? (
-            <ExamFormLecture />
-          ) : subject === 'Matemáticas' || subject === 'Matematicas' ? (
-            <ExamFormMath />
-          ) : subject === 'Ciencias Sociales' ? (
-            <ExamFormSociales />
-          ) : subject === 'Ciencias Naturales' ? (
-            <ExamFormNaturales />
-          ) : subject === 'Inglés' ? (
-            <ExamFormIngles />
-          ) : subject === 'Biologia' ? (
-            <ExamFormBiologia />
-          ) : subject === 'Física' ? (
-            <ExamFormFisica />
-          ) : subject === 'Quimica' ? (
-            <ExamFormQuimica />
+          {UNIFIED_SUBJECTS.has(subject) ? (
+            <UnifiedExamForm />
           ) : (
-            <DynamicQuizForm
-              subject={subject}
-              phase={phase}
-              grade={grade || undefined}
-            />
+            <DynamicQuizForm subject={subject} phase={phase} grade={grade ?? undefined} />
           )}
         </Suspense>
       </>
     )
   }
 
+  // Rutas legacy por id (compatibilidad)
+  const ID_TO_SUBJECT: Record<string, string> = {
+    lectura:  'Lenguaje',
+    quiz:     'Matemáticas',
+    sociales: 'Ciencias Sociales',
+    ingles:   'Inglés',
+  }
+
   return (
     <>
       <Header />
       <Suspense fallback={<QuizFallback />}>
-        {id === 'lectura' ? (
-          <ExamFormLecture />
-        ) : id === 'quiz' ? (
-          <ExamFormMath />
-        ) : id === 'sociales' ? (
-          <ExamFormSociales />
-        ) : id === 'naturales' ? (
-          <ExamFormNaturales />
-        ) : id === 'ingles' ? (
-          <ExamFormIngles />
+        {ID_TO_SUBJECT[id] ? (
+          <UnifiedExamForm />
         ) : (
           <div className="flex flex-col items-center justify-center h-screen">
             <h1 className="text-2xl font-bold">No se encontró el examen</h1>

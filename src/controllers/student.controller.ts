@@ -134,7 +134,7 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     if (!dbResult.success) throw dbResult.error
 
     // Asignar automáticamente a docentes del mismo grado
-    await assignStudentToTeachers(userAccount.data.uid, institutionId, campusId, gradeId)
+    await assignStudentToTeachers(userAccount.data.uid, institutionId, campusId, gradeId, jornada)
 
     // Asignar automáticamente al coordinador de la sede
     await assignStudentToPrincipal(userAccount.data.uid, institutionId, campusId)
@@ -384,17 +384,15 @@ export const deleteStudent = async (studentId: string): Promise<Result<void>> =>
  * @param {string} campusId - ID de la sede
  * @param {string} gradeId - ID del grado
  */
-const assignStudentToTeachers = async (studentId: string, institutionId: string, campusId: string, gradeId: string): Promise<void> => {
+const assignStudentToTeachers = async (
+  studentId: string,
+  institutionId: string,
+  campusId: string,
+  gradeId: string,
+  jornada?: string
+): Promise<void> => {
   try {
-    // Obtener información del estudiante para conocer su jornada
-    const studentResult = await dbService.getUserById(studentId)
-    if (!studentResult.success) {
-      console.warn('No se pudo obtener información del estudiante:', studentResult.error)
-      return
-    }
-
-    const student = studentResult.data
-    const studentJornada = (student as any).jornada // Jornada del estudiante
+    const studentJornada = jornada
 
     // Obtener todos los docentes del grado específico
     const teachersResult = await dbService.getTeachersByGrade(institutionId, campusId, gradeId)
@@ -483,7 +481,7 @@ const assignStudentToRector = async (studentId: string, institutionId: string): 
 const removeStudentFromAllAssignments = async (studentId: string): Promise<void> => {
   try {
     // Obtener información del estudiante para saber sus asignaciones
-    const studentResult = await dbService.getUserById(studentId)
+    const studentResult = await dbService.getUserByIdFromNewStructure(studentId)
     if (!studentResult.success) return
 
     const student = studentResult.data

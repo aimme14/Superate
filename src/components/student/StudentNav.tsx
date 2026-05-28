@@ -50,7 +50,7 @@ interface NavItemConfig {
 
 interface StudentNavProps {
   theme?: "light" | "dark";
-  /** Items adicionales a inyectar (ej: "Mi progreso" en ExamAnalyzer) */
+  /** Items adicionales a inyectar en la navegación del estudiante */
   extraItems?: Array<{ href: string; icon: React.ReactNode; text: string; active?: boolean }>;
 }
 

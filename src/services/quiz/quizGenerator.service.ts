@@ -6,8 +6,7 @@ import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
 import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { firebaseApp } from '@/services/db';
+import { logger } from '@/utils/logger';
 
 /**
  * Configuración de cuestionarios por materia y fase
@@ -218,72 +217,47 @@ class QuizGeneratorService {
     return QuizGeneratorService.instance;
   }
 
-  /**
-   * Obtiene todas las preguntas ya respondidas por el estudiante en fases anteriores
-   */
   private async getAnsweredQuestions(
     studentId: string,
     subject: string,
     currentPhase: 'first' | 'second' | 'third'
   ): Promise<Set<string>> {
     const answeredQuestionIds = new Set<string>();
-    
+
+    if (currentPhase === 'first') return answeredQuestionIds;
+
     try {
-      const db = getFirestore(firebaseApp);
-      
-      // Determinar qué fases anteriores revisar
-      const phasesToCheck: string[] = [];
-      if (currentPhase === 'second') {
-        // Fase 2: excluir preguntas de fase 1
-        phasesToCheck.push('fase I');
-      } else if (currentPhase === 'third') {
-        // Fase 3: excluir preguntas de fase 1 y fase 2
-        phasesToCheck.push('fase I', 'Fase II', 'fase II'); // Incluir ambas variantes de fase 2
-      }
-      
-      // Obtener resultados de las fases anteriores
-      for (const phaseName of phasesToCheck) {
-        try {
-          const phaseRef = collection(db, "results", studentId, phaseName);
-          const phaseSnap = await getDocs(phaseRef);
-          
-          phaseSnap.docs.forEach(doc => {
-            const examData = doc.data();
-            
-            // Verificar que sea de la misma materia
-            if (examData.subject && examData.subject.trim().toLowerCase() === subject.trim().toLowerCase()) {
-              // Extraer IDs de preguntas de questionDetails
-              if (examData.questionDetails && Array.isArray(examData.questionDetails)) {
-                examData.questionDetails.forEach((detail: any) => {
-                  if (detail.questionId) {
-                    answeredQuestionIds.add(detail.questionId);
-                  }
-                  if (detail.questionCode) {
-                    answeredQuestionIds.add(detail.questionCode);
-                  }
-                });
-              }
-              
-              // También verificar en answers (estructura antigua)
-              if (examData.answers && typeof examData.answers === 'object') {
-                Object.keys(examData.answers).forEach(questionId => {
-                  answeredQuestionIds.add(questionId);
-                });
-              }
-            }
-          });
-        } catch (error) {
-          console.warn(`⚠️ Error obteniendo resultados de ${phaseName}:`, error);
-          // Continuar con otras fases aunque una falle
-        }
-      }
-      
-      console.log(`📋 Preguntas ya respondidas en fases anteriores para ${subject}: ${answeredQuestionIds.size}`);
+      const { fetchEvaluationsFromStudentSummary } = await import(
+        '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
+      );
+
+      const evaluations = await fetchEvaluationsFromStudentSummary(studentId);
+
+      const phasesToExclude: string[] = currentPhase === 'second'
+        ? ['first']
+        : ['first', 'second'];
+
+      evaluations
+        .filter(e =>
+          e.phase != null &&
+          phasesToExclude.includes(e.phase) &&
+          e.subject?.trim().toLowerCase() === subject.trim().toLowerCase()
+        )
+        .forEach(e => {
+          if (Array.isArray(e.questionDetails)) {
+            e.questionDetails.forEach((d: any) => {
+              if (d.questionId) answeredQuestionIds.add(d.questionId);
+            });
+          }
+          if (e.answers && typeof e.answers === 'object') {
+            Object.keys(e.answers).forEach(id => answeredQuestionIds.add(id));
+          }
+        });
+
     } catch (error) {
-      console.error('❌ Error obteniendo preguntas respondidas:', error);
-      // Retornar set vacío si hay error, para no bloquear la generación
+      logger.warn('Error obteniendo preguntas respondidas desde summary:', error);
     }
-    
+
     return answeredQuestionIds;
   }
 
@@ -297,7 +271,7 @@ class QuizGeneratorService {
     studentId?: string
   ): Promise<Result<GeneratedQuiz>> {
     try {
-      console.log(`🎯 Generando cuestionario: ${subject} - ${phase}${grade ? ` - Grado ${grade}` : ''}${studentId ? ` - Estudiante ${studentId}` : ''}`);
+      logger.debug(`Generando cuestionario: ${subject} - ${phase}${grade ? ` - Grado ${grade}` : ''}${studentId ? ` - Estudiante ${studentId}` : ''}`);
 
       // Obtener configuración para la materia y fase
       const config = this.getQuizConfig(subject, phase);
@@ -309,12 +283,12 @@ class QuizGeneratorService {
       let answeredQuestionIds = new Set<string>();
       if (studentId && phase !== 'first') {
         answeredQuestionIds = await this.getAnsweredQuestions(studentId, subject, phase);
-        console.log(`🚫 Excluyendo ${answeredQuestionIds.size} preguntas ya respondidas en fases anteriores`);
+        logger.debug(`Excluyendo ${answeredQuestionIds.size} preguntas ya respondidas en fases anteriores`);
       }
 
       // Lógica especial para Inglés: preguntas agrupadas por tema (aplica para todas las fases)
       if (subject === 'Inglés') {
-        console.log(`🇬🇧 Aplicando lógica especial para Inglés con preguntas agrupadas`);
+        logger.debug('Aplicando lógica especial para Inglés con preguntas agrupadas');
         const englishResult = await this.getEnglishGroupedQuestions(subject, config, grade, phase, answeredQuestionIds);
         if (!englishResult.success) {
           return failure(englishResult.error);
@@ -339,19 +313,19 @@ class QuizGeneratorService {
           createdAt: new Date()
         };
 
-        console.log(`✅ Cuestionario de Inglés generado: ${quiz.title} con ${sortedQuestions.length} preguntas agrupadas`);
+        logger.debug(`Cuestionario de Inglés generado: ${quiz.title} con ${sortedQuestions.length} preguntas agrupadas`);
         return success(quiz);
       }
 
       // Para Fase 3, usar distribución proporcional independiente por temas (excepto Inglés que ya se manejó arriba)
       if (phase === 'third') {
-        console.log(`📊 Generando cuestionario Fase 3 con distribución proporcional por temas`);
+        logger.debug('Generando cuestionario Fase 3 con distribución proporcional por temas');
         return await this.generatePhase3ProportionalQuiz(subject, config, grade, answeredQuestionIds);
       }
 
       // Para Fase 2, usar distribución personalizada si hay studentId
       if (phase === 'second' && studentId && subject !== 'Inglés') {
-        console.log(`📊 Generando cuestionario personalizado Fase 2 para ${studentId}`);
+        logger.debug('Generando cuestionario personalizado Fase 2 para estudiante');
         return await this.generatePersonalizedPhase2Quiz(subject, config, grade, studentId, answeredQuestionIds);
       }
 
@@ -361,10 +335,10 @@ class QuizGeneratorService {
       let questions: Question[] = [];
 
       if (subjectRule) {
-        console.log(`🧠 Aplicando reglas por tópico para ${subject}`);
+        logger.debug(`Aplicando reglas por tópico para ${subject}`);
         const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule, answeredQuestionIds);
         if (!topicResult.success) {
-          console.warn('⚠️ No se pudieron aplicar reglas por tópico, usando búsqueda general', topicResult.error);
+          logger.warn('No se pudieron aplicar reglas por tópico, usando búsqueda general');
           const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, answeredQuestionIds);
           if (!generalResult.success) {
             return failure(generalResult.error);
@@ -382,7 +356,7 @@ class QuizGeneratorService {
       }
 
       if (questions.length < expectedCount) {
-        console.warn(`⚠️ Sólo se obtuvieron ${questions.length} preguntas de ${expectedCount} solicitadas para ${subject}`);
+        logger.warn(`Sólo se obtuvieron ${questions.length} preguntas de ${expectedCount} solicitadas para ${subject}`);
       }
 
       // Ordenar preguntas agrupadas por orden de creación (más antigua primero)
@@ -393,7 +367,7 @@ class QuizGeneratorService {
       if (subject !== 'Inglés') {
         const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
         if (!validation.isValid) {
-          console.error('❌ Validación de agrupación fallida:', validation.message, validation.violations);
+          logger.error('Validación de agrupación fallida:', validation.message);
         }
       }
 
@@ -415,11 +389,11 @@ class QuizGeneratorService {
         createdAt: new Date()
       };
 
-      console.log(`✅ Cuestionario generado: ${quiz.title} con ${questions.length} preguntas`);
+      logger.debug(`Cuestionario generado: ${quiz.title} con ${questions.length} preguntas`);
       return success(quiz);
 
     } catch (e) {
-      console.error('❌ Error generando cuestionario:', e);
+      logger.error('Error generando cuestionario:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar cuestionario')));
     }
   }
@@ -519,10 +493,10 @@ class QuizGeneratorService {
         }
       ];
 
-      console.log(`🧩 Buscando preguntas para tópico ${topic.name} (${subject}) con ${attempts.length} intentos`);
+      logger.debug(`Buscando preguntas para tópico ${topic.name} (${subject})`);
       const topicQuestions = await this.fetchQuestionsWithFallback(attempts, rule.perTopicTarget, excludeQuestionIds);
       topicQuestionMap[topic.code] = topicQuestions;
-      console.log(`✅ ${topicQuestions.length} preguntas almacenadas para ${topic.name}`);
+      logger.debug(`${topicQuestions.length} preguntas para ${topic.name}`);
     }
 
     let questions = this.balanceQuestionsByTopic(
@@ -534,7 +508,7 @@ class QuizGeneratorService {
 
     if (questions.length < rule.totalQuestions) {
       const missing = rule.totalQuestions - questions.length;
-      console.warn(`⚠️ Faltan ${missing} preguntas para ${subject}, intentando completar con selección general`);
+      logger.warn(`Faltan ${missing} preguntas para ${subject}, completando con selección general`);
 
       const fallbackResult = await this.getGeneralQuestions(subject, config, grade, missing, excludeQuestionIds);
       if (fallbackResult.success && fallbackResult.data.length > 0) {
@@ -563,7 +537,7 @@ class QuizGeneratorService {
     excludeQuestionIds: Set<string> = new Set()
   ): Promise<Result<Question[]>> {
     const phaseLevel = phase === 'first' ? 'Fácil' : phase === 'second' ? 'Medio' : 'Difícil';
-    console.log(`🇬🇧 Generando cuestionario de Inglés - Fase ${phase} (Nivel: ${phaseLevel}) con preguntas agrupadas por tema`);
+    logger.debug(`Generando cuestionario de Inglés - Fase ${phase} (Nivel: ${phaseLevel})`);
     
     const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
     if (!subjectConfig || !subjectConfig.topics) {
@@ -576,7 +550,7 @@ class QuizGeneratorService {
     const subjectCode = subjectConfig.code;
     const levelCode = config.level === 'Fácil' ? 'F' : config.level === 'Medio' ? 'M' : 'D';
     
-    console.log(`📚 Buscando grupos de preguntas para ${topics.length} temas${phase === 'third' ? ' (Nivel: Difícil)' : ''}`);
+    logger.debug(`Buscando grupos de preguntas para ${topics.length} temas`);
     
     // Mapa para almacenar grupos de preguntas por tema
     const topicGroupsMap: Record<string, Question[][]> = {};
@@ -584,7 +558,7 @@ class QuizGeneratorService {
     // Para cada tema, buscar todas las preguntas agrupadas disponibles
     for (let topicIndex = 0; topicIndex < topics.length; topicIndex++) {
       const topic = topics[topicIndex];
-      console.log(`🔍 [${topicIndex + 1}/${topics.length}] Buscando grupos para: ${topic.name} (${topic.code})${phase === 'third' ? ' - Nivel Difícil' : ''}`);
+      logger.debug(`Buscando grupos para: ${topic.name} (${topic.code})`);
       
       // Para Fase 3: buscar SOLO nivel Difícil (D) - optimizado con menos intentos
       // Para Fase 1 y 2: usar el nivel específico
@@ -692,7 +666,7 @@ class QuizGeneratorService {
         const filters = attempts[attemptIndex];
         const result = await questionService.getRandomQuestions(filters, 100);
         if (!result.success) {
-          console.log(`   Intento ${attemptIndex + 1}/${attempts.length} fallido`);
+          logger.debug(`Intento ${attemptIndex + 1}/${attempts.length} fallido`);
           continue;
         }
 
@@ -722,16 +696,16 @@ class QuizGeneratorService {
         const tempGroups = Object.values(tempGroupsMap).filter(group => group.length > 0);
         if (tempGroups.length > 0) {
           foundCompleteGroup = true;
-          console.log(`   ✅ Grupo completo encontrado en intento ${attemptIndex + 1}/${attempts.length}`);
+          logger.debug(`Grupo completo encontrado en intento ${attemptIndex + 1}`);
           break; // Detener búsqueda al encontrar al menos un grupo
         } else {
-          console.log(`   Intento ${attemptIndex + 1}/${attempts.length}: ${newQuestions.length} preguntas nuevas, aún sin grupo completo`);
+          logger.debug(`Intento ${attemptIndex + 1}: ${newQuestions.length} preguntas nuevas, sin grupo completo aún`);
         }
       }
 
       // Si no se encontró grupo en los intentos específicos, usar fallback
       if (!foundCompleteGroup && allQuestions.length === 0) {
-        console.warn(`   ⚠️ No se encontraron grupos con filtros específicos, usando búsqueda general`);
+        logger.warn('No se encontraron grupos con filtros específicos, usando búsqueda general');
         const fallbackResult = await this.fetchQuestionsWithFallback(attempts.slice(0, 2), 30, excludeQuestionIds);
         allQuestions = fallbackResult.filter(q => 
           q.subjectCode === 'IN' && 
@@ -779,9 +753,9 @@ class QuizGeneratorService {
       topicGroupsMap[topic.code] = groups;
       const totalQuestionsInGroups = groups.reduce((sum, group) => sum + group.length, 0);
       if (groups.length > 0) {
-        console.log(`✅ [${topicIndex + 1}/${topics.length}] ${groups.length} grupo(s) completo(s) encontrado(s) para ${topic.name} (${totalQuestionsInGroups} preguntas en total)`);
+        logger.debug(`${groups.length} grupo(s) para ${topic.name} (${totalQuestionsInGroups} preguntas)`);
       } else {
-        console.warn(`⚠️ [${topicIndex + 1}/${topics.length}] No se encontraron grupos completos para ${topic.name}`);
+        logger.warn(`No se encontraron grupos completos para ${topic.name}`);
       }
     }
 
@@ -792,7 +766,7 @@ class QuizGeneratorService {
     for (const topic of topics) {
       const groups = topicGroupsMap[topic.code] || [];
       if (groups.length === 0) {
-        console.warn(`⚠️ No se encontraron grupos de preguntas para el tema ${topic.name}`);
+        logger.warn(`No se encontraron grupos de preguntas para el tema ${topic.name}`);
         continue;
       }
 
@@ -807,7 +781,7 @@ class QuizGeneratorService {
       if (!usedGroupKeys.has(groupKey)) {
         selectedGroups.push(selectedGroup);
         usedGroupKeys.add(groupKey);
-        console.log(`✅ Seleccionado 1 grupo de ${selectedGroup.length} preguntas para ${topic.name}`);
+        logger.debug(`Seleccionado 1 grupo de ${selectedGroup.length} preguntas para ${topic.name}`);
       } else {
         // Si ya usamos este grupo, intentar con otro
         const alternativeGroup = shuffledGroups.find(g => {
@@ -819,9 +793,9 @@ class QuizGeneratorService {
           selectedGroups.push(alternativeGroup);
           const altKey = `${alternativeGroup[0]?.informativeText}_${alternativeGroup[0]?.topicCode}_${alternativeGroup[0]?.grade}_${alternativeGroup[0]?.levelCode}`;
           usedGroupKeys.add(altKey);
-          console.log(`✅ Seleccionado grupo alternativo de ${alternativeGroup.length} preguntas para ${topic.name}`);
+          logger.debug(`Seleccionado grupo alternativo de ${alternativeGroup.length} preguntas para ${topic.name}`);
         } else {
-          console.warn(`⚠️ No se encontró grupo alternativo para ${topic.name}, usando el disponible`);
+          logger.warn(`No se encontró grupo alternativo para ${topic.name}, usando el disponible`);
           selectedGroups.push(selectedGroup);
         }
       }
@@ -842,7 +816,7 @@ class QuizGeneratorService {
       finalQuestions.push(...group);
     });
 
-    console.log(`✅ Cuestionario de Inglés generado con ${selectedGroups.length} grupos de preguntas (${finalQuestions.length} preguntas en total)`);
+    logger.debug(`Cuestionario de Inglés generado con ${selectedGroups.length} grupos (${finalQuestions.length} preguntas)`);
     return success(finalQuestions);
   }
 
@@ -1004,7 +978,7 @@ class QuizGeneratorService {
     for (const [index, filters] of attempts.entries()) {
       const result = await questionService.getRandomQuestions(filters, expectedCount * 2); // Obtener más para tener opciones después de filtrar
       if (!result.success) {
-        console.warn(`⚠️ Intento ${index + 1} fallido con filtros`, filters, result.error);
+        logger.warn(`Intento ${index + 1} fallido`);
         continue;
       }
 
@@ -1015,7 +989,7 @@ class QuizGeneratorService {
       });
 
       const deduped = this.dedupeQuestions(filtered);
-      console.log(`🔎 Intento ${index + 1}: ${deduped.length} preguntas obtenidas (${result.data.length} totales, ${result.data.length - filtered.length} excluidas) con filtros`, filters);
+      logger.debug(`Intento ${index + 1}: ${deduped.length} preguntas (${result.data.length - filtered.length} excluidas)`);
 
       for (const question of deduped) {
         const key = question.id || question.code;
@@ -1192,7 +1166,7 @@ class QuizGeneratorService {
       }
     });
 
-    console.log(`📚 Preguntas ordenadas para ${subject}: ${Object.keys(groupedMap).length} grupo(s) de comprensión de lectura corta, ${ungrouped.length} pregunta(s) estándar`);
+    logger.debug(`Preguntas ordenadas para ${subject}: ${Object.keys(groupedMap).length} grupo(s), ${ungrouped.length} estándar`);
     
     return result;
   }
@@ -1285,7 +1259,7 @@ class QuizGeneratorService {
       );
 
       if (!distributionResult.success) {
-        console.warn('⚠️ No se pudo obtener distribución personalizada, usando distribución estándar');
+        logger.warn('No se pudo obtener distribución personalizada, usando distribución estándar');
         // Fallback a distribución estándar
         return this.generateStandardPhase2Quiz(subject, config, grade);
       }
@@ -1329,7 +1303,7 @@ class QuizGeneratorService {
       } else {
         // Caso edge: solo hay 1 tema (la debilidad principal)
         // En este caso, usar distribución estándar
-        console.warn(`⚠️ Solo hay 1 tema en ${subject}, usando distribución estándar`);
+        logger.warn(`Solo hay 1 tema en ${subject}, usando distribución estándar`);
         return this.generateStandardPhase2Quiz(subject, config, grade, excludeQuestionIds);
       }
 
@@ -1338,7 +1312,7 @@ class QuizGeneratorService {
 
       const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
       if (!validation.isValid) {
-        console.error('❌ [Fase 2 personalizada] Validación de agrupación fallida:', validation.message, validation.violations);
+        logger.error('[Fase 2 personalizada] Validación de agrupación fallida:', validation.message);
       }
 
       // Generar ID único para el cuestionario
@@ -1359,12 +1333,10 @@ class QuizGeneratorService {
         createdAt: new Date()
       };
 
-      console.log(`✅ Cuestionario personalizado Fase 2 generado: ${quiz.title} con ${sortedQuestions.length} preguntas`);
-      console.log(`   - ${distribution.primaryWeaknessCount} preguntas de ${distribution.primaryWeakness}`);
-      console.log(`   - ${distribution.otherTopicsCount} preguntas distribuidas en otros temas`);
+      logger.debug(`Cuestionario personalizado Fase 2: ${quiz.title} con ${sortedQuestions.length} preguntas`);
       return success(quiz);
     } catch (e) {
-      console.error('❌ Error generando cuestionario personalizado Fase 2:', e);
+      logger.error('Error generando cuestionario personalizado Fase 2:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar cuestionario personalizado Fase 2')));
     }
   }
@@ -1405,7 +1377,7 @@ class QuizGeneratorService {
 
     const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
     if (!validation.isValid) {
-      console.error('❌ [Fase 2 estándar] Validación de agrupación fallida:', validation.message, validation.violations);
+      logger.error('[Fase 2 estándar] Validación de agrupación fallida:', validation.message);
     }
 
     const quizId = this.generateQuizId(subject, 'second', grade);
@@ -1569,7 +1541,7 @@ class QuizGeneratorService {
     excludeQuestionIds: Set<string> = new Set()
   ): Promise<Result<GeneratedQuiz>> {
     try {
-      console.log(`🎯 Generando cuestionario Fase 3 para ${subject}`);
+      logger.debug(`Generando cuestionario Fase 3 para ${subject}`);
 
       // Obtener configuración de la materia
       const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
@@ -1583,14 +1555,13 @@ class QuizGeneratorService {
       const questionsPerTopic = 10; // Cada tema tiene exactamente 10 preguntas
       const totalQuestionsRequired = topics.length * questionsPerTopic; // Total = temas × 10
       
-      console.log(`📚 Materia: ${subject} con ${topics.length} temas`);
-      console.log(`📊 Total requerido: ${totalQuestionsRequired} preguntas (${questionsPerTopic} por tema)`);
+      logger.debug(`Fase 3: ${subject} - ${topics.length} temas, ${totalQuestionsRequired} preguntas requeridas`);
 
       // Paso 1: Obtener preguntas de cada tema (intentar obtener más para tener opciones)
       const topicQuestionsMap: Record<string, Question[]> = {};
       
       for (const topic of topics) {
-        console.log(`🔍 Obteniendo preguntas variadas para tema: ${topic.name} (${topic.code})`);
+        logger.debug(`Obteniendo preguntas para tema: ${topic.name}`);
         
         // Intentar obtener más preguntas de las necesarias para tener opciones y poder redistribuir
         const topicQuestions = await this.getQuestionsForTopicVaried(
@@ -1602,7 +1573,7 @@ class QuizGeneratorService {
         );
         
         topicQuestionsMap[topic.code] = topicQuestions;
-        console.log(`✅ ${topicQuestions.length} preguntas obtenidas para ${topic.name}`);
+        logger.debug(`${topicQuestions.length} preguntas para ${topic.name}`);
       }
 
       // Paso 2: Distribuir preguntas intentando dar 10 a cada tema
@@ -1681,7 +1652,7 @@ class QuizGeneratorService {
 
       const validation = validateGroupedQuestionsConsecutive(finalQuestions, 'IN');
       if (!validation.isValid) {
-        console.error('❌ [Fase 3] Validación de agrupación fallida:', validation.message, validation.violations);
+        logger.error('[Fase 3] Validación de agrupación fallida:', validation.message);
       }
 
       // Generar ID único para el cuestionario
@@ -1702,18 +1673,11 @@ class QuizGeneratorService {
         createdAt: new Date()
       };
 
-      console.log(`✅ Cuestionario Fase 3 generado: ${quiz.title} con ${finalQuestions.length} preguntas`);
-      console.log(`📊 Distribución final por temas:`);
-      for (const topic of topics) {
-        const count = finalQuestions.filter(q => 
-          q.topic === topic.name || q.topicCode === topic.code
-        ).length;
-        console.log(`   - ${topic.name}: ${count} preguntas`);
-      }
+      logger.debug(`Cuestionario Fase 3 generado: ${quiz.title} con ${finalQuestions.length} preguntas`);
 
       return success(quiz);
     } catch (e) {
-      console.error('❌ Error generando cuestionario Fase 3:', e);
+      logger.error('Error generando cuestionario Fase 3:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar cuestionario Fase 3')));
     }
   }

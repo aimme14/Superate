@@ -388,16 +388,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   // Estados para rastrear errores de validación
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: boolean }>({})
 
-  // Debug: Verificar estado de autenticación
-  useEffect(() => {
-    console.log('🔍 Estado de autenticación en QuestionBank:', {
-      currentUser,
-      hasUser: !!currentUser,
-      userRole: currentUser?.role,
-      userEmail: currentUser?.email
-    })
-  }, [currentUser])
-
   // Cerrar dropdowns de matching al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -5288,18 +5278,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Debug info */}
-          <div className={cn('text-xs p-2 rounded', theme === 'dark' ? 'bg-zinc-800 text-zinc-300' : 'bg-gray-100 text-gray-700')}>
-            {currentUser ? (
-              <div>
-                <div>Usuario: {currentUser.email}</div>
-                <div>Rol: {currentUser.role || 'Sin rol'}</div>
-                <div>UID: {currentUser.uid}</div>
-              </div>
-            ) : (
-              <div>No autenticado</div>
-            )}
-          </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
             setIsCreateDialogOpen(open)
             // Cuando se abre el diálogo, resetear el formulario completamente

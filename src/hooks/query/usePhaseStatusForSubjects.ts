@@ -14,7 +14,7 @@ export const phaseStatusKeys = {
 
 /**
  * Hook centralizado para el estado de fases por materia del estudiante.
- * Una sola carga con caché React Query; SubjectPhaseStatus, Intento y PhaseDashboard lo reutilizan.
+ * Una sola carga con caché React Query; SubjectPhaseStatus e Intento lo reutilizan.
  */
 export function usePhaseStatusForSubjects(userId: string | undefined) {
   const { isStudent } = useRole();

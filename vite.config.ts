@@ -91,6 +91,8 @@ export default defineConfig({
           // MUI no se agrupa en un solo chunk para evitar "Cannot access 'or' before initialization"
           // por orden de ejecución en el bundle de producción.
           if (id.includes('node_modules/katex')) return 'katex'
+          if (id.includes('node_modules/lucide-react')) return 'lucide'
+          if (id.includes('node_modules/dompurify')) return 'dompurify'
           if (id.includes('node_modules/mathlive')) return 'mathlive'
           if (id.includes('node_modules/firebase')) return 'firebase'
           if (id.includes('node_modules/@google/generative-ai')) return 'generative-ai'

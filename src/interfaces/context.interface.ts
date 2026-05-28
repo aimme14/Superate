@@ -40,10 +40,26 @@ export type User = {
   email: string
   uid: string
   role?: UserRole
+  // Ubicación
   grade?: string
+  gradeId?: string
+  gradeName?: string
   institution?: string
+  institutionId?: string
+  institutionName?: string
   campus?: string
+  campusId?: string
+  campusName?: string
+  sedeId?: string
+  // Estado y metadata
+  isActive?: boolean
   userdoc?: string
+  name?: string
+  jornada?: 'mañana' | 'tarde' | 'única'
+  academicYear?: number
+  representativePhone?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type AuthContext = {

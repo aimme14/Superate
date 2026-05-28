@@ -33,24 +33,6 @@ export function useSimulacros() {
   });
 }
 
-/**
- * Hook para obtener lista de simulacros (sin videos).
- * Caché de sesión: una carga, resto desde memoria hasta F5.
- */
-export function useSimulacrosList() {
-  return useQuery({
-    queryKey: SIMULACROS_LIST_QUERY_KEY,
-    queryFn: async (): Promise<Simulacro[]> => {
-      const res = await simulacrosService.getAll();
-      if (res.success) {
-        return res.data;
-      }
-      throw new Error(res.error?.message ?? "Error al cargar simulacros");
-    },
-    ...ESTUDIANTE_SESSION_CACHE,
-  });
-}
-
 export function useSimulacrosListInfinite(pageSize: number = 10) {
   return useInfiniteQuery({
     queryKey: [...SIMULACROS_LIST_QUERY_KEY, "infinite", pageSize],

@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import {
   resourcesService,
@@ -17,34 +17,6 @@ const RESOURCES_KEYS = {
   all: ['resources'] as const,
   list: (filters: ResourceFilters) =>
     [...RESOURCES_KEYS.all, 'list', filters.grado, filters.materiaCode, filters.topicCode] as const,
-}
-
-export interface ResourcesData {
-  webLinks: WebLink[]
-  youtubeLinks: YoutubeLink[]
-}
-
-async function fetchResources(filters: ResourceFilters): Promise<ResourcesData> {
-  const [webRes, ytRes] = await Promise.all([
-    resourcesService.getWebLinks(filters),
-    resourcesService.getYoutubeLinks(filters),
-  ])
-  return {
-    webLinks: webRes.success ? webRes.data : [],
-    youtubeLinks: ytRes.success ? ytRes.data : [],
-  }
-}
-
-/**
- * Hook para cargar recursos (enlaces web y YouTube) con filtros.
- * Usa React Query con caché de 2 minutos.
- */
-export function useResources(filters: ResourceFilters = {}) {
-  return useQuery({
-    queryKey: RESOURCES_KEYS.list(filters),
-    queryFn: () => fetchResources(filters),
-    ...ADMIN_LIST_CACHE,
-  })
 }
 
 export function useWebLinksInfinite(filters: ResourceFilters = {}, pageSize: number = 10) {

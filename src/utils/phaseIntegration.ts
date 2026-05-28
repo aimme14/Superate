@@ -9,6 +9,7 @@ import { dbService } from '@/services/firebase/db.service';
 import { PhaseType } from '@/interfaces/phase.interface';
 import { getPhaseName } from '@/utils/firestoreHelpers';
 import type { StudentProgressSummaryDoc } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary';
+import { logger } from '@/utils/logger'
 
 /**
  * Procesa los resultados de un examen completado según la fase
@@ -25,7 +26,7 @@ export async function processExamResults(
   try {
     // Si no hay fase definida, no procesar
     if (!phase || !['first', 'second', 'third'].includes(phase)) {
-      console.log('⚠️ No se procesará el resultado: fase no definida o inválida');
+      logger.debug('⚠️ No se procesará el resultado: fase no definida o inválida');
       return { success: true };
     }
 
@@ -41,7 +42,7 @@ export async function processExamResults(
     const studentData = userResult.data;
     const gradeId = studentData.gradeId || studentData.grade;
 
-    console.log(`👤 Datos del estudiante:`, {
+    logger.debug(`👤 Datos del estudiante:`, {
       userId,
       gradeId: `"${gradeId}"`,
       institutionId: studentData.institutionId,
@@ -60,7 +61,7 @@ export async function processExamResults(
     switch (phaseType) {
       case 'first':
         // Analizar resultados de Fase 1
-        console.log(`🔍 Procesando resultados Fase 1 para ${userId} en ${subject}`);
+        logger.debug(`🔍 Procesando resultados Fase 1 para ${userId} en ${subject}`);
         const analysisResult = await phaseAnalysisService.analyzePhase1Results(
           userId,
           subject,
@@ -75,7 +76,7 @@ export async function processExamResults(
         // Progreso por fase vive en studentSummaries (trigger backend). Aquí solo comprobamos results/.
         const completedCount = await countUniqueCompletedSubjectsInPhase(userId, 'first');
         if (completedCount >= 7) {
-          console.log(`🎉 Todas las materias de Fase I completadas. Creando carpeta "Fase II"...`);
+          logger.debug(`🎉 Todas las materias de Fase I completadas. Creando carpeta "Fase II"...`);
 
           try {
             const { collection, doc, setDoc, getFirestore } = await import('firebase/firestore');
@@ -94,20 +95,20 @@ export async function processExamResults(
               timestamp: Date.now(),
             });
 
-            console.log(`✅ Carpeta "Fase II" creada exitosamente en: results/${userId}/${phase2Name}`);
+            logger.debug(`✅ Carpeta "Fase II" creada exitosamente en: results/${userId}/${phase2Name}`);
           } catch (error) {
             console.error('❌ Error creando carpeta "Fase II":', error);
           }
         } else {
-          console.log(`📊 Progreso Fase I: ${completedCount}/7 materias con examen completado`);
+          logger.debug(`📊 Progreso Fase I: ${completedCount}/7 materias con examen completado`);
         }
 
-        console.log(`✅ Fase 1 procesada exitosamente para ${subject}`);
+        logger.debug(`✅ Fase 1 procesada exitosamente para ${subject}`);
         break;
 
       case 'second':
         // Analizar progreso comparando con Fase 1
-        console.log(`📈 Procesando resultados Fase 2 para ${userId} en ${subject}`);
+        logger.debug(`📈 Procesando resultados Fase 2 para ${userId} en ${subject}`);
 
         // Obtener resultado de Fase 1 para comparar
         const phase1AnalysisId = `${userId}_${subject}_phase1`;
@@ -164,12 +165,12 @@ export async function processExamResults(
           }
         }
 
-        console.log(`✅ Fase 2 procesada exitosamente para ${subject}`);
+        logger.debug(`✅ Fase 2 procesada exitosamente para ${subject}`);
         break;
 
       case 'third':
         // Generar resultado ICFES final
-        console.log(`🎯 Procesando resultados Fase 3 (ICFES) para ${userId} en ${subject}`);
+        logger.debug(`🎯 Procesando resultados Fase 3 (ICFES) para ${userId} en ${subject}`);
 
         const phase3Result = await phaseAnalysisService.generatePhase3Result(
           userId,
@@ -182,7 +183,7 @@ export async function processExamResults(
           return { success: false, error: 'Error al generar resultado ICFES' };
         }
 
-        console.log(`✅ Fase 3 procesada exitosamente para ${subject}`);
+        logger.debug(`✅ Fase 3 procesada exitosamente para ${subject}`);
         break;
     }
 

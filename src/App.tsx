@@ -25,7 +25,6 @@ const ResultadosPage = lazy(() => import("@/pages/resultados"));
 const PromedioPage = lazy(() => import("@/pages/promedio"));
 const Intento = lazy(() => import("@/pages/Intento"));
 const InnovativeHero = lazy(() => import("@/pages/inovativeGero"));
-const Prueba = lazy(() => import("@/pages/prueba"));
 const DemoImageOptionsPage = lazy(() => import("@/pages/DemoImageOptions"));
 const ViewerPdfPage = lazy(() => import("@/pages/ViewerPdfPage"));
 const RutaAcademicaAdaptativaPage = lazy(() => import("@/pages/RutaAcademicaAdaptativaPage"));
@@ -261,14 +260,6 @@ function App() {
                 element={
                   <LazyRouteBoundary variant="page">
                     <InnovativeHero />
-                  </LazyRouteBoundary>
-                }
-              />
-              <Route
-                path="/prueba"
-                element={
-                  <LazyRouteBoundary variant="page">
-                    <Prueba />
                   </LazyRouteBoundary>
                 }
               />

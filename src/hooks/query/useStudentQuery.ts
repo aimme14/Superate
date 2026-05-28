@@ -4,7 +4,6 @@ import {
   createStudent, 
   getFilteredStudents, 
   getStudentsByTeacher, 
-  getStudentsByPrincipal,
   updateStudent,
   deleteStudent,
   CreateStudentData,
@@ -55,20 +54,6 @@ export const useStudentsByTeacher = (teacherId: string, enabled: boolean = true)
       const students = data.success ? data.data : []
       return students
     }
-  })
-}
-
-/**
- * Hook para obtener estudiantes de un rector específico
- */
-export const useStudentsByPrincipal = (principalId: string, enabled: boolean = true) => {
-  return useQuery({
-    queryKey: ['students', 'by-principal', principalId],
-    queryFn: () => getStudentsByPrincipal(principalId),
-    enabled: enabled && !!principalId,
-    ...ADMIN_LIST_CACHE,
-    placeholderData: keepPreviousData,
-    select: (data) => data.success ? data.data : []
   })
 }
 
@@ -140,34 +125,5 @@ export const useStudentMutations = () => {
     createStudent: createStudentMutation,
     updateStudent: updateStudentMutation,
     deleteStudent: deleteStudentMutation
-  }
-}
-
-/**
- * Hook para obtener opciones de estudiantes para formularios
- */
-export const useStudentOptions = (institutionId?: string, campusId?: string, gradeId?: string) => {
-  const filters: StudentFilters = {}
-  
-  if (institutionId) filters.institutionId = institutionId
-  if (campusId) filters.campusId = campusId
-  if (gradeId) filters.gradeId = gradeId
-  filters.isActive = true
-
-  const { students, isLoading } = useFilteredStudents(filters)
-
-  const options = students?.map((student: any) => ({
-    value: student.id,
-    label: student.name,
-    email: student.email,
-    grade: student.grade,
-    institution: student.inst,
-    campus: student.campus
-  })) || []
-
-  return {
-    options,
-    isLoading,
-    students: students || []
   }
 }
