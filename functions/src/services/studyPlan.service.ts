@@ -392,14 +392,13 @@ class StudyPlanService {
 
     // Construir descripción detallada de debilidades
     const weaknessesDescription = weaknesses.map(w => {
-      const sampleQuestions = w.questions.slice(0, 3).map(q => 
-        `- ${q.questionText.substring(0, 100)}${q.questionText.length > 100 ? '...' : ''}`
-      ).join('\n');
-      
-      return `**${w.topic}**: ${w.percentage}% de aciertos (${w.correct}/${w.total} correctas)
-Preguntas de ejemplo:
-${sampleQuestions}`;
-    }).join('\n\n');
+      const severity = w.percentage < 35
+        ? 'debilidad estructural (fundamentos por construir)'
+        : w.percentage < 40
+        ? 'debilidad leve (cerca del umbral básico)'
+        : `comprensión parcial (${w.percentage}% de aciertos)`;
+      return `**${w.topic}**: ${severity}`;
+    }).join('\n');
 
     // Construir instrucción de keywords según la materia
     const keywordsInstruction = this.isEnglishSubject(subject)
@@ -476,12 +475,7 @@ Por topic: **name**, **description**, **level** (Básico|Intermedio|Avanzado), *
 
 --- Restricciones ---
 
-Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE ${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios. No incluir video_resources ni study_links (se generan después).
-CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dentro de cualquier string usa \\\" para comillas y \\n para saltos de línea. (3) Devuelve un único objeto; sin texto antes ni después.
-
---- Orden en el JSON ---
-
-1. student_info 2. diagnostic_summary 3. study_plan_summary 4. practice_exercises (${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios; genera primero) 5. topics`;
+Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE ${StudyPlanService.TARGET_EXERCISE_COUNT} ejercicios. No incluir video_resources ni study_links (se generan después).`;
   }
 
   /**

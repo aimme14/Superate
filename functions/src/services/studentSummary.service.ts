@@ -298,31 +298,33 @@ class StudentSummaryService {
       // Si se especifica una fase, solo buscar en esa fase
       if (phase) {
         const phaseNames = phaseVariants[phase] || [];
-        for (const phaseName of phaseNames) {
-          try {
-            const phaseRef = studentDb
-              .collection('results')
-              .doc(studentId)
-              .collection(phaseName);
-            
-            const phaseSnap = await phaseRef.get();
-            
-            if (!phaseSnap.empty) {
-              phaseSnap.docs.forEach(doc => {
-                const examData = doc.data();
-                const isCompleted = examData.isCompleted !== false && examData.completed !== false;
-                if (isCompleted && examData.subject) {
-                  evaluations.push({
-                    ...examData,
-                    examId: doc.id,
-                    phase: phase,
-                  });
-                }
+        const snapshots = await Promise.all(
+          phaseNames.map(async (phaseName) => {
+            try {
+              const phaseRef = studentDb.collection('results').doc(studentId).collection(phaseName);
+              const snap = await phaseRef.get();
+              return { snap, phaseName };
+            } catch (error: any) {
+              console.warn(`⚠️ Error buscando en fase ${phaseName}:`, error.message);
+              return null;
+            }
+          })
+        );
+        let found = false;
+        for (const result of snapshots) {
+          if (!result || result.snap.empty || found) continue;
+          result.snap.docs.forEach(doc => {
+            const examData = doc.data();
+            const isCompleted = examData.isCompleted !== false && examData.completed !== false;
+            if (isCompleted && examData.subject) {
+              evaluations.push({
+                ...examData,
+                examId: doc.id,
+                phase: phase,
               });
             }
-          } catch (error: any) {
-            console.warn(`⚠️ Error buscando en fase ${phaseName}:`, error.message);
-          }
+          });
+          if (evaluations.length > 0) found = true;
         }
       } else {
         // Buscar en todas las fases

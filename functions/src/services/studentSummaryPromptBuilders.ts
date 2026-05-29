@@ -415,7 +415,7 @@ FORMATO JSON ESPERADO
     "Inglés": "80-100 palabras — nivel MCER final y proyección"
   },
 
-  "sintesis_institucional": "100-150 palabras en texto continuo formal. Integra competencias, niveles, coherencia entre áreas y preparación para Saber 11.",
+  "sintesis_institucional": "150-200 palabras en texto continuo formal. Integra competencias, niveles, coherencia entre áreas y preparación para Saber 11.",
 
   "fortalezas_academicas": ["Fortaleza 1", "Fortaleza 2", "Fortaleza 3"],
   "aspectos_por_mejorar": ["Aspecto 1", "Aspecto 2"],

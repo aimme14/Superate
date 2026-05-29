@@ -134,8 +134,8 @@ export const generateStudentAcademicSummary = onCall(
   {
     region: REGION,
     memory: '256MiB',
-    /** 2 min: generación IA del resumen. */
-    timeoutSeconds: 120,
+    /** 5 min: generación IA del resumen. */
+    timeoutSeconds: 300,
     /** Sin `secrets` aquí: evita solapamiento con vars del mismo nombre en `.env` (error Cloud Run 400). Gemini usa credenciales/Vertex por proyecto. */
   },
   async (request) => {
