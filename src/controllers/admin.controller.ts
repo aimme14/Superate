@@ -4,14 +4,12 @@ import ErrorAPI from "@/errors/index"
 import { normalizeError } from "@/errors/handler"
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore"
 import { firebaseApp } from "@/services/firebase/db.service"
-
 /**
  * Recalcula todos los contadores de estudiantes - Solo para administradores
  * @returns {Promise<Result<void>>} - Resultado del recálculo
  */
 export const recalculateStudentCounts = async (): Promise<Result<void>> => {
   try {
-    console.log('Administrador ejecutando recálculo de contadores...')
     const result = await dbService.recalculateAllStudentCounts()
     if (!result.success) throw result.error
     return success(undefined)

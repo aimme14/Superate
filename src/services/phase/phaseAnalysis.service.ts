@@ -20,6 +20,7 @@ import {
 } from '@/interfaces/phase.interface';
 import { geminiService } from '@/services/ai/gemini.service';
 import { SUBJECTS_CONFIG } from '@/utils/subjects.config';
+import { logger } from '@/utils/logger'
 
 /**
  * Servicio para analizar resultados de fases y generar distribuciones de preguntas personalizadas
@@ -55,8 +56,6 @@ class PhaseAnalysisService {
     examResult: any
   ): Promise<Result<Phase1Analysis>> {
     try {
-      console.log(`🔍 Analizando resultados Fase 1 para ${studentId} en ${subject}`);
-
       // Extraer información del resultado del examen
       const questionDetails = examResult.questionDetails || [];
       const totalQuestions = questionDetails.length;
@@ -163,10 +162,9 @@ class PhaseAnalysisService {
         analyzedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Análisis Fase 1 completado para ${studentId} en ${subject}`);
       return success(analysis);
     } catch (e) {
-      console.error('❌ Error analizando resultados Fase 1:', e);
+      logger.error('Error analizando resultados Fase 1:', e);
       return failure(new ErrorAPI(normalizeError(e, 'analizar resultados Fase 1')));
     }
   }
@@ -183,7 +181,7 @@ class PhaseAnalysisService {
   ): Promise<Result<any>> {
     try {
       if (!geminiService.isAvailable()) {
-        console.warn('⚠️ Servicio de IA no disponible, omitiendo plan de mejoramiento');
+        logger.warn('Servicio de IA no disponible, omitiendo plan de mejoramiento');
         return failure(new ErrorAPI({ message: 'Servicio de IA no disponible' }));
       }
 
@@ -269,7 +267,7 @@ class PhaseAnalysisService {
 
       return success(improvementPlan);
     } catch (e) {
-      console.error('❌ Error generando plan de mejoramiento:', e);
+      logger.error('Error generando plan de mejoramiento:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar plan de mejoramiento')));
     }
   }
@@ -283,8 +281,6 @@ class PhaseAnalysisService {
     totalQuestions: number
   ): Promise<Result<Phase2QuestionDistribution>> {
     try {
-      console.log(`📊 Generando distribución Fase 2 para ${studentId} en ${subject}`);
-
       // Obtener análisis de Fase 1
       const analysisId = `${studentId}_${subject}_phase1`;
       const analysisRef = doc(this.getCollection('phase1Analyses'), analysisId);
@@ -354,10 +350,9 @@ class PhaseAnalysisService {
         createdAt: Timestamp.now(),
       });
 
-      console.log(`✅ Distribución Fase 2 generada: ${primaryWeaknessCount} preguntas de ${analysis.primaryWeakness}, ${remainingCount} distribuidas`);
       return success(distribution);
     } catch (e) {
-      console.error('❌ Error generando distribución Fase 2:', e);
+      logger.error('Error generando distribución Fase 2:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar distribución Fase 2')));
     }
   }
@@ -372,8 +367,6 @@ class PhaseAnalysisService {
     phase2Result: any
   ): Promise<Result<ProgressAnalysis>> {
     try {
-      console.log(`📈 Analizando progreso para ${studentId} en ${subject}`);
-
       const phase1Score = phase1Result.score?.percentage || 0;
       const phase2Score = phase2Result.score?.percentage || 0;
       const improvement = phase2Score - phase1Score;
@@ -450,10 +443,9 @@ class PhaseAnalysisService {
         analyzedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Análisis de progreso completado: ${hasImproved ? 'Mejora' : 'Sin mejora'}`);
       return success(analysis);
     } catch (e) {
-      console.error('❌ Error analizando progreso:', e);
+      logger.error('Error analizando progreso:', e);
       return failure(new ErrorAPI(normalizeError(e, 'analizar progreso')));
     }
   }
@@ -510,7 +502,7 @@ Sé específico, motivador y constructivo. Responde SOLO con el JSON array, sin 
 
       return success([text]);
     } catch (e) {
-      console.error('❌ Error generando insights:', e);
+      logger.error('Error generando insights:', e);
       return success(['Análisis de progreso completado.']);
     }
   }
@@ -533,8 +525,6 @@ Sé específico, motivador y constructivo. Responde SOLO con el JSON array, sin 
     examResult: any
   ): Promise<Result<Phase3ICFESResult>> {
     try {
-      console.log(`🎯 Generando resultado ICFES para ${studentId} en ${subject}`);
-
       const questionDetails = examResult.questionDetails || [];
       const totalQuestions = questionDetails.length;
       const correctAnswers = questionDetails.filter((q: any) => q.isCorrect).length;
@@ -588,10 +578,9 @@ Sé específico, motivador y constructivo. Responde SOLO con el JSON array, sin 
         completedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Resultado ICFES generado: ${icfesScore}/500 (${percentage.toFixed(1)}%)`);
       return success(result);
     } catch (e) {
-      console.error('❌ Error generando resultado Fase 3:', e);
+      logger.error('Error generando resultado Fase 3:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar resultado Fase 3')));
     }
   }
@@ -659,7 +648,7 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
         recommendations: [],
       });
     } catch (e) {
-      console.error('❌ Error generando diagnóstico:', e);
+      logger.error('Error generando diagnóstico:', e);
       return success({
         diagnosis: `Puntaje ICFES: ${icfesScore}/500.`,
         recommendations: [],
@@ -743,7 +732,7 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
 
       return success(comparison);
     } catch (e) {
-      console.error('❌ Error generando comparativo:', e);
+      logger.error('Error generando comparativo:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar comparativo de fases')));
     }
   }

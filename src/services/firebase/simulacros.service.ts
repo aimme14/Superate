@@ -21,6 +21,7 @@ import { firebaseApp } from '@/services/db'
 import { success, failure, Result } from '@/interfaces/db.interface'
 import ErrorAPI from '@/errors'
 import { normalizeError } from '@/errors/handler'
+import { logger } from '@/utils/logger'
 import type {
   Simulacro,
   SimulacroVideo,
@@ -179,7 +180,7 @@ export async function uploadPdfSimulacro(
     const downloadURL = await getDownloadURL(storageRef)
     return success(downloadURL)
   } catch (e) {
-    console.error('❌ Error al subir PDF del simulacro:', e)
+    logger.error('Error al subir PDF del simulacro:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir PDF del simulacro')))
   }
 }
@@ -210,7 +211,7 @@ export async function uploadPdfSimulacroSeccion2(
     const downloadURL = await getDownloadURL(storageRef)
     return success(downloadURL)
   } catch (e) {
-    console.error('❌ Error al subir PDF simulacro sección 2:', e)
+    logger.error('Error al subir PDF simulacro sección 2:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir PDF simulacro sección 2')))
   }
 }
@@ -241,7 +242,7 @@ export async function uploadPdfHojaRespuestasSeccion2(
     const downloadURL = await getDownloadURL(storageRef)
     return success(downloadURL)
   } catch (e) {
-    console.error('❌ Error al subir PDF hoja respuestas sección 2:', e)
+    logger.error('Error al subir PDF hoja respuestas sección 2:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir PDF hoja respuestas sección 2')))
   }
 }
@@ -273,7 +274,7 @@ export async function uploadPdfHojaRespuestas(
     const downloadURL = await getDownloadURL(storageRef)
     return success(downloadURL)
   } catch (e) {
-    console.error('❌ Error al subir PDF hoja de respuestas:', e)
+    logger.error('Error al subir PDF hoja de respuestas:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir PDF hoja de respuestas')))
   }
 }
@@ -312,7 +313,7 @@ export async function uploadVideoSimulacro(
     const url = await getDownloadURL(storageRef)
     return success({ url, storagePath: path })
   } catch (e) {
-    console.error('❌ Error al subir video del simulacro:', e)
+    logger.error('Error al subir video del simulacro:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir video del simulacro')))
   }
 }
@@ -345,7 +346,7 @@ export async function uploadIcfesPdf(
     const downloadURL = await getDownloadURL(storageRef)
     return success(downloadURL)
   } catch (e) {
-    console.error('❌ Error al subir PDF ICFES:', e)
+    logger.error('Error al subir PDF ICFES:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir PDF ICFES')))
   }
 }
@@ -381,7 +382,7 @@ export async function uploadVideoIcfes(
     const url = await getDownloadURL(storageRef)
     return success({ url, storagePath: path })
   } catch (e) {
-    console.error('❌ Error al subir video ICFES:', e)
+    logger.error('Error al subir video ICFES:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir video ICFES')))
   }
 }
@@ -397,7 +398,7 @@ export async function deleteStorageFile(storagePath: string): Promise<Result<voi
   } catch (e: unknown) {
     const err = e as { code?: string }
     if (err?.code === 'storage/object-not-found') return success(undefined)
-    console.error('❌ Error al eliminar archivo de Storage:', e)
+    logger.error('Error al eliminar archivo de Storage:', e)
     return failure(new ErrorAPI(normalizeError(e, 'eliminar archivo')))
   }
 }
@@ -453,7 +454,7 @@ class SimulacrosService {
       const list = flattenConsolidadoTree(top.data)
       return success(list)
     } catch (e) {
-      console.error('❌ Error al leer consolidado_1:', e)
+      logger.error('Error al leer consolidado_1:', e)
       return failure(new ErrorAPI(normalizeError(e, 'leer consolidado_1')))
     }
   }
@@ -472,7 +473,7 @@ class SimulacrosService {
       })
       return success(list)
     } catch (e) {
-      console.error('❌ Error al listar simulacros:', e)
+      logger.error('Error al listar simulacros:', e)
       return failure(new ErrorAPI(normalizeError(e, 'listar simulacros')))
     }
   }
@@ -518,7 +519,7 @@ class SimulacrosService {
           : undefined,
       })
     } catch (e) {
-      console.error('❌ Error al listar simulacros paginados:', e)
+      logger.error('Error al listar simulacros paginados:', e)
       return failure(new ErrorAPI(normalizeError(e, 'listar simulacros paginados')))
     }
   }
@@ -532,7 +533,7 @@ class SimulacrosService {
       const lastValue = Number(snapshot.docs[0].data().numeroOrden ?? 0)
       return success(Math.max(0, lastValue) + 1)
     } catch (e) {
-      console.error('❌ Error al calcular numeroOrden siguiente:', e)
+      logger.error('Error al calcular numeroOrden siguiente:', e)
       return failure(new ErrorAPI(normalizeError(e, 'calcular numeroOrden siguiente')))
     }
   }
@@ -564,7 +565,7 @@ class SimulacrosService {
       }
       return success(list)
     } catch (e) {
-      console.error('❌ Error al listar simulacros con videos:', e)
+      logger.error('Error al listar simulacros con videos:', e)
       return failure(new ErrorAPI(normalizeError(e, 'listar simulacros con videos')))
     }
   }
@@ -595,7 +596,7 @@ class SimulacrosService {
       )
       return success(simulacro)
     } catch (e) {
-      console.error('❌ Error al obtener simulacro:', e)
+      logger.error('Error al obtener simulacro:', e)
       return failure(new ErrorAPI(normalizeError(e, 'obtener simulacro')))
     }
   }
@@ -734,7 +735,7 @@ class SimulacrosService {
       created.createdAt = now.toDate()
       return success(created)
     } catch (e) {
-      console.error('❌ Error al crear simulacro:', e)
+      logger.error('Error al crear simulacro:', e)
       return failure(new ErrorAPI(normalizeError(e, 'crear simulacro')))
     }
   }
@@ -781,7 +782,7 @@ class SimulacrosService {
         parseSimulacroDoc(id, updatedSnap.data() as Record<string, unknown>)
       )
     } catch (e) {
-      console.error('❌ Error al actualizar simulacro:', e)
+      logger.error('Error al actualizar simulacro:', e)
       return failure(new ErrorAPI(normalizeError(e, 'actualizar simulacro')))
     }
   }
@@ -856,7 +857,7 @@ class SimulacrosService {
       await deleteDoc(docRef)
       return success(undefined)
     } catch (e) {
-      console.error('❌ Error al eliminar simulacro:', e)
+      logger.error('Error al eliminar simulacro:', e)
       return failure(new ErrorAPI(normalizeError(e, 'eliminar simulacro')))
     }
   }
@@ -879,7 +880,7 @@ class SimulacrosService {
       const video = parseVideoDoc(snap.id, snap.data() as Record<string, unknown>)
       return success(video)
     } catch (e) {
-      console.error('❌ Error al añadir video:', e)
+      logger.error('Error al añadir video:', e)
       return failure(new ErrorAPI(normalizeError(e, 'añadir video')))
     }
   }
@@ -900,7 +901,7 @@ class SimulacrosService {
       await deleteDoc(videoRef)
       return success(undefined)
     } catch (e) {
-      console.error('❌ Error al eliminar video:', e)
+      logger.error('Error al eliminar video:', e)
       return failure(new ErrorAPI(normalizeError(e, 'eliminar video')))
     }
   }
@@ -930,7 +931,7 @@ class SimulacrosService {
       const video = parseVideoDoc(snap.id, snap.data() as Record<string, unknown>)
       return success(video)
     } catch (e) {
-      console.error('❌ Error al añadir video ICFES:', e)
+      logger.error('Error al añadir video ICFES:', e)
       return failure(new ErrorAPI(normalizeError(e, 'añadir video ICFES')))
     }
   }
@@ -959,7 +960,7 @@ class SimulacrosService {
       await deleteDoc(videoRef)
       return success(undefined)
     } catch (e) {
-      console.error('❌ Error al eliminar video ICFES:', e)
+      logger.error('Error al eliminar video ICFES:', e)
       return failure(new ErrorAPI(normalizeError(e, 'eliminar video ICFES')))
     }
   }
@@ -1007,7 +1008,7 @@ class SimulacrosService {
         parseSimulacroDoc(id, updatedSnap.data() as Record<string, unknown>)
       )
     } catch (e) {
-      console.error('❌ Error al actualizar PDFs:', e)
+      logger.error('Error al actualizar PDFs:', e)
       return failure(new ErrorAPI(normalizeError(e, 'actualizar PDFs')))
     }
   }

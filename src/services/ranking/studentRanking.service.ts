@@ -89,9 +89,7 @@ export async function getPhaseEvaluationsForRanking(
         if (evaluations.length > 0) return evaluations;
       }
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.warn(`⚠️ Error leyendo evaluaciones de ${studentId} fase ${phaseName}:`, error);
-      }
+      // silently ignore per-phase read errors
     }
   }
 

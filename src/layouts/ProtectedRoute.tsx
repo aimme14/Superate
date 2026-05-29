@@ -7,6 +7,7 @@ import { useNotification } from "@/hooks/ui/useNotification"
 import { useCurrentUser } from "@/hooks/query/useCurrentUser"
 import { useInstitution } from "@/hooks/query/useInstitutionQuery"
 import type { User } from "@/interfaces/db.interface"
+import { logger } from '@/utils/logger'
 
 /** Perfil Firestore puede incluir `inst` legacy además de `institutionId`. */
 type UserWithLegacyInst = User & { inst?: string }
@@ -46,7 +47,7 @@ function ProtectedRoute() {
     if (isUserError) {
       if (!profileErrorLogged.current) {
         profileErrorLogged.current = true
-        console.error("Error validando estado del usuario: no se pudo cargar el perfil")
+        logger.error("Error validando estado del usuario: no se pudo cargar el perfil")
       }
       return
     }

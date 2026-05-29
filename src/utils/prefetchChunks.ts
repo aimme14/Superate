@@ -59,10 +59,6 @@ export function prefetchTeacherDashboard(): void {
   void import("@/pages/dashboard/teacher/TeacherDashboard");
 }
 
-export function prefetchPrincipalDashboard(): void {
-  void import("@/pages/dashboard/principal/PrincipalDashboard");
-}
-
 export function prefetchRectorDashboard(): void {
   void import("@/pages/dashboard/rector/RectorDashboard");
 }

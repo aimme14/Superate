@@ -2,9 +2,8 @@
  * Cloud Functions para Supérate: API HTTP unificada (`superateHttp`) y triggers Firestore/Auth.
  */
 
-import * as functions from 'firebase-functions/v1';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, HttpsError, onRequest } from 'firebase-functions/v2/https';
 import { beforeUserSignedIn } from 'firebase-functions/v2/identity';
 import { db } from './config/firebase.config';
 import { rebuildStudentProgressSummary } from './services/studentProgressSummary.service';
@@ -70,17 +69,17 @@ async function displayNamesForAcademicPdf(
 
 /** HTTP unificada: incluye generación de plan de estudio (IA) y puede tardar varios minutos. */
 const SUPERATE_HTTP_TIMEOUT_SECONDS = 540;
-/** En Cloud Functions 1ª gen la CPU va ligada a la memoria; 256MB ≈ la mitad de 512MB. */
-const SUPERATE_HTTP_MEMORY = '256MB' as const;
 
-export const superateHttp = functions
-  .region(REGION)
-  .runWith({
+export const superateHttp = onRequest(
+  {
+    region: REGION,
+    memory: '512MiB',
     timeoutSeconds: SUPERATE_HTTP_TIMEOUT_SECONDS,
-    memory: SUPERATE_HTTP_MEMORY,
     secrets: ['YOUTUBE_API_KEY', 'GOOGLE_CSE_API_KEY', 'GOOGLE_CSE_ID'],
-  })
-  .https.onRequest(createSuperateHttpApp());
+    cors: true,
+  },
+  createSuperateHttpApp()
+);
 
 // =============================
 // TRIGGER: resumen de progreso por estudiante (denormalizado bajo institución)
@@ -420,7 +419,7 @@ export const onInstitutionWriteSyncClaims = onDocumentWritten(
     document: 'superate/auth/institutions/{institutionId}',
     region: REGION,
     memory: '256MiB',
-    timeoutSeconds: 10,
+    timeoutSeconds: 60,
   },
   async (event) => {
     const institutionId = event.params.institutionId as string;

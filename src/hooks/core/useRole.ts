@@ -86,19 +86,6 @@ export const useRole = () => {
       canManageForms: false,
       canAccessAdminPanel: false,
     },
-    principal: {
-      canViewDashboard: true,
-      canTakeExams: false,
-      canViewResults: true,
-      canViewProfile: true,
-      canManageUsers: true,
-      canManageExams: true,
-      canViewAnalytics: true,
-      canManageInstitution: true,
-      canCreateUsers: false,
-      canManageForms: false,
-      canAccessAdminPanel: false,
-    },
     rector: {
       canViewDashboard: true,
       canTakeExams: false,
@@ -131,15 +118,16 @@ export const useRole = () => {
     // Si el usuario o su institución no están activos, no tiene permisos
     if (!isUserActive || !isInstitutionActive) return false
     if (!userRole) return false
+    if (userRole === 'principal') return false
     return permissions[userRole][permission]
   }
 
   const isStudent = userRole === 'student'
   const isTeacher = userRole === 'teacher'
-  const isPrincipal = userRole === 'principal'
+  const isPrincipal = false
   const isRector = userRole === 'rector'
   const isAdmin = userRole === 'admin'
-  const isStaff = isTeacher || isPrincipal || isRector || isAdmin
+  const isStaff = isTeacher || isRector || isAdmin
 
   // Configuración de navegación por rol
   const navigationConfig = {
@@ -159,15 +147,6 @@ export const useRole = () => {
         { label: 'Gestionar Exámenes', href: '/exams/manage', icon: 'BookOpen' },
         { label: 'Estudiantes', href: '/students', icon: 'Users' },
         { label: 'Analíticas', href: '/analytics', icon: 'BarChart' },
-      ]
-    },
-    principal: {
-      mainRoutes: ['/dashboard/principal', '/institution', '/staff', '/reports'],
-      sidebarItems: [
-        { label: 'Dashboard', href: '/dashboard/principal', icon: 'Home' },
-        { label: 'Institución', href: '/institution', icon: 'Building' },
-        { label: 'Personal', href: '/staff', icon: 'Users' },
-        { label: 'Reportes', href: '/reports', icon: 'FileText' },
       ]
     },
     rector: {
@@ -194,13 +173,14 @@ export const useRole = () => {
 
   const getNavigationConfig = () => {
     if (!userRole) return navigationConfig.student // Fallback a student si no hay rol
+    if (userRole === 'principal') return navigationConfig.student
     return navigationConfig[userRole]
   }
 
   return {
     userRole,
     isRolePending,
-    permissions: userRole ? permissions[userRole] : permissions.student,
+    permissions: userRole && userRole !== 'principal' ? permissions[userRole] : permissions.student,
     hasPermission,
     isStudent,
     isTeacher,

@@ -8,14 +8,13 @@ import RoleBasedRedirect from '@/components/auth/RoleBasedRedirect'
 // Lazy load dashboards por rol: solo se descarga el dashboard que el usuario necesita
 const NewDashboard = lazy(() => import('./NewDashboard').then(m => ({ default: m.Home })))
 const TeacherDashboard = lazy(() => import('./teacher/TeacherDashboard'))
-const PrincipalDashboard = lazy(() => import('./principal/PrincipalDashboard'))
 const RectorDashboard = lazy(() => import('./rector/RectorDashboard'))
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
 
 const DashboardPage = () => {
   const { theme } = useThemeContext()
   const { user, loading } = useAuthContext()
-  const { userRole, isStudent, isTeacher, isPrincipal, isRector, isAdmin, isRolePending } = useRole()
+  const { userRole, isStudent, isTeacher, isRector, isAdmin, isRolePending } = useRole()
   
   // Si está cargando, mostrar skeleton
   if (loading || isRolePending) {
@@ -41,7 +40,6 @@ const DashboardPage = () => {
     <Suspense fallback={<Skeleton theme={theme} />}>
       {isStudent && <NewDashboard />}
       {isTeacher && <TeacherDashboard theme={theme} />}
-      {isPrincipal && <PrincipalDashboard theme={theme} />}
       {isRector && <RectorDashboard theme={theme} />}
       {isAdmin && <AdminDashboard theme={theme} />}
     </Suspense>

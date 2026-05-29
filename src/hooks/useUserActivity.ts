@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useAuthContext } from '@/context/AuthContext'
 import { dbService } from '@/services/firebase/db.service'
+import { logger } from '@/utils/logger'
 
 type UseUserActivityOptions = {
   /** Si es false, no registra actividad ni escribe en Firestore (p. ej. durante la portada inicial). */
@@ -35,10 +36,9 @@ export const useUserActivity = (options?: UseUserActivityOptions) => {
       } catch (error: any) {
         // Si es error de cuota, no loguear (evitar spam)
         if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
-          console.warn('⚠️ Cuota de Firebase excedida, omitiendo actualización de actividad')
           return
         }
-        console.error('Error al actualizar última actividad:', error)
+        logger.error('Error al actualizar última actividad:', error)
       }
     }
 

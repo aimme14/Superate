@@ -11,6 +11,7 @@ import {
   resolveGradeNameFromInstitution,
 } from "@/utils/resolveGradeNameFromInstitution"
 import { User as UserFB, getIdTokenResult } from "firebase/auth"
+import { logger } from '@/utils/logger'
 
 /** Payload de login: usuario de Auth + documento de Firestore ya validado (sin lecturas extra en el cliente). */
 export type LoginSuccessPayload = { firebaseUser: UserFB; profile: Record<string, unknown> }
@@ -23,15 +24,15 @@ export type LoginSuccessPayload = { firebaseUser: UserFB; profile: Record<string
  */
 export const login = async ({ email, password }: { email: string, password: string }): Promise<Result<LoginSuccessPayload>> => {
   try {
-    console.log('🔐 Intentando login para:', email)
+    logger.debug('Intentando login')
     
     const result = await authFB.login(email, password)
     if (!result.success) {
-      console.log('❌ Error en login de Firebase Auth:', result.error)
+      logger.error('Error en login de Firebase Auth:', result.error)
       throw result.error
     }
     
-    console.log('✅ Login de Firebase Auth exitoso para UID:', result.data.uid)
+    logger.debug('Login de Firebase Auth exitoso')
 
     // Refrescar token antes de lecturas a Firestore: las reglas usan claims en isAdminOrToken()
     // (p. ej. listados admin). El perfil por uid ya no depende de listar todas las instituciones.
@@ -39,25 +40,19 @@ export const login = async ({ email, password }: { email: string, password: stri
       await result.data.getIdToken(true)
       await getIdTokenResult(result.data)
     } catch (tokenErr) {
-      console.warn('⚠️ No se pudo refrescar token antes de cargar perfil:', tokenErr)
+      logger.warn('No se pudo refrescar token antes de cargar perfil:', tokenErr)
     }
 
     // Verificar el rol del usuario para determinar si requiere verificación de email
     const userData = await dbService.getUserById(result.data.uid, {
       authEmail: result.data.email ?? null,
     })
-    console.log('📊 Datos del usuario obtenidos:', userData)
     
     if (userData.success && userData.data) {
-      const userRole = userData.data.role
       const isActive = userData.data.isActive === true // Debe ser explícitamente true
-      
-      console.log('👤 Rol del usuario:', userRole)
-      console.log('👤 Usuario activo:', isActive)
       
       // Verificar si el usuario está activo
       if (!isActive) {
-        console.log('⚠️ Usuario inactivo - acceso denegado')
         return failure(new Unauthorized({ 
           message: 'Tu cuenta ha sido desactivada. No puedes iniciar sesión. Por favor, contacta al administrador del sistema para reactivar tu cuenta.' 
         }))
@@ -72,7 +67,6 @@ export const login = async ({ email, password }: { email: string, password: stri
           const institutionIsActive = institutionResult.data.isActive === true
           
           if (!institutionIsActive) {
-            console.log('⚠️ Institución inactiva - acceso denegado')
             return failure(new Unauthorized({ 
               message: 'La institución asociada a tu cuenta ha sido desactivada. No puedes iniciar sesión. Por favor, contacta al administrador del sistema para más información.' 
             }))
@@ -84,8 +78,6 @@ export const login = async ({ email, password }: { email: string, password: stri
       // La verificación de email es opcional y se envía al crear la cuenta
       // pero no es un requisito para iniciar sesión
       
-      console.log('✅ Login completado exitosamente')
-
       // Asegurar claims actualizados tras validar perfil (idempotente si ya refrescamos arriba)
       try {
         const tokenResult = await getIdTokenResult(result.data)
@@ -93,7 +85,7 @@ export const login = async ({ email, password }: { email: string, password: stri
           await result.data.getIdToken(true)
         }
       } catch (tokenErr) {
-        console.warn('⚠️ No se pudo refrescar token tras login:', tokenErr)
+        logger.warn('No se pudo refrescar token tras login:', tokenErr)
       }
 
       return success({
@@ -101,7 +93,7 @@ export const login = async ({ email, password }: { email: string, password: stri
         profile: userData.data,
       })
     } else {
-      console.log('❌ No se pudieron obtener los datos del usuario:', userData.success ? 'Sin datos' : userData.error)
+      logger.error('No se pudieron obtener los datos del usuario')
       if (!userData.success && userData.error) {
         return failure(userData.error)
       }
@@ -115,7 +107,6 @@ export const login = async ({ email, password }: { email: string, password: stri
     }
     
   } catch (e) { 
-    console.log('❌ Error en login:', e)
     return failure(new ErrorAPI(normalizeError(e, 'inicio de sesión'))) 
   }
 }
@@ -132,7 +123,7 @@ const assignStudentToTeachers = async (studentId: string, institutionId: string,
     // Obtener información del estudiante para conocer su jornada
     const studentResult = await dbService.getUserById(studentId)
     if (!studentResult.success) {
-      console.warn('No se pudo obtener información del estudiante:', studentResult.error)
+      logger.warn('No se pudo obtener información del estudiante al asignar')
       return
     }
 
@@ -142,7 +133,7 @@ const assignStudentToTeachers = async (studentId: string, institutionId: string,
     // Obtener todos los docentes del grado específico
     const teachersResult = await dbService.getTeachersByGrade(institutionId, campusId, gradeId)
     if (!teachersResult.success) {
-      console.warn('No se pudieron obtener los docentes del grado:', teachersResult.error)
+      logger.warn('No se pudieron obtener los docentes del grado')
       return
     }
 
@@ -166,33 +157,8 @@ const assignStudentToTeachers = async (studentId: string, institutionId: string,
       await dbService.assignStudentToTeacher(teacher.id, studentId)
     }
 
-    console.log(`✅ Estudiante ${studentId} (jornada: ${studentJornada || 'no especificada'}) asignado a ${matchingTeachers.length} docentes del grado ${gradeId}`)
   } catch (error) {
-    console.error('Error al asignar estudiante a docentes:', error)
-  }
-}
-
-/**
- * Asigna automáticamente un estudiante al coordinador de la sede
- * @param {string} studentId - ID del estudiante
- * @param {string} institutionId - ID de la institución
- * @param {string} campusId - ID de la sede
- */
-const assignStudentToPrincipal = async (studentId: string, institutionId: string, campusId: string): Promise<void> => {
-  try {
-    // Obtener el coordinador de la sede
-    const principalResult = await dbService.getPrincipalByCampus(institutionId, campusId)
-    if (!principalResult.success) {
-      console.warn('No se encontró coordinador para la sede:', principalResult.error)
-      return
-    }
-
-    // Asignar el estudiante al coordinador
-    await dbService.assignStudentToPrincipal(principalResult.data.id, studentId)
-
-    console.log(`✅ Estudiante ${studentId} asignado al coordinador ${principalResult.data.name}`)
-  } catch (error) {
-    console.error('Error al asignar estudiante al coordinador:', error)
+    logger.error('Error al asignar estudiante a docentes:', error)
   }
 }
 
@@ -206,16 +172,15 @@ const assignStudentToRector = async (studentId: string, institutionId: string): 
     // Obtener el rector de la institución
     const rectorResult = await dbService.getRectorByInstitution(institutionId)
     if (!rectorResult.success) {
-      console.warn('No se encontró rector para la institución:', rectorResult.error)
+      logger.warn('No se encontró rector para la institución')
       return
     }
 
     // Asignar el estudiante al rector
     await dbService.assignStudentToRector(rectorResult.data.id, studentId)
 
-    console.log(`✅ Estudiante ${studentId} asignado al rector ${rectorResult.data.name}`)
   } catch (error) {
-    console.error('Error al asignar estudiante al rector:', error)
+    logger.error('Error al asignar estudiante al rector:', error)
   }
 }
 
@@ -322,15 +287,11 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     dbUserData.academicYear = academicYear
 
     // Usar directamente la nueva estructura jerárquica para estudiantes
-    console.log('🆕 Registrando estudiante usando nueva estructura jerárquica')
     const dbResult = await dbService.createUserInNewStructure(userAccount.data, dbUserData)
     if (!dbResult.success) throw dbResult.error
 
     // Asignar automáticamente a docentes del mismo grado
     await assignStudentToTeachers(userAccount.data.uid, inst, campus, grade)
-
-    // Asignar automáticamente al coordinador de la sede
-    await assignStudentToPrincipal(userAccount.data.uid, inst, campus)
 
     // Asignar automáticamente al rector de la institución
     await assignStudentToRector(userAccount.data.uid, inst)
@@ -338,7 +299,7 @@ export const register = async (user: RegisterFormProps): Promise<Result<void>> =
     // Enviar verificación de email
     const emailVerification = await authFB.sendEmailVerification()
     if (!emailVerification.success) {
-      console.warn('No se pudo enviar verificación de email:', emailVerification.error)
+      logger.warn('No se pudo enviar verificación de email')
     }
 
     return success(undefined)

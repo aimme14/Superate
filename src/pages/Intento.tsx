@@ -215,7 +215,6 @@ function FlipCard({
                     )}
                     onClick={(e) => {
                       e.stopPropagation()
-                      console.log(`Iniciando prueba: ${title}`)
                     }}
                   >
                     <Play className="w-4 h-4 mr-2" />

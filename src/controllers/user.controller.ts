@@ -3,6 +3,7 @@ import { dbService } from "@/services/firebase/db.service"
 import { RegisterFormProps } from "@/schemas/auth.schema"
 import { normalizeError } from "@/errors/handler"
 import ErrorAPI from "@/errors"
+import { logger } from '@/utils/logger'
 
 /**
  * Obtiene todos los usuarios.
@@ -32,7 +33,7 @@ export const getUserById = async (id: string, opts?: GetUserByIdOptions): Promis
     // Enriquecer los datos del usuario con nombres de institución, sede y grado
     const enrichedUser = await dbService.enrichUserData(result.data)
     if (!enrichedUser.success) {
-      console.warn('No se pudieron enriquecer los datos del usuario:', enrichedUser.error)
+      logger.warn('No se pudieron enriquecer los datos del usuario');
       return success(result.data) // Retornar datos sin enriquecer si falla
     }
     

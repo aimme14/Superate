@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { logger } from '@/utils/logger'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +10,6 @@ import { cn } from '@/lib/utils'
 import { useNotification } from '@/hooks/ui/useNotification'
 import { useInstitutionOptions, useCampusOptions, useGradeOptions } from '@/hooks/query/useInstitutionQuery'
 import { useTeacherMutations } from '@/hooks/query/useTeacherQuery'
-import { usePrincipalMutations } from '@/hooks/query/usePrincipalQuery'
 import { useRectorMutations } from '@/hooks/query/useRectorQuery'
 import { useStudentMutations } from '@/hooks/query/useStudentQuery'
 import { debugFormData } from '@/utils/debugFormData'
@@ -26,7 +26,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    role: 'student' as 'student' | 'teacher' | 'principal' | 'rector',
+    role: 'student' as 'student' | 'teacher' | 'rector',
     institution: '',
     campus: '',
     grade: '',
@@ -43,7 +43,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
   } | null>(null)
 
   const { createTeacher } = useTeacherMutations()
-  const { createPrincipal } = usePrincipalMutations()
   const { createRector } = useRectorMutations()
   const { createStudent } = useStudentMutations()
 
@@ -163,23 +162,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
 
         const teacherResult = await createTeacher.mutateAsync(teacherData)
         result = { success: true, data: teacherResult }
-      } else if (newUser.role === 'principal') {
-        if (!newUser.campus) {
-          notifyError({ title: 'Error', message: 'Sede es obligatoria para coordinadores' })
-          return
-        }
-
-        const principalData = {
-          name: newUser.name,
-          email: newUser.email,
-          institutionId: newUser.institution,
-          campusId: newUser.campus,
-          phone: undefined,
-          password: newUser.password,
-        }
-
-        const principalResult = await createPrincipal.mutateAsync(principalData)
-        result = { success: true, data: principalResult }
       } else {
         const rectorData = {
           name: newUser.name,
@@ -227,7 +209,7 @@ export default function UserManagement({ theme }: UserManagementProps) {
       })
 
     } catch (error) {
-      console.error('Error creating user:', error)
+      logger.error('Error creating user:', error)
       notifyError({
         title: 'Error',
         message: error instanceof Error ? error.message : 'Error al crear el usuario',
@@ -238,7 +220,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
   const isCreating =
     createStudent.isPending ||
     createTeacher.isPending ||
-    createPrincipal.isPending ||
     createRector.isPending
 
   return (
@@ -309,11 +290,11 @@ export default function UserManagement({ theme }: UserManagementProps) {
                     </Label>
                     <Select
                       value={newUser.role}
-                      onValueChange={(value: 'student' | 'teacher' | 'principal' | 'rector') =>
+                      onValueChange={(value: 'student' | 'teacher' | 'rector') =>
                         setNewUser((prev) => ({
                           ...prev,
                           role: value,
-                          grade: value === 'principal' || value === 'rector' ? '' : prev.grade,
+                          grade: value === 'rector' ? '' : prev.grade,
                           campus: value === 'rector' ? '' : prev.campus,
                         }))
                       }
@@ -324,7 +305,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
                       <SelectContent>
                         <SelectItem value="student">Estudiante</SelectItem>
                         <SelectItem value="teacher">Docente</SelectItem>
-                        <SelectItem value="principal">Coordinador</SelectItem>
                         <SelectItem value="rector">Rector</SelectItem>
                       </SelectContent>
                     </Select>
@@ -425,19 +405,6 @@ export default function UserManagement({ theme }: UserManagementProps) {
                       </div>
                     </div>
                   </>
-                )}
-
-                {newUser.role === 'principal' && newUser.campus && (
-                  <div
-                    className={cn(
-                      'p-2 border rounded-md text-xs',
-                      theme === 'dark' ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50/50 border-blue-200'
-                    )}
-                  >
-                    <div className={cn(theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
-                      <strong className="text-xs">Coordinador:</strong> Se asignará a la sede seleccionada.
-                    </div>
-                  </div>
                 )}
 
                 {newUser.role === 'rector' && newUser.institution && (

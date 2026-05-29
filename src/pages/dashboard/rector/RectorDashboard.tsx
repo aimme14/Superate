@@ -9,7 +9,6 @@ import { Building2, GraduationCap, TrendingUp, Users, UserCog, Crown, Target, Wr
 import ReactECharts from 'echarts-for-react'
 import { DashboardRoleSkeleton } from '@/components/common/skeletons/DashboardRoleSkeleton'
 import { useCurrentRector } from '@/hooks/query/useRectorQuery'
-import { usePrincipalsByInstitution } from '@/hooks/query/usePrincipalQuery'
 import { useTeachersByInstitution } from '@/hooks/query/useTeacherQuery'
 import { useFilteredStudents } from '@/hooks/query/useStudentQuery'
 import { useUserInstitution } from '@/hooks/query/useUserInstitution'
@@ -106,10 +105,7 @@ export default function RectorDashboard({ theme }: RectorDashboardProps) {
     }
   }
 
-  const { data: coordinators = [] } = usePrincipalsByInstitution(
-    institutionId,
-    activeTab === 'administrativos' && !!institutionId
-  )
+  const coordinators: any[] = []
   const { data: teachers = [] } = useTeachersByInstitution(
     institutionId,
     activeTab === 'administrativos' && !!institutionId

@@ -33,7 +33,6 @@ const SimulacrosIAPage = lazy(() => import("@/pages/SimulacrosIAPage"));
 const SimulacrosICFESPage = lazy(() => import("@/pages/SimulacrosICFESPage"));
 
 const TeacherDashboard = lazy(() => import("@/pages/dashboard/teacher/TeacherDashboard"));
-const PrincipalDashboard = lazy(() => import("@/pages/dashboard/principal/PrincipalDashboard"));
 const RectorDashboard = lazy(() => import("@/pages/dashboard/rector/RectorDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/dashboard/admin/AdminDashboard"));
 const NewDashboard = lazy(() =>
@@ -143,17 +142,6 @@ function App() {
                     <RoleProtectedRoute allowedRoles={["teacher"]}>
                       <LazyRouteBoundary variant="page">
                         <TeacherDashboard theme="light" />
-                      </LazyRouteBoundary>
-                    </RoleProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/principal"
-                  element={
-                    <RoleProtectedRoute allowedRoles={["principal"]}>
-                      <LazyRouteBoundary variant="page">
-                        <PrincipalDashboard theme="light" />
                       </LazyRouteBoundary>
                     </RoleProtectedRoute>
                   }

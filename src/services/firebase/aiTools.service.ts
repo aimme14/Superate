@@ -19,6 +19,7 @@ import { firebaseApp } from '@/services/db'
 import { success, failure, Result } from '@/interfaces/db.interface'
 import ErrorAPI from '@/errors'
 import { normalizeError } from '@/errors/handler'
+import { logger } from '@/utils/logger'
 
 const db = getFirestore(firebaseApp)
 const storage = getStorage(firebaseApp)
@@ -232,7 +233,7 @@ export async function uploadAIToolIcon(toolId: string, file: File): Promise<Resu
       try {
         fileToUpload = await compressImageForIcon(file, MAX_ICON_SIZE_BYTES)
       } catch (e) {
-        console.warn('⚠️ Error al comprimir icono, se intenta subir el original:', e)
+        logger.warn('⚠️ Error al comprimir icono, se intenta subir el original:', e)
       }
       if (fileToUpload.size > MAX_ICON_SIZE_BYTES) {
         return failure(
@@ -255,7 +256,7 @@ export async function uploadAIToolIcon(toolId: string, file: File): Promise<Resu
     const downloadURL = await getDownloadURL(storageRef)
     return success(downloadURL)
   } catch (e) {
-    console.error('❌ Error al subir icono de herramienta IA:', e)
+    logger.error('❌ Error al subir icono de herramienta IA:', e)
     return failure(new ErrorAPI(normalizeError(e, 'subir icono')))
   }
 }
@@ -282,7 +283,7 @@ export async function deleteAIToolIcon(iconUrlOrToolId: string): Promise<Result<
   } catch (e: unknown) {
     const err = e as { code?: string }
     if (err?.code === 'storage/object-not-found') return success(undefined)
-    console.error('❌ Error al eliminar icono:', e)
+    logger.error('❌ Error al eliminar icono:', e)
     return failure(new ErrorAPI(normalizeError(e, 'eliminar icono')))
   }
 }
@@ -312,7 +313,7 @@ class AIToolsService {
       })
       return success(list)
     } catch (e) {
-      console.error('❌ Error al listar herramientas IA:', e)
+      logger.error('❌ Error al listar herramientas IA:', e)
       return failure(new ErrorAPI(normalizeError(e, 'listar herramientas IA')))
     }
   }
@@ -357,7 +358,7 @@ class AIToolsService {
           : undefined,
       })
     } catch (e) {
-      console.error('❌ Error al listar herramientas IA paginadas:', e)
+      logger.error('❌ Error al listar herramientas IA paginadas:', e)
       return failure(new ErrorAPI(normalizeError(e, 'listar herramientas IA paginadas')))
     }
   }
@@ -385,7 +386,7 @@ class AIToolsService {
       if (!snap.exists()) return success(null)
       return success(parseAIToolDoc(snap.id, snap.data() as Record<string, unknown>))
     } catch (e) {
-      console.error('❌ Error al obtener herramienta IA:', e)
+      logger.error('❌ Error al obtener herramienta IA:', e)
       return failure(new ErrorAPI(normalizeError(e, 'obtener herramienta IA')))
     }
   }
@@ -424,7 +425,7 @@ class AIToolsService {
       }
       return success(created)
     } catch (e) {
-      console.error('❌ Error al crear herramienta IA:', e)
+      logger.error('❌ Error al crear herramienta IA:', e)
       return failure(new ErrorAPI(normalizeError(e, 'crear herramienta IA')))
     }
   }
@@ -466,7 +467,7 @@ class AIToolsService {
       })
       return success(updated)
     } catch (e) {
-      console.error('❌ Error al actualizar herramienta IA:', e)
+      logger.error('❌ Error al actualizar herramienta IA:', e)
       return failure(new ErrorAPI(normalizeError(e, 'actualizar herramienta IA')))
     }
   }
@@ -484,7 +485,7 @@ class AIToolsService {
       await deleteDoc(docRef)
       return success(undefined)
     } catch (e) {
-      console.error('❌ Error al eliminar herramienta IA:', e)
+      logger.error('❌ Error al eliminar herramienta IA:', e)
       return failure(new ErrorAPI(normalizeError(e, 'eliminar herramienta IA')))
     }
   }

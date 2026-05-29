@@ -10,6 +10,7 @@ import { BookOpen, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNotification } from '@/hooks/ui/useNotification';
 import { CLOUD_FUNCTIONS_HTTP_BASE } from '@/config/cloudFunctions';
+import { logger } from '@/utils/logger';
 
 interface WordDefinition {
   palabra: string;
@@ -71,7 +72,7 @@ export function VocabularyBank({ materia, theme = 'light' }: VocabularyBankProps
           throw new Error(data.error?.message || 'Error al cargar palabras');
         }
       } catch (error: unknown) {
-        console.error('Error cargando palabras:', error);
+        logger.error('Error cargando palabras:', error);
         notifyError({
           title: 'Error',
           message: 'No se pudieron cargar las palabras. Intenta nuevamente.',

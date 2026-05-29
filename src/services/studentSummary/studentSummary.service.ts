@@ -17,6 +17,7 @@ import { Result, success, failure } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 
 import { normalizeError } from '@/errors/handler';
+import { logger } from '@/utils/logger'
 
 import { CLOUD_FUNCTIONS_HTTP_BASE } from '@/config/cloudFunctions';
 
@@ -479,7 +480,7 @@ class StudentSummaryService {
 
     } catch (e) {
 
-      console.error('Error generando resumen académico:', e);
+      logger.error('Error generando resumen académico:', e);
 
       return failure(new ErrorAPI(normalizeError(e, 'generar resumen académico')));
 
@@ -545,7 +546,7 @@ class StudentSummaryService {
 
     } catch (e) {
 
-      console.error('Error obteniendo resumen académico:', e);
+      logger.error('Error obteniendo resumen académico:', e);
 
       return failure(new ErrorAPI(normalizeError(e, 'obtener resumen académico')));
 

@@ -62,8 +62,8 @@ const renderMathInHtml = (html: string): string => {
         textNode.parentNode?.replaceChild(wrapper, textNode)
       }
     })
-  } catch (e) {
-    console.warn('Error procesando fórmulas matemáticas:', e)
+  } catch {
+    // silently ignore
   }
   
   return tempDiv.innerHTML
@@ -119,15 +119,12 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
               strict: false,
             })
             el.classList.add('katex-formula')
-          } catch (error) {
-            console.error('Error renderizando fórmula:', error)
+          } catch {
             el.textContent = latex
           }
         })
       })
-      .catch(() => {
-        console.warn('No se pudo cargar KaTeX')
-      })
+      .catch(() => { /* silently ignore */ })
   }, [text])
   
   return <div ref={containerRef} className={className} />
@@ -785,10 +782,9 @@ export default function EvaluationsTab() {
                                           src={option.imageUrl} 
                                           alt={`Opción ${option.id}`}
                                           className="max-w-xs h-auto rounded-lg border shadow-sm"
-                                          onError={(e) => {
-                                            console.error('Error cargando imagen de opción:', option.imageUrl);
-                                            e.currentTarget.style.display = 'none';
-                                          }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
                                         />
                                       </div>
                                     )}

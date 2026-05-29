@@ -51,7 +51,7 @@ async function bootstrap() {
       </React.StrictMode>
     )
   } catch (error) {
-    console.error('Error de arranque de la aplicación:', error)
+    // Error de arranque visible solo en desarrollo (productionErrorHandler captura el resto)
     renderBootstrapError('Ocurrió un problema al cargar la aplicación en este navegador.')
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { logger } from '@/utils/logger'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -173,7 +174,7 @@ const MathText = ({ text, className = '' }: { text: string; className?: string }
           })
           el.classList.add('katex-formula')
         } catch (error) {
-          console.error('Error renderizando fórmula:', error)
+          logger.error('Error renderizando fórmula:', error)
           el.textContent = latex
         }
       }
@@ -622,11 +623,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     // Si la opción tiene una imagen en Firebase Storage, eliminarla
     if (option?.imageUrl && option.imageUrl.trim() !== '' && !option.imageUrl.startsWith('data:')) {
       try {
-        console.log(`🗑️ Eliminando imagen de opción ${optionId} del Storage...`)
-        await questionService.deleteImage(option.imageUrl)
-        console.log('✅ Imagen eliminada del Storage correctamente')
-      } catch (error) {
-        console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+                await questionService.deleteImage(option.imageUrl)
+              } catch (error) {
+        logger.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
       }
     }
     
@@ -670,11 +669,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     // Si la opción tiene una imagen en Firebase Storage, eliminarla
     if (option?.imageUrl && option.imageUrl.trim() !== '' && !option.imageUrl.startsWith('data:')) {
       try {
-        console.log(`🗑️ Eliminando imagen de opción ${optionId} de pregunta ${questionId} del Storage...`)
-        await questionService.deleteImage(option.imageUrl)
-        console.log('✅ Imagen eliminada del Storage correctamente')
-      } catch (error) {
-        console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+                await questionService.deleteImage(option.imageUrl)
+              } catch (error) {
+        logger.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
       }
     }
     
@@ -747,11 +744,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     // Si la opción tiene una imagen en Firebase Storage, eliminarla
     if (option?.imageUrl && option.imageUrl.trim() !== '' && !option.imageUrl.startsWith('data:')) {
       try {
-        console.log(`🗑️ Eliminando imagen de opción ${optionId} de pregunta ${questionId} del Storage...`)
-        await questionService.deleteImage(option.imageUrl)
-        console.log('✅ Imagen eliminada del Storage correctamente')
-      } catch (error) {
-        console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+                await questionService.deleteImage(option.imageUrl)
+              } catch (error) {
+        logger.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
       }
     }
     
@@ -805,8 +800,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   }
 
   const resetForm = () => {
-    console.log('🔄 Reseteando formulario completamente...')
-    setFormData({
+        setFormData({
       subject: '',
       subjectCode: '',
       topic: '',
@@ -833,8 +827,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
     setOptionImagePreviews({ A: null, B: null, C: null, D: null })
     // Limpiar estados de modalidades de Inglés
     setInglesModality('standard_mc')
-    console.log('✅ Modalidad de Inglés reseteada a: standard_mc')
-    setMatchingQuestions([])
+        setMatchingQuestions([])
     setExpandedViewOptions(new Set())
     setClozeText('')
     setClozeGaps({})
@@ -920,8 +913,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       try {
         // Si el archivo es muy grande (>2MB), usar una versión muy comprimida
         if (file.size > 2 * 1024 * 1024) {
-          console.log('⚠️ Archivo muy grande, comprimiendo agresivamente...')
-          const compressedFile = await compressImage(file, 400, 0.5) // Más compresión
+                    const compressedFile = await compressImage(file, 400, 0.5) // Más compresión
           const reader = new FileReader()
           reader.onloadend = () => resolve(reader.result as string)
           reader.onerror = reject
@@ -936,8 +928,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       } catch (error) {
         // Si falla la compresión, usar el archivo original pero con timeout
-        console.log('⚠️ Usando archivo original como fallback')
-        const reader = new FileReader()
+                const reader = new FileReader()
         
         // Timeout extendido para evitar que se quede colgado
         const timeout = setTimeout(() => {
@@ -973,13 +964,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
       // Validaciones específicas según modalidad de Inglés
       if (formData.subjectCode === 'IN') {
-        console.log('🔍 Validando pregunta de Inglés con modalidad:', inglesModality)
-        
+                
         if (inglesModality === 'matching_columns') {
           // Validar Matching / Columnas (nueva estructura por bloques)
           if (matchingQuestions.length === 0) {
             errors['matchingQuestions'] = true
-            console.error('❌ Error: No hay preguntas de matching agregadas')
+            logger.error('❌ Error: No hay preguntas de matching agregadas')
           }
           // Validar cada pregunta de matching
           matchingQuestions.forEach((mq, mqIndex) => {
@@ -1001,7 +991,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           // Validar Cloze Test
           if (!clozeText.trim()) {
             errors['clozeText'] = true
-            console.error('❌ Error: No hay texto de Cloze Test')
+            logger.error('❌ Error: No hay texto de Cloze Test')
           }
           // Validar que todos los huecos tengan opciones y respuesta correcta
           // Extraer texto plano para detectar marcadores
@@ -1074,19 +1064,19 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           
           if (!questionTextPlain) {
             errors['questionText'] = true
-            console.error('❌ Error: El texto de la pregunta está vacío')
+            logger.error('❌ Error: El texto de la pregunta está vacío')
           }
           // Validar que todas las opciones tengan contenido
           const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id])
           if (emptyOptions.length > 0) {
             errors['options'] = true
-            console.error('❌ Error: Hay opciones vacías')
+            logger.error('❌ Error: Hay opciones vacías')
           }
           // Validar que haya exactamente una respuesta correcta
           const correctOptions = options.filter(opt => opt.isCorrect)
           if (correctOptions.length !== 1) {
             errors['correctAnswer'] = true
-            console.error(`❌ Error: Debe haber exactamente una respuesta correcta, hay ${correctOptions.length}`)
+            logger.error(`❌ Error: Debe haber exactamente una respuesta correcta, hay ${correctOptions.length}`)
           }
         }
       } else {
@@ -1131,19 +1121,19 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           
           if (!questionTextPlain) {
             errors['questionText'] = true
-            console.error('❌ Error: El texto de la pregunta está vacío')
+            logger.error('❌ Error: El texto de la pregunta está vacío')
           }
           // Validar que todas las opciones tengan contenido
           const emptyOptions = options.filter(opt => !opt.text && !optionFiles[opt.id])
           if (emptyOptions.length > 0) {
             errors['options'] = true
-            console.error('❌ Error: Hay opciones vacías')
+            logger.error('❌ Error: Hay opciones vacías')
           }
           // Validar que haya exactamente una respuesta correcta
           const correctOptions = options.filter(opt => opt.isCorrect)
           if (correctOptions.length !== 1) {
             errors['correctAnswer'] = true
-            console.error(`❌ Error: Debe haber exactamente una respuesta correcta, hay ${correctOptions.length}`)
+            logger.error(`❌ Error: Debe haber exactamente una respuesta correcta, hay ${correctOptions.length}`)
           }
         }
       }
@@ -1254,17 +1244,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         return
       }
 
-      console.log('🔍 Usuario autenticado:', {
-        uid: currentUser.uid,
-        email: currentUser.email,
-        role: currentUser.role,
-        displayName: currentUser.displayName
-      })
-
+      
       // Validación preventiva: verificar consistencia entre modalidad y datos ANTES de procesar imágenes
       if (formData.subjectCode === 'IN') {
-        console.log('🔍 Verificando consistencia de modalidad de Inglés:', inglesModality)
-        
+                
         if (inglesModality === 'matching_columns' && matchingQuestions.length === 0) {
           notifyError({ 
             title: 'Modalidad Incorrecta', 
@@ -1291,9 +1274,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
 
       setIsSubmitting(true)
-      console.log('🚀 Iniciando proceso de creación de pregunta...')
-      console.log('📋 Modalidad actual:', formData.subjectCode === 'IN' ? `Inglés - ${inglesModality}` : formData.subject)
-
+            
       // Mostrar mensaje de progreso
       notifySuccess({ 
         title: 'Procesando', 
@@ -1301,8 +1282,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       })
 
       // Procesar imágenes informativas (optimizado)
-      console.log('📤 Procesando imágenes informativas...', informativeImages.length)
-      const informativeImageUrls: string[] = []
+            const informativeImageUrls: string[] = []
       
       if (informativeImages.length > 0) {
         notifySuccess({ 
@@ -1312,8 +1292,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         // Procesar imágenes en paralelo para mayor eficiencia
         const imagePromises = informativeImages.map(async (file, index) => {
-          console.log(`📤 Procesando imagen informativa ${index + 1}/${informativeImages.length}:`, file.name)
-          try {
+                    try {
             // Intentar Firebase Storage primero con timeout
             const storagePromise = questionService.uploadImage(
               file, 
@@ -1327,19 +1306,16 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             const result = await Promise.race([storagePromise, timeoutPromise]) as any
             
             if (result.success) {
-              console.log('✅ Imagen informativa subida a Firebase:', result.data)
-              return result.data
+                            return result.data
             } else {
               throw new Error('Storage failed')
             }
           } catch (error) {
-            console.log('⚠️ Fallback a Base64 para imagen informativa')
-            try {
+                        try {
               const base64Url = await fileToBase64(file)
-              console.log('✅ Imagen informativa convertida a Base64')
-              return base64Url
+                            return base64Url
             } catch (base64Error) {
-              console.error('❌ Error procesando imagen informativa:', base64Error)
+              logger.error('❌ Error procesando imagen informativa:', base64Error)
               return null
             }
           }
@@ -1359,8 +1335,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
 
       // Procesar imágenes de la pregunta (optimizado)
-      console.log('📤 Procesando imágenes de pregunta...', questionImages.length)
-      const questionImageUrls: string[] = []
+            const questionImageUrls: string[] = []
       
       if (questionImages.length > 0) {
         notifySuccess({ 
@@ -1370,8 +1345,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         // Procesar imágenes en paralelo
         const imagePromises = questionImages.map(async (file, index) => {
-          console.log(`📤 Procesando imagen de pregunta ${index + 1}/${questionImages.length}:`, file.name)
-          try {
+                    try {
             // Intentar Firebase Storage primero con timeout
             const storagePromise = questionService.uploadImage(
               file, 
@@ -1385,19 +1359,16 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             const result = await Promise.race([storagePromise, timeoutPromise]) as any
             
             if (result.success) {
-              console.log('✅ Imagen de pregunta subida a Firebase:', result.data)
-              return result.data
+                            return result.data
             } else {
               throw new Error('Storage failed')
             }
           } catch (error) {
-            console.log('⚠️ Fallback a Base64 para imagen de pregunta')
-            try {
+                        try {
               const base64Url = await fileToBase64(file)
-              console.log('✅ Imagen de pregunta convertida a Base64')
-              return base64Url
+                            return base64Url
             } catch (base64Error) {
-              console.error('❌ Error procesando imagen de pregunta:', base64Error)
+              logger.error('❌ Error procesando imagen de pregunta:', base64Error)
               return null
             }
           }
@@ -1417,16 +1388,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       }
 
       // Procesar imágenes de opciones (optimizado)
-      console.log('📤 Procesando opciones...')
-      const finalOptions: QuestionOption[] = []
+            const finalOptions: QuestionOption[] = []
       
       // Procesar todas las opciones en paralelo
       const optionPromises = options.map(async (option) => {
         let imageUrl = null
         
         if (optionFiles[option.id]) {
-          console.log('📤 Procesando imagen de opción:', option.id)
-          try {
+                    try {
             // Intentar Firebase Storage primero con timeout
             const storagePromise = questionService.uploadImage(
               optionFiles[option.id]!, 
@@ -1441,17 +1410,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             if (result.success) {
               imageUrl = result.data
-              console.log('✅ Imagen de opción subida a Firebase:', result.data)
-            } else {
+                          } else {
               throw new Error('Storage failed')
             }
           } catch (error) {
-            console.log('⚠️ Fallback a Base64 para imagen de opción')
-            try {
+                        try {
               imageUrl = await fileToBase64(optionFiles[option.id]!)
-              console.log('✅ Imagen de opción convertida a Base64')
-            } catch (base64Error) {
-              console.error('❌ Error procesando imagen de opción:', base64Error)
+                          } catch (base64Error) {
+              logger.error('❌ Error procesando imagen de opción:', base64Error)
               notifyError({ 
                 title: 'Error', 
                 message: `Error procesando imagen de opción ${option.id}` 
@@ -1471,14 +1437,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         if (result.status === 'fulfilled') {
           finalOptions.push(result.value)
         } else {
-          console.error('❌ Error procesando opción:', result.reason)
+          logger.error('❌ Error procesando opción:', result.reason)
         }
       })
 
       // Manejar Matching / Columnas: crear múltiples preguntas
       if (formData.subjectCode === 'IN' && inglesModality === 'matching_columns') {
-        console.log('🔗 Modo Matching / Columnas: Creando múltiples preguntas...')
-        
+                
         // Crear identificador común para agrupar preguntas de matching/columnas
         // Usar un formato especial que combine el identificador con el texto real del usuario
         // Formato: MATCHING_COLUMNS_GROUP_ID|texto real del usuario
@@ -1507,8 +1472,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             // Procesar imagen de la pregunta si existe
             let questionImageUrl: string | null = null
             if (mq.questionImage) {
-              console.log(`📤 Procesando imagen de pregunta ${i + 1}/${matchingQuestions.length}:`, mq.questionImage.name)
-              try {
+                            try {
                 // Intentar Firebase Storage primero con timeout
                 const storagePromise = questionService.uploadImage(
                   mq.questionImage, 
@@ -1521,19 +1485,16 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 const result = await Promise.race([storagePromise, timeoutPromise]) as any
                 
                 if (result.success) {
-                  console.log('✅ Imagen de pregunta matching subida a Firebase:', result.data)
-                  questionImageUrl = result.data
+                                    questionImageUrl = result.data
                 } else {
                   throw new Error('Storage failed')
                 }
               } catch (error) {
-                console.log('⚠️ Fallback a Base64 para imagen de pregunta matching')
-                try {
+                                try {
                   const base64Url = await fileToBase64(mq.questionImage)
-                  console.log('✅ Imagen de pregunta matching convertida a Base64')
-                  questionImageUrl = base64Url
+                                    questionImageUrl = base64Url
                 } catch (base64Error) {
-                  console.error('❌ Error procesando imagen de pregunta matching:', base64Error)
+                  logger.error('❌ Error procesando imagen de pregunta matching:', base64Error)
                   questionImageUrl = null
                 }
               }
@@ -1547,16 +1508,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               answerType: 'MCQ' as const,
               options: mq.options,
             }
-            
-            // Debug: Verificar que el informativeText se esté estableciendo correctamente
-            console.log(`🔗 Creando pregunta matching ${i + 1}/${matchingQuestions.length}:`, {
-              code: questionData.code || 'N/A',
-              informativeText: questionData.informativeText,
-              questionText: questionData.questionText?.substring(0, 50) + '...',
-              topicCode: questionData.topicCode,
-              grade: questionData.grade,
-              levelCode: questionData.levelCode
-            })
 
             // Agregar imagen de la pregunta si existe
             if (questionImageUrl) {
@@ -1574,14 +1525,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               createdQuestions.push(result.data.code)
               createdQuestionItems.push(result.data)
               successCount++
-              console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
-            } else {
+                          } else {
               errorCount++
-              console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+              logger.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
             }
           } catch (error) {
             errorCount++
-            console.error(`❌ Error creando pregunta ${i + 1}:`, error)
+            logger.error(`❌ Error creando pregunta ${i + 1}:`, error)
           }
         }
 
@@ -1612,8 +1562,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       } else if (formData.subjectCode === 'IN' && inglesModality === 'cloze_test') {
         // Manejar Cloze Test: crear múltiples preguntas agrupadas (una por cada hueco)
-        console.log('📝 Modo Cloze Test: Creando múltiples preguntas agrupadas...')
-        
+                
         // Extraer texto plano para detectar marcadores
         const tempDiv = document.createElement('div')
         tempDiv.innerHTML = clozeText
@@ -1652,7 +1601,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const gapData = clozeGaps[gapNum]
           
           if (!gapData) {
-            console.error(`❌ No hay datos para el hueco ${gapNum}`)
+            logger.error(`❌ No hay datos para el hueco ${gapNum}`)
             errorCount++
             continue
           }
@@ -1685,7 +1634,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
 
           try {
-            console.log(`📝 Creando pregunta de cloze ${i + 1}/${sortedGaps.length} (Hueco ${gapNum})...`)
             // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
             const timeoutPromise = new Promise((_, reject) => {
               setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (60 segundos)')), 60000)
@@ -1698,14 +1646,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               createdQuestions.push(result.data.code)
               createdQuestionItems.push(result.data)
               successCount++
-              console.log(`✅ Pregunta de cloze ${i + 1} creada: ${result.data.code} (Hueco ${gapNum})`)
             } else {
               errorCount++
-              console.error(`❌ Error creando pregunta de cloze ${i + 1} (Hueco ${gapNum}):`, result.error)
+              logger.error(`❌ Error creando pregunta de cloze ${i + 1} (Hueco ${gapNum}):`, result.error)
             }
           } catch (error) {
             errorCount++
-            console.error(`❌ Error creando pregunta de cloze ${i + 1} (Hueco ${gapNum}):`, error)
+            logger.error(`❌ Error creando pregunta de cloze ${i + 1} (Hueco ${gapNum}):`, error)
           }
         }
 
@@ -1736,8 +1683,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       } else if (formData.subjectCode === 'IN' && inglesModality === 'reading_comprehension') {
       // Manejar Comprensión de Lectura: crear múltiples preguntas
-        console.log('📚 Modo Comprensión de Lectura: Creando múltiples preguntas...')
-        
+                
         // Procesar imagen de lectura si existe
         let readingImageUrl: string | null = null
         if (readingImage) {
@@ -1761,7 +1707,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               readingImageUrl = base64Url
             }
           } catch (error) {
-            console.error('Error procesando imagen de lectura:', error)
+            logger.error('Error procesando imagen de lectura:', error)
             const base64Url = await fileToBase64(readingImage)
             readingImageUrl = base64Url
           }
@@ -1806,7 +1752,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 questionImageUrl = base64Url
               }
             } catch (error) {
-              console.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
+              logger.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
               const base64Url = await fileToBase64(rq.questionImage)
               questionImageUrl = base64Url
             }
@@ -1818,8 +1764,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             // Procesar imagen de opción si existe
             if (readingOptionFiles[rq.id]?.[opt.id]) {
-              console.log(`📤 Procesando imagen de opción ${opt.id} de pregunta ${i + 1}...`)
-              try {
+                            try {
                 const storagePromise = questionService.uploadImage(
                   readingOptionFiles[rq.id][opt.id]!, 
                   `questions/reading/options/${Date.now()}_q${i + 1}_${opt.id}.jpg`
@@ -1831,17 +1776,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 
                 if (result.success) {
                   imageUrl = result.data
-                  console.log('✅ Imagen de opción subida a Firebase:', result.data)
-                } else {
+                                  } else {
                   throw new Error('Storage failed')
                 }
               } catch (error) {
-                console.log('⚠️ Fallback a Base64 para imagen de opción')
-                try {
+                                try {
                   imageUrl = await fileToBase64(readingOptionFiles[rq.id][opt.id]!)
-                  console.log('✅ Imagen de opción convertida a Base64')
-                } catch (base64Error) {
-                  console.error('❌ Error procesando imagen de opción:', base64Error)
+                                  } catch (base64Error) {
+                  logger.error('❌ Error procesando imagen de opción:', base64Error)
                 }
               }
             }
@@ -1875,8 +1817,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
 
           try {
-            console.log(`📝 Creando pregunta ${i + 1}/${readingQuestions.length}...`)
-            // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
+                        // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
             const timeoutPromise = new Promise((_, reject) => {
               setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (60 segundos)')), 60000)
             })
@@ -1888,14 +1829,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               createdQuestions.push(result.data.code)
               createdQuestionItems.push(result.data)
               successCount++
-              console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
-            } else {
+                          } else {
               errorCount++
-              console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+              logger.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
             }
           } catch (error) {
             errorCount++
-            console.error(`❌ Error creando pregunta ${i + 1}:`, error)
+            logger.error(`❌ Error creando pregunta ${i + 1}:`, error)
           }
         }
 
@@ -1926,8 +1866,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       } else if (formData.subjectCode !== 'IN' && otherSubjectsModality === 'reading_comprehension') {
         // Manejar Comprensión de Lectura para otras materias: crear múltiples preguntas
-        console.log('📚 Modo Comprensión de Lectura (Otras Materias): Creando múltiples preguntas...')
-        
+
         // Procesar imagen de lectura si existe
         let readingImageUrl: string | null = null
         if (otherSubjectsReadingImage) {
@@ -1951,7 +1890,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               readingImageUrl = base64Url
             }
           } catch (error) {
-            console.error('Error procesando imagen de lectura:', error)
+            logger.error('Error procesando imagen de lectura:', error)
             const base64Url = await fileToBase64(otherSubjectsReadingImage)
             readingImageUrl = base64Url
           }
@@ -1996,7 +1935,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 questionImageUrl = base64Url
               }
             } catch (error) {
-              console.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
+              logger.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
               const base64Url = await fileToBase64(rq.questionImage)
               questionImageUrl = base64Url
             }
@@ -2008,7 +1947,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             // Procesar imagen de opción si existe
             if (readingOptionFiles[rq.id]?.[opt.id]) {
-              console.log(`📤 Procesando imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
               try {
                 const storagePromise = questionService.uploadImage(
                   readingOptionFiles[rq.id][opt.id]!, 
@@ -2021,17 +1959,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 
                 if (result.success) {
                   imageUrl = result.data
-                  console.log('✅ Imagen de opción subida a Firebase:', result.data)
-                } else {
+                                  } else {
                   throw new Error('Storage failed')
                 }
               } catch (error) {
-                console.log('⚠️ Fallback a Base64 para imagen de opción')
-                try {
+                                try {
                   imageUrl = await fileToBase64(readingOptionFiles[rq.id][opt.id]!)
-                  console.log('✅ Imagen de opción convertida a Base64')
-                } catch (base64Error) {
-                  console.error('❌ Error procesando imagen de opción:', base64Error)
+                                  } catch (base64Error) {
+                  logger.error('❌ Error procesando imagen de opción:', base64Error)
                 }
               }
             }
@@ -2065,8 +2000,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
 
           try {
-            console.log(`📝 Creando pregunta ${i + 1}/${otherSubjectsReadingQuestions.length}...`)
-            // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
+                        // Timeout extendido a 60 segundos para dar tiempo a las transacciones con retry
             const timeoutPromise = new Promise((_, reject) => {
               setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado (60 segundos)')), 60000)
             })
@@ -2078,14 +2012,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               createdQuestions.push(result.data.code)
               createdQuestionItems.push(result.data)
               successCount++
-              console.log(`✅ Pregunta ${i + 1} creada: ${result.data.code}`)
-            } else {
+                          } else {
               errorCount++
-              console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+              logger.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
             }
           } catch (error) {
             errorCount++
-            console.error(`❌ Error creando pregunta ${i + 1}:`, error)
+            logger.error(`❌ Error creando pregunta ${i + 1}:`, error)
           }
         }
 
@@ -2116,13 +2049,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       } else {
         // Crear pregunta estándar (modalidad normal o no es Inglés)
-        console.log('📝 Preparando datos de la pregunta estándar...')
-        console.log('📋 Materia:', formData.subjectCode, formData.subject)
-        console.log('📋 Modalidad:', formData.subjectCode === 'IN' ? inglesModality : otherSubjectsModality)
-        console.log('📋 Tema:', formData.topicCode, formData.topic)
-        console.log('📋 Grado:', formData.grade, 'Nivel:', formData.levelCode)
-        console.log('📋 Opciones finales:', finalOptions.length)
-        
+                                                        
         try {
           // Preparar datos base de la pregunta
           const questionData: any = {
@@ -2151,18 +2078,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             questionData.questionImages = questionImageUrls
           }
 
-          console.log('📝 Datos de la pregunta preparados:', {
-            subjectCode: questionData.subjectCode,
-            topicCode: questionData.topicCode,
-            grade: questionData.grade,
-            levelCode: questionData.levelCode,
-            questionTextLength: questionData.questionText?.length || 0,
-            optionsCount: questionData.options?.length || 0,
-            hasInformativeImages: !!questionData.informativeImages,
-            hasQuestionImages: !!questionData.questionImages
-          })
-          console.log('🚀 Llamando a questionService.createQuestion...')
-          
+                              
           // Mostrar progreso
           notifySuccess({ 
             title: 'Creando pregunta', 
@@ -2178,8 +2094,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           
           const result = await Promise.race([createPromise, timeoutPromise]) as any
           
-          console.log('📝 Resultado de createQuestion:', result)
-
+          
           if (result && result.success) {
             notifySuccess({ 
               title: 'Éxito', 
@@ -2191,25 +2106,25 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             invalidateQuestionStats()
           } else {
             const errorMsg = result?.error || result?.message || 'No se pudo crear la pregunta'
-            console.error('❌ Error en createQuestion:', errorMsg)
+            logger.error('❌ Error en createQuestion:', errorMsg)
             notifyError({ 
               title: 'Error', 
               message: errorMsg
             })
           }
         } catch (error) {
-          console.error('❌ Error al preparar o crear pregunta estándar:', error)
+          logger.error('❌ Error al preparar o crear pregunta estándar:', error)
           throw error // Re-lanzar para que lo capture el catch externo
         }
       }
     } catch (error) {
-      console.error('❌ Error al crear pregunta:', error)
-      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No disponible')
+      logger.error('❌ Error al crear pregunta:', error)
+      logger.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No disponible')
       
       let errorMessage = 'Error al crear la pregunta'
       if (error instanceof Error) {
-        console.error('❌ Error message:', error.message)
-        console.error('❌ Error name:', error.name)
+        logger.error('❌ Error message:', error.message)
+        logger.error('❌ Error name:', error.name)
         
         if (error.message.includes('Timeout')) {
           errorMessage = 'La operación tardó demasiado. Verifique su conexión y la configuración de Firebase.'
@@ -2223,7 +2138,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           errorMessage = `Error: ${error.message}`
         }
       } else {
-        console.error('❌ Error desconocido:', error)
+        logger.error('❌ Error desconocido:', error)
         errorMessage = 'Error desconocido al crear la pregunta. Por favor, verifique los datos e intente nuevamente.'
       }
       
@@ -2233,7 +2148,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           message: errorMessage 
         })
       } catch (notificationError) {
-        console.error('❌ Error al mostrar notificación:', notificationError)
+        logger.error('❌ Error al mostrar notificación:', notificationError)
         // Si falla la notificación, al menos loguearlo
         alert(`Error: ${errorMessage}`)
       }
@@ -2241,9 +2156,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       // Asegurar que siempre se restaure el estado de loading
       try {
         setIsSubmitting(false)
-        console.log('🏁 Proceso de creación finalizado')
-      } catch (finallyError) {
-        console.error('❌ Error en finally block:', finallyError)
+              } catch (finallyError) {
+        logger.error('❌ Error en finally block:', finallyError)
         // Si todo falla, al menos intentar restaurar el estado manualmente
         setTimeout(() => setIsSubmitting(false), 100)
       }
@@ -2348,16 +2262,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   }
 
   const handleEditQuestion = (question: Question) => {
-    console.log('📝 Cargando pregunta para edición:', {
-      id: question.id,
-      code: question.code,
-      subjectCode: question.subjectCode,
-      topicCode: question.topicCode,
-      grade: question.grade,
-      levelCode: question.levelCode,
-      gradeType: typeof question.grade,
-    })
-    
+        
     setSelectedQuestion(question)
     
     // Verificar si es una pregunta de matching/columnas (PRIORIDAD MÁS ALTA)
@@ -2396,18 +2301,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                                 question.informativeText.trim().length > 0 &&
                                                 !question.informativeText.includes('MATCHING_COLUMNS_') &&
                                                 !question.questionText?.includes('completar el hueco')
-    
-    // Debug: Verificar la detección de modalidad
-    console.log('🔍 Detección de modalidad para edición:', {
-      code: question.code,
-      subjectCode: question.subjectCode,
-      isMatchingColumns,
-      isClozeTest,
-      isReadingComprehension,
-      hasInformativeText: !!question.informativeText,
-      informativeTextPreview: question.informativeText?.substring(0, 50),
-      questionTextPreview: question.questionText?.substring(0, 50)
-    })
     
     if (isClozeTest) {
       // Buscar todas las preguntas relacionadas del cloze test
@@ -2469,8 +2362,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       setInformativeImagePreviews(question.informativeImages || [])
     } else if (isReadingComprehension) {
       // Modo de edición de comprensión de lectura
-      console.log('📚 Modo de edición de comprensión de lectura detectado')
-      setIsEditingClozeTest(false)
+            setIsEditingClozeTest(false)
       setIsEditingReadingComprehension(true)
       setInglesModality('reading_comprehension')
       
@@ -2494,12 +2386,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       // Ordenar las preguntas relacionadas por orden de creación (más antigua primero)
       const sortedRelated = related.sort(sortQuestionsByCreationOrder)
       
-      console.log('📚 Preguntas relacionadas de comprensión de lectura encontradas:', sortedRelated.length)
-      setEditReadingRelatedQuestions(sortedRelated)
+            setEditReadingRelatedQuestions(sortedRelated)
       
       // Cargar el texto de lectura
       setEditReadingText(question.informativeText || '')
-      console.log('📚 Texto de lectura cargado:', question.informativeText?.substring(0, 50))
       
       // Separar la imagen de lectura de las imágenes informativas
       // La última imagen en informativeImages suele ser la imagen de lectura
@@ -2552,7 +2442,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       })
     } else if (isOtherSubjectsReadingComprehension) {
       // Modo de edición de comprensión de lectura para otras materias
-      console.log('📚 Modo de edición de comprensión de lectura (otras materias) detectado')
       setIsEditingClozeTest(false)
       setIsEditingReadingComprehension(false)
       setIsEditingOtherSubjectsReadingComprehension(true)
@@ -2582,12 +2471,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       // Ordenar las preguntas relacionadas por orden de creación (más antigua primero)
       const sortedRelated = related.sort(sortQuestionsByCreationOrder)
       
-      console.log('📚 Preguntas relacionadas de comprensión de lectura (otras materias) encontradas:', sortedRelated.length)
       setEditOtherSubjectsReadingRelatedQuestions(sortedRelated)
       
       // Cargar el texto de lectura
       setEditOtherSubjectsReadingText(question.informativeText || '')
-      console.log('📚 Texto de lectura cargado:', question.informativeText?.substring(0, 50))
       
       // Cargar imágenes informativas y imagen de lectura
       const informativeImages = question.informativeImages || []
@@ -2669,11 +2556,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       })
       
-      console.log('🔗 Preguntas de matching/columnas cargadas para edición:', {
-        count: matchingQuestionsData.length,
-        ids: matchingQuestionsData.map(mq => ({ id: mq.id, hasQuestionText: !!mq.questionText }))
-      })
-      
       setMatchingQuestions(matchingQuestionsData)
       
       // Cargar datos básicos del formulario
@@ -2695,14 +2577,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       // Cargar imágenes informativas si existen
       setInformativeImagePreviews(question.informativeImages || [])
       
-      console.log('🔗 Pregunta de matching/columnas cargada para edición:', {
-        matchingQuestionsCount: matchingQuestionsData.length,
-        informativeText: question.informativeText,
-        relatedQuestionsCount: related.length
-      })
     } else {
       // Modo de edición normal (no cloze test, no comprensión de lectura, no matching/columnas)
-      console.log('📝 Modo de edición normal detectado (no modalidades especiales)')
       setIsEditingClozeTest(false)
       setIsEditingReadingComprehension(false)
       setIsEditingOtherSubjectsReadingComprehension(false)
@@ -2739,16 +2615,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         questionText: question.questionText,
       })
       
-      console.log('📋 Formulario cargado con valores:', {
-        grade: gradeValue,
-        subjectCode: question.subjectCode,
-        topicCode: question.topicCode,
-        levelCode: question.levelCode,
-        isEditingReadingComprehension: false,
-        isEditingClozeTest: false,
-        inglesModality: 'standard_mc'
-      })
-      // Cargar opciones
+            // Cargar opciones
       setOptions(question.options)
       // Cargar imágenes existentes para mostrar
       setInformativeImagePreviews(question.informativeImages || [])
@@ -2782,7 +2649,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
     // Validar que la pregunta tenga un ID
     if (!question.id) {
-      console.error('❌ Error: La pregunta no tiene ID:', question)
+      logger.error('❌ Error: La pregunta no tiene ID:', question)
       notifyError({
         title: 'Error',
         message: 'La pregunta no tiene un ID válido para eliminar'
@@ -2790,22 +2657,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       return
     }
 
-    console.log('🗑️ Intentando eliminar pregunta:', {
-      id: question.id,
-      code: question.code,
-      subject: question.subject,
-      userId: currentUser.uid,
-      userRole: currentUser.role
-    })
-
+    
     setIsSubmitting(true)
     try {
-      console.log('🔄 Llamando a questionService.deleteQuestion con ID:', question.id)
-      const result = await questionService.deleteQuestion(question.id)
+            const result = await questionService.deleteQuestion(question.id)
       
       if (result.success) {
-        console.log('✅ Eliminación exitosa en la base de datos')
-        removeQuestionsByIds([question.id])
+                removeQuestionsByIds([question.id])
         invalidateQuestionStats()
         
         notifySuccess({
@@ -2813,8 +2671,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           message: `Pregunta ${question.code} eliminada correctamente de la base de datos. Nota: La consola de Firebase puede mostrar datos en caché - refresca la página de la consola (F5) si aún ves la pregunta.`
         })
       } else {
-        console.error('❌ Error al eliminar pregunta de la base de datos:', result.error)
-        console.error('❌ Detalles del error:', {
+        logger.error('❌ Error al eliminar pregunta de la base de datos:', result.error)
+        logger.error('❌ Detalles del error:', {
           message: result.error?.message,
           statusCode: result.error?.statusCode,
           code: result.error?.code
@@ -2826,8 +2684,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         })
       }
     } catch (error: any) {
-      console.error('❌ Excepción al eliminar pregunta:', error)
-      console.error('❌ Detalles de la excepción:', {
+      logger.error('❌ Excepción al eliminar pregunta:', error)
+      logger.error('❌ Detalles de la excepción:', {
         message: error?.message,
         code: error?.code,
         stack: error?.stack
@@ -2905,12 +2763,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           } else {
             errorCount++
             failedIds.add(id)
-            console.error(`Error al eliminar pregunta ${id}:`, result.error)
+            logger.error(`Error al eliminar pregunta ${id}:`, result.error)
           }
         } catch (error) {
           errorCount++
           failedIds.add(id)
-          console.error(`Excepción al eliminar pregunta ${id}:`, error)
+          logger.error(`Excepción al eliminar pregunta ${id}:`, error)
         }
       }
 
@@ -2929,7 +2787,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         })
       }
     } catch (error: any) {
-      console.error('Error general al eliminar preguntas:', error)
+      logger.error('Error general al eliminar preguntas:', error)
 
       notifyError({
         title: 'Error',
@@ -3256,8 +3114,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               throw new Error('Storage failed')
             }
           } catch (error) {
-            console.log('⚠️ Fallback a Base64 para imagen informativa')
-            return await fileToBase64(file)
+                        return await fileToBase64(file)
           }
         })
         
@@ -3290,8 +3147,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               throw new Error('Storage failed')
             }
           } catch (error) {
-            console.log('⚠️ Fallback a Base64 para imagen de pregunta')
-            return await fileToBase64(file)
+                        return await fileToBase64(file)
           }
         })
         
@@ -3310,12 +3166,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         // Si tenía imagen antes pero ahora no, eliminarla del Storage
         if (hadImageBefore && !hasImageNow && !optionFiles[option.id] && originalOption?.imageUrl) {
-          console.log(`🗑️ Eliminando imagen de opción ${option.id}...`)
-          try {
+                    try {
             await questionService.deleteImage(originalOption.imageUrl)
-            console.log('✅ Imagen de opción eliminada del Storage')
-          } catch (error) {
-            console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+                      } catch (error) {
+            logger.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
           }
           imageUrl = null
         }
@@ -3325,9 +3179,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           if (hadImageBefore && originalOption?.imageUrl) {
             try {
               await questionService.deleteImage(originalOption.imageUrl)
-              console.log('✅ Imagen anterior de opción eliminada del Storage')
-            } catch (error) {
-              console.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
+                          } catch (error) {
+              logger.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
             }
           }
           
@@ -3348,8 +3201,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               throw new Error('Storage failed')
             }
           } catch (error) {
-            console.log('⚠️ Fallback a Base64 para imagen de opción')
-            imageUrl = await fileToBase64(optionFiles[option.id]!)
+                        imageUrl = await fileToBase64(optionFiles[option.id]!)
           }
         }
         
@@ -3384,23 +3236,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         oldLevelCode !== newLevelCode
 
       // Log detallado para depuración
-      console.log('🔍 Verificando cambios en parámetros del código:')
-      console.log('  Materia:', { old: oldSubjectCode, new: newSubjectCode, changed: oldSubjectCode !== newSubjectCode })
-      console.log('  Tema:', { old: oldTopicCode, new: newTopicCode, changed: oldTopicCode !== newTopicCode })
-      console.log('  Grado:', { old: oldGrade, new: newGrade, changed: oldGrade !== newGrade })
-      console.log('  Nivel:', { old: oldLevelCode, new: newLevelCode, changed: oldLevelCode !== newLevelCode })
-      console.log('  ¿Cambió algún parámetro?', codeParamsChanged)
-
+                                    
       // Si cambiaron los parámetros, generar un nuevo código
       let newCode: string | undefined = undefined
       if (codeParamsChanged) {
-        console.log('🔄 Detectado cambio en parámetros del código:')
-        console.log('  Materia:', oldSubjectCode, '→', newSubjectCode)
-        console.log('  Tema:', oldTopicCode, '→', newTopicCode)
-        console.log('  Grado:', oldGrade, '→', newGrade)
-        console.log('  Nivel:', oldLevelCode, '→', newLevelCode)
-        console.log('  Código actual:', selectedQuestion.code)
-        
+                                                        
         notifySuccess({
           title: 'Generando código',
           message: 'Generando nuevo código para la pregunta...'
@@ -3414,7 +3254,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         )
 
         if (!codeResult.success) {
-          console.error('❌ Error al generar código:', codeResult.error)
+          logger.error('❌ Error al generar código:', codeResult.error)
           notifyError({
             title: 'Error',
             message: codeResult.error?.message || 'No se pudo generar el nuevo código'
@@ -3424,10 +3264,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
 
         newCode = codeResult.data
-        console.log(`✅ Nuevo código generado: ${selectedQuestion.code} → ${newCode}`)
-      } else {
-        console.log('ℹ️ No se detectaron cambios en los parámetros del código')
-      }
+              } else {
+              }
 
       // Manejar actualización de Cloze Test
       if (isEditingClozeTest) {
@@ -3484,13 +3322,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               clozeErrors[`clozeGapAnswer_${gapNum}`] = true
             }
           }
-        })
-        
-        console.log('🔍 Validación de Cloze Test:', {
-          gaps: Array.from(gaps),
-          editClozeGaps,
-          clozeErrors,
-          hasErrors: Object.keys(clozeErrors).length > 0
         })
         
         if (Object.keys(clozeErrors).length > 0) {
@@ -3565,7 +3396,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           })
           
           if (!relatedQuestion) {
-            console.error(`❌ No se encontró pregunta para el hueco ${gapNum}`)
+            logger.error(`❌ No se encontró pregunta para el hueco ${gapNum}`)
             errorCount++
             continue
           }
@@ -3634,7 +3465,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           }
           
           if (!relatedQuestion.id) {
-            console.error(`❌ La pregunta del hueco ${gapNum} no tiene ID válido`)
+            logger.error(`❌ La pregunta del hueco ${gapNum} no tiene ID válido`)
             errorCount++
             continue
           }
@@ -3649,11 +3480,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               updatedQuestions.push(result.data)
             } else {
               errorCount++
-              console.error(`❌ Error actualizando pregunta del hueco ${gapNum}:`, result.error)
+              logger.error(`❌ Error actualizando pregunta del hueco ${gapNum}:`, result.error)
             }
           } catch (error) {
             errorCount++
-            console.error(`❌ Error actualizando pregunta del hueco ${gapNum}:`, error)
+            logger.error(`❌ Error actualizando pregunta del hueco ${gapNum}:`, error)
           }
         }
         
@@ -3728,7 +3559,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               newReadingImageUrl = base64Url
             }
           } catch (error) {
-            console.error('Error procesando imagen de lectura:', error)
+            logger.error('Error procesando imagen de lectura:', error)
             const base64Url = await fileToBase64(editReadingImage)
             newReadingImageUrl = base64Url
           }
@@ -3769,21 +3600,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           return !existsInCurrent
         })
         
-        console.log('🔍 Comparando imágenes informativas de lectura:', {
-          original: originalInformativeImages,
-          final: allInformativeImages,
-          deleted: deletedInformativeImages
-        })
-        
+                
         // Eliminar imágenes borradas del Storage
         for (const deletedImg of deletedInformativeImages) {
           if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
-            console.log(`🗑️ Eliminando imagen informativa de lectura del Storage: ${deletedImg}`)
-            try {
+                        try {
               await questionService.deleteImage(deletedImg)
-              console.log('✅ Imagen informativa de lectura eliminada del Storage')
-            } catch (error) {
-              console.warn('⚠️ No se pudo eliminar la imagen informativa de lectura del Storage:', error)
+                          } catch (error) {
+              logger.warn('⚠️ No se pudo eliminar la imagen informativa de lectura del Storage:', error)
             }
           }
         }
@@ -3822,7 +3646,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 questionImageUrl = base64Url
               }
             } catch (error) {
-              console.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
+              logger.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
               const base64Url = await fileToBase64(rq.questionImage)
               questionImageUrl = base64Url
             }
@@ -3877,27 +3701,23 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             // Si tenía imagen antes pero ahora no, eliminarla del Storage
             if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id] && originalOption?.imageUrl) {
-              console.log(`🗑️ Eliminando imagen de opción ${opt.id} de pregunta ${i + 1}...`)
-              try {
+                            try {
                 await questionService.deleteImage(originalOption.imageUrl)
-                console.log('✅ Imagen de opción eliminada del Storage')
-              } catch (error) {
-                console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+                              } catch (error) {
+                logger.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
               }
               imageUrl = null
             }
             
             // Procesar imagen de opción si existe una nueva
             if (editReadingOptionFiles[rq.questionId]?.[opt.id]) {
-              console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1}...`)
-              
+                            
               // Si había una imagen anterior, eliminarla
               if (hadImageBefore && originalOption?.imageUrl) {
                 try {
                   await questionService.deleteImage(originalOption.imageUrl)
-                  console.log('✅ Imagen anterior eliminada del Storage')
-                } catch (error) {
-                  console.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
+                                  } catch (error) {
+                  logger.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
                 }
               }
               
@@ -3913,17 +3733,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 
                 if (result.success) {
                   imageUrl = result.data
-                  console.log('✅ Nueva imagen de opción subida a Firebase:', result.data)
-                } else {
+                                  } else {
                   throw new Error('Storage failed')
                 }
               } catch (error) {
-                console.log('⚠️ Fallback a Base64 para nueva imagen de opción')
-                try {
+                                try {
                   imageUrl = await fileToBase64(editReadingOptionFiles[rq.questionId][opt.id]!)
-                  console.log('✅ Nueva imagen de opción convertida a Base64')
-                } catch (base64Error) {
-                  console.error('❌ Error procesando nueva imagen de opción:', base64Error)
+                                  } catch (base64Error) {
+                  logger.error('❌ Error procesando nueva imagen de opción:', base64Error)
                   // Mantener la imagen existente si hay error
                 }
               }
@@ -3974,7 +3791,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 updatedQuestions.push(result.data)
               } else {
                 errorCount++
-                console.error(`❌ Error actualizando pregunta ${i + 1}:`, result.error)
+                logger.error(`❌ Error actualizando pregunta ${i + 1}:`, result.error)
               }
             } else {
               if (!currentUser) {
@@ -3988,12 +3805,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 updatedQuestions.push(result.data)
               } else {
                 errorCount++
-                console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+                logger.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
               }
             }
           } catch (error) {
             errorCount++
-            console.error(`❌ Error procesando pregunta ${i + 1}:`, error)
+            logger.error(`❌ Error procesando pregunta ${i + 1}:`, error)
           }
         }
         
@@ -4009,9 +3826,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             try {
               await questionService.deleteQuestion(questionToDelete.id)
               deletedQuestionIds.push(questionToDelete.id)
-              console.log(`✅ Pregunta ${questionToDelete.code} eliminada`)
-            } catch (error) {
-              console.error(`❌ Error eliminando pregunta ${questionToDelete.code}:`, error)
+                          } catch (error) {
+              logger.error(`❌ Error eliminando pregunta ${questionToDelete.code}:`, error)
             }
           }
         }
@@ -4091,7 +3907,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                   newReadingImageUrl = base64Url
                 }
               } catch (error) {
-                console.error('Error procesando imagen de lectura:', error)
+                logger.error('Error procesando imagen de lectura:', error)
                 const base64Url = await fileToBase64(editOtherSubjectsReadingImage)
                 newReadingImageUrl = base64Url
               }
@@ -4132,21 +3948,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               return !existsInCurrent
             })
             
-            console.log('🔍 Comparando imágenes informativas de lectura (otras materias):', {
-              original: originalInformativeImages,
-              final: allInformativeImages,
-              deleted: deletedInformativeImages
-            })
-            
             // Eliminar imágenes borradas del Storage
             for (const deletedImg of deletedInformativeImages) {
               if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
-                console.log(`🗑️ Eliminando imagen informativa de lectura del Storage (otras materias): ${deletedImg}`)
                 try {
                   await questionService.deleteImage(deletedImg)
-                  console.log('✅ Imagen informativa de lectura eliminada del Storage')
-                } catch (error) {
-                  console.warn('⚠️ No se pudo eliminar la imagen informativa de lectura del Storage:', error)
+                                  } catch (error) {
+                  logger.warn('⚠️ No se pudo eliminar la imagen informativa de lectura del Storage:', error)
                 }
               }
             }
@@ -4185,7 +3993,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     questionImageUrl = base64Url
                   }
                 } catch (error) {
-                  console.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
+                  logger.error(`Error procesando imagen de pregunta ${i + 1}:`, error)
                   const base64Url = await fileToBase64(rq.questionImage)
                   questionImageUrl = base64Url
                 }
@@ -4240,27 +4048,22 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 
                 // Si tenía imagen antes pero ahora no, eliminarla del Storage
                 if (hadImageBefore && !hasImageNow && !editReadingOptionFiles[rq.questionId]?.[opt.id] && originalOption?.imageUrl) {
-                  console.log(`🗑️ Eliminando imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
                   try {
                     await questionService.deleteImage(originalOption.imageUrl)
-                    console.log('✅ Imagen de opción eliminada del Storage')
-                  } catch (error) {
-                    console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
+                                      } catch (error) {
+                    logger.warn('⚠️ No se pudo eliminar la imagen del Storage:', error)
                   }
                   imageUrl = null
                 }
                 
                 // Procesar imagen de opción si existe una nueva
                 if (editReadingOptionFiles[rq.questionId]?.[opt.id]) {
-                  console.log(`📤 Procesando nueva imagen de opción ${opt.id} de pregunta ${i + 1} (otras materias)...`)
-                  
                   // Si había una imagen anterior, eliminarla
                   if (hadImageBefore && originalOption?.imageUrl) {
                     try {
                       await questionService.deleteImage(originalOption.imageUrl)
-                      console.log('✅ Imagen anterior eliminada del Storage')
-                    } catch (error) {
-                      console.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
+                                          } catch (error) {
+                      logger.warn('⚠️ No se pudo eliminar la imagen anterior del Storage:', error)
                     }
                   }
                   
@@ -4276,17 +4079,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     
                     if (result.success) {
                       imageUrl = result.data
-                      console.log('✅ Nueva imagen de opción subida a Firebase:', result.data)
-                    } else {
+                                          } else {
                       throw new Error('Storage failed')
                     }
                   } catch (error) {
-                    console.log('⚠️ Fallback a Base64 para nueva imagen de opción')
-                    try {
+                                        try {
                       imageUrl = await fileToBase64(editReadingOptionFiles[rq.questionId][opt.id]!)
-                      console.log('✅ Nueva imagen de opción convertida a Base64')
-                    } catch (base64Error) {
-                      console.error('❌ Error procesando nueva imagen de opción:', base64Error)
+                                          } catch (base64Error) {
+                      logger.error('❌ Error procesando nueva imagen de opción:', base64Error)
                       // Mantener la imagen existente si hay error
                     }
                   }
@@ -4344,7 +4144,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     updatedQuestions.push(result.data)
                   } else {
                     errorCount++
-                    console.error(`❌ Error actualizando pregunta ${i + 1}:`, result.error)
+                    logger.error(`❌ Error actualizando pregunta ${i + 1}:`, result.error)
                   }
                 } else {
                   if (!currentUser) {
@@ -4358,12 +4158,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                     updatedQuestions.push(result.data)
                   } else {
                     errorCount++
-                    console.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
+                    logger.error(`❌ Error creando pregunta ${i + 1}:`, result.error)
                   }
                 }
               } catch (error) {
                 errorCount++
-                console.error(`❌ Error procesando pregunta ${i + 1}:`, error)
+                logger.error(`❌ Error procesando pregunta ${i + 1}:`, error)
               }
             }
             
@@ -4379,9 +4179,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 try {
                   await questionService.deleteQuestion(questionToDelete.id)
                   deletedQuestionIds.push(questionToDelete.id)
-                  console.log(`✅ Pregunta ${questionToDelete.code} eliminada`)
-                } catch (error) {
-                  console.error(`❌ Error eliminando pregunta ${questionToDelete.code}:`, error)
+                                  } catch (error) {
+                  logger.error(`❌ Error eliminando pregunta ${questionToDelete.code}:`, error)
                 }
               }
             }
@@ -4471,16 +4270,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const originalGrade = selectedQuestion?.grade || formData.grade
         const originalLevelCode = selectedQuestion?.levelCode || formData.levelCode
         
-        console.log('🔍 Actualizando matching/columnas:', {
-          currentGroupId,
-          originalTopicCode,
-          newTopicCode: formData.topicCode,
-          selectedQuestionInformativeText: selectedQuestion?.informativeText,
-          formDataInformativeText: formData.informativeText,
-          matchingQuestionsCount: matchingQuestions.length,
-          matchingQuestionsIds: matchingQuestions.map(mq => mq.id)
-        })
-        
         // Buscar preguntas relacionadas usando el topicCode original (no el nuevo)
         // Esto permite encontrar las preguntas incluso cuando se cambia de prueba
         const related = currentGroupId ? questions.filter(q => {
@@ -4493,8 +4282,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           return qGroupId && qGroupId === currentGroupId
         }) : []
         
-        console.log('🔍 Preguntas relacionadas encontradas:', related.length)
-        
+                
         // Procesar imágenes informativas nuevas
         let finalInformativeImages = [...informativeImagePreviews]
         if (newInformativeImageUrls.length > 0) {
@@ -4534,7 +4322,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 questionImageUrl = base64Url
               }
             } catch (error) {
-              console.error('Error procesando imagen de pregunta matching:', error)
+              logger.error('Error procesando imagen de pregunta matching:', error)
               const base64Url = await fileToBase64(mq.questionImage)
               questionImageUrl = base64Url
             }
@@ -4554,23 +4342,19 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           
           if (mq.id && mq.id.trim() !== '' && !isTemporaryId) {
             relatedQuestion = related.find(q => q.id === mq.id) || null
-            console.log(`🔍 Buscando pregunta por ID: ${mq.id}, encontrada: ${!!relatedQuestion}`)
-          } else {
-            console.log(`🔍 ID temporal o inválido para matching ${i + 1}: ${mq.id}, isTemporary: ${isTemporaryId}`)
-          }
+                      } else {
+                      }
           
           // Si no se encontró por ID o no hay ID válido, buscar por índice
           if (!relatedQuestion && i < related.length) {
             relatedQuestion = related[i]
-            console.log(`🔍 Usando pregunta relacionada por índice ${i}`)
-          }
+                      }
           
           // Si no hay pregunta relacionada, es una nueva pregunta que debe crearse
           if (!relatedQuestion) {
-            console.log(`🆕 Nueva pregunta de matching ${i + 1} - se procesará después`)
-            // Marcar para creación posterior si no hay currentGroupId
+                        // Marcar para creación posterior si no hay currentGroupId
             if (!currentGroupId) {
-              console.error(`❌ No se puede crear nueva pregunta sin identificador de grupo`)
+              logger.error(`❌ No se puede crear nueva pregunta sin identificador de grupo`)
               errorCount++
               continue
             }
@@ -4583,15 +4367,14 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 // Verificar que la pregunta encontrada pertenezca al mismo grupo de matching
                 const foundGroupId = extractMatchingGroupId(foundInAll.informativeText)
                 if (foundGroupId && foundGroupId === currentGroupId) {
-                  console.log(`🔍 Pregunta encontrada en todas las preguntas por ID: ${mq.id}`)
-                  relatedQuestion = foundInAll
+                                    relatedQuestion = foundInAll
                 } else {
-                  console.error(`❌ La pregunta encontrada (ID: ${mq.id}) no pertenece al mismo grupo de matching. Grupo esperado: ${currentGroupId}, Grupo encontrado: ${foundGroupId}`)
+                  logger.error(`❌ La pregunta encontrada (ID: ${mq.id}) no pertenece al mismo grupo de matching. Grupo esperado: ${currentGroupId}, Grupo encontrado: ${foundGroupId}`)
                   errorCount++
                   continue
                 }
               } else {
-                console.error(`❌ No se encontró la pregunta relacionada para matching ${i + 1} (ID: ${mq.id}). Verifique que la pregunta exista en la base de datos.`)
+                logger.error(`❌ No se encontró la pregunta relacionada para matching ${i + 1} (ID: ${mq.id}). Verifique que la pregunta exista en la base de datos.`)
                 errorCount++
                 continue
               }
@@ -4599,7 +4382,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               // Si hay currentGroupId, podemos crear la pregunta nueva
               // Pero primero necesitamos procesar las actualizaciones existentes
               // Por ahora, marcamos error pero podríamos implementar creación aquí
-              console.error(`❌ Nueva pregunta no soportada en actualización (índice ${i + 1}). ID: ${mq.id || 'sin ID'}`)
+              logger.error(`❌ Nueva pregunta no soportada en actualización (índice ${i + 1}). ID: ${mq.id || 'sin ID'}`)
               errorCount++
               continue
             }
@@ -4640,7 +4423,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const originalGroupId = extractMatchingGroupId(relatedQuestion.informativeText) || currentGroupId
           
           if (!originalGroupId) {
-            console.error(`❌ No se pudo obtener el identificador de grupo para matching ${i + 1}`)
+            logger.error(`❌ No se pudo obtener el identificador de grupo para matching ${i + 1}`)
             errorCount++
             continue
           }
@@ -4649,12 +4432,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const newInformativeText = formData.informativeText && formData.informativeText.trim()
             ? `${originalGroupId}|${formData.informativeText.trim()}`
             : originalGroupId
-          
-          console.log(`📝 Actualizando pregunta matching ${i + 1}:`, {
-            questionId: relatedQuestion.id,
-            originalGroupId,
-            newInformativeText: newInformativeText.substring(0, 50) + '...'
-          })
           
           const updates: any = {
             subject: formData.subject,
@@ -4682,7 +4459,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const questionId = relatedQuestion.id
           
           if (!questionId) {
-            console.error(`❌ La pregunta relacionada no tiene ID para matching ${i + 1}`)
+            logger.error(`❌ La pregunta relacionada no tiene ID para matching ${i + 1}`)
             errorCount++
             continue
           }
@@ -4695,11 +4472,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
               updatedQuestions.push(result.data)
             } else {
               errorCount++
-              console.error(`❌ Error actualizando pregunta matching ${i + 1}:`, result.error)
+              logger.error(`❌ Error actualizando pregunta matching ${i + 1}:`, result.error)
             }
           } catch (error) {
             errorCount++
-            console.error(`❌ Error actualizando pregunta matching ${i + 1}:`, error)
+            logger.error(`❌ Error actualizando pregunta matching ${i + 1}:`, error)
           }
         }
         
@@ -4753,13 +4530,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const originalInformativeImages = selectedQuestion.informativeImages || []
         const currentInformativeImages = informativeImagePreviews || []
         
-        console.log('🔍 Comparando imágenes informativas:', {
-          original: originalInformativeImages,
-          current: currentInformativeImages,
-          originalCount: originalInformativeImages.length,
-          currentCount: currentInformativeImages.length
-        })
-        
+                
         // Función auxiliar para normalizar URLs (eliminar parámetros de query para comparación)
         const normalizeUrl = (url: string): string => {
           if (!url) return ''
@@ -4785,18 +4556,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           return !existsInCurrent
         })
         
-        console.log('🗑️ Imágenes informativas eliminadas:', deletedInformativeImages)
-        
+                
         // Eliminar imágenes borradas del Storage
         for (const deletedImg of deletedInformativeImages) {
           // Solo eliminar si es una URL de Firebase (no base64)
           if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
-            console.log(`🗑️ Eliminando imagen informativa del Storage: ${deletedImg}`)
-            try {
+                        try {
               await questionService.deleteImage(deletedImg)
-              console.log('✅ Imagen informativa eliminada del Storage')
-            } catch (error) {
-              console.warn('⚠️ No se pudo eliminar la imagen informativa del Storage:', error)
+                          } catch (error) {
+              logger.warn('⚠️ No se pudo eliminar la imagen informativa del Storage:', error)
             }
           }
         }
@@ -4804,20 +4572,13 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         // Combinar imágenes existentes (las que quedan en previews) con las nuevas
         // SIEMPRE actualizar el array, incluso si está vacío
         const finalInformativeImages = [...currentInformativeImages, ...newInformativeImageUrls]
-        console.log('📤 Imágenes informativas finales a guardar:', finalInformativeImages)
-        updates.informativeImages = finalInformativeImages
+                updates.informativeImages = finalInformativeImages
 
         // Manejar imágenes de pregunta: detectar eliminadas y actualizar correctamente
         const originalQuestionImages = selectedQuestion.questionImages || []
         const currentQuestionImages = questionImagePreviews || []
         
-        console.log('🔍 Comparando imágenes de pregunta:', {
-          original: originalQuestionImages,
-          current: currentQuestionImages,
-          originalCount: originalQuestionImages.length,
-          currentCount: currentQuestionImages.length
-        })
-        
+                
         // Detectar imágenes eliminadas (están en original pero no en current)
         const deletedQuestionImages = originalQuestionImages.filter(originalImg => {
           const normalizedOriginal = normalizeUrl(originalImg)
@@ -4828,18 +4589,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           return !existsInCurrent
         })
         
-        console.log('🗑️ Imágenes de pregunta eliminadas:', deletedQuestionImages)
-        
+                
         // Eliminar imágenes borradas del Storage
         for (const deletedImg of deletedQuestionImages) {
           // Solo eliminar si es una URL de Firebase (no base64)
           if (deletedImg && !deletedImg.startsWith('data:') && deletedImg.startsWith('http')) {
-            console.log(`🗑️ Eliminando imagen de pregunta del Storage: ${deletedImg}`)
-            try {
+                        try {
               await questionService.deleteImage(deletedImg)
-              console.log('✅ Imagen de pregunta eliminada del Storage')
-            } catch (error) {
-              console.warn('⚠️ No se pudo eliminar la imagen de pregunta del Storage:', error)
+                          } catch (error) {
+              logger.warn('⚠️ No se pudo eliminar la imagen de pregunta del Storage:', error)
             }
           }
         }
@@ -4847,15 +4605,9 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         // Combinar imágenes existentes (las que quedan en previews) con las nuevas
         // SIEMPRE actualizar el array, incluso si está vacío
         const finalQuestionImages = [...currentQuestionImages, ...newQuestionImageUrls]
-        console.log('📤 Imágenes de pregunta finales a guardar:', finalQuestionImages)
-        updates.questionImages = finalQuestionImages
+                updates.questionImages = finalQuestionImages
         
-        console.log('📋 Objeto updates completo:', {
-          ...updates,
-          informativeImages: updates.informativeImages,
-          questionImages: updates.questionImages
-        })
-
+        
         // Actualizar la pregunta
         const result = await questionService.updateQuestion(selectedQuestion.id, updates)
 
@@ -4881,7 +4633,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
       }
     } catch (error) {
-      console.error('Error actualizando pregunta:', error)
+      logger.error('Error actualizando pregunta:', error)
       notifyError({
         title: 'Error',
         message: 'Error al actualizar la pregunta'
@@ -5282,8 +5034,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             setIsCreateDialogOpen(open)
             // Cuando se abre el diálogo, resetear el formulario completamente
             if (open) {
-              console.log('🔄 Abriendo diálogo de creación - Reseteando formulario...')
-              resetForm()
+                            resetForm()
             }
           }}>
             <DialogTrigger asChild>
@@ -5445,8 +5196,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         setIsCreateDialogOpen(open)
         // Cuando se abre el diálogo, resetear el formulario completamente
         if (open) {
-          console.log('🔄 Abriendo diálogo de creación - Reseteando formulario...')
-          resetForm()
+                    resetForm()
         }
       }}>
         <DialogContent className={cn("max-w-4xl max-h-[90vh] overflow-y-auto", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
@@ -5588,8 +5338,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 <Select value={inglesModality} onValueChange={(value: any) => {
                   setInglesModality(value)
                   if (value !== 'standard_mc') {
-                    console.log('⚠️ Cambiando a modalidad especial:', value)
-                  }
+                                      }
                 }}>
                   <SelectTrigger className={cn(
                     theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '',
@@ -9902,7 +9651,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                                             alt={`Opción ${option.id}`}
                                                             className="max-w-full h-auto max-h-16 rounded border shadow-sm"
                                                             onError={(e) => {
-                                                              console.error('Error cargando imagen de opción:', option.imageUrl);
+                                                              logger.error('Error cargando imagen de opción:', option.imageUrl);
                                                               e.currentTarget.style.display = 'none';
                                                             }}
                                                           />
@@ -9984,7 +9733,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                               alt={`Opción ${option.id}`}
                                               className="max-w-full h-auto rounded-lg border shadow-sm"
                                               onError={(e) => {
-                                                console.error('Error cargando imagen de opción:', option.imageUrl);
+                                                logger.error('Error cargando imagen de opción:', option.imageUrl);
                                                 e.currentTarget.style.display = 'none';
                                               }}
                                             />

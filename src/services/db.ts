@@ -5,6 +5,7 @@ import {
   persistentMultipleTabManager,
 } from "firebase/firestore"
 import config from "@/utils/config"
+import { logger } from "@/utils/logger"
 
 export const firebaseApp = initializeApp(config.firebaseConfig)
 
@@ -19,7 +20,7 @@ if (typeof window !== "undefined") {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     if (!msg.includes("already")) {
-      console.warn("[Firestore] No se pudo activar persistentLocalCache:", e)
+      logger.warn("[Firestore] No se pudo activar persistentLocalCache:", e)
     }
   }
 }

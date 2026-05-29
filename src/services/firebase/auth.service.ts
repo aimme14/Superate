@@ -2,6 +2,7 @@ import { failure, Result, success } from "@/interfaces/db.interface"
 import { normalizeError } from "@/errors/handler"
 import ErrorAPI, { NotFound } from "@/errors"
 import { firebaseApp, firebaseSecondaryApp } from "@/services/db"
+import { logger } from '@/utils/logger'
 
 
 import {
@@ -35,7 +36,7 @@ class AuthService {
     this.auth = getAuth(firebaseApp)
     // Persistencia local: la sesión se mantiene al cerrar el navegador (menos lecturas al reabrir)
     setPersistence(this.auth, browserLocalPersistence).catch((error) => {
-      console.error('Error al configurar la persistencia de sesión:', error)
+      logger.error('Error al configurar la persistencia de sesión:', error)
     })
   }
 
@@ -112,8 +113,6 @@ class AuthService {
     sendEmailVerificationBeforeRestore: boolean = false
   ): Promise<Result<User>> {
     try {
-      console.log('🚀 Iniciando registro de cuenta:', { email, preserveSession })
-      
       if (preserveSession) {
         if (!this.auth.currentUser) {
           return failure(new ErrorAPI({
@@ -123,49 +122,41 @@ class AuthService {
         }
 
         const secondaryAuth = this.getSecondaryAuth()
-        console.log('🔐 Creando usuario en Auth secundario (sin cambiar sesión del admin):', this.auth.currentUser.email)
 
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password)
         const newUser = userCredential.user
 
-        console.log('✅ Usuario creado en Firebase Auth con UID:', newUser.uid)
-
         const profileUpdate = await this.updateProfile(newUser, { displayName: username })
         if (!profileUpdate.success) {
-          console.error('❌ Error al actualizar perfil:', profileUpdate.error)
+          logger.error('Error al actualizar perfil:', profileUpdate.error)
           throw profileUpdate.error
         }
 
         if (sendEmailVerificationBeforeRestore) {
           try {
             await sendEmailVerificationFB(newUser)
-            console.log('✅ Correo de verificación enviado al usuario creado')
           } catch (verifyErr) {
-            console.warn('⚠️ No se pudo enviar verificación de email al nuevo usuario:', verifyErr)
+            logger.warn('No se pudo enviar verificación de email al nuevo usuario:', verifyErr)
           }
         }
 
         await signOut(secondaryAuth)
-        console.log('✅ Sesión secundaria cerrada; sesión del administrador intacta')
 
         return success(newUser)
       }
 
       // Comportamiento normal - crear usuario e iniciar sesión con él
-      console.log('📝 Creando usuario en Firebase Auth (flujo normal)...')
       const userCredential = await createUserWithEmailAndPassword(this.auth, email, password)
-      console.log('✅ Usuario creado en Firebase Auth con UID:', userCredential.user.uid)
 
       const profileUpdate = await this.updateProfile(userCredential.user, { displayName: username })
       if (!profileUpdate.success) {
-        console.error('❌ Error al actualizar perfil:', profileUpdate.error)
+        logger.error('Error al actualizar perfil:', profileUpdate.error)
         throw profileUpdate.error
       }
-      console.log('✅ Perfil actualizado correctamente')
 
       return success(userCredential.user)
     } catch (e) { 
-      console.error('❌ Error al registrar cuenta:', e)
+      logger.error('Error al registrar cuenta:', e)
       return failure(new ErrorAPI(normalizeError(e, 'registrar cuenta'))) 
     }
   }
@@ -222,53 +213,38 @@ class AuthService {
    */
   async updateUserCredentials(user: User, newName: string, newEmail: string, newPassword?: string): Promise<Result<void>> {
     try {
-      console.log('🔧 updateUserCredentials llamado con:', {
-        currentName: user.displayName,
-        newName,
-        currentEmail: user.email,
-        newEmail,
-        hasPassword: !!newPassword,
-        passwordLength: newPassword?.length || 0
-      })
-      
       // Actualizar nombre si es diferente
       if (user.displayName !== newName && newName) {
-        console.log('📝 Actualizando nombre de perfil...')
         const profileResult = await this.updateProfile(user, { displayName: newName })
         if (!profileResult.success) {
-          console.error('❌ Error al actualizar nombre:', profileResult.error)
+          logger.error('Error al actualizar nombre:', profileResult.error)
           throw profileResult.error
         }
-        console.log('✅ Nombre actualizado')
       }
 
       // Actualizar email si es diferente
       if (user.email !== newEmail && newEmail) {
-        console.log('📧 Actualizando email...')
         const emailResult = await this.updateUserEmail(user, newEmail)
         if (!emailResult.success) {
-          console.error('❌ Error al actualizar email:', emailResult.error)
+          logger.error('Error al actualizar email:', emailResult.error)
           throw emailResult.error
         }
-        console.log('✅ Email actualizado')
       }
 
       // Actualizar contraseña si se proporciona
       if (newPassword && newPassword.trim().length >= 6) {
-        console.log('🔑 Actualizando contraseña...')
         const passwordResult = await this.updateUserPassword(user, newPassword)
         if (!passwordResult.success) {
-          console.error('❌ Error al actualizar contraseña:', passwordResult.error)
+          logger.error('Error al actualizar contraseña:', passwordResult.error)
           throw passwordResult.error
         }
-        console.log('✅ Contraseña actualizada')
       } else if (newPassword) {
-        console.warn('⚠️ La contraseña proporcionada es muy corta (mínimo 6 caracteres)')
+        logger.warn('La contraseña proporcionada es muy corta (mínimo 6 caracteres)');
       }
 
       return success(undefined)
     } catch (e) { 
-      console.error('❌ Error en updateUserCredentials:', e)
+      logger.error('Error en updateUserCredentials:', e)
       return failure(new ErrorAPI(normalizeError(e, 'actualizar credenciales de usuario'))) 
     }
   }
@@ -307,12 +283,9 @@ class AuthService {
     adminPassword: string
   ): Promise<Result<void>> {
     try {
-      console.log('🔄 Iniciando actualización de credenciales de usuario en Firebase Auth:', userEmail)
-      
       // Guardar el usuario actual (admin)
       const currentAdmin = this.auth.currentUser
       if (!currentAdmin || currentAdmin.email !== adminEmail) {
-        console.log('⚠️ El usuario actual no coincide con el admin. Autenticando como admin...')
         // Autenticarnos como admin primero
         const adminLoginResult = await this.login(adminEmail, adminPassword)
         if (!adminLoginResult.success) {
@@ -321,14 +294,12 @@ class AuthService {
       }
 
       // Cerrar sesión del admin
-      console.log('🔒 Cerrando sesión del admin...')
       await signOut(this.auth)
 
       // Autenticarnos con el usuario a actualizar
-      console.log('🔐 Autenticando con el usuario a actualizar...')
       const userLoginResult = await this.login(userEmail, userPassword)
       if (!userLoginResult.success) {
-        console.error('❌ Error al autenticar con el usuario:', userLoginResult.error)
+        logger.error('Error al autenticar con el usuario:', userLoginResult.error)
         // Intentar volver a autenticar al admin
         if (adminEmail && adminPassword) {
           await this.login(adminEmail, adminPassword)
@@ -339,14 +310,6 @@ class AuthService {
       const userToUpdate = userLoginResult.data
 
       // Actualizar las credenciales
-      console.log('🔄 Actualizando credenciales en Firebase Auth...')
-      console.log('📝 Datos a actualizar:', {
-        newName: newName || userToUpdate.displayName || '',
-        newEmail: newEmail || userToUpdate.email || '',
-        hasNewPassword: !!newPassword,
-        newPasswordLength: newPassword?.length || 0
-      })
-      
       const finalName = newName || userToUpdate.displayName || ''
       const finalEmail = newEmail || userToUpdate.email || ''
       
@@ -358,7 +321,7 @@ class AuthService {
       )
       
       if (!updateResult.success) {
-        console.error('❌ Error al actualizar credenciales:', updateResult.error)
+        logger.error('Error al actualizar credenciales:', updateResult.error)
         // Intentar volver a autenticar al admin
         await signOut(this.auth)
         if (adminEmail && adminPassword) {
@@ -367,21 +330,17 @@ class AuthService {
         return failure(updateResult.error)
       }
 
-      console.log('✅ Credenciales actualizadas en Firebase Auth')
-
       // Volver a autenticar al admin
-      console.log('🔐 Volviendo a autenticar al admin...')
       await signOut(this.auth)
       const reLoginResult = await this.login(adminEmail, adminPassword)
       if (!reLoginResult.success) {
-        console.error('❌ Error al volver a autenticar al admin:', reLoginResult.error)
+        logger.error('Error al volver a autenticar al admin:', reLoginResult.error)
         return failure(new ErrorAPI({ message: 'Credenciales actualizadas pero no se pudo volver a autenticar al admin. Por favor, inicia sesión manualmente.', statusCode: 401 }))
       }
 
-      console.log('✅ Admin reautenticado correctamente')
       return success(undefined)
     } catch (e) {
-      console.error('❌ Error en updateUserCredentialsByAdmin:', e)
+      logger.error('Error en updateUserCredentialsByAdmin:', e)
       // Intentar volver a autenticar al admin en caso de error
       try {
         await signOut(this.auth)
@@ -389,7 +348,7 @@ class AuthService {
           await this.login(adminEmail, adminPassword)
         }
       } catch (reAuthError) {
-        console.error('❌ Error al volver a autenticar al admin:', reAuthError)
+        logger.error('Error al volver a autenticar al admin:', reAuthError)
       }
       return failure(new ErrorAPI(normalizeError(e, 'actualizar credenciales de usuario por admin')))
     }
@@ -412,12 +371,9 @@ class AuthService {
     adminPassword: string
   ): Promise<Result<void>> {
     try {
-      console.log('🗑️ Iniciando eliminación de usuario de Firebase Auth:', userEmail)
-      
       // Guardar el usuario actual (admin)
       const currentAdmin = this.auth.currentUser
       if (!currentAdmin || currentAdmin.email !== adminEmail) {
-        console.log('⚠️ El usuario actual no coincide con el admin. Autenticando como admin...')
         // Autenticarnos como admin primero
         const adminLoginResult = await this.login(adminEmail, adminPassword)
         if (!adminLoginResult.success) {
@@ -426,14 +382,12 @@ class AuthService {
       }
 
       // Cerrar sesión del admin
-      console.log('🔒 Cerrando sesión del admin...')
       await signOut(this.auth)
 
       // Autenticarnos con el usuario a eliminar
-      console.log('🔐 Autenticando con el usuario a eliminar...')
       const userLoginResult = await this.login(userEmail, userPassword)
       if (!userLoginResult.success) {
-        console.error('❌ Error al autenticar con el usuario:', userLoginResult.error)
+        logger.error('Error al autenticar con el usuario:', userLoginResult.error)
         // Intentar volver a autenticar al admin
         if (adminEmail && adminPassword) {
           await this.login(adminEmail, adminPassword)
@@ -444,10 +398,9 @@ class AuthService {
       const userToDelete = userLoginResult.data
 
       // Eliminar el usuario
-      console.log('🗑️ Eliminando usuario de Firebase Auth...')
       const deleteResult = await this.deleteUserAccount(userToDelete)
       if (!deleteResult.success) {
-        console.error('❌ Error al eliminar usuario:', deleteResult.error)
+        logger.error('Error al eliminar usuario:', deleteResult.error)
         // Intentar volver a autenticar al admin
         await signOut(this.auth)
         if (adminEmail && adminPassword) {
@@ -456,21 +409,17 @@ class AuthService {
         return failure(deleteResult.error)
       }
 
-      console.log('✅ Usuario eliminado de Firebase Auth')
-
       // Volver a autenticar al admin
-      console.log('🔐 Volviendo a autenticar al admin...')
       await signOut(this.auth)
       const reLoginResult = await this.login(adminEmail, adminPassword)
       if (!reLoginResult.success) {
-        console.error('❌ Error al volver a autenticar al admin:', reLoginResult.error)
+        logger.error('Error al volver a autenticar al admin:', reLoginResult.error)
         return failure(new ErrorAPI({ message: 'Usuario eliminado pero no se pudo volver a autenticar al admin. Por favor, inicia sesión manualmente.', statusCode: 401 }))
       }
 
-      console.log('✅ Admin reautenticado correctamente')
       return success(undefined)
     } catch (e) {
-      console.error('❌ Error en deleteUserByCredentials:', e)
+      logger.error('Error en deleteUserByCredentials:', e)
       // Intentar volver a autenticar al admin en caso de error
       try {
         await signOut(this.auth)
@@ -478,7 +427,7 @@ class AuthService {
           await this.login(adminEmail, adminPassword)
         }
       } catch (reAuthError) {
-        console.error('❌ Error al volver a autenticar al admin:', reAuthError)
+        logger.error('Error al volver a autenticar al admin:', reAuthError)
       }
       return failure(new ErrorAPI(normalizeError(e, 'eliminar cuenta de usuario por credenciales')))
     }
@@ -494,7 +443,7 @@ class AuthService {
     try {
       // Para eliminar un usuario por UID, necesitamos usar Firebase Admin SDK
       // Por ahora, solo eliminamos de Firestore y dejamos la cuenta de Auth
-      console.warn('⚠️ Eliminación de Firebase Auth requiere Firebase Admin SDK')
+      logger.warn('Eliminación de Firebase Auth requiere Firebase Admin SDK');
       return success(undefined)
     } catch (e) { return failure(new ErrorAPI(normalizeError(e, 'eliminar cuenta de usuario por UID'))) }
   }

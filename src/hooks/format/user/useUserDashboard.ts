@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { logger } from '@/utils/logger'
 
 export interface UserDashboardData {// Estadísticas generales
   totalCompletedMaintenances: number
@@ -168,7 +169,7 @@ export function useUserDashboard() {
           ]
         })
       } catch (error) {
-        console.error('Error fetching engineer dashboard data:', error)
+        logger.error('Error fetching engineer dashboard data:', error)
       } finally {
         setLoading(false)
       }

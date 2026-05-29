@@ -19,6 +19,7 @@ import { normalizeError } from '@/errors/handler';
 import { geminiService } from '@/services/ai/gemini.service';
 import { getPhaseName } from '@/utils/firestoreHelpers';
 import { fetchExamResultDocument } from '@/services/firebase/examResults.service';
+import { logger } from '@/utils/logger'
 
 /**
  * Análisis consolidado de Fase I generado por IA
@@ -101,7 +102,7 @@ class Phase1AIAnalysisService {
 
       return results;
     } catch (error) {
-      console.error('Error obteniendo resultados Fase I:', error);
+      logger.error('Error obteniendo resultados Fase I:', error);
       return [];
     }
   }
@@ -114,8 +115,6 @@ class Phase1AIAnalysisService {
     examId: string
   ): Promise<Result<Phase1ExamAnalysis>> {
     try {
-      console.log(`🔍 Analizando examen Fase I: ${examId} para estudiante ${studentId}`);
-
       const examData = await fetchExamResultDocument(studentId, examId, 'first');
 
       if (!examData) {
@@ -188,10 +187,9 @@ class Phase1AIAnalysisService {
         analyzedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Análisis de examen completado`);
       return success(analysis);
     } catch (e) {
-      console.error('❌ Error analizando examen Fase I:', e);
+      logger.error('Error analizando examen Fase I:', e);
       return failure(new ErrorAPI(normalizeError(e, 'analizar examen Fase I')));
     }
   }
@@ -203,8 +201,6 @@ class Phase1AIAnalysisService {
     studentId: string
   ): Promise<Result<Phase1ConsolidatedAnalysis>> {
     try {
-      console.log(`🔍 Generando análisis consolidado Fase I para ${studentId}`);
-
       const results = await this.getPhase1Results(studentId);
       
       if (results.length === 0) {
@@ -328,10 +324,9 @@ class Phase1AIAnalysisService {
         analyzedAt: Timestamp.now(),
       });
 
-      console.log(`✅ Análisis consolidado completado`);
       return success(analysis);
     } catch (e) {
-      console.error('❌ Error generando análisis consolidado:', e);
+      logger.error('Error generando análisis consolidado:', e);
       return failure(new ErrorAPI(normalizeError(e, 'generar análisis consolidado')));
     }
   }
@@ -425,7 +420,7 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
         detailedFeedback: '',
       });
     } catch (e) {
-      console.error('❌ Error generando análisis de examen con IA:', e);
+      logger.error('Error generando análisis de examen con IA:', e);
       return success({
         summary: `Puntuación: ${score.toFixed(1)}%`,
         strengths,
@@ -561,7 +556,7 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
         },
       });
     } catch (e) {
-      console.error('❌ Error generando resumen consolidado con IA:', e);
+      logger.error('Error generando resumen consolidado con IA:', e);
       return success({
         subjectAnalyses: subjectAnalyses.map(sa => ({
           ...sa,
@@ -607,7 +602,7 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
       // Generar nuevo análisis
       return await this.generateConsolidatedAnalysis(studentId);
     } catch (e) {
-      console.error('❌ Error obteniendo análisis consolidado:', e);
+      logger.error('Error obteniendo análisis consolidado:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener análisis consolidado')));
     }
   }
@@ -635,7 +630,7 @@ Sé específico, constructivo y motivador. Responde SOLO con el JSON, sin texto 
       // Si no existe, generar nuevo análisis
       return await this.analyzePhase1Exam(studentId, examId);
     } catch (e) {
-      console.error('❌ Error obteniendo análisis de examen:', e);
+      logger.error('Error obteniendo análisis de examen:', e);
       return failure(new ErrorAPI(normalizeError(e, 'obtener análisis de examen')));
     }
   }

@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { logger } from '@/utils/logger'
 
 /**
  * Cliente Gemini para el navegador.
@@ -19,7 +20,7 @@ class GeminiService {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     if (!apiKey) {
-      console.warn('⚠️ VITE_GEMINI_API_KEY no está configurada. Las funciones de IA no estarán disponibles.');
+      logger.warn('VITE_GEMINI_API_KEY no está configurada. Las funciones de IA no estarán disponibles.');
       return;
     }
 
@@ -27,9 +28,8 @@ class GeminiService {
       this.genAI = new GoogleGenerativeAI(apiKey);
       const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
       this.model = this.genAI.getGenerativeModel({ model: modelName });
-      console.log(`✅ Servicio de Gemini AI inicializado con modelo: ${modelName}`);
     } catch (error) {
-      console.error('❌ Error al inicializar Gemini AI:', error);
+      logger.error('Error al inicializar Gemini AI:', error);
     }
   }
 
@@ -139,7 +139,7 @@ Responde SOLO con el JSON, sin texto adicional.`;
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Error desconocido al generar recomendaciones';
-      console.error('Error al generar recomendaciones con Gemini:', error);
+      logger.error('Error al generar recomendaciones con Gemini:', error);
       return {
         success: false,
         error: message,
@@ -259,7 +259,7 @@ Responde SOLO con el JSON, sin texto adicional.`;
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Error desconocido al generar ruta de mejoramiento';
-      console.error('Error al generar ruta de mejoramiento con Gemini:', error);
+      logger.error('Error al generar ruta de mejoramiento con Gemini:', error);
       return {
         success: false,
         error: message,

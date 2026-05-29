@@ -687,193 +687,86 @@ class StudentSummaryService {
   }
 
   /**
-   * Obtiene el contexto académico del estudiante
-   * NUEVA ESTRUCTURA: Busca primero en la nueva estructura jerárquica, luego en la antigua
+   * Obtiene el contexto académico del estudiante vía userLookup + doc jerárquico (sin escanear instituciones).
    */
   private async getAcademicContext(studentId: string): Promise<AcademicContext> {
     try {
       const studentDb = getStudentDatabase();
-      
-      // PRIMERO: Intentar buscar en la nueva estructura jerárquica
-      try {
-        // Obtener todas las instituciones para buscar el estudiante
-        const institutionsRef = studentDb.collection('superate').doc('auth').collection('institutions');
-        const institutionsSnap = await institutionsRef.get();
 
-        if (!institutionsSnap.empty) {
-          // Buscar en cada institución en la colección de estudiantes
-          for (const institutionDoc of institutionsSnap.docs) {
-            const institutionId = institutionDoc.id;
-            const estudiantesRef = institutionDoc.ref.collection('estudiantes').doc(studentId);
-            const estudianteSnap = await estudiantesRef.get();
+      // 1. userLookup — una sola lectura para obtener institutionId (igual que studentProgressSummary)
+      const lookupSnap = await studentDb.doc(`superate/auth/userLookup/${studentId}`).get();
+      const institutionId = lookupSnap.exists
+        ? (lookupSnap.data()?.institutionId as string | undefined)
+        : undefined;
 
-            if (estudianteSnap.exists) {
-              const userData = estudianteSnap.data();
-              console.log(`✅ Estudiante encontrado en nueva estructura jerárquica: institutions/${institutionId}/estudiantes/${studentId}`);
-              const context: AcademicContext = {};
-              
-              // Obtener nombre del grado desde la institución si solo tenemos gradeId
-              let gradeName = userData?.gradeName;
-              const gradeId = userData?.gradeId || userData?.grade;
-              
-              // Si no hay gradeName pero sí hay gradeId, intentar obtenerlo de la institución
-              if (!gradeName && gradeId && institutionId) {
-                try {
-                  const institutionRef = studentDb
-                    .collection('superate')
-                    .doc('auth')
-                    .collection('institutions')
-                    .doc(institutionId);
-                  const institutionSnap = await institutionRef.get();
-                  
-                  if (institutionSnap.exists) {
-                    const institutionData = institutionSnap.data();
-                    const campusId = userData?.campusId || userData?.campus;
-                    
-                    // Buscar el grado en los campus de la institución
-                    if (institutionData?.campuses && Array.isArray(institutionData.campuses)) {
-                      for (const campus of institutionData.campuses) {
-                        // Si hay campusId, buscar solo en ese campus
-                        if (campusId && campus.id !== campusId) {
-                          continue;
-                        }
-                        
-                        if (campus.grades && Array.isArray(campus.grades)) {
-                          const grade = campus.grades.find((g: any) => g.id === gradeId);
-                          if (grade && grade.name) {
-                            gradeName = grade.name;
-                            console.log(`✅ Nombre de grado obtenido desde institución: ${gradeName}`);
-                            break;
-                          }
-                        }
-                      }
-                    }
-                  }
-                } catch (error: any) {
-                  console.warn(`⚠️ Error obteniendo nombre de grado desde institución: ${error.message}`);
-                }
-              }
-              
-              // Usar gradeName si está disponible, sino usar grade (puede ser ID o nombre)
-              if (gradeName) {
-                context.grado = gradeName;
-                context.nivel = gradeName;
-              } else if (userData?.grade) {
-                // Si grade parece ser un ID técnico (contiene guiones y números largos), no usarlo
-                const gradeValue = userData.grade;
-                const isTechnicalId = /^[a-zA-Z0-9]+-\d+-\d+$/.test(gradeValue);
-                if (!isTechnicalId) {
-                  context.grado = gradeValue;
-                  context.nivel = gradeValue;
-                }
-              }
-              
-              if (institutionId) {
-                context.institutionId = institutionId;
-              }
-              if (userData?.campusId || userData?.campus) {
-                context.sedeId = userData?.campusId || userData?.campus;
-              }
-              if (gradeId) {
-                context.gradeId = gradeId;
-              }
-
-              await enrichContextWithSedeYJornada(studentDb, institutionId, userData, context);
-
-              return context;
-            }
-          }
-        }
-      } catch (newStructureError: any) {
-        console.warn('⚠️ Error al buscar en nueva estructura jerárquica:', newStructureError.message);
-        // Continuar con búsqueda en estructura antigua
+      if (!institutionId) {
+        console.warn(`[studentSummary] Sin userLookup para ${studentId}; contexto académico vacío`);
+        return {};
       }
 
-      // SEGUNDO: Buscar en la estructura antigua (retrocompatibilidad)
-      console.log(`⚠️ Estudiante no encontrado en nueva estructura, buscando en estructura antigua...`);
-      const userRef = studentDb.collection('superate').doc('auth').collection('users').doc(studentId);
-      const userSnap = await userRef.get();
+      // 2. Doc jerárquico del estudiante — una lectura
+      const estSnap = await studentDb
+        .doc(`superate/auth/institutions/${institutionId}/estudiantes/${studentId}`)
+        .get();
 
-      if (userSnap.exists) {
-        const userData = userSnap.data();
-        console.log(`✅ Estudiante encontrado en estructura antigua (deprecated): users/${studentId}`);
-        const context: AcademicContext = {};
-        
-        // Obtener nombre del grado desde la institución si solo tenemos gradeId
-        let gradeName = userData?.gradeName;
-        const gradeId = userData?.gradeId || userData?.grade;
-        const institutionId = userData?.inst || userData?.institutionId;
-        
-        // Si no hay gradeName pero sí hay gradeId, intentar obtenerlo de la institución
-        if (!gradeName && gradeId && institutionId) {
-          try {
-            const institutionRef = studentDb
-              .collection('superate')
-              .doc('auth')
-              .collection('institutions')
-              .doc(institutionId);
-            const institutionSnap = await institutionRef.get();
-            
-            if (institutionSnap.exists) {
-              const institutionData = institutionSnap.data();
-              const campusId = userData?.campusId || userData?.campus;
-              
-              // Buscar el grado en los campus de la institución
-              if (institutionData?.campuses && Array.isArray(institutionData.campuses)) {
-                for (const campus of institutionData.campuses) {
-                  // Si hay campusId, buscar solo en ese campus
-                  if (campusId && campus.id !== campusId) {
-                    continue;
-                  }
-                  
-                  if (campus.grades && Array.isArray(campus.grades)) {
-                    const grade = campus.grades.find((g: any) => g.id === gradeId);
-                    if (grade && grade.name) {
-                      gradeName = grade.name;
-                      console.log(`✅ Nombre de grado obtenido desde institución: ${gradeName}`);
-                      break;
-                    }
-                  }
-                }
-              }
+      const userData = estSnap.exists ? estSnap.data() : undefined;
+
+      // 3. Si no hay doc en estudiantes, intentar users legacy — una lectura
+      const legacyData = !userData
+        ? (
+            await studentDb
+              .doc(`superate/auth/users/${studentId}`)
+              .get()
+          ).data()
+        : undefined;
+
+      const d = userData ?? legacyData;
+
+      const context: AcademicContext = {};
+
+      if (institutionId) context.institutionId = institutionId;
+
+      const campusId = (d?.campusId || d?.campus) as string | undefined;
+      if (campusId) context.sedeId = campusId;
+
+      const gradeId = (d?.gradeId || d?.grade) as string | undefined;
+      if (gradeId) context.gradeId = gradeId;
+
+      // gradeName: desde el doc del estudiante primero, luego resolver desde institución
+      let gradeName = typeof d?.gradeName === 'string' && d.gradeName.trim()
+        ? d.gradeName.trim()
+        : undefined;
+
+      if (!gradeName && gradeId && campusId) {
+        try {
+          const instSnap = await studentDb
+            .doc(`superate/auth/institutions/${institutionId}`)
+            .get();
+          if (instSnap.exists) {
+            const campuses = instSnap.data()?.campuses as
+              | Array<{ id: string; grades?: Array<{ id: string; name?: string }> }>
+              | undefined;
+            const campus = campuses?.find(c => c.id === campusId);
+            const grade = campus?.grades?.find(g => g.id === gradeId);
+            if (typeof grade?.name === 'string' && grade.name.trim()) {
+              gradeName = grade.name.trim();
             }
-          } catch (error: any) {
-            console.warn(`⚠️ Error obteniendo nombre de grado desde institución: ${error.message}`);
           }
+        } catch (e) {
+          console.warn('[studentSummary] Error resolviendo nombre de grado:', e);
         }
-        
-        // Usar gradeName si está disponible, sino usar grade (puede ser ID o nombre)
-        if (gradeName) {
-          context.grado = gradeName;
-          context.nivel = gradeName;
-        } else if (userData?.grade) {
-          // Si grade parece ser un ID técnico (contiene guiones y números largos), no usarlo
-          const gradeValue = userData.grade;
-          const isTechnicalId = /^[a-zA-Z0-9]+-\d+-\d+$/.test(gradeValue);
-          if (!isTechnicalId) {
-            context.grado = gradeValue;
-            context.nivel = gradeValue;
-          }
-        }
-        
-        if (institutionId) {
-          context.institutionId = institutionId;
-        }
-        if (userData?.campusId || userData?.campus) {
-          context.sedeId = userData?.campusId || userData?.campus;
-        }
-        if (gradeId) {
-          context.gradeId = gradeId;
-        }
-
-        await enrichContextWithSedeYJornada(studentDb, institutionId, userData, context);
-
-        return context;
       }
 
-      return {};
+      if (gradeName) {
+        context.grado = gradeName;
+        context.nivel = gradeName;
+      }
+
+      await enrichContextWithSedeYJornada(studentDb, institutionId, d, context);
+
+      return context;
     } catch (error: any) {
-      console.warn('Error obteniendo contexto académico:', error.message);
+      console.warn('[studentSummary] Error obteniendo contexto académico:', error.message);
       return {};
     }
   }

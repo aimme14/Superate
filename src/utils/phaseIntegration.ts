@@ -35,7 +35,7 @@ export async function processExamResults(
     // Obtener información del estudiante para el gradeId
     const userResult = await dbService.getUserById(userId);
     if (!userResult.success || !userResult.data) {
-      console.error('❌ No se pudo obtener información del estudiante');
+      logger.error('No se pudo obtener información del estudiante');
       return { success: false, error: 'No se pudo obtener información del estudiante' };
     }
 
@@ -52,8 +52,7 @@ export async function processExamResults(
     });
 
     if (!gradeId) {
-      console.error('❌ No se encontró gradeId para el estudiante');
-      console.error('Datos del estudiante:', studentData);
+      logger.error('No se encontró gradeId para el estudiante');
       return { success: false, error: 'No se encontró información de grado' };
     }
 
@@ -69,7 +68,7 @@ export async function processExamResults(
         );
 
         if (!analysisResult.success) {
-          console.error('❌ Error analizando Fase 1:', analysisResult.error);
+          logger.error('Error analizando Fase 1:', analysisResult.error);
           return { success: false, error: 'Error al analizar resultados' };
         }
 
@@ -97,7 +96,7 @@ export async function processExamResults(
 
             logger.debug(`✅ Carpeta "Fase II" creada exitosamente en: results/${userId}/${phase2Name}`);
           } catch (error) {
-            console.error('❌ Error creando carpeta "Fase II":', error);
+            logger.error('Error creando carpeta Fase II:', error);
           }
         } else {
           logger.debug(`📊 Progreso Fase I: ${completedCount}/7 materias con examen completado`);
@@ -119,7 +118,7 @@ export async function processExamResults(
         const phase1Snap = await getDoc(phase1Ref);
 
         if (!phase1Snap.exists()) {
-          console.warn('⚠️ No se encontró análisis de Fase 1, no se puede analizar progreso');
+          logger.warn('No se encontró análisis de Fase 1, no se puede analizar progreso');
           break;
         }
 
@@ -161,7 +160,7 @@ export async function processExamResults(
           );
 
           if (!progressResult.success) {
-            console.error('❌ Error analizando progreso:', progressResult.error);
+            logger.error('Error analizando progreso:', progressResult.error);
           }
         }
 
@@ -179,7 +178,7 @@ export async function processExamResults(
         );
 
         if (!phase3Result.success) {
-          console.error('❌ Error generando resultado ICFES:', phase3Result.error);
+          logger.error('Error generando resultado ICFES:', phase3Result.error);
           return { success: false, error: 'Error al generar resultado ICFES' };
         }
 
@@ -189,7 +188,7 @@ export async function processExamResults(
 
     return { success: true };
   } catch (error) {
-    console.error('❌ Error procesando resultados del examen:', error);
+    logger.error('Error procesando resultados del examen:', error);
     return { success: false, error: 'Error inesperado al procesar resultados' };
   }
 }
@@ -217,7 +216,7 @@ export async function checkPhaseAccess(
 
     return accessResult.data;
   } catch (error) {
-    console.error('❌ Error verificando acceso a fase:', error);
+    logger.error('Error verificando acceso a fase:', error);
     return { canAccess: false, reason: 'Error al verificar acceso' };
   }
 }

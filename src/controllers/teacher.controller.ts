@@ -4,6 +4,7 @@ import ErrorAPI from '@/errors'
 import { dbService } from '@/services/firebase/db.service'
 import { authService } from '@/services/firebase/auth.service'
 import { resolveGradeNameFromInstitution } from '@/utils/resolveGradeNameFromInstitution'
+import { logger } from '@/utils/logger'
 
 // Interfaces para las operaciones CRUD
 export interface CreateTeacherData {
@@ -60,15 +61,6 @@ export const getTeacherById = async (id: string): Promise<Result<Teacher>> => {
 
 export const createTeacher = async (data: CreateTeacherData): Promise<Result<Teacher>> => {
   try {
-    console.log('🚀 Iniciando creación de docente con datos:', {
-      name: data.name,
-      email: data.email,
-      institutionId: data.institutionId,
-      campusId: data.campusId,
-      gradeId: data.gradeId,
-      hasPassword: !!data.password
-    })
-
     if (!data.name || !data.email || !data.institutionId || !data.campusId || !data.gradeId) {
       return failure(new ErrorAPI({ message: 'Nombre, email, institución, sede y grado son obligatorios', statusCode: 400 }))
     }
@@ -89,16 +81,13 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
 
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = data.password || data.name.toLowerCase().replace(/\s+/g, '') + '123'
-    console.log('🔐 Contraseña generada para docente (longitud):', generatedPassword.length)
 
     // Crear cuenta en Firebase Auth (preservando la sesión del admin)
-    console.log('📝 Creando cuenta en Firebase Auth...')
     const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword, true, undefined, undefined)
     if (!userAccount.success) {
-      console.error('❌ Error al crear cuenta en Firebase Auth:', userAccount.error)
+      logger.error('Error al crear cuenta en Firebase Auth:', userAccount.error)
       throw userAccount.error
     }
-    console.log('✅ Cuenta creada en Firebase Auth con UID:', userAccount.data.uid)
 
     // Crear documento en Firestore usando la nueva estructura jerárquica
     const teacherData: any = {
@@ -129,41 +118,30 @@ export const createTeacher = async (data: CreateTeacherData): Promise<Result<Tea
       teacherData.gradeName = resolvedGradeName
     }
 
-    console.log('👨‍🏫 Datos del docente a guardar en Firestore:', teacherData)
-    console.log('🎯 Rol del docente:', teacherData.role)
-
     // Usar directamente la nueva estructura jerárquica para profesores
-    console.log('🆕 Creando docente usando nueva estructura jerárquica')
     const dbResult = await dbService.createUserInNewStructure(userAccount.data, {
       ...teacherData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
     if (!dbResult.success) {
-      console.error('❌ Error al crear usuario docente en nueva estructura:', dbResult.error)
+      logger.error('Error al crear usuario docente en nueva estructura:', dbResult.error)
       throw dbResult.error
     }
-    console.log('✅ Usuario docente creado en nueva estructura jerárquica')
 
     // Crear también en la estructura jerárquica de grados (para referencias)
-    console.log('📊 Agregando docente a la estructura jerárquica de grados...')
     const gradeResult = await dbService.createTeacherInGrade({
       ...teacherData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
     if (!gradeResult.success) {
-      console.warn('⚠️ No se pudo crear el docente en la estructura jerárquica de grados:', gradeResult.error)
+      logger.warn('No se pudo crear el docente en la estructura jerárquica de grados')
       // No es crítico, el usuario ya existe en la nueva estructura jerárquica
-    } else {
-      console.log('✅ Docente agregado a la estructura jerárquica de grados')
     }
 
     // No enviar verificación de email para docentes
-    console.log('ℹ️ Docentes no requieren verificación de email')
-
-    console.log('🎉 Docente creado exitosamente. Puede hacer login inmediatamente.')
     return success(dbResult.data as Teacher)
   } catch (error) {
-    console.error('❌ Error general al crear docente:', error)
+    logger.error('Error general al crear docente:', error)
     return failure(new ErrorAPI({ message: error instanceof Error ? error.message : 'Error al crear el docente', statusCode: 500 }))
   }
 }
@@ -232,28 +210,24 @@ export const deleteTeacherFromGrade = async (
         )
 
         if (userToDelete) {
-          console.log('🗑️ Eliminando usuario de Firestore PRIMERO (antes de estructura jerárquica):', userToDelete.id)
-
           // SIEMPRE eliminar de Firestore (bloquea el acceso aunque quede cuenta en Firebase Auth)
           const deleteResult = await dbService.deleteUser(userToDelete.id)
           if (deleteResult.success) {
-            console.log('✅ Usuario eliminado de Firestore')
           } else {
-            console.warn('⚠️ Error al eliminar usuario de Firestore, marcando como inactivo...')
+            logger.warn('Error al eliminar usuario de Firestore, marcando como inactivo')
             // Si falla la eliminación, al menos marcar como inactivo - CRÍTICO para prevenir login
             const updateResult = await dbService.updateUser(userToDelete.id, { isActive: false, deletedAt: new Date().toISOString() })
             if (!updateResult.success) {
-              console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario de Firestore')
+              logger.error('ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario de Firestore')
               return failure(new ErrorAPI({ message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', statusCode: 500 }))
             }
-            console.log('✅ Usuario marcado como inactivo en Firestore')
           }
         } else {
-          console.warn('⚠️ No se encontró el usuario en Firestore con email:', teacher.email)
+          logger.warn('No se encontró el usuario en Firestore')
         }
       }
     } catch (userError) {
-      console.error('❌ Error crítico al eliminar usuario de Firestore:', userError)
+      logger.error('Error crítico al eliminar usuario de Firestore:', userError)
       // Si no podemos eliminar o desactivar el usuario, no continuar con la eliminación
       return failure(new ErrorAPI({ message: 'Error crítico: No se pudo eliminar el usuario de Firestore', statusCode: 500 }))
     }
@@ -263,7 +237,7 @@ export const deleteTeacherFromGrade = async (
     const result = await dbService.deleteTeacherFromGrade(institutionId, campusId, gradeId, teacherId)
     if (!result.success) {
       // Si falla la eliminación de la estructura jerárquica, el usuario ya está bloqueado en Firestore
-      console.warn('⚠️ El usuario ya fue eliminado/desactivado de Firestore, pero falló la eliminación de la estructura jerárquica')
+      logger.warn('Usuario eliminado de Firestore pero falló eliminación de estructura jerárquica')
       return failure(result.error)
     }
 
@@ -316,11 +290,6 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
 
     // Si se está moviendo el docente, primero eliminarlo del grado original y luego agregarlo al nuevo
     if (isMoving) {
-      console.log('🔄 Moviendo docente de un grado a otro:', {
-        from: { institution: oldInstId, campus: oldCampId, grade: oldGradId },
-        to: { institution: newInstitutionId, campus: newCampusId, grade: newGradeId }
-      })
-
       // Eliminar del grado original
       const deleteResult = await dbService.deleteTeacherFromGrade(oldInstId, oldCampId, oldGradId, teacherId)
       if (!deleteResult.success) {
@@ -400,13 +369,12 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
       try {
         const userUpdateResult = await dbService.updateUser(teacherUid, userUpdateData)
         if (!userUpdateResult.success) {
-          console.warn('⚠️ Error al actualizar usuario en Firestore:', userUpdateResult.error)
+          logger.warn('Error al actualizar usuario en Firestore')
           // No fallar la operación principal si hay error al actualizar en Firestore
         } else {
-          console.log('✅ Usuario actualizado en Firestore')
         }
       } catch (userError) {
-        console.warn('⚠️ Error al actualizar usuario en Firestore:', userError)
+        logger.warn('Error al actualizar usuario en Firestore')
       }
     }
 
@@ -414,16 +382,6 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
     const isUpdatingEmail = data.email && data.email !== oldEmail
     const isUpdatingName = data.name && data.name !== oldName
     const isUpdatingPassword = data.password && data.password.trim().length >= 6
-    
-    console.log('🔍 Verificando si se deben actualizar credenciales:', {
-      isUpdatingEmail,
-      isUpdatingName,
-      isUpdatingPassword,
-      hasAdminEmail: !!data.adminEmail,
-      hasAdminPassword: !!data.adminPassword,
-      hasCurrentPassword: !!data.currentPassword,
-      oldEmail
-    })
     
     if (isUpdatingEmail || isUpdatingName || isUpdatingPassword) {
       if (data.adminEmail && data.adminPassword && oldEmail) {
@@ -436,10 +394,8 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
             if (data.currentPassword) {
               // Usar la contraseña actual proporcionada por el admin
               currentPasswordToUse = data.currentPassword
-              console.log('🔐 Usando contraseña actual proporcionada por el admin')
             } else {
-              console.warn('⚠️ Se intenta cambiar la contraseña pero no se proporcionó la contraseña actual')
-              console.warn('⚠️ Intentando con contraseña reconstruida...')
+              logger.warn('Se intenta cambiar la contraseña pero no se proporcionó la contraseña actual')
             }
           }
           
@@ -453,13 +409,9 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
               oldName.toLowerCase().replace(/\s+/g, '') + '123'
             ]
             
-            console.log('🔄 Intentando actualizar credenciales en Firebase Auth...')
-            console.log('📋 Variaciones de contraseña a intentar:', passwordVariations.map(p => p.substring(0, 3) + '...'))
-            
             let credentialsUpdated = false
             for (const currentPassword of passwordVariations) {
               try {
-                console.log(`🔐 Intentando con contraseña: ${currentPassword.substring(0, 3)}...`)
                 const authUpdateResult = await authService.updateUserCredentialsByAdmin(
                   oldEmail,
                   currentPassword,
@@ -471,32 +423,19 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
                 )
                 
                 if (authUpdateResult.success) {
-                  console.log('✅ Credenciales actualizadas en Firebase Auth')
                   credentialsUpdated = true
                   break
-                } else {
-                  console.log(`⚠️ Intento falló: ${authUpdateResult.error?.message || 'Error desconocido'}`)
                 }
               } catch (tryError: any) {
-                console.log(`⚠️ Intento con contraseña falló: ${tryError?.message || 'Error desconocido'}`)
                 continue
               }
             }
             
             if (!credentialsUpdated) {
-              console.warn('⚠️ No se pudo actualizar credenciales en Firebase Auth con ninguna variación de contraseña')
-              console.warn('⚠️ El usuario puede haber cambiado su contraseña. Las credenciales se actualizaron solo en Firestore.')
+              logger.warn('No se pudo actualizar credenciales en Firebase Auth con ninguna variación de contraseña')
             }
           } else {
             // Usar la contraseña actual proporcionada
-            console.log('🔄 Intentando actualizar credenciales en Firebase Auth con contraseña actual proporcionada...')
-            console.log('📝 Datos a actualizar:', {
-              newEmail: data.email || 'sin cambio',
-              newName: data.name || 'sin cambio',
-              hasNewPassword: !!data.password,
-              newPasswordLength: data.password?.length || 0
-            })
-            
             const authUpdateResult = await authService.updateUserCredentialsByAdmin(
               oldEmail,
               currentPasswordToUse,
@@ -508,22 +447,19 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
             )
             
             if (authUpdateResult.success) {
-              console.log('✅ Credenciales actualizadas en Firebase Auth')
             } else {
-              console.error('❌ Error al actualizar credenciales:', authUpdateResult.error)
-              console.warn('⚠️ Las credenciales se actualizaron solo en Firestore.')
+              logger.error('Error al actualizar credenciales:', authUpdateResult.error)
+              logger.warn('Las credenciales se actualizaron solo en Firestore')
             }
           }
         } catch (authError: any) {
-          console.error('❌ Error al actualizar Firebase Auth:', authError)
-          console.warn('⚠️ Las credenciales se actualizaron solo en Firestore.')
+          logger.error('Error al actualizar Firebase Auth:', authError)
+          logger.warn('Las credenciales se actualizaron solo en Firestore')
         }
       } else {
-        console.warn('⚠️ No se proporcionaron credenciales de admin. Las credenciales se actualizaron solo en Firestore.')
-        console.warn('⚠️ El usuario deberá usar las credenciales anteriores para iniciar sesión.')
+        logger.warn('No se proporcionaron credenciales de admin. Las credenciales se actualizaron solo en Firestore')
+        logger.warn('El usuario deberá usar las credenciales anteriores para iniciar sesión')
       }
-    } else {
-      console.log('ℹ️ No se están actualizando credenciales (email, nombre o contraseña)')
     }
 
     return success(updatedTeacher as Teacher)

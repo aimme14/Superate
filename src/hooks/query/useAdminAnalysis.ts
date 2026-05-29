@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchEvaluationsFromStudentSummary } from '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
+import { logger } from '@/utils/logger'
 
 export interface ExamResult {
   userId: string
@@ -439,7 +440,7 @@ export const useStudentAnalysis = (studentId: string, enabled: boolean = true) =
           },
         }
       } catch (error) {
-        console.error(`Error obteniendo análisis del estudiante ${studentId}:`, error)
+        logger.error('Error obteniendo análisis del estudiante:', error)
         throw error
       }
     },

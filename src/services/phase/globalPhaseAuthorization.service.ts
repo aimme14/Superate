@@ -1,6 +1,7 @@
 import { doc, onSnapshot, getFirestore, Timestamp, setDoc } from "firebase/firestore";
 import { firebaseApp } from "@/services/db";
 import type { GlobalPhaseAuthorization, PhaseType } from "@/interfaces/phase.interface";
+import { logger } from '@/utils/logger'
 
 const db = getFirestore(firebaseApp);
 
@@ -71,7 +72,7 @@ class GlobalPhaseAuthorizationService {
       },
       (err) => {
         // Si falla el listener, al menos devolvemos defaults para no romper el flujo.
-        console.error("[GlobalPhaseAuthorization] onSnapshot error:", err);
+        logger.error("[GlobalPhaseAuthorization] onSnapshot error:", err);
         this.current = this.current ?? DEFAULT_FLAGS;
         if (this.readyResolve) {
           this.readyResolve(this.current);

@@ -8,6 +8,7 @@ import {
   resolveCampusNameFromInstitution,
   resolveGradeNameFromInstitution,
 } from "@/utils/resolveGradeNameFromInstitution"
+import { logger } from '@/utils/logger'
 
 export interface CreateStudentData {
   name: string
@@ -129,15 +130,11 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
     }
 
     // Usar directamente la nueva estructura jerárquica para estudiantes
-    console.log('🆕 Creando estudiante usando nueva estructura jerárquica')
     const dbResult = await dbService.createUserInNewStructure(userAccount.data, dbUserData)
     if (!dbResult.success) throw dbResult.error
 
     // Asignar automáticamente a docentes del mismo grado
     await assignStudentToTeachers(userAccount.data.uid, institutionId, campusId, gradeId, jornada)
-
-    // Asignar automáticamente al coordinador de la sede
-    await assignStudentToPrincipal(userAccount.data.uid, institutionId, campusId)
 
     // Asignar automáticamente al rector de la institución
     await assignStudentToRector(userAccount.data.uid, institutionId)
@@ -155,17 +152,11 @@ export const createStudent = async (studentData: CreateStudentData): Promise<Res
  */
 export const getFilteredStudents = async (filters: StudentFilters): Promise<Result<User[]>> => {
   try {
-    console.log('🎯 Controlador: llamando a dbService.getFilteredStudents con filtros:', filters)
     const result = await dbService.getFilteredStudents(filters)
-    console.log('🎯 Controlador: resultado del servicio:', result.success ? 'ÉXITO' : 'ERROR')
-    if (result.success) {
-      console.log('🎯 Controlador: datos recibidos:', result.data.length, 'estudiantes')
-      console.log('🎯 Controlador: primer estudiante:', result.data[0])
-    }
     if (!result.success) throw result.error
     return success(result.data)
   } catch (e) {
-    console.error('🎯 Controlador: error:', e)
+    logger.error('Error en getFilteredStudents:', e)
     return failure(new ErrorAPI(normalizeError(e, 'obtener estudiantes filtrados')))
   }
 }
@@ -221,7 +212,7 @@ export const updateStudent = async (studentId: string, studentData: UpdateStuden
         if (!studentResult.success) {
           // Si es error de cuota, continuar sin validación (no crítico)
           if (studentResult.error?.statusCode === 429) {
-            console.warn('⚠️ Cuota excedida al obtener estudiante, continuando sin validación')
+            logger.warn('Cuota excedida al obtener estudiante, continuando sin validación');
           } else {
             return failure(studentResult.error)
           }
@@ -237,7 +228,7 @@ export const updateStudent = async (studentId: string, studentData: UpdateStuden
       } catch (error: any) {
         // Si es error de cuota, continuar sin validación
         if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
-          console.warn('⚠️ Cuota excedida, continuando sin validación de datos actuales')
+          logger.warn('Cuota excedida, continuando sin validación de datos actuales');
         } else {
           throw error
         }
@@ -321,14 +312,13 @@ export const updateStudent = async (studentId: string, studentData: UpdateStuden
         Promise.all([
           removeStudentFromAllAssignments(studentId),
           assignStudentToTeachers(studentId, newInstitutionId, newCampusId, newGradeId),
-          assignStudentToPrincipal(studentId, newInstitutionId, newCampusId),
           assignStudentToRector(studentId, newInstitutionId)
         ]).catch(error => {
           // Si es error de cuota, solo loguear (no crítico, la actualización ya se completó)
           if (error?.code === 'resource-exhausted' || error?.code === 'quota-exceeded') {
-            console.warn('⚠️ Cuota excedida durante reasignación (no crítico, actualización completada)')
+            logger.warn('Cuota excedida durante reasignación (no crítico)');
           } else {
-            console.warn('⚠️ Error en reasignación (no crítico):', error)
+            logger.warn('Error en reasignación (no crítico):', error);
           }
         })
       }, 2000) // Esperar 2 segundos para no sobrecargar Firebase
@@ -365,12 +355,11 @@ export const deleteStudent = async (studentId: string): Promise<Result<void>> =>
 
     const result = await dbService.deleteUser(studentId)
     if (!result.success) {
-      console.warn('⚠️ Error al eliminar de Firestore, marcando como inactivo...')
+      logger.warn('Error al eliminar de Firestore, marcando como inactivo');
       await dbService.updateUser(studentId, { isActive: false, deletedAt: new Date().toISOString() })
       throw result.error
     }
 
-    console.log('✅ Estudiante eliminado de Firestore')
     return success(undefined)
   } catch (e) {
     return failure(new ErrorAPI(normalizeError(e, 'eliminar estudiante')))
@@ -397,7 +386,7 @@ const assignStudentToTeachers = async (
     // Obtener todos los docentes del grado específico
     const teachersResult = await dbService.getTeachersByGrade(institutionId, campusId, gradeId)
     if (!teachersResult.success) {
-      console.warn('No se pudieron obtener los docentes del grado:', teachersResult.error)
+      logger.warn('No se pudieron obtener los docentes del grado');
       return
     }
 
@@ -421,33 +410,8 @@ const assignStudentToTeachers = async (
       await dbService.assignStudentToTeacher(teacher.id, studentId)
     }
 
-    console.log(`✅ Estudiante ${studentId} (jornada: ${studentJornada || 'no especificada'}) asignado a ${matchingTeachers.length} docentes del grado ${gradeId}`)
   } catch (error) {
-    console.error('Error al asignar estudiante a docentes:', error)
-  }
-}
-
-/**
- * Asigna automáticamente un estudiante al coordinador de la sede
- * @param {string} studentId - ID del estudiante
- * @param {string} institutionId - ID de la institución
- * @param {string} campusId - ID de la sede
- */
-const assignStudentToPrincipal = async (studentId: string, institutionId: string, campusId: string): Promise<void> => {
-  try {
-    // Obtener el coordinador de la sede
-    const principalResult = await dbService.getPrincipalByCampus(institutionId, campusId)
-    if (!principalResult.success) {
-      console.warn('No se encontró coordinador para la sede:', principalResult.error)
-      return
-    }
-
-    // Asignar el estudiante al coordinador
-    await dbService.assignStudentToPrincipal(principalResult.data.id, studentId)
-
-    console.log(`✅ Estudiante ${studentId} asignado al coordinador ${principalResult.data.name}`)
-  } catch (error) {
-    console.error('Error al asignar estudiante al coordinador:', error)
+    logger.error('Error al asignar estudiante a docentes:', error)
   }
 }
 
@@ -461,16 +425,15 @@ const assignStudentToRector = async (studentId: string, institutionId: string): 
     // Obtener el rector de la institución
     const rectorResult = await dbService.getRectorByInstitution(institutionId)
     if (!rectorResult.success) {
-      console.warn('No se encontró rector para la institución:', rectorResult.error)
+      logger.warn('No se encontró rector para la institución');
       return
     }
 
     // Asignar el estudiante al rector
     await dbService.assignStudentToRector(rectorResult.data.id, studentId)
 
-    console.log(`✅ Estudiante ${studentId} asignado al rector ${rectorResult.data.name}`)
   } catch (error) {
-    console.error('Error al asignar estudiante al rector:', error)
+    logger.error('Error al asignar estudiante al rector:', error)
   }
 }
 
@@ -494,14 +457,7 @@ const removeStudentFromAllAssignments = async (studentId: string): Promise<void>
       }
     }
 
-    // Remover del rector de la sede
-    const principalResult = await dbService.getPrincipalByCampus(student.inst, student.campus)
-    if (principalResult.success) {
-      await dbService.removeStudentFromPrincipal(principalResult.data.id, studentId)
-    }
-
-    console.log(`✅ Estudiante ${studentId} removido de todas las asignaciones`)
   } catch (error) {
-    console.error('Error al remover estudiante de asignaciones:', error)
+    logger.error('Error al remover estudiante de asignaciones:', error)
   }
 }

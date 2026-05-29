@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { logger } from '@/utils/logger'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -93,7 +94,7 @@ export function MathEditor({ open, onOpenChange, onInsert }: MathEditorProps) {
           displayMode,
         })
       } catch (error) {
-        console.error('Error renderizando preview:', error)
+        logger.error('Error renderizando preview:', error)
       }
     }
   }, [latex, displayMode])
@@ -251,7 +252,7 @@ export function MathEditor({ open, onOpenChange, onInsert }: MathEditorProps) {
                       const value = evt.target?.getValue?.('latex') || ''
                       setLatex(value)
                     } catch (error) {
-                      console.error('Error obteniendo valor de MathLive:', error)
+                      logger.error('Error obteniendo valor de MathLive:', error)
                     }
                   }}
                 />

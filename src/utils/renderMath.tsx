@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { logger } from '@/utils/logger'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
@@ -113,12 +114,12 @@ export function MathContent({ content, className = '' }: { content: string; clas
               displayMode: element.classList.contains('katex-display')
             })
           } catch (error) {
-            console.error('Error renderizando fórmula:', error)
+            logger.error('Error renderizando fórmula:', error)
           }
         }
       })
     } catch (error) {
-      console.error('Error procesando contenido matemático:', error)
+      logger.error('Error procesando contenido matemático:', error)
     }
   }, [content])
 

@@ -1,4 +1,5 @@
 import { ThemeContextProps } from '@/interfaces/context.interface'
+import { logger } from '@/utils/logger'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -18,7 +19,7 @@ export default function RegistrationSettings({ theme }: RegistrationSettingsProp
     try {
       await updateConfig(enabled)
     } catch (error) {
-      console.error('Error al actualizar configuración:', error)
+      logger.error('Error al actualizar configuración:', error)
     }
   }
 

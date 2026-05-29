@@ -1,4 +1,5 @@
 import { useMemo, useRef, useImperativeHandle, forwardRef, useState, useEffect } from 'react'
+import { logger } from '@/utils/logger'
 import ReactQuill from 'react-quill'
 import Quill from 'quill'
 import 'react-quill/dist/quill.snow.css'
@@ -353,7 +354,7 @@ class MathFormulaBlot extends Embed {
           renderizadoExitoso = true
         }
       } catch (error) {
-        console.warn('Error renderizando con KaTeX:', error)
+        logger.warn('Error renderizando con KaTeX:', error)
       }
     }
     
@@ -364,7 +365,7 @@ class MathFormulaBlot extends Embed {
         node.innerHTML = `<span class="math-unicode" style="font-family: 'Times New Roman', serif; font-style: italic;">${unicodeText}</span>`
         renderizadoExitoso = true
       } catch (error) {
-        console.warn('Error en conversión Unicode:', error)
+        logger.warn('Error en conversión Unicode:', error)
         node.textContent = latex
       }
     }
@@ -417,7 +418,7 @@ try {
   // Compatibilidad: también exponer bajo la ruta de formato
   QuillLib.register({ 'formats/mathFormula': MathFormulaBlot }, true)
 } catch (error) {
-  console.error('Error registrando MathFormulaBlot:', error)
+  logger.error('Error registrando MathFormulaBlot:', error)
 }
 
 export type RichTextEditorProps = {
@@ -517,12 +518,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     const insertMathFormula = (latex: string, displayMode?: boolean) => {
       const quill = quillRef.current?.getEditor()
       if (!quill) {
-        console.error('Quill no está disponible')
+        logger.error('Quill no está disponible')
         return
       }
 
-      console.log('insertMathFormula llamado con latex:', latex, 'displayMode:', displayMode)
-
+      
       // Obtener la posición actual del cursor
       const range = quill.getSelection(true)
       const index = range ? range.index : quill.getLength() - 1
@@ -576,7 +576,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                         renderizadoExitoso = true
                       }
                     } catch (katexError) {
-                      console.warn('Error renderizando con KaTeX en forceRender:', katexError)
+                      logger.warn('Error renderizando con KaTeX en forceRender:', katexError)
                     }
                   }
                   
@@ -587,7 +587,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                       htmlElForForceRender.innerHTML = `<span class="math-unicode" style="font-family: 'Times New Roman', serif; font-style: italic;">${unicodeText}</span>`
                       renderizadoExitoso = true
                     } catch (unicodeError) {
-                      console.warn('Error en conversión Unicode en forceRender:', unicodeError)
+                      logger.warn('Error en conversión Unicode en forceRender:', unicodeError)
                     }
                   }
                   
@@ -630,7 +630,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                     el.textContent = latex
                   }
                 } catch (error) {
-                  console.error('Error re-renderizando fórmula:', error, 'LaTeX:', latex)
+                  logger.error('Error re-renderizando fórmula:', error, 'LaTeX:', latex)
                   el.textContent = latex
                 }
               }
@@ -655,7 +655,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         setTimeout(forceRenderAndProtect, 500)
         
       } catch (embedError) {
-        console.error('Error insertando fórmula con insertEmbed:', embedError)
+        logger.error('Error insertando fórmula con insertEmbed:', embedError)
         // Fallback: intentar con HTML directo usando katex.render() o Unicode
         try {
           // Crear un contenedor temporal para renderizar
@@ -680,7 +680,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                 renderizadoExitoso = true
               }
             } catch (katexError) {
-              console.warn('Error renderizando con KaTeX en fallback:', katexError)
+              logger.warn('Error renderizando con KaTeX en fallback:', katexError)
             }
           }
           
@@ -691,7 +691,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
               tempContainer.innerHTML = `<span class="math-unicode" style="font-family: 'Times New Roman', serif; font-style: italic;">${unicodeText}</span>`
               renderizadoExitoso = true
             } catch (unicodeError) {
-              console.warn('Error en conversión Unicode en fallback:', unicodeError)
+              logger.warn('Error en conversión Unicode en fallback:', unicodeError)
             }
           }
           
@@ -711,7 +711,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             throw new Error('No se pudo renderizar la fórmula')
           }
         } catch (htmlError) {
-          console.error('Error en fallback HTML:', htmlError)
+          logger.error('Error en fallback HTML:', htmlError)
           insertText(`$${latex}$`)
         }
       }
@@ -811,7 +811,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                   renderizadoExitoso = true
                 }
               } catch (katexError) {
-                console.warn('Error renderizando con KaTeX:', katexError)
+                logger.warn('Error renderizando con KaTeX:', katexError)
               }
             }
             
@@ -822,7 +822,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                 htmlEl.innerHTML = `<span class="math-unicode" style="font-family: 'Times New Roman', serif; font-style: italic;">${unicodeText}</span>`
                 renderizadoExitoso = true
               } catch (unicodeError) {
-                console.warn('Error en conversión Unicode:', unicodeError)
+                logger.warn('Error en conversión Unicode:', unicodeError)
               }
             }
             
@@ -857,12 +857,12 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
               
               return true
             } else {
-              console.warn('No se pudo renderizar la fórmula:', latex)
+              logger.warn('No se pudo renderizar la fórmula:', latex)
               el.textContent = latex
               return false
             }
           } catch (error) {
-            console.error('Error renderizando fórmula:', error, 'LaTeX:', latex)
+            logger.error('Error renderizando fórmula:', error, 'LaTeX:', latex)
             // Si falla, mostrar el LaTeX como texto
             el.textContent = latex
             return false
@@ -1202,7 +1202,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                     renderizadoExitoso = true
                   }
                 } catch (katexError) {
-                  console.warn('Error renderizando con KaTeX en onChange:', katexError)
+                  logger.warn('Error renderizando con KaTeX en onChange:', katexError)
                 }
               }
               
@@ -1213,7 +1213,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                   htmlElForOnChange.innerHTML = `<span class="math-unicode" style="font-family: 'Times New Roman', serif; font-style: italic;">${unicodeText}</span>`
                   renderizadoExitoso = true
                 } catch (unicodeError) {
-                  console.warn('Error en conversión Unicode en onChange:', unicodeError)
+                  logger.warn('Error en conversión Unicode en onChange:', unicodeError)
                 }
               }
               
@@ -1228,7 +1228,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                 el.textContent = latex
               }
             } catch (error) {
-              console.error('Error renderizando fórmula en onChange:', error)
+              logger.error('Error renderizando fórmula en onChange:', error)
               el.textContent = latex
             }
           }
@@ -1269,7 +1269,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                         renderizadoExitoso = true
                       }
                     } catch (katexError) {
-                      console.warn('Error renderizando con KaTeX en DOM:', katexError)
+                      logger.warn('Error renderizando con KaTeX en DOM:', katexError)
                     }
                   }
                   
@@ -1280,7 +1280,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                       htmlElForDOMUpdate.innerHTML = `<span class="math-unicode" style="font-family: 'Times New Roman', serif; font-style: italic;">${unicodeText}</span>`
                       renderizadoExitoso = true
                     } catch (unicodeError) {
-                      console.warn('Error en conversión Unicode en DOM:', unicodeError)
+                      logger.warn('Error en conversión Unicode en DOM:', unicodeError)
                     }
                   }
                   
@@ -1294,7 +1294,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                     el.textContent = latex
                   }
                 } catch (error) {
-                  console.error('Error renderizando en DOM:', error)
+                  logger.error('Error renderizando en DOM:', error)
                   el.textContent = latex
                 }
               }

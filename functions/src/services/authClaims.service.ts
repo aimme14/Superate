@@ -109,12 +109,11 @@ export async function computeSuperateClaims(uid: string): Promise<SuperateAuthCl
     return null;
   }
 
-  const institutionSnap = await db.doc(`superate/auth/institutions/${institutionId}`).get();
+  const [institutionSnap, roleSnap] = await Promise.all([
+    db.doc(`superate/auth/institutions/${institutionId}`).get(),
+    db.doc(`superate/auth/institutions/${institutionId}/${coll}/${uid}`).get(),
+  ]);
   const institutionActive = institutionSnap.exists && institutionSnap.data()?.isActive === true;
-
-  const roleSnap = await db.doc(
-    `superate/auth/institutions/${institutionId}/${coll}/${uid}`
-  ).get();
   const memberActive = roleSnap.exists && roleSnap.data()?.isActive === true;
 
   const active = memberActive === true && institutionActive === true;

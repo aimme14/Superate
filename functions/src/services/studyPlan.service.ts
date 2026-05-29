@@ -20,8 +20,7 @@ import {
   VIDEOS_PER_TOPIC,
 } from '../config/subjects.config';
 import * as admin from 'firebase-admin';
-import * as path from 'path';
-import * as fs from 'fs';
+import { db as firestoreDb } from '../config/firebase.config';
 import { jsonrepair } from 'jsonrepair';
 import {
   getCanonicalAnswerIAPhaseSubcollection,
@@ -146,62 +145,6 @@ class StudyPlanService {
     >
   >();
 
-  /** Firestore superate-6c730 (una sola instancia por proceso). */
-  private studentDbCache: admin.firestore.Firestore | null = null;
-
-  /**
-   * Obtiene una instancia de Firestore para el proyecto superate-6c730
-   * donde están almacenados los resultados de los estudiantes
-   */
-  private getStudentDatabase(): admin.firestore.Firestore {
-    if (this.studentDbCache) {
-      return this.studentDbCache;
-    }
-    try {
-      // Intentar obtener la app existente para superate-6c730
-      let studentApp: admin.app.App;
-      try {
-        studentApp = admin.app('superate-6c730');
-      } catch {
-        // Si no existe, crear una nueva app para superate-6c730
-        // Intentar cargar las credenciales del proyecto superate-6c730
-        const credentialsPath = path.resolve(__dirname, '../../serviceAccountKey.json');
-        
-        if (fs.existsSync(credentialsPath)) {
-          // Desarrollo local: usar archivo de credenciales
-          try {
-            const serviceAccount = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
-            studentApp = admin.initializeApp({
-              credential: admin.credential.cert(serviceAccount),
-              projectId: 'superate-6c730',
-            }, 'superate-6c730');
-            spLog('✅ Base de datos de estudiantes (superate-6c730) inicializada con credenciales locales');
-          } catch (error: any) {
-            spWarn('⚠️ Error cargando credenciales locales, intentando con credenciales por defecto:', error.message);
-            // Fallback: usar credenciales por defecto
-            studentApp = admin.initializeApp({
-              projectId: 'superate-6c730',
-            }, 'superate-6c730');
-          }
-        } else {
-          // Producción (Cloud Functions): usar credenciales por defecto
-          // Esto funcionará si las credenciales de superate-ia tienen acceso a superate-6c730
-          // O si ambos proyectos están en la misma organización de GCP
-          spLog('📝 Usando credenciales por defecto para acceder a superate-6c730');
-          studentApp = admin.initializeApp({
-            projectId: 'superate-6c730',
-          }, 'superate-6c730');
-        }
-      }
-      
-      this.studentDbCache = studentApp.firestore();
-      return this.studentDbCache;
-    } catch (error: any) {
-      spErr('❌ Error obteniendo base de datos de estudiantes:', error);
-      throw new Error(`No se pudo acceder a la base de datos superate-6c730: ${error.message}`);
-    }
-  }
-
   /**
    * Normaliza el nombre de una materia para comparación
    */
@@ -239,7 +182,7 @@ class StudyPlanService {
 
       // Obtener la base de datos correcta (superate-6c730)
       spLog(`\n📊 Obteniendo acceso a base de datos superate-6c730...`);
-      const studentDb = this.getStudentDatabase();
+      const studentDb = firestoreDb;
       spLog(`   ✅ Base de datos obtenida`);
 
       // Normalizar el nombre de la materia para comparación
@@ -842,7 +785,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
     try {
       const phaseName = getCanonicalAnswerIAPhaseSubcollection(input.phase);
 
-      const studentDb = this.getStudentDatabase();
+      const studentDb = firestoreDb;
       
       // Estructura: AnswerIA/{studentId}/{phaseName}/{subject}
       const docRef = studentDb
@@ -895,7 +838,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
         ...getLegacyAnswerIAPhaseAlternates(phase),
       ];
 
-      const studentDb = this.getStudentDatabase();
+      const studentDb = firestoreDb;
 
       for (const phaseName of phaseNamesToTry) {
         try {
@@ -997,7 +940,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
       topic?: string;
     }>
   > {
-    const studentDb = this.getStudentDatabase();
+    const studentDb = firestoreDb;
     const parseVideoRow = (data: admin.firestore.DocumentData) => ({
       title: data.título || data.title || '',
       url:
@@ -1142,7 +1085,7 @@ CRÍTICO para JSON válido: (1) No pongas comas finales antes de ] o }. (2) Dent
   private async fetchWebLinksConsolidatedItems(
     materiaCode: string
   ): Promise<Array<{ title: string; url: string; description: string; topic?: string }>> {
-    const studentDb = this.getStudentDatabase();
+    const studentDb = firestoreDb;
     const parseLinkDoc = (data: admin.firestore.DocumentData) => ({
       title: data.title || data.name || 'Enlace',
       url: data.url || data.link || '',

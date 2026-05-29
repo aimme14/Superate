@@ -20,6 +20,7 @@ import { firebaseApp } from '@/services/db';
 import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
+import { logger } from '@/utils/logger';
 import { GRADE_CODE_TO_NAME } from '@/utils/subjects.config';
 import { SUBJECTS_CONFIG } from '@/utils/subjects.config';
 
@@ -190,7 +191,7 @@ class ResourcesService {
       };
       return success(created);
     } catch (e) {
-      console.error('❌ Error al crear enlace web:', e);
+      logger.error('❌ Error al crear enlace web:', e);
       return failure(new ErrorAPI(normalizeError(e, 'crear enlace web')));
     }
   }
@@ -233,7 +234,7 @@ class ResourcesService {
       };
       return success(created);
     } catch (e) {
-      console.error('❌ Error al crear enlace YouTube:', e);
+      logger.error('❌ Error al crear enlace YouTube:', e);
       return failure(new ErrorAPI(normalizeError(e, 'crear enlace YouTube')));
     }
   }
@@ -275,7 +276,7 @@ class ResourcesService {
       list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       return success(list);
     } catch (e) {
-      console.error('❌ Error al listar enlaces web:', e);
+      logger.error('❌ Error al listar enlaces web:', e);
       return failure(new ErrorAPI(normalizeError(e, 'listar enlaces web')));
     }
   }
@@ -310,7 +311,7 @@ class ResourcesService {
           : undefined,
       });
     } catch (e) {
-      console.error('❌ Error al listar enlaces web paginados:', e);
+      logger.error('❌ Error al listar enlaces web paginados:', e);
       return failure(new ErrorAPI(normalizeError(e, 'listar enlaces web paginados')));
     }
   }
@@ -351,7 +352,7 @@ class ResourcesService {
       list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       return success(list);
     } catch (e) {
-      console.error('❌ Error al listar enlaces YouTube:', e);
+      logger.error('❌ Error al listar enlaces YouTube:', e);
       return failure(new ErrorAPI(normalizeError(e, 'listar enlaces YouTube')));
     }
   }
@@ -386,7 +387,7 @@ class ResourcesService {
           : undefined,
       });
     } catch (e) {
-      console.error('❌ Error al listar enlaces YouTube paginados:', e);
+      logger.error('❌ Error al listar enlaces YouTube paginados:', e);
       return failure(new ErrorAPI(normalizeError(e, 'listar enlaces YouTube paginados')));
     }
   }
@@ -427,7 +428,7 @@ class ResourcesService {
       await deleteDoc(docRef);
       return success(undefined);
     } catch (e) {
-      console.error('❌ Error al eliminar enlace web:', e);
+      logger.error('❌ Error al eliminar enlace web:', e);
       return failure(new ErrorAPI(normalizeError(e, 'eliminar enlace web')));
     }
   }
@@ -450,7 +451,7 @@ class ResourcesService {
       await deleteDoc(docRef);
       return success(undefined);
     } catch (e) {
-      console.error('❌ Error al eliminar enlace YouTube:', e);
+      logger.error('❌ Error al eliminar enlace YouTube:', e);
       return failure(new ErrorAPI(normalizeError(e, 'eliminar enlace YouTube')));
     }
   }
@@ -477,7 +478,7 @@ class ResourcesService {
       await updateDoc(docRef, updates);
       return success(undefined);
     } catch (e) {
-      console.error('❌ Error al actualizar enlace web:', e);
+      logger.error('❌ Error al actualizar enlace web:', e);
       return failure(new ErrorAPI(normalizeError(e, 'actualizar enlace web')));
     }
   }
@@ -504,7 +505,7 @@ class ResourcesService {
       await updateDoc(docRef, updates);
       return success(undefined);
     } catch (e) {
-      console.error('❌ Error al actualizar enlace YouTube:', e);
+      logger.error('❌ Error al actualizar enlace YouTube:', e);
       return failure(new ErrorAPI(normalizeError(e, 'actualizar enlace YouTube')));
     }
   }

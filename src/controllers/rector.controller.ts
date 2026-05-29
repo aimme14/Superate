@@ -2,6 +2,7 @@ import { Result, success, failure } from '@/interfaces/db.interface'
 import ErrorAPI from '@/errors'
 import { dbService } from '@/services/firebase/db.service'
 import { authService } from '@/services/firebase/auth.service'
+import { logger } from '@/utils/logger'
 
 // Interfaces para las operaciones CRUD de Rectores
 export interface CreateRectorData {
@@ -25,14 +26,6 @@ export interface UpdateRectorData extends Partial<Omit<CreateRectorData, 'instit
 // Funciones CRUD para Rectores
 export const createRector = async (data: CreateRectorData): Promise<Result<any>> => {
   try {
-    console.log('🚀 Iniciando creación de rector con datos:', { 
-      name: data.name, 
-      email: data.email, 
-      institutionId: data.institutionId,
-      hasPassword: !!data.password,
-      phone: data.phone
-    })
-
     // Validaciones de entrada
     if (!data.name || !data.email || !data.institutionId) {
       const missingFields = []
@@ -41,14 +34,14 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
       if (!data.institutionId) missingFields.push('institución')
       
       const errorMessage = `Campos obligatorios faltantes: ${missingFields.join(', ')}`
-      console.error('❌ Validación fallida:', errorMessage)
+      logger.error('Validación fallida:', errorMessage)
       return failure(new ErrorAPI({ message: errorMessage, statusCode: 400 }))
     }
 
     // Validar formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(data.email)) {
-      console.error('❌ Email inválido:', data.email)
+      logger.error('Email inválido:', data.email)
       return failure(new ErrorAPI({ message: 'El formato del email no es válido', statusCode: 400 }))
     }
 
@@ -68,20 +61,17 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
 
     // Generar contraseña automáticamente si no se proporciona
     const generatedPassword = data.password || data.name.toLowerCase().replace(/\s+/g, '') + '123'
-    console.log('🔐 Contraseña generada para rector (longitud):', generatedPassword.length)
 
     // Crear cuenta en Firebase Auth (preservando la sesión del admin)
-    console.log('📝 Creando cuenta en Firebase Auth...')
     const userAccount = await authService.registerAccount(data.name, data.email, generatedPassword, true, undefined, undefined)
     if (!userAccount.success) {
-      console.error('❌ Error al crear cuenta en Firebase Auth:', userAccount.error)
+      logger.error('Error al crear cuenta en Firebase Auth:', userAccount.error)
       return failure(new ErrorAPI({ 
         message: `Error al crear cuenta en Firebase Auth: ${userAccount.error.message}`, 
         statusCode: 500,
         details: userAccount.error
       }))
     }
-    console.log('✅ Cuenta creada en Firebase Auth con UID:', userAccount.data.uid)
 
     // Crear documento en Firestore usando la nueva estructura jerárquica
     const rectorData = {
@@ -96,42 +86,31 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
       createdBy: 'admin'
     }
 
-    console.log('👔 Datos del rector a guardar en Firestore:', rectorData)
-    console.log('🎯 Rol del rector:', rectorData.role)
-
     // Usar directamente la nueva estructura jerárquica para rectores
-    console.log('🆕 Creando rector usando nueva estructura jerárquica')
     const dbResult = await dbService.createUserInNewStructure(userAccount.data, {
       ...rectorData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
     if (!dbResult.success) {
-      console.error('❌ Error al crear usuario rector en nueva estructura:', dbResult.error)
+      logger.error('Error al crear usuario rector en nueva estructura:', dbResult.error)
       return failure(new ErrorAPI({ 
         message: `Error al crear usuario en Firestore: ${dbResult.error.message}`, 
         statusCode: 500,
         details: dbResult.error
       }))
     }
-    console.log('✅ Usuario rector creado en nueva estructura jerárquica')
 
     // Crear también en la estructura jerárquica de instituciones (para referencias)
-    console.log('📊 Agregando rector a la estructura jerárquica de instituciones...')
     const addRectorResult = await dbService.addRectorToInstitution(data.institutionId, {
       ...rectorData,
       uid: userAccount.data.uid // Pasar el UID de Firebase Auth
     })
     if (!addRectorResult.success) {
-      console.warn('⚠️ No se pudo crear el rector en la estructura jerárquica de instituciones:', addRectorResult.error)
+      logger.warn('No se pudo crear el rector en la estructura jerárquica de instituciones')
       // No es crítico, el usuario ya existe en la nueva estructura jerárquica
-    } else {
-      console.log('✅ Rector agregado a la estructura jerárquica de instituciones')
     }
 
     // No enviar verificación de email para rectores
-    console.log('ℹ️ Rectores no requieren verificación de email')
-
-    console.log('🎉 Rector creado exitosamente. Puede hacer login inmediatamente.')
     return success({
       ...dbResult.data,
       uid: userAccount.data.uid,
@@ -140,7 +119,7 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
       institutionId: data.institutionId
     })
   } catch (error) {
-    console.error('❌ Error general al crear rector:', error)
+    logger.error('Error general al crear rector:', error)
     return failure(new ErrorAPI({ 
       message: error instanceof Error ? error.message : 'Error inesperado al crear el rector', 
       statusCode: 500,
@@ -151,8 +130,6 @@ export const createRector = async (data: CreateRectorData): Promise<Result<any>>
 
 export const getAllRectors = async (): Promise<Result<any[]>> => {
   try {
-    console.log('🔍 Iniciando obtención de rectores desde múltiples fuentes...')
-    
     // ESTRATEGIA: Obtener rectores desde DOS fuentes y combinarlos
     // 1. Desde la colección de usuarios (users) con role='rector'
     // 2. Desde la estructura jerárquica de instituciones
@@ -160,19 +137,17 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
     // PASO 1: Obtener todos los usuarios y filtrar por rol 'rector'
     const allUsersResult = await dbService.getAllUsers()
     if (!allUsersResult.success) {
-      console.warn('⚠️ No se pudieron obtener usuarios desde la colección users:', allUsersResult.error)
+      logger.warn('No se pudieron obtener usuarios desde la colección users')
     }
     
     const allRectorsFromUsers = allUsersResult.success 
       ? allUsersResult.data.filter((user: any) => user.role === 'rector' && user.isActive !== false)
       : []
     
-    console.log(`📊 Rectores encontrados en colección users: ${allRectorsFromUsers.length}`)
-    
     // PASO 2: Obtener todas las instituciones y extraer los rectores de la estructura jerárquica
     const institutionsResult = await dbService.getAllInstitutions()
     if (!institutionsResult.success) {
-      console.warn('⚠️ No se pudieron obtener instituciones:', institutionsResult.error)
+      logger.warn('No se pudieron obtener instituciones')
       // Si falla obtener instituciones, retornar solo los rectores de la colección users
       if (allRectorsFromUsers.length > 0) {
         return success(allRectorsFromUsers.map((rector: any) => ({
@@ -243,8 +218,6 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
       }
     }
     
-    console.log(`📊 Rectores encontrados en estructura jerárquica: ${rectorsFromHierarchy.size}`)
-    
     // PASO 3: Combinar ambas fuentes, evitando duplicados
     // Crear un mapa de usuarios por ID para acceso rápido
     const usersMap = new Map<string, any>()
@@ -263,7 +236,7 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
     for (const rectorFromUsers of allRectorsFromUsers) {
       const rectorId = rectorFromUsers.id || rectorFromUsers.uid
       if (!rectorId) {
-        console.warn('⚠️ Rector sin ID o UID encontrado en colección users:', rectorFromUsers.email)
+        logger.warn('Rector sin ID o UID encontrado en colección users')
         continue
       }
       
@@ -283,7 +256,7 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
         })
       } else {
         // Rector existe en users pero NO en estructura jerárquica - aún así incluirlo
-        console.warn(`⚠️ Rector ${rectorId} (${rectorFromUsers.email}) existe en colección users pero NO en estructura jerárquica`)
+        logger.warn('Rector existe en colección users pero NO en estructura jerárquica')
         
         combinedRectors.set(rectorId, {
           ...rectorFromUsers,
@@ -302,7 +275,7 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
     // Agregar rectores que solo existen en la estructura jerárquica (por si acaso)
     for (const [rectorId, rectorFromHierarchy] of rectorsFromHierarchy.entries()) {
       if (!combinedRectors.has(rectorId)) {
-        console.warn(`⚠️ Rector ${rectorId} existe en estructura jerárquica pero NO en colección users`)
+        logger.warn('Rector existe en estructura jerárquica pero NO en colección users')
         
         // Buscar en el mapa de usuarios (ya cargado)
         const userFromMap = usersMap.get(rectorId)
@@ -321,11 +294,9 @@ export const getAllRectors = async (): Promise<Result<any[]>> => {
     }
     
     const finalRectors = Array.from(combinedRectors.values())
-    console.log(`✅ Total de rectores encontrados y combinados: ${finalRectors.length}`)
-    
     return success(finalRectors)
   } catch (error) {
-    console.error('❌ Error al obtener rectores:', error)
+    logger.error('Error al obtener rectores:', error)
     return failure(new ErrorAPI({ message: 'Error al obtener rectores', statusCode: 500 }))
   }
 }
@@ -448,7 +419,7 @@ export const getRectorByUserId = async (userId: string): Promise<Result<any>> =>
 
     return failure(new ErrorAPI({ message: 'Rector no encontrado para el usuario', statusCode: 404 }))
   } catch (error) {
-    console.error('❌ Error en getRectorByUserId:', error)
+    logger.error('Error en getRectorByUserId:', error)
     return failure(new ErrorAPI({ message: 'Error al obtener rector por usuario', statusCode: 500 }))
   }
 }
@@ -481,11 +452,6 @@ export const updateRector = async (institutionId: string, rectorId: string, data
 
     // Si se está moviendo el rector, primero eliminarlo de la institución original y luego agregarlo a la nueva
     if (isMoving) {
-      console.log('🔄 Moviendo rector de una institución a otra:', {
-        from: { institution: oldInstId },
-        to: { institution: newInstitutionId }
-      })
-
       // Eliminar de la institución original
       const deleteResult = await dbService.deleteRectorFromInstitution(oldInstId, rectorId)
       if (!deleteResult.success) {
@@ -555,12 +521,11 @@ export const updateRector = async (institutionId: string, rectorId: string, data
       try {
         const userUpdateResult = await dbService.updateUser(rectorUid, userUpdateData)
         if (!userUpdateResult.success) {
-          console.warn('⚠️ Error al actualizar usuario en Firestore:', userUpdateResult.error)
+          logger.warn('Error al actualizar usuario en Firestore')
         } else {
-          console.log('✅ Usuario actualizado en Firestore')
         }
       } catch (userError) {
-        console.warn('⚠️ Error al actualizar usuario en Firestore:', userError)
+        logger.warn('Error al actualizar usuario en Firestore')
       }
     }
 
@@ -568,16 +533,6 @@ export const updateRector = async (institutionId: string, rectorId: string, data
     const isUpdatingEmail = data.email && data.email !== oldEmail
     const isUpdatingName = data.name && data.name !== oldName
     const isUpdatingPassword = data.password && data.password.trim().length >= 6
-    
-    console.log('🔍 Verificando si se deben actualizar credenciales:', {
-      isUpdatingEmail,
-      isUpdatingName,
-      isUpdatingPassword,
-      hasAdminEmail: !!data.adminEmail,
-      hasAdminPassword: !!data.adminPassword,
-      hasCurrentPassword: !!data.currentPassword,
-      oldEmail
-    })
     
     if (isUpdatingEmail || isUpdatingName || isUpdatingPassword) {
       if (data.adminEmail && data.adminPassword && oldEmail) {
@@ -590,10 +545,8 @@ export const updateRector = async (institutionId: string, rectorId: string, data
             if (data.currentPassword) {
               // Usar la contraseña actual proporcionada por el admin
               currentPasswordToUse = data.currentPassword
-              console.log('🔐 Usando contraseña actual proporcionada por el admin')
             } else {
-              console.warn('⚠️ Se intenta cambiar la contraseña pero no se proporcionó la contraseña actual')
-              console.warn('⚠️ Intentando con contraseña reconstruida...')
+              logger.warn('Se intenta cambiar la contraseña pero no se proporcionó la contraseña actual')
             }
           }
           
@@ -607,13 +560,9 @@ export const updateRector = async (institutionId: string, rectorId: string, data
               oldName.toLowerCase().replace(/\s+/g, '') + '123'
             ]
             
-            console.log('🔄 Intentando actualizar credenciales en Firebase Auth...')
-            console.log('📋 Variaciones de contraseña a intentar:', passwordVariations.map(p => p.substring(0, 3) + '...'))
-            
             let credentialsUpdated = false
             for (const currentPassword of passwordVariations) {
               try {
-                console.log(`🔐 Intentando con contraseña: ${currentPassword.substring(0, 3)}...`)
                 const authUpdateResult = await authService.updateUserCredentialsByAdmin(
                   oldEmail,
                   currentPassword,
@@ -625,32 +574,19 @@ export const updateRector = async (institutionId: string, rectorId: string, data
                 )
                 
                 if (authUpdateResult.success) {
-                  console.log('✅ Credenciales actualizadas en Firebase Auth')
                   credentialsUpdated = true
                   break
-                } else {
-                  console.log(`⚠️ Intento falló: ${authUpdateResult.error?.message || 'Error desconocido'}`)
                 }
               } catch (tryError: any) {
-                console.log(`⚠️ Intento con contraseña falló: ${tryError?.message || 'Error desconocido'}`)
                 continue
               }
             }
             
             if (!credentialsUpdated) {
-              console.warn('⚠️ No se pudo actualizar credenciales en Firebase Auth con ninguna variación de contraseña')
-              console.warn('⚠️ El usuario puede haber cambiado su contraseña. Las credenciales se actualizaron solo en Firestore.')
+              logger.warn('No se pudo actualizar credenciales en Firebase Auth con ninguna variación de contraseña')
             }
           } else {
             // Usar la contraseña actual proporcionada
-            console.log('🔄 Intentando actualizar credenciales en Firebase Auth con contraseña actual proporcionada...')
-            console.log('📝 Datos a actualizar:', {
-              newEmail: data.email || 'sin cambio',
-              newName: data.name || 'sin cambio',
-              hasNewPassword: !!data.password,
-              newPasswordLength: data.password?.length || 0
-            })
-            
             const authUpdateResult = await authService.updateUserCredentialsByAdmin(
               oldEmail,
               currentPasswordToUse,
@@ -662,22 +598,19 @@ export const updateRector = async (institutionId: string, rectorId: string, data
             )
             
             if (authUpdateResult.success) {
-              console.log('✅ Credenciales actualizadas en Firebase Auth')
             } else {
-              console.error('❌ Error al actualizar credenciales:', authUpdateResult.error)
-              console.warn('⚠️ Las credenciales se actualizaron solo en Firestore.')
+              logger.error('Error al actualizar credenciales:', authUpdateResult.error)
+              logger.warn('Las credenciales se actualizaron solo en Firestore')
             }
           }
         } catch (authError: any) {
-          console.error('❌ Error al actualizar Firebase Auth:', authError)
-          console.warn('⚠️ Las credenciales se actualizaron solo en Firestore.')
+          logger.error('Error al actualizar Firebase Auth:', authError)
+          logger.warn('Las credenciales se actualizaron solo en Firestore')
         }
       } else {
-        console.warn('⚠️ No se proporcionaron credenciales de admin. Las credenciales se actualizaron solo en Firestore.')
-        console.warn('⚠️ El usuario deberá usar las credenciales anteriores para iniciar sesión.')
+        logger.warn('No se proporcionaron credenciales de admin. Las credenciales se actualizaron solo en Firestore')
+        logger.warn('El usuario deberá usar las credenciales anteriores para iniciar sesión')
       }
-    } else {
-      console.log('ℹ️ No se están actualizando credenciales (email, nombre o contraseña)')
     }
 
     return success(updatedRector)
@@ -708,17 +641,14 @@ export const deleteRector = async (
     // PRIMERO: Eliminar de Firestore ANTES de eliminar de la estructura jerárquica
     // Esto garantiza que el usuario no pueda iniciar sesión incluso si falla algo después
     if (rectorUid) {
-      console.log('🗑️ Eliminando usuario de Firestore PRIMERO (antes de estructura jerárquica):', rectorUid)
-
       // SIEMPRE eliminar de Firestore (bloquea el acceso aunque quede cuenta en Firebase Auth)
       try {
         // Intentar eliminar de Firestore (esto intenta en nueva estructura y colección antigua)
         const deleteResult = await dbService.deleteUser(rectorUid)
         if (deleteResult.success) {
-          console.log('✅ Usuario eliminado de Firestore')
         } else {
-          console.warn('⚠️ No se pudo eliminar usuario de Firestore:', deleteResult.error?.message)
-          console.warn('⚠️ Intentando eliminar directamente de la estructura jerárquica...')
+          logger.warn('No se pudo eliminar usuario de Firestore')
+          logger.warn('Intentando eliminar directamente de la estructura jerárquica')
           
           // Si falla, intentar eliminar directamente de la estructura jerárquica usando institutionId y role
           try {
@@ -728,10 +658,9 @@ export const deleteRector = async (
               'rector'
             )
             if (deleteResultNewStructure.success) {
-              console.log('✅ Usuario eliminado de nueva estructura (intento directo)')
             } else {
               // Si aún falla, marcar como inactivo - CRÍTICO para prevenir login
-              console.warn('⚠️ No se pudo eliminar, marcando como inactivo...')
+              logger.warn('No se pudo eliminar, marcando como inactivo')
               let markedAsInactive = false
               
               // Intentar marcar como inactivo en nueva estructura
@@ -741,11 +670,10 @@ export const deleteRector = async (
                   deletedAt: new Date().toISOString() 
                 })
                 if (updateResultNewStructure.success) {
-                  console.log('✅ Usuario marcado como inactivo en Firestore (nueva estructura)')
                   markedAsInactive = true
                 }
               } catch (updateNewStructureError) {
-                console.warn('⚠️ Error al marcar como inactivo en nueva estructura:', updateNewStructureError)
+                logger.warn('Error al marcar como inactivo en nueva estructura')
               }
               
               // Si no se pudo en nueva estructura, intentar en colección antigua
@@ -755,17 +683,16 @@ export const deleteRector = async (
                   deletedAt: new Date().toISOString() 
                 })
                 if (!updateResult.success) {
-                  console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario de Firestore')
+                  logger.error('ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario de Firestore')
                   return failure(new ErrorAPI({ 
                     message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
                     statusCode: 500 
                   }))
                 }
-                console.log('✅ Usuario marcado como inactivo en Firestore')
               }
             }
           } catch (directDeleteError: any) {
-            console.error('❌ Error al intentar eliminación directa:', directDeleteError)
+            logger.error('Error al intentar eliminación directa:', directDeleteError)
             // Intentar marcar como inactivo como último recurso
             try {
               const updateResultNewStructure = await dbService.updateUserInNewStructure(rectorUid, { 
@@ -778,16 +705,15 @@ export const deleteRector = async (
                   deletedAt: new Date().toISOString() 
                 })
                 if (!updateResult.success) {
-                  console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
+                  logger.error('ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
                   return failure(new ErrorAPI({ 
                     message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
                     statusCode: 500 
                   }))
                 }
               }
-              console.log('✅ Usuario marcado como inactivo en Firestore (último recurso)')
             } catch (updateError) {
-              console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
+              logger.error('ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
               return failure(new ErrorAPI({ 
                 message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
                 statusCode: 500 
@@ -796,7 +722,7 @@ export const deleteRector = async (
           }
         }
       } catch (userError: any) {
-        console.error('❌ Error crítico al eliminar usuario de Firestore:', userError)
+        logger.error('Error crítico al eliminar usuario de Firestore:', userError)
         // Intentar marcar como inactivo como último recurso
         try {
           const updateResultNewStructure = await dbService.updateUserInNewStructure(rectorUid, { 
@@ -809,16 +735,15 @@ export const deleteRector = async (
               deletedAt: new Date().toISOString() 
             })
             if (!updateResult.success) {
-              console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
+              logger.error('ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
               return failure(new ErrorAPI({ 
                 message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
                 statusCode: 500 
               }))
             }
           }
-          console.log('✅ Usuario marcado como inactivo en Firestore (último recurso)')
         } catch (updateError) {
-          console.error('❌ ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
+          logger.error('ERROR CRÍTICO: No se pudo eliminar ni desactivar el usuario')
           return failure(new ErrorAPI({ 
             message: 'Error crítico: No se pudo eliminar ni desactivar el usuario', 
             statusCode: 500 
@@ -826,7 +751,7 @@ export const deleteRector = async (
         }
       }
     } else {
-      console.warn('⚠️ No se encontró UID del rector')
+      logger.warn('No se encontró UID del rector')
     }
 
     // SEGUNDO: Eliminar de la estructura jerárquica
@@ -834,7 +759,7 @@ export const deleteRector = async (
     const result = await dbService.deleteRectorFromInstitution(institutionId, rectorId)
     if (!result.success) {
       // Si falla la eliminación de la estructura jerárquica, el usuario ya está bloqueado en Firestore
-      console.warn('⚠️ El usuario ya fue eliminado/desactivado de Firestore, pero falló la eliminación de la estructura jerárquica')
+      logger.warn('Usuario eliminado de Firestore pero falló eliminación de estructura jerárquica')
       return failure(result.error)
     }
 

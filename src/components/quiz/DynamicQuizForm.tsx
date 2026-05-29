@@ -125,13 +125,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         const quizResult = await quizGeneratorService.generateQuiz(subject, phase, grade, userId);
         
         if (!quizResult.success) {
-          console.error('Error generando cuestionario:', quizResult.error);
-          console.error('Detalles del error:', {
-            subject,
-            phase,
-            grade,
-            error: quizResult.error
-          });
+          logger.error('Error generando cuestionario:', quizResult.error);
           setExamState('error');
           return;
         }
@@ -142,7 +136,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         setExamState('awaiting_validation');
 
       } catch (error) {
-        console.error('Error cargando cuestionario:', error);
+        logger.error('Error cargando cuestionario:', error);
         setExamState('error');
       }
     };
@@ -177,7 +171,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       }
       setExamState('welcome');
     } catch (err) {
-      console.error('[DynamicQuizForm] Validación:', err);
+      logger.error('[DynamicQuizForm] Validación:', err);
       notifyError({ title: 'Error', message: 'No se pudo comprobar el acceso. Intenta de nuevo.' });
     } finally {
       setValidationChecking(false);
@@ -403,21 +397,20 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               });
             }
           } else {
-            console.error('⚠️ Error procesando resultados:', processResult.error);
+            logger.error('Error procesando resultados:', processResult.error);
             notifyError({
               title: 'Advertencia',
               message: 'El examen se guardó pero hubo un error al procesar el análisis. Los resultados están disponibles.'
             });
           }
         } catch (error) {
-          console.error('❌ Error procesando resultados:', error);
-          // No mostrar error al usuario, el examen ya se guardó
+          logger.error('Error procesando resultados:', error);
         }
       }
 
       return result
     } catch (error) {
-      console.error('Error guardando examen:', error)
+      logger.error('Error guardando examen:', error)
       throw error
     } finally {
       setIsSubmitting(false)
@@ -438,7 +431,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       }
       return true;
     } catch (error) {
-      console.error("Error entering fullscreen:", error);
+      logger.error("Error entering fullscreen:", error);
     }
     return !!(
       document.fullscreenElement ||
@@ -458,7 +451,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         await document.msExitFullscreen();
       }
     } catch (error) {
-      console.error("Error exiting fullscreen:", error);
+      logger.error("Error exiting fullscreen:", error);
     }
   };
 
@@ -964,7 +957,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         await exitFullscreen()
       }
     } catch (error) {
-      console.error('Error guardando examen:', error)
+      logger.error('Error guardando examen:', error)
       setExamLocked(false)
       notifyError({
         title: 'No se pudo enviar el examen',
@@ -1224,7 +1217,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
                 strict: false,
               });
             } catch (error) {
-              console.error('Error renderizando fórmula:', error);
+              logger.debug('Error renderizando fórmula:', error);
             }
           }
         });
@@ -1398,7 +1391,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
                                   alt={`Opción ${option.id}`}
                                   className="max-w-full h-auto rounded-lg border shadow-sm"
                                   onError={(e) => {
-                                    console.error('Error cargando imagen de opción:', option.imageUrl);
+                                    logger.debug('Error cargando imagen de opción');
                                     e.currentTarget.style.display = 'none';
                                   }}
                                 />

@@ -26,6 +26,7 @@ export default function RoleBasedNavigation({ theme }: RoleBasedNavigationProps)
   const location = useLocation()
   
   const navigationConfig = getNavigationConfig()
+  const safeUserRole = userRole === 'principal' ? undefined : userRole
 
   // Iconos para cada tipo de navegación
   const iconMap = {
@@ -47,7 +48,6 @@ export default function RoleBasedNavigation({ theme }: RoleBasedNavigationProps)
   const roleColors = {
     student: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
     teacher: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    principal: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
     rector: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
     admin: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   }
@@ -56,7 +56,6 @@ export default function RoleBasedNavigation({ theme }: RoleBasedNavigationProps)
   const roleTitles = {
     student: 'Estudiante',
     teacher: 'Docente',
-    principal: 'Coordinador',
     rector: 'Rector',
     admin: 'Administrador',
   }
@@ -70,17 +69,17 @@ export default function RoleBasedNavigation({ theme }: RoleBasedNavigationProps)
             Navegación
           </h2>
           <p className={cn('text-sm', theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}>
-            Panel de {userRole ? roleTitles[userRole] : 'Usuario'}
+            Panel de {safeUserRole ? roleTitles[safeUserRole] : 'Usuario'}
           </p>
         </div>
-        <Badge className={userRole ? roleColors[userRole] : 'bg-gray-100 text-gray-800'}>
-          {userRole ? roleTitles[userRole] : 'Usuario'}
+        <Badge className={safeUserRole ? roleColors[safeUserRole] : 'bg-gray-100 text-gray-800'}>
+          {safeUserRole ? roleTitles[safeUserRole] : 'Usuario'}
         </Badge>
       </div>
 
       {/* Navegación principal */}
       <nav className="space-y-2">
-        {navigationConfig.sidebarItems.map((item) => {
+        {navigationConfig.sidebarItems.map((item: { label: string; href: string; icon: string }) => {
           const IconComponent = iconMap[item.icon as keyof typeof iconMap]
           const isActive = location.pathname === item.href || 
                           (item.href === '/dashboard' && location.pathname.startsWith('/dashboard'))

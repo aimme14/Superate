@@ -15,6 +15,7 @@ import ErrorAPI from '@/errors'
 import { normalizeError } from '@/errors/handler'
 import { subjectLabelToSlug } from '@/utils/subjectResultDocId'
 import { canonicalizeTopicName } from '@/utils/topicCanonicalization'
+import { logger } from '@/utils/logger'
 
 const db = getFirestore(firebaseApp)
 
@@ -135,7 +136,7 @@ export async function fetchExamResultDocument(
   } catch (error) {
     const code = (error as { code?: string })?.code
     if (code === 'permission-denied') {
-      console.warn('[examResults] Lectura legacy results/{userId} denegada por reglas. Se omite fallback legacy.')
+      logger.warn('[examResults] Lectura legacy denegada por reglas, omitiendo fallback');
     } else {
       throw error
     }
@@ -210,13 +211,9 @@ export async function saveExamResultsAndRegister(
 
     await removeObsoleteSameSubjectDocs(userId, phaseName, storageDocId, normalizedExamData)
 
-    console.log(
-      `[examResults] ✅ Examen guardado: results/${userId}/${phaseName}/${storageDocId} (quizId=${examId})`
-    )
-
     return success({ id: `${userId}_${storageDocId}` })
   } catch (e) {
-    console.error('[examResults] ❌ Error al guardar examen:', e)
+    logger.error('[examResults] Error al guardar examen:', e)
     return failure(new ErrorAPI(normalizeError(e, 'guardar resultados del examen')))
   }
 }

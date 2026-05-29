@@ -12,6 +12,7 @@ import {
 import { useAuthContext } from '@/context/AuthContext'
 import { useNotification } from '@/hooks/ui/useNotification'
 import { DASHBOARD_RECTOR_CACHE } from '@/config/dashboardRectorCache'
+import { logger } from '@/utils/logger'
 
 // Query Keys
 export const rectorKeys = {
@@ -77,7 +78,7 @@ export const useRectorMutations = () => {
       queryClient.invalidateQueries({ queryKey: ['institutions'] })
     },
     onError: (error) => {
-      console.error('Error al crear rector:', error)
+      logger.error('Error al crear rector:', error)
       notifyError({ 
         title: 'Error', 
         message: error instanceof Error ? error.message : 'Error al crear el rector' 
@@ -105,7 +106,7 @@ export const useRectorMutations = () => {
       }
     },
     onError: (error) => {
-      console.error('Error al actualizar rector:', error)
+      logger.error('Error al actualizar rector:', error)
       notifyError({ 
         title: 'Error', 
         message: error instanceof Error ? error.message : 'Error al actualizar el rector' 

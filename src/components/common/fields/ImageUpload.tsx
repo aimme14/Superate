@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { logger } from '@/utils/logger'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
@@ -54,7 +55,7 @@ export default function ImageUpload({
       }
       reader.readAsDataURL(file)
     } catch (error) {
-      console.error('Error al procesar la imagen:', error)
+      logger.error('Error al procesar la imagen:', error)
       setIsUploading(false)
     }
   }

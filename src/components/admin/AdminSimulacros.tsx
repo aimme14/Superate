@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
+import { logger } from '@/utils/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -261,7 +262,7 @@ export default function AdminSimulacros({ theme }: AdminSimulacrosProps) {
       const err = e instanceof Error ? e : new Error(String(e))
       const msg = err.message || 'Error inesperado al crear el simulacro.'
       notifyError({ message: msg })
-      console.error('Error al crear simulacro:', e)
+      logger.error('Error al crear simulacro:', e)
     }
     setSaving(false)
   }
