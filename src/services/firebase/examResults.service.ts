@@ -209,7 +209,12 @@ export async function saveExamResultsAndRegister(
     const docRef = doc(db, 'results', userId, phaseName, storageDocId)
     await setDoc(docRef, payload)
 
-    await removeObsoleteSameSubjectDocs(userId, phaseName, storageDocId, normalizedExamData)
+    const isSlugDoc = !!subjectLabelToSlug(
+      (examData.subject as string) || (examData.examTitle as string) || ''
+    )
+    if (isSlugDoc) {
+      await removeObsoleteSameSubjectDocs(userId, phaseName, storageDocId, normalizedExamData)
+    }
 
     return success({ id: `${userId}_${storageDocId}` })
   } catch (e) {

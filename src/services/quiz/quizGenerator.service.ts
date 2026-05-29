@@ -5,7 +5,6 @@ import { validateGroupedQuestionsConsecutive } from '@/utils/quizGroupedQuestion
 import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
-import { phaseAnalysisService } from '@/services/phase/phaseAnalysis.service';
 import { logger } from '@/utils/logger';
 
 /**
@@ -220,18 +219,23 @@ class QuizGeneratorService {
   private async getAnsweredQuestions(
     studentId: string,
     subject: string,
-    currentPhase: 'first' | 'second' | 'third'
+    currentPhase: 'first' | 'second' | 'third',
+    preloadedEvaluations?: any[]
   ): Promise<Set<string>> {
     const answeredQuestionIds = new Set<string>();
 
     if (currentPhase === 'first') return answeredQuestionIds;
 
     try {
-      const { fetchEvaluationsFromStudentSummary } = await import(
-        '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
-      );
-
-      const evaluations = await fetchEvaluationsFromStudentSummary(studentId);
+      let evaluations: any[];
+      if (preloadedEvaluations) {
+        evaluations = preloadedEvaluations;
+      } else {
+        const { fetchEvaluationsFromStudentSummary } = await import(
+          '@/services/studentProgressSummary/fetchEvaluationsFromSummary'
+        );
+        evaluations = await fetchEvaluationsFromStudentSummary(studentId);
+      }
 
       const phasesToExclude: string[] = currentPhase === 'second'
         ? ['first']
@@ -268,7 +272,8 @@ class QuizGeneratorService {
     subject: string,
     phase: 'first' | 'second' | 'third',
     grade?: string,
-    studentId?: string
+    studentId?: string,
+    preloadedEvaluations?: any[]
   ): Promise<Result<GeneratedQuiz>> {
     try {
       logger.debug(`Generando cuestionario: ${subject} - ${phase}${grade ? ` - Grado ${grade}` : ''}${studentId ? ` - Estudiante ${studentId}` : ''}`);
@@ -282,7 +287,7 @@ class QuizGeneratorService {
       // Obtener preguntas ya respondidas en fases anteriores (solo si hay studentId y no es fase 1)
       let answeredQuestionIds = new Set<string>();
       if (studentId && phase !== 'first') {
-        answeredQuestionIds = await this.getAnsweredQuestions(studentId, subject, phase);
+        answeredQuestionIds = await this.getAnsweredQuestions(studentId, subject, phase, preloadedEvaluations);
         logger.debug(`Excluyendo ${answeredQuestionIds.size} preguntas ya respondidas en fases anteriores`);
       }
 
@@ -321,12 +326,6 @@ class QuizGeneratorService {
       if (phase === 'third') {
         logger.debug('Generando cuestionario Fase 3 con distribución proporcional por temas');
         return await this.generatePhase3ProportionalQuiz(subject, config, grade, answeredQuestionIds);
-      }
-
-      // Para Fase 2, usar distribución personalizada si hay studentId
-      if (phase === 'second' && studentId && subject !== 'Inglés') {
-        logger.debug('Generando cuestionario personalizado Fase 2 para estudiante');
-        return await this.generatePersonalizedPhase2Quiz(subject, config, grade, studentId, answeredQuestionIds);
       }
 
       const subjectRule = SUBJECT_TOPIC_RULES[subject];
@@ -454,50 +453,49 @@ class QuizGeneratorService {
 
     const topicQuestionMap: Record<string, Question[]> = {};
 
-    for (const topic of subjectConfig.topics) {
-      const gradeValues = this.getGradeSearchValues(grade);
-      const subjectCode = subjectConfig.code;
-      const attempts: QuestionFilters[] = [
-        ...gradeValues.flatMap(gradeValue => ([
+    await Promise.all(
+      subjectConfig.topics.map(async (topic) => {
+        const gradeValues = this.getGradeSearchValues(grade);
+        const subjectCode = subjectConfig.code;
+        const attempts: QuestionFilters[] = [
+          ...gradeValues.flatMap(gradeValue => ([
+            {
+              subject,
+              subjectCode,
+              topicCode: topic.code,
+              grade: gradeValue,
+              limit: rule.perTopicTarget * 4
+            },
+            {
+              subject,
+              subjectCode,
+              topic: topic.name,
+              grade: gradeValue,
+              limit: rule.perTopicTarget * 4
+            }
+          ])),
           {
             subject,
             subjectCode,
             topicCode: topic.code,
-            grade: gradeValue,
-            limit: rule.perTopicTarget * 4
+            limit: rule.perTopicTarget * 3
           },
           {
             subject,
             subjectCode,
             topic: topic.name,
-            grade: gradeValue,
-            limit: rule.perTopicTarget * 4
+            limit: rule.perTopicTarget * 3
+          },
+          {
+            subject,
+            topic: topic.name,
+            limit: rule.perTopicTarget * 3
           }
-        ])),
-        {
-          subject,
-          subjectCode,
-          topicCode: topic.code,
-          limit: rule.perTopicTarget * 3
-        },
-        {
-          subject,
-          subjectCode,
-          topic: topic.name,
-          limit: rule.perTopicTarget * 3
-        },
-        {
-          subject,
-          topic: topic.name,
-          limit: rule.perTopicTarget * 3
-        }
-      ];
-
-      logger.debug(`Buscando preguntas para tópico ${topic.name} (${subject})`);
-      const topicQuestions = await this.fetchQuestionsWithFallback(attempts, rule.perTopicTarget, excludeQuestionIds);
-      topicQuestionMap[topic.code] = topicQuestions;
-      logger.debug(`${topicQuestions.length} preguntas para ${topic.name}`);
-    }
+        ];
+        const topicQuestions = await this.fetchQuestionsWithFallback(attempts, rule.perTopicTarget, excludeQuestionIds);
+        topicQuestionMap[topic.code] = topicQuestions;
+      })
+    );
 
     let questions = this.balanceQuestionsByTopic(
       subjectConfig.topics.map(t => t.code),
@@ -1237,219 +1235,6 @@ class QuizGeneratorService {
     };
 
     return descriptions[phase as keyof typeof descriptions];
-  }
-
-  /**
-   * Genera un cuestionario personalizado para Fase 2 basado en debilidades
-   */
-  private async generatePersonalizedPhase2Quiz(
-    subject: string,
-    config: Partial<QuizConfig>,
-    grade: string | undefined,
-    studentId: string,
-    excludeQuestionIds: Set<string> = new Set()
-  ): Promise<Result<GeneratedQuiz>> {
-    try {
-      // Obtener distribución personalizada
-      const totalQuestions = config.questionCount || 18;
-      const distributionResult = await phaseAnalysisService.generatePhase2Distribution(
-        studentId,
-        subject,
-        totalQuestions
-      );
-
-      if (!distributionResult.success) {
-        logger.warn('No se pudo obtener distribución personalizada, usando distribución estándar');
-        // Fallback a distribución estándar
-        return this.generateStandardPhase2Quiz(subject, config, grade);
-      }
-
-      const distribution = distributionResult.data;
-      const questions: Question[] = [];
-
-      // Obtener preguntas de la debilidad principal (50%)
-      const primaryWeaknessQuestions = await this.getQuestionsForTopic(
-        subject,
-        distribution.primaryWeakness,
-        distribution.primaryWeaknessCount,
-        grade,
-        config.level || 'Medio',
-        excludeQuestionIds
-      );
-      questions.push(...primaryWeaknessQuestions);
-
-      // Obtener preguntas de otros temas (50% distribuido equitativamente)
-      if (distribution.otherTopics.length > 0) {
-        const baseQuestionsPerTopic = Math.floor(distribution.otherTopicsCount / distribution.otherTopics.length);
-        const remainder = distribution.otherTopicsCount % distribution.otherTopics.length;
-        
-        // Distribuir equitativamente, asignando el resto a los primeros temas
-        for (let i = 0; i < distribution.otherTopics.length; i++) {
-          const topic = distribution.otherTopics[i];
-          const questionsForThisTopic = baseQuestionsPerTopic + (i < remainder ? 1 : 0);
-          
-          if (questionsForThisTopic > 0) {
-            const topicQuestions = await this.getQuestionsForTopic(
-              subject,
-              topic,
-              questionsForThisTopic,
-              grade,
-              config.level || 'Medio',
-              excludeQuestionIds
-            );
-            questions.push(...topicQuestions);
-          }
-        }
-      } else {
-        // Caso edge: solo hay 1 tema (la debilidad principal)
-        // En este caso, usar distribución estándar
-        logger.warn(`Solo hay 1 tema en ${subject}, usando distribución estándar`);
-        return this.generateStandardPhase2Quiz(subject, config, grade, excludeQuestionIds);
-      }
-
-      // Ordenar respetando grupos consecutivos (regla obligatoria: preguntas agrupadas juntas)
-      const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject, true);
-
-      const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
-      if (!validation.isValid) {
-        logger.error('[Fase 2 personalizada] Validación de agrupación fallida:', validation.message);
-      }
-
-      // Generar ID único para el cuestionario
-      const quizId = this.generateQuizId(subject, 'second', grade);
-
-      // Crear el cuestionario
-      const quiz: GeneratedQuiz = {
-        id: quizId,
-        title: this.generateQuizTitle(subject, 'second'),
-        description: `Refuerzo personalizado de ${subject} enfocado en ${distribution.primaryWeakness}`,
-        subject: subject,
-        subjectCode: this.getSubjectCode(subject),
-        phase: 'second',
-        questions: sortedQuestions,
-        timeLimit: config.timeLimit || 50,
-        totalQuestions: sortedQuestions.length,
-        instructions: PHASE_INSTRUCTIONS.second,
-        createdAt: new Date()
-      };
-
-      logger.debug(`Cuestionario personalizado Fase 2: ${quiz.title} con ${sortedQuestions.length} preguntas`);
-      return success(quiz);
-    } catch (e) {
-      logger.error('Error generando cuestionario personalizado Fase 2:', e);
-      return failure(new ErrorAPI(normalizeError(e, 'generar cuestionario personalizado Fase 2')));
-    }
-  }
-
-  /**
-   * Genera cuestionario estándar para Fase 2 (fallback)
-   */
-  private async generateStandardPhase2Quiz(
-    subject: string,
-    config: Partial<QuizConfig>,
-    grade: string | undefined,
-    excludeQuestionIds: Set<string> = new Set()
-  ): Promise<Result<GeneratedQuiz>> {
-    const subjectRule = SUBJECT_TOPIC_RULES[subject];
-    const expectedCount = subjectRule?.totalQuestions || config.questionCount || 15;
-
-    let questions: Question[] = [];
-
-    if (subjectRule) {
-      const topicResult = await this.getQuestionsWithTopicRules(subject, config, grade, subjectRule, excludeQuestionIds);
-      if (topicResult.success) {
-        questions = topicResult.data;
-      } else {
-        const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, excludeQuestionIds);
-        if (generalResult.success) {
-          questions = generalResult.data;
-        }
-      }
-    } else {
-      const generalResult = await this.getGeneralQuestions(subject, config, grade, expectedCount, excludeQuestionIds);
-      if (generalResult.success) {
-        questions = generalResult.data;
-      }
-    }
-
-    // Ordenar respetando grupos consecutivos (regla obligatoria para todas las fases)
-    const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject, true);
-
-    const validation = validateGroupedQuestionsConsecutive(sortedQuestions, 'IN');
-    if (!validation.isValid) {
-      logger.error('[Fase 2 estándar] Validación de agrupación fallida:', validation.message);
-    }
-
-    const quizId = this.generateQuizId(subject, 'second', grade);
-    const quiz: GeneratedQuiz = {
-      id: quizId,
-      title: this.generateQuizTitle(subject, 'second'),
-      description: this.generateQuizDescription(subject, 'second'),
-      subject: subject,
-      subjectCode: this.getSubjectCode(subject),
-      phase: 'second',
-      questions: sortedQuestions,
-      timeLimit: config.timeLimit || 50,
-      totalQuestions: sortedQuestions.length,
-      instructions: PHASE_INSTRUCTIONS.second,
-      createdAt: new Date()
-    };
-
-    return success(quiz);
-  }
-
-  /**
-   * Obtiene preguntas para un tema específico
-   */
-  private async getQuestionsForTopic(
-    subject: string,
-    topic: string,
-    count: number,
-    grade: string | undefined,
-    level: string,
-    excludeQuestionIds: Set<string> = new Set()
-  ): Promise<Question[]> {
-    const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
-    if (!subjectConfig) {
-      return [];
-    }
-
-    const topicConfig = subjectConfig.topics?.find(t => t.name === topic);
-    const topicCode = topicConfig?.code || '';
-    const levelCode = level === 'Fácil' ? 'F' : level === 'Medio' ? 'M' : 'D';
-    const gradeValues = this.getGradeSearchValues(grade);
-    const subjectCode = subjectConfig.code;
-
-    const attempts: QuestionFilters[] = [
-      ...gradeValues.flatMap(gradeValue => ([
-        {
-          subject,
-          subjectCode,
-          topicCode,
-          topic,
-          grade: gradeValue,
-          levelCode,
-          limit: count * 3
-        }
-      ])),
-      {
-        subject,
-        subjectCode,
-        topicCode,
-        topic,
-        levelCode,
-        limit: count * 2
-      },
-      {
-        subject,
-        topic,
-        levelCode,
-        limit: count * 2
-      }
-    ];
-
-    const questions = await this.fetchQuestionsWithFallback(attempts, count, excludeQuestionIds);
-    return questions;
   }
 
   /**

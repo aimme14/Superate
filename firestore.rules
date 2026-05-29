@@ -1,150 +1,133 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Funci?n auxiliar para verificar si el usuario est? autenticado
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    // Funci?n auxiliar para verificar si la instituci?n est? activa
-    function isInstitutionActive(institutionId) {
-      return exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) &&
-             get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true;
-    }
-    
-    // Funci?n auxiliar para verificar si el usuario est? activo en nueva estructura jer?rquica
-    // Busca en todas las posibles ubicaciones por rol
-    function isUserActiveInNewStructure(institutionId, role) {
-      return isAuthenticated() && 
-        (
-          (role == 'rector' && exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/rectores/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/rectores/$(request.auth.uid)).data.isActive == true) ||
-          (role == 'principal' && exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/coordinadores/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/coordinadores/$(request.auth.uid)).data.isActive == true) ||
-          (role == 'teacher' && exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/profesores/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/profesores/$(request.auth.uid)).data.isActive == true) ||
-          (role == 'student' && exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/estudiantes/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/estudiantes/$(request.auth.uid)).data.isActive == true)
-        );
-    }
-    
-    // Funci?n auxiliar para verificar si el usuario est? activo
-    // Para admin, busca en estructura antigua (solo admin queda ah?)
-    // Para otros usuarios, busca en nueva estructura
-    function isUserActive() {
-      return isAuthenticated() && 
-        (
-          (exists(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.isActive == true &&
-           get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin') ||
-          isActiveNonAdminUser()
-        );
-    }
-    
-    // Funci?n auxiliar para verificar si la instituci?n del usuario est? activa
-    // Para admin, siempre permitir (no tiene instituci?n)
-    function isUserInstitutionActive() {
-      return isAuthenticated() && 
-        (
-          isAdmin() ||
-          (exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
-            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)) &&
-            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)).data.isActive == true)
-        );
-    }
-    
-    // Funci?n auxiliar para verificar si el usuario puede acceder (activo y su instituci?n activa)
-    function canAccess() {
-      return isUserActive() && isUserInstitutionActive();
-    }
-    
-    // Miembro activo de la instituci?n del path (sin evaluar admin en users/).
-    // Usar en match .../institutions/{institutionId}/... para menos lecturas que canAccess().
-    function sameInstitutionMemberActive(institutionId) {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId == institutionId &&
-        isInstitutionActive(institutionId) &&
-        isUserActiveInNewStructure(institutionId, get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role);
-    }
-    
-    // Custom claims (Firebase Auth): si claimsRev est? presente, menos lecturas en reglas
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CAPA 1: Custom claims (zero lecturas Firestore)
+    // Disponibles cuando claimsRev está presente en el token (set por setUserClaims).
+    // ─────────────────────────────────────────────────────────────────────────
+
     function hasClaimsRev() {
       return request.auth != null && request.auth.token.claimsRev != null;
     }
+
     function tokenIsAdmin() {
       return hasClaimsRev() &&
         request.auth.token.role == 'admin' &&
         request.auth.token.active == true;
     }
-    function tokenSameInstitutionActive(institutionId) {
-      return hasClaimsRev() &&
-        (request.auth.token.role == 'student' || request.auth.token.role == 'teacher' || request.auth.token.role == 'principal' || request.auth.token.role == 'rector') &&
-        request.auth.token.institutionId == institutionId &&
-        request.auth.token.active == true &&
-        request.auth.token.institutionActive == true;
-    }
+
     function tokenCanAccess() {
       return hasClaimsRev() &&
         request.auth.token.active == true &&
-        (request.auth.token.role == 'admin' ||
-         (request.auth.token.institutionActive == true &&
-          (request.auth.token.role == 'student' || request.auth.token.role == 'teacher' || request.auth.token.role == 'principal' || request.auth.token.role == 'rector')));
+        (
+          request.auth.token.role == 'admin' ||
+          (
+            request.auth.token.institutionActive == true &&
+            (
+              request.auth.token.role == 'student' ||
+              request.auth.token.role == 'teacher' ||
+              request.auth.token.role == 'rector'
+            )
+          )
+        );
     }
-    function isAdminOrToken() {
-      // Permitir fallback a Firestore aunque existan claimsRev (claims desactualizados).
-      return tokenIsAdmin() || isAdmin();
+
+    function tokenSameInstitution(institutionId) {
+      return hasClaimsRev() &&
+        request.auth.token.active == true &&
+        request.auth.token.institutionActive == true &&
+        request.auth.token.institutionId == institutionId &&
+        (
+          request.auth.token.role == 'student' ||
+          request.auth.token.role == 'teacher' ||
+          request.auth.token.role == 'rector'
+        );
     }
-    function sameInstitutionMemberOrToken(institutionId) {
-      return tokenSameInstitutionActive(institutionId) ||
-        sameInstitutionMemberActive(institutionId);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CAPA 2: Fallback Firestore (solo cuando claims no disponibles)
+    // Cada función hace el mínimo de lecturas posible.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
-    // Lee el doc de institución sin depender de userLookup (solo el cliente admin puede escribir userLookup).
-    // Si el uid tiene doc bajo esta institución, puede leer metadatos de la institución (enrichUserData, dashboard).
-    function isMemberOfInstitutionByPath(institutionId) {
-      return isAuthenticated() && (
-        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/estudiantes/$(request.auth.uid)) ||
-        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/profesores/$(request.auth.uid)) ||
-        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/coordinadores/$(request.auth.uid)) ||
-        exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)/rectores/$(request.auth.uid))
-      );
-    }
-    function canAccessOrToken() {
-      return tokenCanAccess() || canAccess();
-    }
-    
-    // Funci?n auxiliar para verificar si el usuario es administrador
-    // Admin solo existe en estructura antigua
+
+    // Admin: única lectura en users/ (solo admins viven ahí).
     function isAdmin() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         exists(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.isActive == true &&
         get(/databases/$(database)/documents/superate/auth/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Usuarios no admin: solo existen bajo institutions/...; userLookup apunta a su doc activo.
-    function isActiveNonAdminUser() {
-      return exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
+    // Verifica que el uid tenga un userLookup válido y su doc de rol esté activo.
+    // Máximo 2 lecturas: userLookup + doc de rol.
+    function isActiveNonAdmin() {
+      let lookup = get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data;
+      let instId = lookup.institutionId;
+      let role = lookup.role;
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
         (
-          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'rector' &&
-            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/rectores/$(request.auth.uid)) &&
-            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/rectores/$(request.auth.uid)).data.isActive == true) ||
-          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'principal' &&
-            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/coordinadores/$(request.auth.uid)) &&
-            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/coordinadores/$(request.auth.uid)).data.isActive == true) ||
-          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'teacher' &&
-            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/profesores/$(request.auth.uid)) &&
-            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/profesores/$(request.auth.uid)).data.isActive == true) ||
-          (get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.role == 'student' &&
-            exists(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/estudiantes/$(request.auth.uid)) &&
-            get(/databases/$(database)/documents/superate/auth/institutions/$(get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId)/estudiantes/$(request.auth.uid)).data.isActive == true)
+          (role == 'rector' &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(instId)/rectores/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(instId)/rectores/$(request.auth.uid)).data.isActive == true) ||
+          (role == 'teacher' &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(instId)/profesores/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(instId)/profesores/$(request.auth.uid)).data.isActive == true) ||
+          (role == 'student' &&
+            exists(/databases/$(database)/documents/superate/auth/institutions/$(instId)/estudiantes/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/superate/auth/institutions/$(instId)/estudiantes/$(request.auth.uid)).data.isActive == true)
         );
     }
 
-    // superate/auth/users: solo cuentas administrador. Nadie m?s lee ni escribe esta ruta salvo admin activo.
+    // Institución activa: 1 lectura.
+    function isInstitutionActive(institutionId) {
+      return exists(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)) &&
+        get(/databases/$(database)/documents/superate/auth/institutions/$(institutionId)).data.isActive == true;
+    }
+
+    // Usuario activo en institución específica: userLookup + isInstitutionActive + doc rol = 3 lecturas máximo.
+    function isMemberOfInstitution(institutionId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/superate/auth/userLookup/$(request.auth.uid)).data.institutionId == institutionId &&
+        isInstitutionActive(institutionId) &&
+        isActiveNonAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CAPA 3: Combinadas (claims primero, fallback después)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Admin por claims o Firestore.
+    function isAdminOrToken() {
+      return tokenIsAdmin() || isAdmin();
+    }
+
+    // Acceso general: usuario activo con institución activa.
+    function canAccess() {
+      return tokenCanAccess() || isAdmin() || isActiveNonAdmin();
+    }
+
+    // Miembro activo de una institución específica.
+    function sameInstitution(institutionId) {
+      return tokenSameInstitution(institutionId) || isMemberOfInstitution(institutionId);
+    }
+
+    // Acceso a recursos de una institución: miembro o admin.
+    function canAccessInstitution(institutionId) {
+      return sameInstitution(institutionId) || isAdminOrToken();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // REGLAS DE COLECCIONES
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Admin en estructura legacy (solo admins).
     match /superate/auth/users/{userId} {
-      // UID como ID de documento, o legacy: ID = email (mismo correo que el token).
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
         isAdminOrToken() ||
@@ -153,269 +136,213 @@ service cloud.firestore {
       allow create, update, delete: if isAdminOrToken();
     }
 
-    // superate/auth/userLookup: ?ndice uid ? institutionId + rol (el cliente lee el propio al resolver sesi?n).
+    // Índice uid → institutionId + rol.
     match /superate/auth/userLookup/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminOrToken());
       allow create, update, delete: if isAdminOrToken();
     }
-    
-    // La colecci?n de usuarios antigua ha sido eliminada completamente
-    // Todos los usuarios ahora est?n en la nueva estructura jer?rquica por instituci?n y rol
-    
-    // NUEVA ESTRUCTURA JER��RQUICA: Rectores
+
+    // Instituciones.
+    match /superate/auth/institutions/{institutionId} {
+      allow read: if canAccessInstitution(institutionId);
+      allow create: if isAdminOrToken() && request.resource.data.isActive != null;
+      allow update: if isAdminOrToken() &&
+        (request.resource.data.isActive == true || request.resource.data.isActive == false);
+      allow delete: if isAdminOrToken();
+    }
+
+    // Rectores.
     match /superate/auth/institutions/{institutionId}/rectores/{rectorId} {
-      // Bootstrap: leer el propio doc por uid sin userLookup ni claims (el id del doc es único globalmente)
       allow read: if isAuthenticated() && request.auth.uid == rectorId;
-      // Los rectores activos pueden leer su propia informaci?n
-      allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == rectorId;
-      
-      // Solo admins activos pueden leer informaci?n de otros rectores
-      allow read: if isAdminOrToken();
-      
-      // Los rectores activos pueden actualizar su propia informaci?n (campos limitados)
-      allow update: if sameInstitutionMemberOrToken(institutionId) && 
+      allow read: if canAccessInstitution(institutionId);
+      allow update: if canAccessInstitution(institutionId) &&
         request.auth.uid == rectorId &&
         request.resource.data.role == 'rector' &&
         request.resource.data.isActive == resource.data.isActive;
-      
-      // Solo admins activos pueden crear, actualizar o eliminar rectores
       allow create: if isAdminOrToken() &&
         request.resource.data.isActive != null &&
         request.resource.data.role == 'rector';
-      
       allow update: if isAdminOrToken() &&
-        request.resource.data.role == 'rector' &&
-        (request.resource.data.isActive == true || request.resource.data.isActive == false);
-      
+        request.resource.data.role == 'rector';
       allow delete: if isAdminOrToken();
     }
-    
-    // NUEVA ESTRUCTURA JER��RQUICA: Coordinadores
+
+    // Coordinadores — rol legacy, solo lectura admin. No se crean nuevos.
     match /superate/auth/institutions/{institutionId}/coordinadores/{coordinadorId} {
       allow read: if isAuthenticated() && request.auth.uid == coordinadorId;
-      // Los coordinadores activos pueden leer su propia informaci?n
-      allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == coordinadorId;
-      
-      // Solo admins activos pueden leer informaci?n de otros coordinadores
       allow read: if isAdminOrToken();
-      
-      // Los coordinadores activos pueden actualizar su propia informaci?n (campos limitados)
-      allow update: if sameInstitutionMemberOrToken(institutionId) && 
-        request.auth.uid == coordinadorId &&
-        request.resource.data.role == 'principal' &&
-        request.resource.data.isActive == resource.data.isActive;
-      
-      // Solo admins activos pueden crear, actualizar o eliminar coordinadores
-      allow create: if isAdminOrToken() &&
-        request.resource.data.isActive != null &&
-        request.resource.data.role == 'principal';
-      
-      allow update: if isAdminOrToken() &&
-        request.resource.data.role == 'principal' &&
-        (request.resource.data.isActive == true || request.resource.data.isActive == false);
-      
-      allow delete: if isAdminOrToken();
+      allow create, update, delete: if isAdminOrToken();
     }
-    
-    // NUEVA ESTRUCTURA JER��RQUICA: Profesores
+
+    // Profesores.
     match /superate/auth/institutions/{institutionId}/profesores/{profesorId} {
       allow read: if isAuthenticated() && request.auth.uid == profesorId;
-      // Los profesores activos pueden leer su propia informaci?n
-      allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == profesorId;
-      
-      // Solo admins activos pueden leer informaci?n de otros profesores
-      allow read: if isAdminOrToken();
-      
-      // Los profesores activos pueden actualizar su propia informaci?n (campos limitados)
-      allow update: if sameInstitutionMemberOrToken(institutionId) && 
+      allow read: if canAccessInstitution(institutionId);
+      allow update: if canAccessInstitution(institutionId) &&
         request.auth.uid == profesorId &&
         request.resource.data.role == 'teacher' &&
         request.resource.data.isActive == resource.data.isActive;
-      
-      // Solo admins activos pueden crear, actualizar o eliminar profesores
       allow create: if isAdminOrToken() &&
         request.resource.data.isActive != null &&
         request.resource.data.role == 'teacher';
-      
       allow update: if isAdminOrToken() &&
-        request.resource.data.role == 'teacher' &&
-        (request.resource.data.isActive == true || request.resource.data.isActive == false);
-      
+        request.resource.data.role == 'teacher';
       allow delete: if isAdminOrToken();
     }
-    
-    // NUEVA ESTRUCTURA JER��RQUICA: Estudiantes
+
+    // Estudiantes.
     match /superate/auth/institutions/{institutionId}/estudiantes/{estudianteId} {
       allow read: if isAuthenticated() && request.auth.uid == estudianteId;
-      // Los estudiantes activos pueden leer su propia informaci?n
-      allow read: if sameInstitutionMemberOrToken(institutionId) && request.auth.uid == estudianteId;
-      
-      // Solo admins activos pueden leer informaci?n de otros estudiantes
-      allow read: if isAdminOrToken();
-      
-      // Los estudiantes activos pueden actualizar su propia informaci?n (campos limitados)
-      allow update: if sameInstitutionMemberOrToken(institutionId) && 
+      allow read: if canAccessInstitution(institutionId);
+      allow update: if canAccessInstitution(institutionId) &&
         request.auth.uid == estudianteId &&
         request.resource.data.role == 'student' &&
         request.resource.data.isActive == resource.data.isActive;
-      
-      // Solo admins activos pueden crear, actualizar o eliminar estudiantes
       allow create: if isAdminOrToken() &&
         request.resource.data.isActive != null &&
         request.resource.data.role == 'student';
-      
       allow update: if isAdminOrToken() &&
-        request.resource.data.role == 'student' &&
-        (request.resource.data.isActive == true || request.resource.data.isActive == false);
-      
-      allow delete: if isAdminOrToken();
-    }
-    
-    // Colecci?n de instituciones
-    match /superate/auth/institutions/{institutionId} {
-      // Los admins pueden leer todas las instituciones (activas e inactivas)
-      // Los usuarios regulares solo pueden leer instituciones activas
-      // Miembro de institución primero: evita lecturas en users/ por isAdmin() para la mayoría de usuarios.
-      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken() || isMemberOfInstitutionByPath(institutionId);
-      
-      // Solo admins activos pueden crear, actualizar o eliminar instituciones
-      // Al crear, isActive debe estar presente
-      allow create: if isAdminOrToken() &&
-        request.resource.data.isActive != null;
-      
-      // Los admins pueden actualizar instituciones incluso si est?n inactivas
-      // Esto permite reactivar instituciones
-      allow update: if isAdminOrToken() &&
-        // Permitir cambiar isActive solo a admin
-        (request.resource.data.isActive == true || request.resource.data.isActive == false);
-      
+        request.resource.data.role == 'student';
       allow delete: if isAdminOrToken();
     }
 
-    // Snapshots agregados para dashboards (rector/docente).
-    // Permite acceso a usuarios activos de la misma instituci�n y a admins.
+    // Snapshots analíticos por institución.
     match /superate/auth/institutions/{institutionId}/analyticsSnapshots/{snapshotId} {
-      allow read, write: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
+      allow read, write: if canAccessInstitution(institutionId);
     }
 
-    // Resumen de progreso por estudiante (actualizado por Cloud Functions). Solo lectura en cliente.
+    // Resumen de progreso por estudiante — solo Cloud Functions escribe.
     match /superate/auth/institutions/{institutionId}/studentSummaries/{studentId} {
-      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
+      allow read: if canAccessInstitution(institutionId);
       allow write: if false;
     }
 
-    // Resumen agregado por grado/año (actualizado por Cloud Functions). Solo lectura en cliente.
+    // Resumen por grado — solo Cloud Functions escribe.
     match /superate/auth/institutions/{institutionId}/gradeSummary/{gradeSummaryId} {
-      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
+      allow read: if canAccessInstitution(institutionId);
       allow write: if false;
     }
 
-    // Resumen agregado institucional por año (actualizado por script manual). Solo lectura en cliente.
+    // Resumen institucional — solo Cloud Functions escribe.
     match /superate/auth/institutions/{institutionId}/institutionSummary/{summaryId} {
-      allow read: if sameInstitutionMemberOrToken(institutionId) || isAdminOrToken();
+      allow read: if canAccessInstitution(institutionId);
       allow write: if false;
     }
-    
-    // Colecci?n de preguntas
+
+    // Cola de sincronización de claims — solo Cloud Functions escribe.
+    match /superate/auth/_syncClaimsQueue/{uid} {
+      allow read, write: if false;
+    }
+
+    // Preguntas del banco.
     match /superate/auth/questions/{questionId} {
-      // Solo usuarios activos pueden leer preguntas
-      allow read: if canAccessOrToken();
-      
-      // Solo usuarios activos con permisos pueden crear preguntas
-      // Admin puede crear, otros roles se validan en sus respectivas colecciones
-      allow create: if canAccessOrToken() && isAdminOrToken();
-      
-      // Solo el creador o un admin activo pueden actualizar
-      allow update: if canAccessOrToken() && 
+      allow read: if canAccess();
+      allow create: if canAccess() && isAdminOrToken();
+      allow update: if canAccess() &&
         (isAdminOrToken() || resource.data.createdBy == request.auth.uid);
-      
-      // Solo admins activos pueden eliminar
       allow delete: if isAdminOrToken();
     }
-    
-    // Colecci?n de contadores
+
+    // Contadores.
     match /superate/auth/counters/{counterId} {
-      // Solo usuarios activos con permisos pueden acceder
-      // Admin puede acceder, otros roles se validan en sus respectivas colecciones
-      allow read, write: if canAccessOrToken() && isAdminOrToken();
+      allow read, write: if isAdminOrToken();
     }
-    
-    // Configuraci?n del sistema - Registro de usuarios
+
+    // Configuración: registro de usuarios (lectura pública).
     match /superate/auth/system/registration {
-      // Todos los usuarios (autenticados o no) pueden leer la configuraci?n de registro
-      // Esto permite que la UI sepa si mostrar o no el bot?n de registro
       allow read: if true;
-      
-      // Solo admins activos pueden actualizar la configuraci?n de registro
       allow write: if isAdminOrToken();
     }
 
-    // Configuraci?n del sistema - Autorizaci?n global de fases
+    // Configuración: autorización global de fases.
     match /superate/auth/system/Autorizacion_fases {
-      // Lectura: cualquier usuario autenticado puede leer la configuración global.
-      // (Evita bloqueos del admin/estudiantes si su clasificación de claims difiere.)
       allow read: if isAuthenticated();
-      // Escritura: solo administradores.
       allow write: if isAdminOrToken();
     }
-    
-    // Recursos: enlaces web y videos YouTube (misma ruta que planes de estudio)
-    // WebLinks/{grado}/{materia}/{topic}/links, YoutubeLinks/{grado}/{materia}/{topic}/videos
-    match /WebLinks/{grado}/{materia}/{topic}/links/{linkId} {
-      allow read: if canAccessOrToken();
-      allow create, update, delete: if isAdminOrToken();
-    }
-    match /YoutubeLinks/{grado}/{materia}/{topic}/videos/{videoId} {
-      allow read: if canAccessOrToken();
-      allow create, update, delete: if isAdminOrToken();
-    }
 
-    // Centro de Herramientas IA: AI_Tools/{toolId}
-    match /AI_Tools/{toolId} {
-      allow read: if canAccessOrToken();
-      allow create, update, delete: if isAdminOrToken();
-    }
-
-    // Tips ICFES: documentos sueltos + caché consolidado_1 (lectura desde app estudiante)
-    match /TipsIA/{docId} {
-      allow read: if canAccessOrToken();
-      allow create, update, delete: if isAdminOrToken();
-    }
-
-    // Simulacros tipo Saber 11 (ICFES): Simulacros/{simulacroId}
-    // Lectura pública solo de shards denormalizados consolidado_* (URLs de PDF para ruta académica / visor).
-    match /Simulacros/{simulacroId} {
-      allow read: if simulacroId.matches('^consolidado_[0-9]+$') || canAccessOrToken();
-      allow create, update, delete: if isAdminOrToken();
-      // Subcolecci?n de videos explicativos (1:N)
-      match /Videos/{videoId} {
-        allow read: if canAccessOrToken();
-        allow create, update, delete: if isAdminOrToken();
-      }
-      // Materia ICFES: subcolecci?n ICFES/_/Videos (videos explicativos ICFES; doc intermedio para path impar)
-      match /ICFES/{icfesDocId}/Videos/{videoId} {
-        allow read: if canAccessOrToken();
-        allow create, update, delete: if isAdminOrToken();
-      }
-    }
-
-    // Colecci?n results: resultados de ex?menes por estudiante (results/{userId}/{phaseName}/{docId}).
-    // Ver docs/FIRESTORE_RESULTS.md.
+    // Resultados de exámenes por estudiante.
     match /results/{userId}/{phaseName}/{docId} {
-      allow read: if isAdminOrToken() || (request.auth.uid == userId && canAccessOrToken());
-      allow create, update: if request.auth.uid == userId && canAccessOrToken();
-      allow delete: if request.auth.uid == userId && canAccessOrToken();
+      allow read: if isAdminOrToken() || (request.auth.uid == userId && canAccess());
+      allow create, update: if request.auth.uid == userId && canAccess();
+      allow delete: if request.auth.uid == userId && canAccess();
     }
 
-    // examRegistry legacy: la app ya no escribe aquí; solo lectura admin.
+    // Plan de estudio IA por estudiante.
+    match /AnswerIA/{studentId}/{phaseName}/{subject} {
+      allow read: if isAdminOrToken() || request.auth.uid == studentId;
+      allow write: if false;
+    }
+
+    // Resumen académico IA — solo Cloud Functions escribe.
+    match /ResumenStudent/{studentId}/{phase}/resumenActual {
+      allow read: if isAdminOrToken() ||
+        request.auth.uid == studentId ||
+        (
+          exists(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)) &&
+          tokenSameInstitution(
+            get(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)).data.institutionId
+          )
+        );
+      allow write: if false;
+    }
+
+    // WebLinks: documentos consolidados por materia (consolidado_{materiaCode}).
+    match /WebLinks/{docId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdminOrToken();
+    }
+
+    // WebLinks: subcolección legacy (estructura antigua, solo admin).
+    match /WebLinks/{grado}/{materia}/{topic}/links/{linkId} {
+      allow read: if isAdminOrToken();
+      allow create, update, delete: if isAdminOrToken();
+    }
+
+    // YoutubeLinks: documentos consolidados por materia.
+    match /YoutubeLinks/{docId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdminOrToken();
+    }
+
+    // YoutubeLinks: subcolección legacy (estructura antigua, solo admin).
+    match /YoutubeLinks/{grado}/{materia}/{topic}/videos/{videoId} {
+      allow read: if isAdminOrToken();
+      allow create, update, delete: if isAdminOrToken();
+    }
+
+    // Herramientas IA.
+    match /AI_Tools/{toolId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdminOrToken();
+    }
+
+    // Tips ICFES.
+    match /TipsIA/{docId} {
+      allow read: if canAccess();
+      allow create, update, delete: if isAdminOrToken();
+    }
+
+    // Simulacros tipo ICFES.
+    match /Simulacros/{simulacroId} {
+      allow read: if simulacroId.matches('^consolidado_[0-9]+$') || canAccess();
+      allow create, update, delete: if isAdminOrToken();
+      match /Videos/{videoId} {
+        allow read: if canAccess();
+        allow create, update, delete: if isAdminOrToken();
+      }
+      match /ICFES/{icfesDocId}/Videos/{videoId} {
+        allow read: if canAccess();
+        allow create, update, delete: if isAdminOrToken();
+      }
+    }
+
+    // examRegistry legacy — solo lectura admin, sin escritura.
     match /examRegistry/{docId} {
       allow read: if isAdminOrToken();
       allow create, update, delete: if false;
     }
 
-    // Vocabulario académico (definitionswords): la app solo lee vía Cloud Function (Admin SDK),
-    // documento consolidado_{materia} con campo items. No usar subcolección palabras en runtime
-    // (collectionGroup costoso). Cliente denegado explícitamente.
+    // Vocabulario — solo Cloud Functions vía Admin SDK.
     match /definitionswords/{docId} {
       allow read, write: if false;
     }
@@ -423,26 +350,9 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Resumen académico IA (Cloud Functions escribe con Admin SDK). Cliente: snapshot en AcademicReportSection.
-    // Misma lógica que studentSummaries: propio uid, mismo institutionId vía userLookup del estudiante, o admin.
-    match /ResumenStudent/{studentId}/{phase}/resumenActual {
-      allow read: if isAdminOrToken() ||
-        request.auth.uid == studentId ||
-        (
-          exists(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)) &&
-          sameInstitutionMemberOrToken(
-            get(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)).data.institutionId
-          )
-        );
-      allow write: if false;
-    }
-
-    // Regla por defecto: denegar acceso a todo lo dem?s
+    // Denegar todo lo demás.
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
-
-
-

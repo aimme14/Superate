@@ -21,7 +21,7 @@ import {
   validateExamPresentationGate,
   type StudentProgressSummaryPack,
 } from "@/services/quiz/validateExamPresentationGate"
-import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary"
+import { fetchStudentProgressSummaryByUserId, examResultsFromSummaryData } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary"
 import { usePrefetchAdjacentQuizImagesLinear } from "@/hooks/usePrefetchAdjacentQuizImages"
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes"
 import { useThemeContext } from "@/context/ThemeContext"
@@ -320,7 +320,10 @@ const UnifiedExamForm = () => {
         const userGradeName = (user as { gradeName?: string; grade?: string })?.gradeName ?? (user as { grade?: string })?.grade
         const userGrade = gradeLabelToBankCode(userGradeName ?? '') ?? '1'
 
-        const quizResult = await quizGeneratorService.generateQuiz(currentSubject, currentPhase, userGrade, userId)
+        const preloadedEvaluations = summaryPack?.summary
+          ? examResultsFromSummaryData(summaryPack.summary, userId)
+          : undefined
+        const quizResult = await quizGeneratorService.generateQuiz(currentSubject, currentPhase, userGrade, userId, preloadedEvaluations)
 
         if (!quizResult.success) {
           logger.debug('Error generando cuestionario:', quizResult.error)
