@@ -61,7 +61,15 @@ const generationConfig = {
   temperature: 0.8,
   topP: 0.95,
   topK: 64,
-  maxOutputTokens: 65536, // 64k para planes con muchos ejercicios/topics y evitar truncado que malforma el JSON
+  maxOutputTokens: 65536, // Para planes de estudio y resúmenes largos
+};
+
+/** Config para justificaciones: respuestas más cortas, menor costo en Vertex AI. */
+export const justificationGenerationConfig = {
+  temperature: 0.8,
+  topP: 0.95,
+  topK: 64,
+  maxOutputTokens: 4096,
 };
 
 /**
@@ -170,17 +178,10 @@ class GeminiClient {
         // Producción: usar credenciales automáticas de Firebase Functions
         // Firebase Functions usa automáticamente la cuenta de servicio del proyecto
         // No especificar googleAuthOptions - dejar que use Application Default Credentials (ADC)
-        console.log('🔧 Inicializando Vertex AI en modo producción con credenciales automáticas de Firebase');
-        console.log(`   Proyecto: ${GEMINI_CONFIG.PROJECT_ID}`);
-        console.log(`   Región: ${GEMINI_CONFIG.REGION}`);
-        console.log(`   Cuenta de servicio: ${process.env.GCLOUD_PROJECT}@appspot.gserviceaccount.com`);
-        console.log(`   Usando Application Default Credentials (ADC)`);
-        
         // Asegurar que GOOGLE_APPLICATION_CREDENTIALS no esté establecido en producción
         // Firebase Functions debe usar las credenciales del servicio automáticamente
         if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
           delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
-          console.log(`   ⚠️ GOOGLE_APPLICATION_CREDENTIALS estaba establecido, removido para usar ADC`);
         }
         
         this.vertexAI = new VertexAI({
@@ -199,13 +200,6 @@ class GeminiClient {
         model: GEMINI_CONFIG.MODEL_NAME, // 'gemini-2.5-flash' - el SDK construye la ruta completa
         generationConfig: generationConfig,
       });
-      
-      console.log(`   Modelo configurado: ${GEMINI_CONFIG.MODEL_NAME}`);
-      if (isLocalDevelopment && this.serviceAccountKey) {
-        console.log(`   Ruta esperada: projects/${this.serviceAccountKey.project_id}/locations/${GEMINI_CONFIG.REGION}/publishers/google/models/${GEMINI_CONFIG.MODEL_NAME}`);
-      }
-      
-      console.log('✅ Vertex AI inicializado');
     } catch (error: any) {
       console.error('❌ Error al inicializar cliente de Gemini (Vertex AI):', error.message);
       throw error;
@@ -282,6 +276,8 @@ class GeminiClient {
       timeout?: number;
       /** Vertex: fuerza salida JSON (reduce texto extra y mejora parseo). */
       responseMimeType?: 'application/json';
+      /** Override de maxOutputTokens para esta llamada (p. ej. 4096 para justificaciones). */
+      maxOutputTokens?: number;
     } = {}
   ): Promise<{ text: string; metadata: any }> {
     // Asegurar que VertexAI esté inicializado con las credenciales correctas
@@ -342,13 +338,11 @@ class GeminiClient {
         
         // Construir las partes del contenido: imágenes primero, luego texto
         // Según la documentación de Gemini, es mejor poner las imágenes antes del texto
-        console.log(`\n🔧 CONSTRUYENDO REQUEST PARA VERTEX AI:`);
         const parts: any[] = [];
         
         // Agregar cada imagen como parte inlineData PRIMERO
         for (let i = 0; i < images.length; i++) {
           const image = images[i];
-          const imageSizeKB = (Buffer.from(image.data, 'base64').length / 1024).toFixed(2);
           
           // Validar que el base64 no esté vacío
           if (!image.data || image.data.length === 0) {
@@ -370,11 +364,6 @@ class GeminiClient {
           };
           
           parts.push(imagePart);
-          console.log(`   📤 Parte ${i + 1}/${images.length}: Imagen`);
-          console.log(`      - Contexto: ${image.context}`);
-          console.log(`      - MIME Type: ${image.mimeType}`);
-          console.log(`      - Tamaño base64: ${imageSizeKB} KB`);
-          console.log(`      - Base64 válido: ${image.data.substring(0, 30)}... (${image.data.length} chars)`);
         }
         
         // Validar que tengamos al menos una imagen válida si se esperaba tener imágenes
@@ -384,81 +373,46 @@ class GeminiClient {
         
         // Agregar el texto DESPUÉS de las imágenes
         parts.push({ text: prompt });
-        console.log(`   📝 Parte ${parts.length}: Texto (prompt)`);
-        console.log(`      - Tamaño del prompt: ${(prompt.length / 1024).toFixed(2)} KB`);
         
         // Vertex AI estructura para contenido multimodal
         const request: {
           contents: { role: string; parts: any[] }[];
-          generationConfig?: typeof generationConfig & { responseMimeType?: string };
+          generationConfig?: typeof generationConfig & { responseMimeType?: string; maxOutputTokens?: number };
         } = {
           contents: [{ role: 'user', parts }],
         };
-        if (options.responseMimeType) {
+        if (options.responseMimeType || options.maxOutputTokens) {
           request.generationConfig = {
             ...generationConfig,
-            responseMimeType: options.responseMimeType,
+            ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+            ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
           };
         }
         
-        // Log de verificación de la estructura FINAL
         const imagePartsCount = parts.filter(p => p.inlineData).length;
-        const textPartsCount = parts.filter(p => p.text).length;
-        console.log(`\n📋 ESTRUCTURA FINAL DEL REQUEST:`);
-        console.log(`   - Total de partes: ${parts.length}`);
-        console.log(`   - Partes de imagen: ${imagePartsCount}`);
-        console.log(`   - Partes de texto: ${textPartsCount}`);
-        console.log(`   - Request válido: ${parts.length > 0 && (imagePartsCount > 0 || textPartsCount > 0) ? '✅ SÍ' : '❌ NO'}`);
-        
-        // VALIDACIÓN CRÍTICA: Verificar que cada parte de imagen tenga la estructura correcta
+
         if (imagePartsCount > 0) {
-          console.log(`\n🔍 VALIDACIÓN DE ESTRUCTURA DE IMÁGENES:`);
-          let validImages = 0;
           let invalidImages = 0;
-          
-          parts.forEach((part, idx) => {
+
+          parts.forEach((part) => {
             if (part.inlineData) {
               const hasMimeType = part.inlineData.mimeType && typeof part.inlineData.mimeType === 'string';
               const hasData = part.inlineData.data && typeof part.inlineData.data === 'string' && part.inlineData.data.length > 0;
               const isValidMimeType = hasMimeType && part.inlineData.mimeType.startsWith('image/');
-              const base64Length = hasData ? part.inlineData.data.length : 0;
-              
-              if (hasMimeType && hasData && isValidMimeType) {
-                validImages++;
-                console.log(`   ✅ Parte ${idx + 1}: VÁLIDA`);
-                console.log(`      - MIME Type: ${part.inlineData.mimeType}`);
-                console.log(`      - Base64 length: ${base64Length} caracteres`);
-                console.log(`      - Base64 preview: ${part.inlineData.data.substring(0, 30)}...`);
-              } else {
+
+              if (!(hasMimeType && hasData && isValidMimeType)) {
                 invalidImages++;
-                console.error(`   ❌ Parte ${idx + 1}: INVÁLIDA`);
-                console.error(`      - Tiene mimeType: ${hasMimeType}`);
-                console.error(`      - Tiene data: ${hasData}`);
-                console.error(`      - MIME Type válido: ${isValidMimeType}`);
               }
             }
           });
-          
+
           if (invalidImages > 0) {
             throw new Error(`ERROR CRÍTICO: ${invalidImages} imagen(es) tienen estructura inválida. No se puede enviar a Gemini.`);
           }
-          
-          console.log(`   ✅ TODAS las ${validImages} imagen(es) tienen estructura VÁLIDA para Vertex AI\n`);
         }
-        
-        if (imagePartsCount > 0) {
-          console.log(`\n🚀 ENVIANDO REQUEST A VERTEX AI GEMINI:`);
-          console.log(`   ✅ ${imagePartsCount} imagen(es) incluidas en el request`);
-          console.log(`   ✅ El modelo ${GEMINI_CONFIG.MODEL_NAME} recibirá las imágenes como contenido visual`);
-          console.log(`   ✅ Formato correcto: inlineData con mimeType y data (base64)`);
-          console.log(`   ✅ Gemini podrá ANALIZAR VISUALMENTE las imágenes`);
-          console.log(`   ✅ Las justificaciones se generarán CON información visual completa\n`);
-        } else if (images.length > 0) {
-          console.error(`\n❌ ERROR CRÍTICO: Se esperaban ${images.length} imágenes pero ninguna está en las partes del request`);
-          console.error(`   Las justificaciones NO incluirán información visual\n`);
+
+        if (images.length > 0 && imagePartsCount === 0) {
           throw new Error('No se pudieron incluir las imágenes en el request');
-        } else {
-          console.log(`\n📤 ENVIANDO REQUEST A VERTEX AI GEMINI (solo texto, sin imágenes)\n`);
         }
         
         const resultPromise = this.model!.generateContent(request);
@@ -492,70 +446,11 @@ class GeminiClient {
           throw new Error('Respuesta vacía de Gemini');
         }
         
-        // Log de confirmación de recepción
         if (imageCount > 0) {
-          console.log(`\n📨 CONFIRMACIÓN DE RECEPCIÓN POR GEMINI:`);
-          console.log(`   ✅ Gemini procesó el request exitosamente`);
-          console.log(`   ✅ Respuesta recibida con ${response.candidates[0].content.parts.length} parte(s)`);
-          console.log(`   ✅ Si las imágenes fueron enviadas correctamente, Gemini las analizó visualmente`);
-        }
-        
-        console.log(`\n✅ RESPUESTA DE GEMINI RECIBIDA:`);
-        console.log(`   - Tamaño de la respuesta: ${text.length} caracteres`);
-        console.log(`   - Primeros 200 caracteres: ${text.substring(0, 200)}...`);
-        
-        if (imageCount > 0) {
-          console.log(`\n🔍 VERIFICACIÓN DE ANÁLISIS VISUAL:`);
-          console.log(`   📷 Imágenes enviadas: ${imageCount}`);
-          
-          // Verificar si la respuesta menciona contenido visual (indicador de que las imágenes fueron procesadas)
-          const visualKeywords = [
-            'imagen', 'imágenes', 'visual', 'visualmente',
-            'gráfico', 'gráficos', 'diagrama', 'diagramas',
-            'observo', 'observamos', 'veo', 'vemos',
-            'muestra', 'muestran', 'presenta', 'presentan',
-            'fotografía', 'foto', 'ilustración', 'dibujo',
-            'esquema', 'mapa', 'tabla', 'gráfica'
-          ];
-          
-          const textLower = text.toLowerCase();
-          const foundKeywords: string[] = [];
-          visualKeywords.forEach(keyword => {
-            if (textLower.includes(keyword)) {
-              foundKeywords.push(keyword);
-            }
-          });
-          
-          // Verificar referencias específicas a elementos visuales
-          const hasSpecificVisualRefs = 
-            textLower.includes('en la imagen') ||
-            textLower.includes('de la imagen') ||
-            textLower.includes('se puede ver') ||
-            textLower.includes('como se muestra') ||
-            textLower.includes('según la imagen') ||
-            textLower.includes('apreciamos en') ||
-            textLower.includes('elementos visuales');
-          
-          if (foundKeywords.length > 0 || hasSpecificVisualRefs) {
-            console.log(`   ✅ CONFIRMADO: Gemini SÍ analizó las imágenes visualmente`);
-            console.log(`   ✅ Palabras clave visuales encontradas: ${foundKeywords.length} (${foundKeywords.slice(0, 5).join(', ')}${foundKeywords.length > 5 ? '...' : ''})`);
-            if (hasSpecificVisualRefs) {
-              console.log(`   ✅ Referencias específicas a contenido visual encontradas`);
-            }
-            console.log(`   ✅ Las justificaciones fueron generadas CON información visual completa\n`);
-          } else {
-            console.warn(`   ⚠️ ADVERTENCIA: No se encontraron referencias visuales explícitas en la respuesta`);
-            console.warn(`   ⚠️ Esto podría indicar que:`);
-            console.warn(`      - Gemini no procesó las imágenes visualmente`);
-            console.warn(`      - O las justificaciones no requieren referencias explícitas a las imágenes`);
-            console.warn(`   ⚠️ Verificar los logs anteriores para confirmar que las imágenes se enviaron correctamente\n`);
-          }
-          
-          // Guardar metadata de análisis visual para usar en el return
           (result as any)._visualAnalysisMetadata = {
             imagesAnalyzed: imageCount,
-            hasVisualReferences: foundKeywords.length > 0 || hasSpecificVisualRefs,
-            visualKeywordsFound: foundKeywords.length,
+            hasVisualReferences: false,
+            visualKeywordsFound: 0,
           };
         }
         

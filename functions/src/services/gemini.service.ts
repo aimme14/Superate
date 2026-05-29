@@ -5,7 +5,7 @@
  * Incluye construcción de prompts optimizados y validación de respuestas
  */
 
-import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
+import { geminiClient, GEMINI_CONFIG, justificationGenerationConfig } from '../config/gemini.config';
 import { geminiCentralizedService } from './geminiService';
 import {
   QuestionGenerationData,
@@ -59,6 +59,7 @@ class GeminiService {
             prompt: multimodalContent.text,
             processName: 'question_justification',
             images: multimodalContent.images,
+            options: { maxOutputTokens: justificationGenerationConfig.maxOutputTokens },
           });
         } else {
           // No hay imágenes, generar solo con texto
@@ -67,6 +68,7 @@ class GeminiService {
             prompt: multimodalContent.text,
             processName: 'question_justification',
             images: [],
+            options: { maxOutputTokens: justificationGenerationConfig.maxOutputTokens },
           });
           usedImages = false;
         }
@@ -91,6 +93,7 @@ class GeminiService {
                 prompt: multimodalContent.text,
                 processName: 'question_justification_fallback',
                 images: [],
+                options: { maxOutputTokens: justificationGenerationConfig.maxOutputTokens },
               });
               usedImages = false;
               console.log(`✅ Fallback exitoso: Generación completada SIN imágenes`);
@@ -397,8 +400,6 @@ class GeminiService {
         return null;
       }
 
-      console.log(`📥 Descargando imagen desde: ${url.substring(0, 100)}${url.length > 100 ? '...' : ''}`);
-      
       const response = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; SuperateIA/1.0)',
@@ -413,7 +414,6 @@ class GeminiService {
       }
 
       const contentType = response.headers.get('content-type');
-      console.log(`   Content-Type recibido: ${contentType}`);
 
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
@@ -450,14 +450,6 @@ class GeminiService {
         }
       }
 
-      const sizeKB = (buffer.length / 1024).toFixed(2);
-      const base64SizeKB = (base64.length / 1024).toFixed(2);
-      console.log(`✅ Imagen descargada exitosamente:`);
-      console.log(`   - Tamaño original: ${sizeKB} KB`);
-      console.log(`   - Tamaño base64: ${base64SizeKB} KB`);
-      console.log(`   - Tipo MIME: ${mimeType}`);
-      console.log(`   - Base64 válido: ${base64.substring(0, 50)}... (${base64.length} caracteres)`);
-      
       return { mimeType, data: base64 };
     } catch (error: any) {
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
@@ -479,69 +471,46 @@ class GeminiService {
     correctOption: QuestionOption,
     incorrectOptions: QuestionOption[]
   ): Promise<{ text: string; images: Array<{ mimeType: string; data: string; context: string }> }> {
-    console.log(`\n🔍 RECOPILANDO URLs DE IMÁGENES:`);
-    
     // Recopilar todas las URLs de imágenes con su contexto
     const imageUrls: Array<{ url: string; context: string }> = [];
     
     // Imágenes informativas
     if (data.informativeImages && Array.isArray(data.informativeImages) && data.informativeImages.length > 0) {
-      console.log(`   📷 Imágenes informativas encontradas: ${data.informativeImages.length}`);
       data.informativeImages.forEach((url, index) => {
         if (url && typeof url === 'string' && url.trim() !== '') {
           imageUrls.push({ 
             url: url.trim(), 
             context: `Imagen informativa ${index + 1} (contexto de la pregunta)` 
           });
-          console.log(`      ✓ ${index + 1}. ${url.substring(0, 80)}${url.length > 80 ? '...' : ''}`);
         } else {
           console.warn(`      ⚠️ Imagen informativa ${index + 1} tiene URL inválida: ${url}`);
         }
       });
-    } else {
-      console.log(`   📷 Imágenes informativas: 0`);
     }
     
     // Imágenes en la pregunta
     if (data.questionImages && Array.isArray(data.questionImages) && data.questionImages.length > 0) {
-      console.log(`   📷 Imágenes de pregunta encontradas: ${data.questionImages.length}`);
       data.questionImages.forEach((url, index) => {
         if (url && typeof url === 'string' && url.trim() !== '') {
           imageUrls.push({ 
             url: url.trim(), 
             context: `Imagen de la pregunta ${index + 1}` 
           });
-          console.log(`      ✓ ${index + 1}. ${url.substring(0, 80)}${url.length > 80 ? '...' : ''}`);
         } else {
           console.warn(`      ⚠️ Imagen de pregunta ${index + 1} tiene URL inválida: ${url}`);
         }
       });
-    } else {
-      console.log(`   📷 Imágenes de pregunta: 0`);
     }
     
     // Imágenes en las opciones
-    console.log(`   📷 Revisando imágenes en ${data.options.length} opciones...`);
-    let optionImagesFound = 0;
     data.options.forEach((opt, optIndex) => {
       if (opt.imageUrl && typeof opt.imageUrl === 'string' && opt.imageUrl.trim() !== '') {
-        optionImagesFound++;
         imageUrls.push({ 
           url: opt.imageUrl.trim(), 
           context: `Imagen de la opción ${opt.id || optIndex + 1}` 
         });
-        console.log(`      ✓ Opción ${opt.id || optIndex + 1}: ${opt.imageUrl.substring(0, 80)}${opt.imageUrl.length > 80 ? '...' : ''}`);
       }
     });
-    console.log(`   📷 Imágenes en opciones encontradas: ${optionImagesFound}`);
-    
-    console.log(`\n📊 RESUMEN DE RECOPILACIÓN:`);
-    console.log(`   Total de URLs de imágenes encontradas: ${imageUrls.length}`);
-    if (imageUrls.length > 0) {
-      console.log(`   ✅ Las imágenes SERÁN descargadas y enviadas a Gemini\n`);
-    } else {
-      console.log(`   ℹ️ No hay imágenes - se enviará solo texto a Gemini\n`);
-    }
     
     // Construir el prompt base
     const promptText = this.buildJustificationPrompt(
@@ -557,49 +526,30 @@ class GeminiService {
       return { text: promptText, images: [] };
     }
     
-    // Hay imágenes: descargarlas y convertirlas a base64
-    console.log(`\n📷 ===== PROCESAMIENTO DE IMÁGENES =====`);
-    console.log(`📷 Total de imágenes detectadas: ${imageUrls.length}`);
-    imageUrls.forEach((img, idx) => {
-      console.log(`   ${idx + 1}. ${img.context}`);
-      console.log(`      URL: ${img.url}`);
-    });
-    console.log(`📷 Iniciando descarga y conversión a base64...\n`);
-    
+    // Hay imágenes: descargarlas y convertirlas a base64 (en paralelo)
     const images: Array<{ mimeType: string; data: string; context: string }> = [];
     let downloadErrors = 0;
-    
-    for (let i = 0; i < imageUrls.length; i++) {
-      const imageUrl = imageUrls[i];
-      console.log(`\n[${i + 1}/${imageUrls.length}] Procesando: ${imageUrl.context}`);
-      const imageData = await this.downloadImageAsBase64(imageUrl.url);
-      if (imageData) {
-        // Validar que el base64 no esté vacío antes de agregar
-        if (imageData.data && imageData.data.length > 0) {
-          images.push({
-            mimeType: imageData.mimeType,
-            data: imageData.data,
-            context: imageUrl.context,
-          });
-          console.log(`✅ [${i + 1}/${imageUrls.length}] Imagen procesada exitosamente: ${imageUrl.context}`);
-        } else {
-          console.error(`❌ [${i + 1}/${imageUrls.length}] Base64 vacío para: ${imageUrl.context}`);
-          downloadErrors++;
-        }
+
+    const downloadResults = await Promise.all(
+      imageUrls.map(async (imageUrl) => {
+        const imageData = await this.downloadImageAsBase64(imageUrl.url);
+        return { imageUrl, imageData };
+      })
+    );
+    for (const { imageUrl, imageData } of downloadResults) {
+      if (imageData?.data && imageData.data.length > 0) {
+        images.push({
+          mimeType: imageData.mimeType,
+          data: imageData.data,
+          context: imageUrl.context,
+        });
       } else {
-        console.error(`❌ [${i + 1}/${imageUrls.length}] FALLÓ descarga: ${imageUrl.context}`);
-        console.error(`   URL: ${imageUrl.url}`);
         downloadErrors++;
       }
     }
     
-    console.log(`\n📊 RESUMEN DE DESCARGAS:`);
-    console.log(`   ✅ Exitosas: ${images.length}/${imageUrls.length}`);
-    console.log(`   ❌ Fallidas: ${downloadErrors}/${imageUrls.length}`);
-    
     // Validación adicional de imágenes antes de enviarlas
     if (images.length > 0) {
-      console.log(`\n🔍 VALIDACIÓN FINAL DE IMÁGENES ANTES DE ENVIAR:`);
       let validImagesCount = 0;
       const imagesToSend: Array<{ mimeType: string; data: string; context: string }> = [];
       
@@ -627,7 +577,6 @@ class GeminiService {
         
         validImagesCount++;
         imagesToSend.push(img);
-        console.log(`   ✅ ${img.context}: Válida (${base64SizeMB.toFixed(2)}MB, ${img.mimeType})`);
       }
       
       if (validImagesCount === 0) {
@@ -641,8 +590,7 @@ class GeminiService {
         console.warn(`   Solo ${validImagesCount} imagen(es) válida(s) serán enviadas a Gemini.\n`);
         return { text: promptText, images: imagesToSend };
       }
-      
-      console.log(`   ✅ Todas las ${validImagesCount} imagen(es) pasaron la validación\n`);
+
       return { text: promptText, images: imagesToSend };
     }
     
@@ -657,17 +605,7 @@ class GeminiService {
       console.warn(`\n⚠️ ADVERTENCIA: ${downloadErrors} imagen(es) no se pudieron descargar.`);
       console.warn(`   Solo ${images.length} imagen(es) estarán disponibles para análisis visual.\n`);
     }
-    
-    // Calcular tamaño total de las imágenes en base64
-    const totalBase64Size = images.reduce((sum, img) => sum + img.data.length, 0);
-    const totalSizeKB = (totalBase64Size / 1024).toFixed(2);
-    const totalSizeMB = (totalBase64Size / 1024 / 1024).toFixed(2);
-    
-    console.log(`✅ PREPARACIÓN COMPLETA:`);
-    console.log(`   📷 Imágenes listas para envío: ${images.length}`);
-    console.log(`   📦 Tamaño total base64: ${totalSizeKB} KB (${totalSizeMB} MB)`);
-    console.log(`   🚀 Listas para análisis visual por Gemini\n`);
-    
+
     // Agregar instrucciones mejoradas al prompt sobre las imágenes que se enviarán
     const enhancedPrompt = promptText + `\n\n═══════════════════════════════════════════════════════════════
 🖼️ ANÁLISIS VISUAL REQUERIDO

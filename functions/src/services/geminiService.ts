@@ -4,6 +4,8 @@ interface GeminiCallOptions {
   retries?: number;
   timeout?: number;
   responseMimeType?: 'application/json';
+  /** Override de maxOutputTokens para esta llamada. */
+  maxOutputTokens?: number;
 }
 
 interface GeminiCallInput {
@@ -11,7 +13,7 @@ interface GeminiCallInput {
   prompt: string;
   processName: string;
   images?: Array<{ mimeType: string; data: string; context: string }>;
-  /** Reenviado a Vertex (retries, timeout, responseMimeType, etc.). */
+  /** Reenviado a Vertex (retries, timeout, responseMimeType, maxOutputTokens, etc.). */
   options?: GeminiCallOptions;
 }
 
