@@ -13,7 +13,6 @@ import { LoadingScreen } from "#/ui/loading-screen"
 import { Sidebar } from '#/layout/Sidebar'
 import { Toaster } from '#/ui/toaster'
 import { GlobalQueryErrorToaster } from '@/components/common/GlobalQueryErrorToaster'
-import { PwaLifecycleToaster } from '@/components/common/PwaLifecycleToaster'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
 import { PrefetchInstitutions } from '@/components/common/PrefetchInstitutions'
 import { AuthBootScreen } from '@/components/common/AuthBootScreen'
@@ -114,8 +113,6 @@ const RootLayout = () => {
       <OfflineBanner />
       <Toaster />
       <GlobalQueryErrorToaster />
-      <PwaLifecycleToaster />
-      <PwaLifecycleToaster />
       <ScrollToTop />
       <LoadingScreen />
     </>
