@@ -32,6 +32,7 @@ const PlanEstudioIAPage = lazy(() => import("@/pages/PlanEstudioIAPage"));
 const SimulacrosIAPage = lazy(() => import("@/pages/SimulacrosIAPage"));
 const SimulacrosICFESPage = lazy(() => import("@/pages/SimulacrosICFESPage"));
 const MasHerramientasPage = lazy(() => import("@/pages/MasHerramientasPage"));
+const HerramientasEstudioPage = lazy(() => import("@/pages/HerramientasEstudioPage"));
 
 const TeacherDashboard = lazy(() => import("@/pages/dashboard/teacher/TeacherDashboard"));
 const RectorDashboard = lazy(() => import("@/pages/dashboard/rector/RectorDashboard"));
@@ -248,6 +249,16 @@ function App() {
                     <ErrorBoundary>
                       <LazyRouteBoundary variant="student">
                         <MasHerramientasPage />
+                      </LazyRouteBoundary>
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/herramientas-estudio"
+                  element={
+                    <ErrorBoundary>
+                      <LazyRouteBoundary variant="student">
+                        <HerramientasEstudioPage />
                       </LazyRouteBoundary>
                     </ErrorBoundary>
                   }
