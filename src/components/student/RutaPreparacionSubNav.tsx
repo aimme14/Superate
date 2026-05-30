@@ -1,10 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
-import { Pencil, BookOpen, Zap } from "lucide-react";
+import { Pencil, BookOpen, Zap, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RUTA_ACADEMICA_PATH = "/ruta-academica-adaptativa";
 const PLAN_ESTUDIO_IA_PATH = "/plan-estudio-ia";
 const SIMULACROS_IA_PATH = "/simulacros-ia";
+const MAS_HERRAMIENTAS_PATH = "/mas-herramientas";
 
 interface RutaPreparacionSubNavProps {
   theme?: "light" | "dark";
@@ -66,6 +67,15 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
       >
         <Zap className="w-5 h-5 flex-shrink-0" aria-hidden />
         <span className="hidden sm:inline">Simulacros IA</span>
+      </Link>
+      <Link
+        to={MAS_HERRAMIENTAS_PATH}
+        className={cn(buttonClass(pathname === MAS_HERRAMIENTAS_PATH), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
+        aria-current={pathname === MAS_HERRAMIENTAS_PATH ? "page" : undefined}
+        aria-label="Más herramientas para el ICFES"
+      >
+        <Wrench className="w-5 h-5 flex-shrink-0" aria-hidden />
+        <span className="hidden sm:inline">Más herramientas para el ICFES</span>
       </Link>
     </div>
   );

@@ -31,6 +31,7 @@ const RutaAcademicaAdaptativaPage = lazy(() => import("@/pages/RutaAcademicaAdap
 const PlanEstudioIAPage = lazy(() => import("@/pages/PlanEstudioIAPage"));
 const SimulacrosIAPage = lazy(() => import("@/pages/SimulacrosIAPage"));
 const SimulacrosICFESPage = lazy(() => import("@/pages/SimulacrosICFESPage"));
+const MasHerramientasPage = lazy(() => import("@/pages/MasHerramientasPage"));
 
 const TeacherDashboard = lazy(() => import("@/pages/dashboard/teacher/TeacherDashboard"));
 const RectorDashboard = lazy(() => import("@/pages/dashboard/rector/RectorDashboard"));
@@ -237,6 +238,16 @@ function App() {
                     <ErrorBoundary>
                       <LazyRouteBoundary variant="student">
                         <SimulacrosICFESPage />
+                      </LazyRouteBoundary>
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/mas-herramientas"
+                  element={
+                    <ErrorBoundary>
+                      <LazyRouteBoundary variant="student">
+                        <MasHerramientasPage />
                       </LazyRouteBoundary>
                     </ErrorBoundary>
                   }
