@@ -257,11 +257,11 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
       <div className="p-4 space-y-4">
 
       
-        {/* SESIONES LADO A LADO */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* SESIONES + PUNTAJE GLOBAL EN UNA FILA */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
 
           {/* SESIÓN 1 */}
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0">
             <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2 border",
               dark ? "border-zinc-700 bg-zinc-900/50" : "border-gray-200 bg-gray-100/80")}>
               <div className="h-6 w-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white flex-shrink-0">1</div>
@@ -276,7 +276,7 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
           </div>
 
           {/* SESIÓN 2 */}
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0">
             <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2 border",
               dark ? "border-zinc-700 bg-zinc-900/50" : "border-gray-200 bg-gray-100/80")}>
               <div className="h-6 w-6 rounded-full bg-orange-600 flex items-center justify-center text-[10px] font-black text-white flex-shrink-0">2</div>
@@ -289,85 +289,52 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
             </div>
             {SESION_2.map((item) => renderFila(item, item.id as Bloque))}
           </div>
-        </div>
 
-        {/* RESUMEN POR ÁREA */}
-        <div className={cn("rounded-xl border p-3 space-y-2",
-          dark ? "border-zinc-700 bg-zinc-900/40" : "border-gray-100 bg-gray-50")}>
-          <p className={cn("text-xs font-bold uppercase tracking-wide", dark ? "text-zinc-300" : "text-gray-700")}>
-            📋 Resumen por área
-          </p>
-          <div className="space-y-1.5">
-            {AREAS_ORDEN.map((area) => {
-              const item  = [...SESION_1, ...SESION_2].find((i) => i.area === area)!;
-              const pa    = puntajeArea(bloques, area);
-              const tot   = totalPorArea(bloques, area);
-              const max   = TOTALES[area];
-              const pct   = Math.round((tot / max) * 100);
-              const nivel = getNivelArea(pa);
-              return (
-                <div key={area} className="flex items-center gap-2">
-                  <span className="text-sm w-5 text-center flex-shrink-0">{item.emoji}</span>
-                  <span className={cn("text-[11px] font-medium w-28 truncate flex-shrink-0",
-                    dark ? "text-zinc-300" : "text-gray-700")}>{item.nombre}</span>
-                  <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden",
-                    dark ? "bg-zinc-700" : "bg-gray-200")}>
-                    <div className="h-full rounded-full transition-all duration-300"
-                      style={{ width: `${pct}%`, backgroundColor: COLOR_HEX[item.color] }} />
-                  </div>
-                  <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0",
-                    NIVEL_PILL[nivel.color](dark))}>{nivel.nivel}</span>
-                  <span className={cn("text-xs font-black tabular-nums w-7 text-right flex-shrink-0",
-                    COLOR_TEXT[item.color](dark))}>{pa}</span>
+          {/* PUNTAJE GLOBAL + RANGOS */}
+          <div className="space-y-4 min-w-0 lg:sticky lg:top-4">
+            <div className={cn("rounded-xl border p-4", nivelBg[nivelGlobal.color])}>
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Trophy className={cn("h-5 w-5 flex-shrink-0", nivelTextColor[nivelGlobal.color])} />
+                  <span className={cn("font-bold text-sm", dark ? "text-white" : "text-gray-900")}>Puntaje Global</span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* RESULTADO GLOBAL */}
-        <div className={cn("rounded-xl border p-4", nivelBg[nivelGlobal.color])}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Trophy className={cn("h-5 w-5", nivelTextColor[nivelGlobal.color])} />
-              <span className={cn("font-bold text-sm", dark ? "text-white" : "text-gray-900")}>Puntaje Global</span>
-            </div>
-            <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border",
-              nivelTextColor[nivelGlobal.color],
-              dark ? "border-current bg-black/20" : "border-current bg-white/60")}>
-              {nivelGlobal.nivel}
-            </span>
-          </div>
-          <div className="flex items-end gap-2 mb-2">
-            <span className={cn("text-5xl font-black tabular-nums", nivelTextColor[nivelGlobal.color])}>{global}</span>
-            <span className={cn("text-lg font-medium mb-1", dark ? "text-zinc-500" : "text-gray-400")}>/500</span>
-          </div>
-          <div className={cn("h-2.5 w-full rounded-full overflow-hidden mb-2",
-            dark ? "bg-black/30" : "bg-white/60")}>
-            <div className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${(global / 500) * 100}%`, background: globalBar }} />
-          </div>
-          <p className={cn("text-xs", dark ? "text-zinc-400" : "text-gray-500")}>{nivelGlobal.descripcion}</p>
-        </div>
-
-        {/* RANGOS */}
-        <div className={cn("rounded-lg border p-3 space-y-2",
-          dark ? "border-zinc-700 bg-zinc-900/40" : "border-gray-200 bg-gray-50")}>
-          <p className={cn("text-xs font-bold uppercase tracking-wide", dark ? "text-zinc-300" : "text-gray-700")}>
-            📊 Rangos de referencia
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { rango: "< 250",   label: "Por mejorar", dc: "bg-red-900/30 border-red-800/50 text-red-400",              lc: "bg-red-50 border-red-200 text-red-600"                },
-              { rango: "250–265", label: "Aceptable",   dc: "bg-blue-900/30 border-blue-800/50 text-blue-400",           lc: "bg-blue-50 border-blue-200 text-blue-700"             },
-              { rango: "266–299", label: "Buena",       dc: "bg-teal-900/30 border-teal-800/50 text-teal-400",           lc: "bg-teal-50 border-teal-200 text-teal-700"             },
-              { rango: "≥ 300",   label: "Muy buena",   dc: "bg-emerald-900/30 border-emerald-800/50 text-emerald-400", lc: "bg-emerald-50 border-emerald-200 text-emerald-700" },
-            ].map((r) => (
-              <div key={r.rango} className={cn("rounded-lg p-2 text-center border", dark ? r.dc : r.lc)}>
-                <p className="text-sm font-black">{r.rango}</p>
-                <p className="text-[10px] font-semibold leading-tight mt-0.5">{r.label}</p>
+                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0",
+                  nivelTextColor[nivelGlobal.color],
+                  dark ? "border-current bg-black/20" : "border-current bg-white/60")}>
+                  {nivelGlobal.nivel}
+                </span>
               </div>
-            ))}
+              <div className="flex items-end gap-2 mb-2">
+                <span className={cn("text-4xl lg:text-5xl font-black tabular-nums", nivelTextColor[nivelGlobal.color])}>{global}</span>
+                <span className={cn("text-lg font-medium mb-1", dark ? "text-zinc-500" : "text-gray-400")}>/500</span>
+              </div>
+              <div className={cn("h-2.5 w-full rounded-full overflow-hidden mb-2",
+                dark ? "bg-black/30" : "bg-white/60")}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${(global / 500) * 100}%`, background: globalBar }} />
+              </div>
+              <p className={cn("text-xs leading-relaxed", dark ? "text-zinc-400" : "text-gray-500")}>{nivelGlobal.descripcion}</p>
+            </div>
+
+            <div className={cn("rounded-lg border p-3 space-y-2",
+              dark ? "border-zinc-700 bg-zinc-900/40" : "border-gray-200 bg-gray-50")}>
+              <p className={cn("text-xs font-bold uppercase tracking-wide", dark ? "text-zinc-300" : "text-gray-700")}>
+                📊 Rangos de referencia
+              </p>
+              <div className="space-y-2">
+                {[
+                  { rango: "< 250",   label: "Por mejorar", dc: "bg-red-900/30 border-red-800/50 text-red-400",              lc: "bg-red-50 border-red-200 text-red-600"                },
+                  { rango: "250–265", label: "Aceptable",   dc: "bg-blue-900/30 border-blue-800/50 text-blue-400",           lc: "bg-blue-50 border-blue-200 text-blue-700"             },
+                  { rango: "266–299", label: "Buena",       dc: "bg-teal-900/30 border-teal-800/50 text-teal-400",           lc: "bg-teal-50 border-teal-200 text-teal-700"             },
+                  { rango: "≥ 300",   label: "Muy buena",   dc: "bg-emerald-900/30 border-emerald-800/50 text-emerald-400", lc: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+                ].map((r) => (
+                  <div key={r.rango} className={cn("flex items-center justify-between rounded-lg px-3 py-2 border", dark ? r.dc : r.lc)}>
+                    <p className="text-sm font-black">{r.rango}</p>
+                    <p className="text-[11px] font-semibold">{r.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
