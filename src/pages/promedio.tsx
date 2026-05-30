@@ -749,21 +749,20 @@ function StudyPlanSummary({
       const subjectsWithWeaknesses = phase1Data.subjectsWithTopics.filter((s) =>
         Array.isArray(s.weaknesses) ? s.weaknesses.length > 0 : false
       );
-      let deployed = 0;
-
-      for (const subject of subjectsWithWeaknesses) {
-        try {
-          const response = await fetch(
-            `${CLOUD_FUNCTIONS_HTTP_BASE}/getStudyPlan?studentId=${user.uid}&phase=first&subject=${encodeURIComponent(subject.name)}`
-          );
-          const result = await response.json();
-          if (result.success && result.data && isPlanComplete(result.data)) {
-            deployed++;
+      const results = await Promise.all(
+        subjectsWithWeaknesses.map(async (subject) => {
+          try {
+            const response = await fetch(
+              `${CLOUD_FUNCTIONS_HTTP_BASE}/getStudyPlan?studentId=${user.uid}&phase=first&subject=${encodeURIComponent(subject.name)}`
+            );
+            const result = await response.json();
+            return result.success && result.data && isPlanComplete(result.data) ? 1 : 0;
+          } catch {
+            return 0;
           }
-        } catch (error) {
-          logger.error(`Error verificando plan para ${subject.name} (Fase I):`, error);
-        }
-      }
+        })
+      );
+      const deployed = results.reduce((sum: number, v): number => sum + v, 0);
 
       setPhase1Stats({
         deployed,
@@ -2019,7 +2018,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     const worstSubject = subjects.reduce((worst, current) => current.percentage < worst.percentage ? current : worst, subjects[0]);
 
     // Calcular percentil (simulado basado en rendimiento)
-    const percentile = Math.min(95, Math.max(5, averagePercentage + Math.random() * 20 - 10));
+    const percentile = Math.min(95, Math.max(5, averagePercentage));
 
     return {
       student: {
@@ -2046,11 +2045,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       patterns: {
         timeManagement: totalTimeSpent > (totalQuestions * 5 * 60) ? 
           "Necesita mejorar gestión del tiempo" : "Buen manejo del tiempo",
-        errorTypes: [
-          `Conceptual: ${Math.round(Math.random() * 30 + 35)}%`,
-          `Interpretativo: ${Math.round(Math.random() * 20 + 25)}%`,
-          `Cálculo: ${Math.round(Math.random() * 15 + 15)}%`
-        ],
+        errorTypes: [],
         strongestArea: bestSubject?.name || "Sin datos",
         weakestArea: worstSubject?.name || "Sin datos",
         completionRate: totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0,
@@ -2278,7 +2273,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       },
       overall: {
         score: Math.round(globalScore),
-        percentile: Math.min(95, Math.max(5, avgPercentage + Math.random() * 20 - 10)),
+        percentile: Math.min(95, Math.max(5, avgPercentage)),
         phasePercentage: Math.round((completedSubjects.size / 7) * 100),
         currentPhase: 'III',
         timeSpent: totalQuestions > 0 ? totalTimeSpent / totalQuestions : 0,
@@ -2291,11 +2286,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       patterns: {
         timeManagement: totalTimeSpent > (totalQuestions * 5 * 60) ? 
           "Necesita mejorar gestión del tiempo" : "Buen manejo del tiempo",
-        errorTypes: [
-          `Conceptual: ${Math.round(Math.random() * 30 + 35)}%`,
-          `Interpretativo: ${Math.round(Math.random() * 20 + 25)}%`,
-          `Cálculo: ${Math.round(Math.random() * 15 + 15)}%`
-        ],
+        errorTypes: [],
         strongestArea: bestSubject?.name || "Sin datos",
         weakestArea: worstSubject?.name || "Sin datos",
         completionRate: totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0,
