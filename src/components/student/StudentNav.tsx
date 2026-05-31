@@ -45,6 +45,7 @@ interface NavItemConfig {
   href: string;
   icon: React.ReactNode;
   text: string;
+  shortText?: string;
   onPrefetch?: () => void;
 }
 
@@ -58,6 +59,7 @@ function NavItem({
   href,
   icon,
   text,
+  shortText,
   active,
   theme,
   onPrefetch,
@@ -65,6 +67,7 @@ function NavItem({
   href: string;
   icon: React.ReactNode;
   text: string;
+  shortText?: string;
   active: boolean;
   theme: "light" | "dark";
   onPrefetch?: () => void;
@@ -74,7 +77,7 @@ function NavItem({
       to={href}
       onMouseEnter={onPrefetch}
       className={cn(
-        "flex items-center",
+        "flex shrink-0 items-center whitespace-nowrap text-sm xl:text-base",
         active
           ? theme === "dark"
             ? "text-red-400 font-medium"
@@ -84,8 +87,15 @@ function NavItem({
             : "text-gray-600 hover:text-gray-900"
       )}
     >
-      <span className="mr-2">{icon}</span>
-      <span>{text}</span>
+      <span className="mr-1.5 xl:mr-2 shrink-0">{icon}</span>
+      {shortText ? (
+        <>
+          <span className="xl:hidden">{shortText}</span>
+          <span className="hidden xl:inline">{text}</span>
+        </>
+      ) : (
+        <span>{text}</span>
+      )}
     </Link>
   );
 }
@@ -131,8 +141,9 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
     },
     {
       href: "/informacionPage",
-      icon: <ContactRound />,
+      icon: <ContactRound className="w-5 h-5" />,
       text: "Información del estudiante",
+      shortText: "Información",
       onPrefetch: () => prefetchInformacion(),
     },
     {
@@ -181,14 +192,18 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
 
   return (
     <>
-      {/* Desktop: oculto en móvil */}
-      <nav className="hidden md:flex items-center space-x-8" aria-label="Navegación principal">
+      {/* Desktop: visible desde lg; en tablet se usa menú hamburguesa */}
+      <nav
+        className="hidden lg:flex items-center gap-3 xl:gap-6 min-w-0 overflow-x-auto"
+        aria-label="Navegación principal"
+      >
         {standardItems.map((item) => (
           <NavItem
             key={item.href}
             href={item.href}
             icon={item.icon}
             text={item.text}
+            shortText={item.shortText}
             active={isActive(item.href)}
             theme={theme}
             onPrefetch={item.onPrefetch}
@@ -230,8 +245,8 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
         />
       </nav>
 
-      {/* Móvil: menú hamburguesa */}
-      <div className="flex md:hidden items-center">
+      {/* Móvil y tablet: menú hamburguesa */}
+      <div className="flex lg:hidden shrink-0 items-center">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button

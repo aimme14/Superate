@@ -28,7 +28,7 @@ export function NavRutaPreparacionDropdown({ theme = "light", onPrefetch }: NavR
       to={RUTA_ACADEMICA_PATH}
       onMouseEnter={onPrefetch}
       className={cn(
-        "flex items-center",
+        "flex shrink-0 items-center whitespace-nowrap text-sm xl:text-base",
         isActive
           ? theme === "dark"
             ? "text-red-400 font-medium"
@@ -39,8 +39,9 @@ export function NavRutaPreparacionDropdown({ theme = "light", onPrefetch }: NavR
       )}
       aria-current={isActive ? "page" : undefined}
     >
-      <Route className="w-5 h-5 flex-shrink-0 mr-2" aria-hidden />
-      <span>Ruta de Preparación ICFES</span>
+      <Route className="w-5 h-5 shrink-0 mr-1.5 xl:mr-2" aria-hidden />
+      <span className="xl:hidden">Ruta ICFES</span>
+      <span className="hidden xl:inline">Ruta de Preparación ICFES</span>
     </Link>
   );
 }

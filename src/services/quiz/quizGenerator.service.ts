@@ -553,9 +553,8 @@ class QuizGeneratorService {
     // Mapa para almacenar grupos de preguntas por tema
     const topicGroupsMap: Record<string, Question[][]> = {};
 
-    // Para cada tema, buscar todas las preguntas agrupadas disponibles
-    for (let topicIndex = 0; topicIndex < topics.length; topicIndex++) {
-      const topic = topics[topicIndex];
+    // Para cada tema, buscar todas las preguntas agrupadas en paralelo
+    await Promise.all(topics.map(async (topic) => {
       logger.debug(`Buscando grupos para: ${topic.name} (${topic.code})`);
       
       // Para Fase 3: buscar SOLO nivel Difícil (D) - optimizado con menos intentos
@@ -755,7 +754,7 @@ class QuizGeneratorService {
       } else {
         logger.warn(`No se encontraron grupos completos para ${topic.name}`);
       }
-    }
+    }));  // cierre del Promise.all
 
     // Seleccionar 1 grupo aleatorio de cada tema
     const selectedGroups: Question[][] = [];

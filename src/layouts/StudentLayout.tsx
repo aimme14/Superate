@@ -25,28 +25,30 @@ export default function StudentLayout() {
           themeSafe === "dark" ? "bg-zinc-800 border-b border-zinc-700" : "bg-white"
         )}
       >
-        <div className="container mx-auto px-3 py-2 md:px-4 md:py-3 flex items-center justify-between gap-2 min-w-0">
-          <div className="flex items-center min-w-0 flex-1">
+        <div className="container mx-auto px-3 py-2 md:px-4 md:py-3 flex items-center justify-between gap-3 min-w-0">
+          <div className="flex items-center min-w-0 overflow-hidden">
             <img
               src={institutionLogo}
               width={80}
               height={80}
               alt={`Logo de ${institutionName}`}
-              className="w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 mr-2 flex-shrink-0 object-contain"
+              className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 xl:w-20 xl:h-20 mr-2 shrink-0 object-contain"
               onError={(e) => {
                 e.currentTarget.src = "/assets/agustina.png";
               }}
             />
             <span
               className={cn(
-                "font-bold text-[0.79rem] md:text-xl lg:text-2xl truncate",
+                "font-bold text-sm sm:text-base lg:text-xl xl:text-2xl truncate",
                 themeSafe === "dark" ? "text-red-400" : "text-red-600"
               )}
             >
               {isLoadingInstitution ? "Cargando..." : institutionName}
             </span>
           </div>
-          <StudentNav theme={themeSafe} />
+          <div className="shrink-0">
+            <StudentNav theme={themeSafe} />
+          </div>
         </div>
       </header>
       <Outlet />

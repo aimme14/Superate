@@ -28,24 +28,26 @@ export function Home() {
     >
       {/* Sección 1: Encabezado y Navegación */}
       <header className={cn("shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-b border-zinc-700' : 'bg-white')}>
-        <div className="container mx-auto px-2 py-2 sm:px-4 sm:py-3 flex items-center justify-between">
-          <div className="flex items-center">
+        <div className="container mx-auto px-2 py-2 sm:px-4 sm:py-3 flex items-center justify-between gap-3 min-w-0">
+          <div className="flex items-center min-w-0 overflow-hidden">
             <img 
               src={institutionLogo} 
               width="40" 
               height="40" 
               alt={`Logo de ${institutionName}`} 
-              className="mr-2 w-8 h-8 sm:w-12 sm:h-12 object-contain"
+              className="mr-2 w-8 h-8 sm:w-12 sm:h-12 shrink-0 object-contain"
               onError={(e) => {
                 e.currentTarget.src = '/assets/agustina.png'
               }}
             />
-            <span className={cn("font-bold text-sm sm:text-2xl", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+            <span className={cn("font-bold text-sm sm:text-base lg:text-xl xl:text-2xl truncate", theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
               {isLoadingInstitution ? 'Cargando...' : institutionName}
             </span>
           </div>
 
-          <StudentNav theme={theme || "light"} />
+          <div className="shrink-0">
+            <StudentNav theme={theme || "light"} />
+          </div>
         </div>
       </header>
 

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/ui/use-mobile";
+import { useIsLgUp } from "@/hooks/ui/use-lg";
 import { STUDENT_HOME, isStudentHomePath } from "@/constants/routes";
 import { useAuthContext } from "@/context/AuthContext";
 import { useRole } from "@/hooks/core/useRole";
@@ -105,18 +105,18 @@ interface StudentMobileQuickNavProps {
 }
 
 /**
- * Barra inferior fija (solo móvil) con acceso rápido a las secciones principales del estudiante.
+ * Barra inferior fija (móvil y tablet) con acceso rápido a las secciones principales del estudiante.
  * Estilo alineado con docente/rector: pill flotante con iconos.
  */
 export function StudentMobileQuickNav({ theme }: StudentMobileQuickNavProps) {
-  const isMobile = useIsMobile();
+  const isLgUp = useIsLgUp();
   const { pathname } = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuthContext();
   const { isStudent } = useRole();
   const items = buildQuickItems(queryClient, user?.uid);
 
-  if (!isMobile || !isStudent) return null;
+  if (isLgUp || !isStudent) return null;
 
   return (
     <div
