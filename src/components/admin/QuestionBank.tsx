@@ -48,6 +48,11 @@ import {
   extractMatchingGroupId,
   sortQuestionsByCreationOrder,
 } from '@/components/admin/questionBank/questionBankUtils'
+import {
+  generateEnglishGroupId,
+  matchingInformativeTextPrefix,
+  resolveEnglishGroupIdFromQuestion,
+} from '@/utils/englishGroupId'
 import ImageGallery from '@/components/common/ImageGallery'
 import { 
   SUBJECTS_CONFIG, 
@@ -1444,12 +1449,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
       // Manejar Matching / Columnas: crear múltiples preguntas
       if (formData.subjectCode === 'IN' && inglesModality === 'matching_columns') {
                 
-        // Crear identificador común para agrupar preguntas de matching/columnas
-        // Usar un formato especial que combine el identificador con el texto real del usuario
-        // Formato: MATCHING_COLUMNS_GROUP_ID|texto real del usuario
-        const matchingGroupId = `${formData.topicCode}_${formData.grade}_${formData.levelCode}_${Date.now()}`
-        const matchingGroupIdentifier = `MATCHING_COLUMNS_${matchingGroupId}`
-        // Guardar el texto real del usuario (si existe) junto con el identificador
+        const englishGroupId = generateEnglishGroupId(
+          formData.topicCode,
+          formData.levelCode,
+          formData.grade,
+        )
+        const matchingGroupIdentifier = matchingInformativeTextPrefix(englishGroupId)
         const informativeTextValue = formData.informativeText && formData.informativeText.trim() 
           ? `${matchingGroupIdentifier}|${formData.informativeText.trim()}`
           : matchingGroupIdentifier
@@ -1502,7 +1507,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             
             const questionData: any = {
               ...formData,
-              // Guardar el texto real del usuario junto con el identificador para agrupar
+              englishGroupId,
               informativeText: informativeTextValue,
               questionText: mq.questionText,
               answerType: 'MCQ' as const,
@@ -1595,6 +1600,11 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
         // Ordenar los huecos numéricamente
         const sortedGaps = Array.from(gaps).sort((a, b) => a - b)
+        const englishGroupId = generateEnglishGroupId(
+          formData.topicCode,
+          formData.levelCode,
+          formData.grade,
+        )
 
         for (let i = 0; i < sortedGaps.length; i++) {
           const gapNum = sortedGaps[i]
@@ -1622,6 +1632,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
           const questionData: any = {
             ...formData,
+            englishGroupId,
             answerType: 'MCQ' as const,
             informativeText: clozeText, // El texto completo va en informativeText para que se muestre agrupado
             questionText: questionText, // Texto específico del hueco
@@ -1730,6 +1741,12 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           message: `Guardando ${readingQuestions.length} pregunta(s) en la base de datos...` 
         })
 
+        const englishGroupId = generateEnglishGroupId(
+          formData.topicCode,
+          formData.levelCode,
+          formData.grade,
+        )
+
         for (let i = 0; i < readingQuestions.length; i++) {
           const rq = readingQuestions[i]
           
@@ -1800,6 +1817,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
 
           const questionData: any = {
             ...formData,
+            englishGroupId,
             answerType: 'MCQ' as const,
             informativeText: readingText, // El texto base va en informativeText
             questionText: rq.questionText, // La pregunta específica va en questionText
@@ -3384,6 +3402,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           title: 'Actualizando',
           message: `Actualizando ${sortedGaps.length} pregunta(s) del cloze test...`
         })
+
+        const englishGroupId = resolveEnglishGroupIdFromQuestion(
+          editClozeRelatedQuestions[0] ?? selectedQuestion,
+        )
         
         for (let i = 0; i < sortedGaps.length; i++) {
           const gapNum = sortedGaps[i]
@@ -3457,7 +3479,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             informativeText: editClozeText, // El texto completo del cloze test
             questionText: questionText,
             options: gapOptions,
-            informativeImages: finalInformativeImages
+            informativeImages: finalInformativeImages,
+            ...(englishGroupId ? { englishGroupId } : {}),
           }
           
           if (questionNewCode) {
@@ -3618,6 +3641,10 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const updatedCodes: string[] = []
         const updatedQuestions: Question[] = []
         const deletedQuestionIds: string[] = []
+
+        const englishGroupId = resolveEnglishGroupIdFromQuestion(
+          editReadingRelatedQuestions[0] ?? selectedQuestion,
+        )
         
         notifySuccess({
           title: 'Actualizando',
@@ -3769,6 +3796,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             informativeText: editReadingText,
             questionText: rq.questionText,
             options: rqOptions,
+            ...(englishGroupId ? { englishGroupId } : {}),
           }
           
           // SIEMPRE actualizar el array de imágenes informativas, incluso si está vacío
@@ -4263,6 +4291,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         // IMPORTANTE: Usar selectedQuestion.informativeText para obtener el identificador original
         // porque formData.informativeText solo contiene el texto real del usuario (sin el identificador)
         const currentGroupId = extractMatchingGroupId(selectedQuestion?.informativeText || '')
+        const englishGroupId = resolveEnglishGroupIdFromQuestion(selectedQuestion)
         
         // IMPORTANTE: Usar el topicCode original de la pregunta seleccionada para buscar las preguntas relacionadas
         // porque si el usuario cambia de prueba (topicCode), las preguntas relacionadas todavía tienen el topicCode antiguo
@@ -4272,12 +4301,15 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         
         // Buscar preguntas relacionadas usando el topicCode original (no el nuevo)
         // Esto permite encontrar las preguntas incluso cuando se cambia de prueba
-        const related = currentGroupId ? questions.filter(q => {
+        const related = currentGroupId || englishGroupId ? questions.filter(q => {
           if (q.subjectCode !== 'IN' || q.topicCode !== originalTopicCode || 
               q.grade !== originalGrade || q.levelCode !== originalLevelCode) {
             return false
           }
-          // Comparar por identificador de grupo
+          if (englishGroupId && q.englishGroupId) {
+            return q.englishGroupId === englishGroupId
+          }
+          // Comparar por identificador de grupo (legacy)
           const qGroupId = extractMatchingGroupId(q.informativeText)
           return qGroupId && qGroupId === currentGroupId
         }) : []
@@ -4444,7 +4476,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
             informativeText: newInformativeText, // Mantener el formato: GROUP_ID|texto real
             questionText: mq.questionText,
             options: mq.options,
-            informativeImages: finalInformativeImages
+            informativeImages: finalInformativeImages,
+            ...(englishGroupId ? { englishGroupId } : {}),
           }
           
           // Agregar imagen de la pregunta si existe

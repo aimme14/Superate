@@ -1,13 +1,13 @@
 import { questionService, Question, QuestionFilters } from '@/services/firebase/question.service';
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME, GRADE_MAPPING } from '@/utils/subjects.config';
 import { shuffleArray } from '@/utils/arrayUtils';
-import { validateGroupedQuestionsConsecutive, normalizeInformativeTextForGroup } from '@/utils/quizGroupedQuestions';
+import { validateGroupedQuestionsConsecutive } from '@/utils/quizGroupedQuestions';
 import { isEnglishGroupComplete } from '@/utils/clozeTest';
 import {
-  isMatchingColumnsQuestion,
-  extractMatchingGroupId,
-  matchingGroupKey,
-} from '@/utils/matchingColumns';
+  getEnglishExamGroupId,
+  groupQuestionsByExamGroupId,
+} from '@/utils/englishGroupId';
+import { sortQuestionsByCreationOrder } from '@/components/admin/questionBank/questionBankUtils';
 import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
@@ -530,38 +530,30 @@ class QuizGeneratorService {
   }
 
   /**
-   * Clave para agrupar preguntas de inglés en el generador (cloze, lectura, matching).
+   * Carga preguntas agrupadas de una parte IN (P1–P7) con una query por grado intentado.
    */
-  private englishGroupStorageKey(question: Question, topicCode: string): string {
-    if (isMatchingColumnsQuestion(question)) {
-      return `matching:${matchingGroupKey(question)}`;
-    }
-    return `${normalizeInformativeTextForGroup(question.informativeText)}_${topicCode}_${question.grade}_${question.levelCode}_${JSON.stringify(question.informativeImages || [])}`;
-  }
-
-  /**
-   * Si el muestreo aleatorio trajo solo 1 ítem de un ejercicio matching, busca
-   * el resto de preguntas con el mismo ID de grupo en Firestore.
-   */
-  private async expandMatchingGroupsInPool(
-    questions: Question[],
+  private async fetchEnglishPartQuestions(
     topicCode: string,
-    levelCode: string,
     gradeValues: string[],
+    levelCode: string,
     excludeQuestionIds: Set<string>,
   ): Promise<Question[]> {
-    const matchingIds = new Set<string>();
-    questions.forEach((q) => {
-      if (isMatchingColumnsQuestion(q)) {
-        matchingIds.add(extractMatchingGroupId(q.informativeText));
+    const collected: Question[] = [];
+    const seen = new Set<string>();
+
+    const absorb = (list: Question[]) => {
+      for (const q of list) {
+        const key = q.id || q.code;
+        if (!key || seen.has(key)) continue;
+        if (q.subjectCode !== 'IN') continue;
+        if (!q.informativeText?.trim()) continue;
+        if (excludeQuestionIds.has(key)) continue;
+        seen.add(key);
+        collected.push(q);
       }
-    });
-    if (matchingIds.size === 0) return questions;
+    };
 
-    const expanded = [...questions];
-    const existingIds = new Set(expanded.map((q) => q.id || q.code));
-
-    for (const gradeValue of gradeValues.length > 0 ? gradeValues : [undefined]) {
+    for (const gradeValue of gradeValues) {
       const result = await questionService.getFilteredQuestions({
         subjectCode: 'IN',
         topicCode,
@@ -569,323 +561,105 @@ class QuizGeneratorService {
         levelCode,
         limit: 200,
       });
-      if (!result.success) continue;
-
-      for (const q of result.data) {
-        if (!isMatchingColumnsQuestion(q)) continue;
-        if (excludeQuestionIds.has(q.id || q.code)) continue;
-        const id = extractMatchingGroupId(q.informativeText);
-        if (!matchingIds.has(id)) continue;
-        const key = q.id || q.code;
-        if (existingIds.has(key)) continue;
-        expanded.push(q);
-        existingIds.add(key);
-      }
+      if (result.success) absorb(result.data);
     }
 
-    return expanded;
+    if (collected.length === 0) {
+      const fallback = await questionService.getFilteredQuestions({
+        subjectCode: 'IN',
+        topicCode,
+        levelCode,
+        limit: 200,
+      });
+      if (fallback.success) absorb(fallback.data);
+    }
+
+    return collected;
   }
 
   /**
-   * Lógica especial para Inglés: selecciona 1 pregunta agrupada por cada uno de los 7 temas
-   * Las preguntas agrupadas comparten el mismo informativeText
+   * Inglés: 1 ejercicio completo por parte (P1→P7), agrupado por englishGroupId.
    */
   private async getEnglishGroupedQuestions(
     subject: string,
     config: Partial<QuizConfig>,
     grade: string | undefined,
     phase: 'first' | 'second' | 'third',
-    excludeQuestionIds: Set<string> = new Set()
+    excludeQuestionIds: Set<string> = new Set(),
   ): Promise<Result<Question[]>> {
     const phaseLevel = phase === 'first' ? 'Fácil' : phase === 'second' ? 'Medio' : 'Difícil';
     logger.debug(`Generando cuestionario de Inglés - Fase ${phase} (Nivel: ${phaseLevel})`);
-    
-    const subjectConfig = SUBJECTS_CONFIG.find(s => s.name === subject);
-    if (!subjectConfig || !subjectConfig.topics) {
+
+    const subjectConfig = SUBJECTS_CONFIG.find((s) => s.name === subject);
+    if (!subjectConfig?.topics) {
       return failure(new ErrorAPI({ message: `No se encontró configuración de temas para ${subject}` }));
     }
 
-    // Para Inglés son 7 temas, necesitamos 1 grupo de preguntas por tema
     const topics = subjectConfig.topics;
     const gradeValues = this.getGradeSearchValues(grade);
-    const subjectCode = subjectConfig.code;
     const levelCode = config.level === 'Fácil' ? 'F' : config.level === 'Medio' ? 'M' : 'D';
-    
-    logger.debug(`Buscando grupos de preguntas para ${topics.length} temas`);
-    
-    // Mapa para almacenar grupos de preguntas por tema
-    const topicGroupsMap: Record<string, Question[][]> = {};
+    const resolvedLevelCode = phase === 'third' ? 'D' : phase === 'first' ? 'F' : levelCode;
 
-    // Para cada tema, buscar todas las preguntas agrupadas en paralelo
-    await Promise.all(topics.map(async (topic) => {
-      logger.debug(`Buscando grupos para: ${topic.name} (${topic.code})`);
-      
-      // Para Fase 3: buscar SOLO nivel Difícil (D) - optimizado con menos intentos
-      // Para Fase 1 y 2: usar el nivel específico
-      const attempts: QuestionFilters[] = phase === 'third' 
-        ? [
-            // Fase 3: Priorizar búsquedas más específicas primero (nivel Difícil)
-            // 1. Intentar con grado específico + nivel Difícil + topicCode
-            ...gradeValues.flatMap(gradeValue => ([
-              {
-                subject,
-                subjectCode,
-                topicCode: topic.code,
-                grade: gradeValue,
-                levelCode: 'D', // Fase 3: SOLO nivel Difícil
-                limit: 60
-              }
-            ])),
-            // 2. Intentar con grado específico + nivel Difícil + topic name
-            ...gradeValues.flatMap(gradeValue => ([
-              {
-                subject,
-                subjectCode,
-                topic: topic.name,
-                grade: gradeValue,
-                levelCode: 'D',
-                limit: 60
-              }
-            ])),
-            // 3. Intentar sin grado + nivel Difícil + topicCode
-            {
-              subject,
-              subjectCode,
-              topicCode: topic.code,
-              levelCode: 'D',
-              limit: 60
-            },
-            // 4. Intentar sin grado + nivel Difícil + topic name
-            {
-              subject,
-              subjectCode,
-              topic: topic.name,
-              levelCode: 'D',
-              limit: 60
-            },
-            // 5. Fallback: sin nivel pero con topicCode (solo si no se encontró nada)
-            ...gradeValues.flatMap(gradeValue => ([
-              {
-                subject,
-                subjectCode,
-                topicCode: topic.code,
-                grade: gradeValue,
-                limit: 40
-              }
-            ])),
-            {
-              subject,
-              subjectCode,
-              topicCode: topic.code,
-              limit: 40
-            }
-          ]
-        : [
-            // Fase 1 y 2: usar nivel específico (optimizado)
-            ...gradeValues.flatMap(gradeValue => ([
-              {
-                subject,
-                subjectCode,
-                topicCode: topic.code,
-                grade: gradeValue,
-                levelCode: phase === 'first' ? 'F' : levelCode,
-                limit: 60
-              },
-              {
-                subject,
-                subjectCode,
-                topic: topic.name,
-                grade: gradeValue,
-                levelCode: phase === 'first' ? 'F' : levelCode,
-                limit: 60
-              }
-            ])),
-            {
-              subject,
-              subjectCode,
-              topicCode: topic.code,
-              levelCode: phase === 'first' ? 'F' : levelCode,
-              limit: 60
-            },
-            {
-              subject,
-              subjectCode,
-              topic: topic.name,
-              levelCode: phase === 'first' ? 'F' : levelCode,
-              limit: 60
-            }
-          ];
+    logger.debug(`Inglés: ${topics.length} partes, nivel ${resolvedLevelCode}, englishGroupId`);
 
-      // Para Inglés: buscar grupos completos, no cantidad fija de preguntas
-      // Buscar hasta encontrar al menos un grupo completo por tema y nivel
-      let allQuestions: Question[] = [];
-      let foundCompleteGroup = false;
-      
-      // Intentar cada filtro hasta encontrar un grupo completo
-      for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
-        const filters = attempts[attemptIndex];
-        const result = await questionService.getRandomQuestions(filters, 100);
-        if (!result.success) {
-          logger.debug(`Intento ${attemptIndex + 1}/${attempts.length} fallido`);
-          continue;
-        }
+    const usedGroupIds = new Set<string>();
+    const selectedGroups: Question[][] = [];
 
-        // Filtrar solo preguntas agrupadas (que tienen informativeText) y que no hayan sido respondidas
-        const filtered = result.data.filter(q => 
-          q.subjectCode === 'IN' && 
-          q.informativeText && 
-          q.informativeText.trim() !== '' &&
-          !excludeQuestionIds.has(q.id || q.code)
-        );
-
-        // Agregar a la colección sin duplicados
-        const existingIds = new Set(allQuestions.map(q => q.id || q.code));
-        const newQuestions = filtered.filter(q => !existingIds.has(q.id || q.code));
-        allQuestions.push(...newQuestions);
-
-        // Verificar si hay al menos un grupo COMPLETO (cloze: todos los huecos; matching: ≥2 ítems)
-        const tempGroupsMap: { [key: string]: Question[] } = {};
-        allQuestions.forEach(question => {
-          const groupKey = this.englishGroupStorageKey(question, topic.code);
-          if (!tempGroupsMap[groupKey]) {
-            tempGroupsMap[groupKey] = [];
-          }
-          tempGroupsMap[groupKey].push(question);
-        });
-
-        const tempGroups = Object.values(tempGroupsMap).filter(group => group.length > 0);
-        const hasCompleteGroup = tempGroups.some((g) => isEnglishGroupComplete(g));
-        if (hasCompleteGroup) {
-          foundCompleteGroup = true;
-          logger.debug(`Grupo completo encontrado en intento ${attemptIndex + 1}`);
-          break;
-        } else {
-          logger.debug(`Intento ${attemptIndex + 1}: ${newQuestions.length} preguntas nuevas, sin grupo completo aún`);
-        }
-      }
-
-      // Si no se encontró grupo en los intentos específicos, usar fallback
-      if (!foundCompleteGroup && allQuestions.length === 0) {
-        logger.warn('No se encontraron grupos con filtros específicos, usando búsqueda general');
-        const fallbackResult = await this.fetchQuestionsWithFallback(attempts.slice(0, 2), 30, excludeQuestionIds);
-        allQuestions = fallbackResult.filter(q => 
-          q.subjectCode === 'IN' && 
-          q.informativeText && 
-          q.informativeText.trim() !== '' &&
-          !excludeQuestionIds.has(q.id || q.code)
-        );
-      }
-
-      // Completar ítems faltantes de ejercicios matching (el muestreo aleatorio suele traer solo 1)
-      allQuestions = await this.expandMatchingGroupsInPool(
-        allQuestions,
+    for (const topic of topics) {
+      const pool = await this.fetchEnglishPartQuestions(
         topic.code,
-        phase === 'first' ? 'F' : levelCode,
         gradeValues,
+        resolvedLevelCode,
         excludeQuestionIds,
       );
 
-      // Agrupar todas las preguntas encontradas (clave normalizada para unir el mismo pasaje)
-      const groupsMap: { [key: string]: Question[] } = {};
-      allQuestions.forEach(question => {
-        const groupKey = this.englishGroupStorageKey(question, topic.code);
-        if (!groupsMap[groupKey]) {
-          groupsMap[groupKey] = [];
-        }
-        groupsMap[groupKey].push(question);
-      });
+      const groups = groupQuestionsByExamGroupId(pool).map((group) =>
+        [...group].sort(sortQuestionsByCreationOrder),
+      );
 
-      // Convertir el mapa en un array de grupos
-      const groups = Object.values(groupsMap).filter(group => group.length > 0);
-      
-      // Ordenar las preguntas dentro de cada grupo por fecha de creación
-      groups.forEach(group => {
-        group.sort((a, b) => {
-          // Ordenar por número de hueco si es cloze test
-          const aMatch = a.questionText?.match(/hueco \[(\d+)\]/);
-          const bMatch = b.questionText?.match(/hueco \[(\d+)\]/);
-          if (aMatch && bMatch) {
-            return parseInt(aMatch[1]) - parseInt(bMatch[1]);
-          }
-          
-          // Ordenar por fecha de creación
-          const dateA = new Date(a.createdAt).getTime();
-          const dateB = new Date(b.createdAt).getTime();
-          if (dateA !== dateB) {
-            return dateA - dateB;
-          }
-          
-          return a.code.localeCompare(b.code);
-        });
-      });
+      const completeGroups = groups.filter((g) => isEnglishGroupComplete(g));
+      const selectable = completeGroups.length > 0 ? completeGroups : groups;
 
-      topicGroupsMap[topic.code] = groups;
-      const totalQuestionsInGroups = groups.reduce((sum, group) => sum + group.length, 0);
-      if (groups.length > 0) {
-        logger.debug(`${groups.length} grupo(s) para ${topic.name} (${totalQuestionsInGroups} preguntas)`);
-      } else {
-        logger.warn(`No se encontraron grupos completos para ${topic.name}`);
-      }
-    }));  // cierre del Promise.all
-
-    // Seleccionar 1 grupo completo por tema (sin recortar: si el grupo tiene 3, van las 3)
-    const selectedGroups: Question[][] = [];
-    const usedGroupKeys = new Set<string>();
-
-    const getGroupKey = (group: Question[]) => {
-      const q = group[0];
-      if (!q) return '';
-      if (isMatchingColumnsQuestion(q)) {
-        return `matching:${matchingGroupKey(q)}`;
-      }
-      return `${normalizeInformativeTextForGroup(q.informativeText)}_${q.topicCode}_${q.grade}_${q.levelCode}`;
-    };
-
-    for (const topic of topics) {
-      const groups = topicGroupsMap[topic.code] || [];
-      if (groups.length === 0) {
-        logger.warn(`No se encontraron grupos de preguntas para el tema ${topic.name}`);
+      if (selectable.length === 0) {
+        logger.warn(`Sin grupos para ${topic.name} (${topic.code}) nivel ${resolvedLevelCode}`);
         continue;
       }
 
-      const completeGroups = groups.filter((g) => isEnglishGroupComplete(g));
-      const pool = completeGroups.length > 0 ? completeGroups : groups;
-      const shuffledGroups = shuffleArray(pool);
-      const selectedGroup =
-        shuffledGroups.find(g => !usedGroupKeys.has(getGroupKey(g))) ?? shuffledGroups[0];
+      const shuffled = shuffleArray(selectable);
+      const picked =
+        shuffled.find((g) => !usedGroupIds.has(getEnglishExamGroupId(g[0]))) ?? shuffled[0];
 
-      if (!isEnglishGroupComplete(selectedGroup)) {
+      if (!isEnglishGroupComplete(picked)) {
         logger.warn(
-          `Grupo incompleto para ${topic.name}: ${selectedGroup.length} pregunta(s) — puede faltar algún hueco del cloze`
+          `Grupo incompleto para ${topic.name}: ${picked.length} pregunta(s) — englishGroupId=${getEnglishExamGroupId(picked[0])}`,
         );
       }
 
-      selectedGroups.push(selectedGroup);
-      usedGroupKeys.add(getGroupKey(selectedGroup));
-      logger.debug(`Seleccionado grupo de ${selectedGroup.length} preguntas para ${topic.name}`);
-    }
-
-    if (selectedGroups.length === 0) {
-      return failure(new ErrorAPI({ 
-        message: 'No se encontraron grupos de preguntas agrupadas para Inglés. Asegúrate de que existen preguntas con informativeText para todos los temas.' 
-      }));
-    }
-
-    if (selectedGroups.length < topics.length) {
-      logger.warn(
-        `Inglés: solo ${selectedGroups.length}/${topics.length} partes tienen preguntas disponibles`
+      const groupId = getEnglishExamGroupId(picked[0]);
+      usedGroupIds.add(groupId);
+      selectedGroups.push(picked);
+      logger.debug(
+        `Parte ${topic.code}: grupo ${groupId} (${picked.length} preguntas)`,
       );
     }
 
-    const shuffledSelectedGroups = shuffleArray(selectedGroups);
+    if (selectedGroups.length === 0) {
+      return failure(
+        new ErrorAPI({
+          message:
+            'No se encontraron grupos de preguntas agrupadas para Inglés. Verifica partes P1–P7, nivel y grado.',
+        }),
+      );
+    }
 
-    const finalQuestions: Question[] = [];
-    shuffledSelectedGroups.forEach(group => {
-      finalQuestions.push(...group);
-    });
+    if (selectedGroups.length < topics.length) {
+      logger.warn(`Inglés: ${selectedGroups.length}/${topics.length} partes con preguntas disponibles`);
+    }
+
+    const finalQuestions = selectedGroups.flat();
 
     logger.debug(
-      `Cuestionario de Inglés generado con ${selectedGroups.length} grupos (${finalQuestions.length} preguntas en total)`
+      `Cuestionario Inglés: ${selectedGroups.length} partes, ${finalQuestions.length} preguntas (orden P1→P7)`,
     );
     return success(finalQuestions);
   }

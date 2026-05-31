@@ -69,7 +69,7 @@ export function detectGroupedQuestions(questions: any[]): GroupedQuestionsMap {
  * Preserva el orden del examen según la primera aparición de cada grupo.
  */
 export function buildEnglishGroups(
-  questions: Array<{ topicCode?: string; topic?: string; informativeText?: string; informativeImages?: unknown[] }>
+  questions: Array<{ topicCode?: string; topic?: string; informativeText?: string; informativeImages?: unknown[]; englishGroupId?: string }>
 ): number[][] {
   if (questions.length === 0) return [];
 
@@ -77,6 +77,9 @@ export function buildEnglishGroups(
   const groups: number[][] = [];
 
   const groupKey = (q: typeof questions[0]) => {
+    if (q.englishGroupId?.trim()) {
+      return `gid:${q.englishGroupId.trim()}`;
+    }
     const text = normalizeInformativeTextForGroup(q.informativeText);
     const images = JSON.stringify(q.informativeImages ?? []);
     if (

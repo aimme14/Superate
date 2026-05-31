@@ -4,6 +4,7 @@ import {
   extractMatchingGroupId,
   extractMatchingText,
 } from '@/utils/matchingColumns'
+import { resolveEnglishGroupKey } from '@/utils/englishGroupId'
 
 export { extractMatchingGroupId, extractMatchingText }
 
@@ -123,9 +124,7 @@ export function getCombinedItems(
           )))
 
     if (shouldGroup) {
-      const groupKey = isMatchingColumns
-        ? `${extractMatchingGroupId(question.informativeText)}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
-        : `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`
+      const groupKey = resolveEnglishGroupKey(question)
 
       if (!groupedQuestions[groupKey]) groupedQuestions[groupKey] = []
 
@@ -138,6 +137,9 @@ export function getCombinedItems(
           processedIds.has(q.id || '')
         ) {
           return false
+        }
+        if (question.englishGroupId && q.englishGroupId) {
+          return question.englishGroupId === q.englishGroupId
         }
         if (isMatchingColumns) {
           return (

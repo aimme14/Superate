@@ -89,6 +89,8 @@ export interface Question {
   level: 'Fácil' | 'Medio' | 'Difícil';
   levelCode: 'F' | 'M' | 'D';
   informativeText?: string;
+  /** Agrupa ítems de un mismo ejercicio de Inglés (lectura, cloze, matching). */
+  englishGroupId?: string;
   informativeImages?: string[];
   questionText: string;
   questionImages?: string[];
@@ -539,6 +541,9 @@ class QuestionService {
       // Solo agregar campos opcionales si tienen valores válidos
       if (questionData.informativeText !== undefined && questionData.informativeText !== null && questionData.informativeText.trim() !== '') {
         question.informativeText = questionData.informativeText.trim();
+      }
+      if (questionData.englishGroupId !== undefined && questionData.englishGroupId !== null && questionData.englishGroupId.trim() !== '') {
+        question.englishGroupId = questionData.englishGroupId.trim();
       }
       if (questionData.informativeImages !== undefined && questionData.informativeImages !== null && questionData.informativeImages.length > 0) {
         question.informativeImages = questionData.informativeImages;
