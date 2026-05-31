@@ -1,13 +1,13 @@
 import { logger } from '@/utils/logger'
 import {
   Clock, ChevronRight, Send, Brain, AlertCircle, CheckCircle2,
-  Timer, HelpCircle, Users, Play, Maximize, Database, X, ZoomIn, Shield,
+  Timer, HelpCircle, Users, Play, Maximize, Database, X, Shield,
   Calculator, BookOpen, BookMarked, Microscope, Atom, FlaskConical, BookCheck,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "#/ui/card"
 import { Alert, AlertTitle, AlertDescription } from "#/ui/alert"
 import { RadioGroup, RadioGroupItem } from "#/ui/radio-group"
-import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Progress } from "#/ui/progress"
 import { Button } from "#/ui/button"
 import { Label } from "#/ui/label"
@@ -30,8 +30,12 @@ import { checkPhaseAccess } from "@/utils/phaseIntegration"
 import { useNotification } from "@/hooks/ui/useNotification"
 import { processExamResults } from "@/utils/phaseIntegration"
 import { gradeLabelToBankCode } from "@/utils/gradeMapping"
-import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions"
+import { detectGroupedQuestions, buildEnglishGroups } from "@/utils/quizGroupedQuestions"
 import { GroupedQuestionNotice } from "@/components/quiz/GroupedQuestionNotice"
+import { ClozeTestInline } from "@/components/quiz/ClozeTestInline"
+import { MatchingColumnsInline } from "@/components/quiz/MatchingColumnsInline"
+import { isClozeTestGroup } from "@/utils/clozeTest"
+import { isMatchingColumnsGroup } from "@/utils/matchingColumns"
 import { QuizConnectionErrorScreen } from '@/components/quiz/QuizConnectionErrorScreen'
 import { resolveQuizLoadFailureExamState } from '@/utils/networkError'
 import ImageGallery from "@/components/common/ImageGallery"
@@ -165,6 +169,23 @@ const UnifiedExamForm = () => {
   const [existingExamData, setExistingExamData]     = useState<unknown | null>(null)
   const [zoomedImage, setZoomedImage]               = useState<string | null>(null)
   const [groupedQuestionMessage, setGroupedQuestionMessage] = useState<{ start: number; end: number } | null>(null)
+  const [englishGroups, setEnglishGroups] = useState<number[][]>([])
+  const [currentEnglishGroup, setCurrentEnglishGroup] = useState(0)
+
+  const isEnglishSubject = currentSubject === 'Inglés'
+  const englishPrefetchIndex = englishGroups[currentEnglishGroup]?.[0] ?? currentQuestion
+
+  const applyLoadedQuiz = useCallback((quiz: GeneratedQuiz) => {
+    setQuizData(quiz)
+    setTimeLeft(quiz.questions.length * 2 * 60)
+    if (quiz.subject === 'Inglés') {
+      setEnglishGroups(buildEnglishGroups(quiz.questions))
+      setCurrentEnglishGroup(0)
+    } else {
+      setEnglishGroups([])
+      setCurrentEnglishGroup(0)
+    }
+  }, [])
 
   const [questionTimeData, setQuestionTimeData]         = useState<Record<string, QuestionTimeData>>({})
   const [examStartTime, setExamStartTime]               = useState(0)
@@ -237,7 +258,7 @@ const UnifiedExamForm = () => {
   usePrefetchAdjacentQuizImagesLinear(
     examState === 'active' && !!quizData?.questions?.length,
     quizData?.questions,
-    currentQuestion,
+    isEnglishSubject ? englishPrefetchIndex : currentQuestion,
   )
 
   // ── Carga del cuestionario ────────────────────────────────────────────────
@@ -309,8 +330,7 @@ const UnifiedExamForm = () => {
         const cachedQuiz = getQuizFromCache(quizCacheKey)
         if (cachedQuiz) {
           if (!isMounted) return
-          setQuizData(cachedQuiz)
-          setTimeLeft(cachedQuiz.questions.length * 2 * 60)
+          applyLoadedQuiz(cachedQuiz)
           setExamState('welcome')
           clearTimeout(timeoutId)
           return
@@ -337,8 +357,7 @@ const UnifiedExamForm = () => {
         // 6. Guardar quiz en caché antes de mostrarlo
         saveQuizToCache(quizCacheKey, quiz)
 
-        setQuizData(quiz)
-        setTimeLeft(quiz.questions.length * 2 * 60)
+        applyLoadedQuiz(quiz)
         setExamState('welcome')
         clearTimeout(timeoutId)
       } catch (error) {
@@ -353,7 +372,7 @@ const UnifiedExamForm = () => {
 
     void loadQuiz()
     return () => { isMounted = false; clearTimeout(timeoutId) }
-  }, [userId, currentPhase, currentSubject, hasRecentValidation, buildValidationCacheKey, clearValidationCache, markValidationAsRecent, notifyError, buildQuizCacheKey, getQuizFromCache, saveQuizToCache, clearQuizCache])
+  }, [userId, currentPhase, currentSubject, hasRecentValidation, buildValidationCacheKey, clearValidationCache, markValidationAsRecent, notifyError, buildQuizCacheKey, getQuizFromCache, saveQuizToCache, clearQuizCache, applyLoadedQuiz])
 
   // ── Validación manual ─────────────────────────────────────────────────────
 
@@ -420,7 +439,32 @@ const UnifiedExamForm = () => {
     internalChangeQuestion(nextIndex)
   }
 
-  const handleSkipQuestion = () => nextQuestion()
+  const handleSkipQuestion = () => {
+    if (isEnglishSubject) nextEnglishGroup()
+    else nextQuestion()
+  }
+
+  const nextEnglishGroup = () => {
+    if (!quizData || !isEnglishSubject) return
+    const group = englishGroups[currentEnglishGroup] || []
+    group.forEach((qIdx) => {
+      const qId = quizData.questions[qIdx].id || quizData.questions[qIdx].code
+      finalizeQuestionTime(qId)
+    })
+
+    if (currentEnglishGroup < englishGroups.length - 1) {
+      const nextGroupIdx = currentEnglishGroup + 1
+      setCurrentEnglishGroup(nextGroupIdx)
+      const firstQIdx = englishGroups[nextGroupIdx][0]
+      setCurrentQuestion(firstQIdx)
+      if (firstQIdx > maxReachedQuestion) setMaxReachedQuestion(firstQIdx)
+      initializeQuestionTime(
+        quizData.questions[firstQIdx].id || quizData.questions[firstQIdx].code
+      )
+    } else {
+      setShowWarning(true)
+    }
+  }
 
   // ── Iniciar tiempo al arrancar el examen ──────────────────────────────────
 
@@ -472,8 +516,16 @@ const UnifiedExamForm = () => {
     // Limpiar caché del quiz al entregar — fuerza regeneración en próxima visita
     clearQuizCache(buildQuizCacheKey())
     clearValidationCache(buildValidationCacheKey())
-    const currentId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code
-    finalizeQuestionTime(currentId)
+    if (isEnglishSubject && englishGroups.length > 0) {
+      const group = englishGroups[currentEnglishGroup] || []
+      group.forEach((qIdx) => {
+        const qId = quizData.questions[qIdx].id || quizData.questions[qIdx].code
+        finalizeQuestionTime(qId)
+      })
+    } else {
+      const currentId = quizData.questions[currentQuestion].id || quizData.questions[currentQuestion].code
+      finalizeQuestionTime(currentId)
+    }
     try {
       const score = calculateScore()
       const examEndTime = Date.now()
@@ -672,6 +724,12 @@ const UnifiedExamForm = () => {
   // ─── Theme ────────────────────────────────────────────────────────────────
 
   const theme = getQuizTheme(themeKey)
+  const skipButtonClassName = cn(
+    'flex items-center gap-2 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit',
+    appTheme === 'dark'
+      ? 'border-gray-600 text-gray-300 dark:hover:bg-transparent dark:hover:border-gray-600 dark:hover:text-gray-300'
+      : 'border-gray-300 text-gray-700 hover:border-gray-300 hover:text-gray-700',
+  )
 
   // ─── Pantallas estáticas ──────────────────────────────────────────────────
 
@@ -922,22 +980,263 @@ const UnifiedExamForm = () => {
 
   // ─── Pantalla activa ──────────────────────────────────────────────────────
 
-  const ExamScreen = () => {
+  const renderExamScreen = () => {
     if (!quizData) return null
+    const isIngles = isEnglishSubject && englishGroups.length > 0
     const currentQ = quizData.questions[currentQuestion]
     const answeredQuestions = Object.keys(answers).length
     const questionId = currentQ.id || currentQ.code
 
-    const skipButtonClassName = useMemo(() => cn(
-      'flex items-center gap-2 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit',
-      appTheme === 'dark'
-        ? 'border-gray-600 text-gray-300 dark:hover:bg-transparent dark:hover:border-gray-600 dark:hover:text-gray-300'
-        : 'border-gray-300 text-gray-700 hover:border-gray-300 hover:text-gray-700',
-    ), [])
+    const renderQuestionOptions = (q: typeof currentQ, qId: string, localIdx?: number) => {
+      const allHaveImages = q.options.every(o => o.imageUrl)
+      const noText = q.options.every(o => !o.text || stripHtmlTags(o.text).trim().length === 0)
+      const imageLayout = allHaveImages && noText
+      const optionSuffix = localIdx != null ? `-${localIdx}` : ''
 
-    const allHaveImages = currentQ.options.every(o => o.imageUrl)
-    const noText = currentQ.options.every(o => !o.text || stripHtmlTags(o.text).trim().length === 0)
-    const imageLayout = allHaveImages && noText
+      if (imageLayout) {
+        return (
+          <RadioGroup value={answers[qId] ?? ''} onValueChange={v => handleAnswerChange(qId, v)} className="mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              {q.options.map(option => (
+                <div key={option.id} onClick={() => handleAnswerChange(qId, option.id)}
+                  className={cn(
+                    'relative rounded-lg p-2 transition-none cursor-pointer border-2',
+                    answers[qId] === option.id
+                      ? appTheme === 'dark' ? 'border-purple-500 bg-purple-900/30' : 'border-purple-500 bg-purple-50'
+                      : appTheme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700' : 'border-gray-300 bg-white hover:border-purple-300 hover:bg-purple-50/50',
+                  )}>
+                  <RadioGroupItem value={option.id} id={`${qId}-${option.id}${optionSuffix}`} className="absolute top-1.5 left-1.5 z-10" />
+                  <div className="flex flex-col items-center justify-center pt-5">
+                    <span className={cn('font-bold text-sm mb-1.5', appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
+                    {option.imageUrl && (
+                      <div className="relative w-full flex justify-center"
+                        onClick={e => { e.stopPropagation(); setZoomedImage(option.imageUrl ?? null) }}>
+                        <img src={option.imageUrl} alt={`Opción ${option.id}`}
+                          className="max-w-[180px] max-h-[120px] w-auto h-auto rounded-md cursor-zoom-in hover:opacity-90 transition-opacity object-contain" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </RadioGroup>
+        )
+      }
+
+      return (
+        <RadioGroup value={answers[qId] ?? ''} onValueChange={v => handleAnswerChange(qId, v)} className="space-y-0.5 mt-4">
+          {q.options.map(option => (
+            <div key={option.id} onClick={() => handleAnswerChange(qId, option.id)}
+              className={cn(
+                'flex items-start space-x-3 rounded-lg p-4 transition-none relative cursor-pointer',
+                answers[qId] === option.id
+                  ? appTheme === 'dark' ? 'border-purple-500 bg-purple-900/30 border' : 'border-purple-400 bg-purple-50 border'
+                  : appTheme === 'dark'
+                  ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700/90 border'
+                  : `${theme.answerBorder} ${theme.answerBackground} hover:bg-opacity-60`,
+              )}
+              style={appTheme === 'dark' ? {} : (theme.pattern ? { backgroundImage: theme.pattern, backgroundSize: '100% 100%' } : {})}>
+              <RadioGroupItem value={option.id} id={`${qId}-${option.id}${optionSuffix}`} className="mt-1 relative z-10" />
+              <Label htmlFor={`${qId}-${option.id}${optionSuffix}`} className="flex-1 cursor-pointer relative z-10">
+                <div className="flex items-start gap-3">
+                  <span className={cn('font-bold mr-2 text-base flex-shrink-0', appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
+                  <div className="flex-1">
+                    {option.text && (
+                      <div className={cn('text-base leading-relaxed', appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }} />
+                    )}
+                    {option.imageUrl && (
+                      <div className="mt-2 flex justify-center"
+                        onClick={e => { e.stopPropagation(); setZoomedImage(option.imageUrl ?? null) }}>
+                        <img src={option.imageUrl} alt={`Opción ${option.id}`} className="option-image cursor-zoom-in hover:opacity-90 transition-opacity" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      )
+    }
+
+    const renderEnglishGroup = () => {
+      const group = englishGroups[currentEnglishGroup] || []
+      if (group.length === 0) return null
+      const groupQuestions = group.map((idx) => quizData.questions[idx])
+      const firstQ = groupQuestions[0]
+      const isClozeGroup = isClozeTestGroup(groupQuestions)
+      const isMatchingGroup = !isClozeGroup && isMatchingColumnsGroup(groupQuestions)
+      const isLastGroup = currentEnglishGroup === englishGroups.length - 1
+      const groupAnswered = group.filter((idx) => {
+        const qId = quizData.questions[idx].id || quizData.questions[idx].code
+        return !!answers[qId]
+      }).length
+
+      return (
+        <Card className={cn(`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className={cn('text-lg font-normal', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
+                {firstQ.topic}
+                {isClozeGroup
+                  ? ` — ${group.length} hueco${group.length !== 1 ? 's' : ''}`
+                  : isMatchingGroup
+                  ? ` — ${group.length} ítem${group.length !== 1 ? 's' : ''}`
+                  : ` — Preguntas ${group[0] + 1} a ${group[group.length - 1] + 1}`}
+              </CardTitle>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={cn('px-2 py-1 rounded-full', appTheme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
+                  {groupAnswered}/{group.length} respondidas
+                </span>
+                <span className={cn('px-2 py-1 rounded-full', appTheme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>{firstQ.level}</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Texto de apoyo (lectura estándar) */}
+            {!isClozeGroup && !isMatchingGroup && firstQ.informativeText && !firstQ.informativeText.includes('MATCHING_COLUMNS_') && (
+              <div className={cn('p-4 rounded-lg border', appTheme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                <div className={cn('text-sm font-semibold mb-2', appTheme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>Material de apoyo:</div>
+                <div className={cn('leading-relaxed', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(firstQ.informativeText)) }} />
+              </div>
+            )}
+
+            {/* Imágenes de ejemplo / apoyo — siempre arriba, antes de las preguntas */}
+            {firstQ.informativeImages && firstQ.informativeImages.length > 0 && (
+              <div className={cn('p-4 rounded-lg border', appTheme === 'dark' ? 'bg-blue-900/20 border-blue-800' : 'bg-white border-blue-100')}>
+                <div className={cn('text-sm font-semibold mb-3', appTheme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                  Ejemplo:
+                </div>
+                <ImageGallery images={firstQ.informativeImages} maxImages={5} />
+              </div>
+            )}
+
+            {isClozeGroup && firstQ.informativeText ? (
+              <ClozeTestInline
+                clozeHtml={firstQ.informativeText}
+                questions={groupQuestions}
+                answers={answers}
+                onAnswerChange={handleAnswerChange}
+                sanitizeHtml={(html) => sanitizeHtml(renderMathInHtml(html))}
+                theme={appTheme === 'dark' ? 'dark' : 'light'}
+              />
+            ) : isMatchingGroup ? (
+              <MatchingColumnsInline
+                questions={groupQuestions}
+                informativeText={firstQ.informativeText}
+                answers={answers}
+                onAnswerChange={handleAnswerChange}
+                sanitizeHtml={(html) => sanitizeHtml(renderMathInHtml(html))}
+                theme={appTheme === 'dark' ? 'dark' : 'light'}
+              />
+            ) : (
+              <div className="space-y-8">
+                {group.map((qIdx, localIdx) => {
+                  const q = quizData.questions[qIdx]
+                  const qId = q.id || q.code
+                  return (
+                    <div key={qId} className={cn('rounded-xl border p-4', appTheme === 'dark' ? 'bg-zinc-900/50 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={cn('h-7 w-7 rounded-full flex items-center justify-center text-sm font-black text-white flex-shrink-0',
+                          answers[qId] ? 'bg-purple-600' : 'bg-gray-400')}>
+                          {qIdx + 1}
+                        </span>
+                        <span className={cn('text-xs font-medium', appTheme === 'dark' ? 'text-zinc-400' : 'text-gray-500')}>
+                          Pregunta {qIdx + 1} de {quizData.questions.length}
+                        </span>
+                        {answers[qId] && <CheckCircle2 className="h-4 w-4 text-green-500 ml-auto" />}
+                      </div>
+                      {q.questionImages && q.questionImages.length > 0 && (
+                        <div className="mb-3"><ImageGallery images={q.questionImages} title="Imágenes de la pregunta" maxImages={3} /></div>
+                      )}
+                      {q.questionText && (
+                        <div className={cn('leading-relaxed font-medium mb-4', appTheme === 'dark' ? 'text-white' : 'text-gray-900')}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(q.questionText)) }} />
+                      )}
+                      {renderQuestionOptions(q, qId, localIdx)}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex justify-end gap-2">
+            <Button
+              onClick={nextEnglishGroup}
+              disabled={isLastGroup && isSubmitting}
+              variant="outline" className={cn('flex items-center gap-2', skipButtonClassName)} style={{ transition: 'none' }}>
+              {isLastGroup
+                ? isSubmitting
+                  ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />Enviando…</>
+                  : <>Finalizar examen <ChevronRight className="h-4 w-4" /></>
+                : <>Siguiente parte <ChevronRight className="h-4 w-4" /></>
+              }
+            </Button>
+          </CardFooter>
+        </Card>
+      )
+    }
+
+    const renderSingleQuestion = () => {
+      return (
+        <Card className={cn(`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className={cn('text-lg font-normal', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Pregunta {currentQuestion + 1}</CardTitle>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={cn('px-2 py-1 rounded-full', appTheme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>{currentQ.topic}</span>
+                <span className={cn('px-2 py-1 rounded-full', appTheme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>{currentQ.level}</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {groupedQuestionMessage && (
+              <GroupedQuestionNotice range={groupedQuestionMessage} theme={appTheme === 'dark' ? 'dark' : 'light'} />
+            )}
+            <div className="prose prose-lg max-w-none">
+              {currentQ.informativeText && (
+                <div className={cn('mb-4 p-4 rounded-lg border', appTheme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                  <div className={cn('leading-relaxed', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.informativeText)) }} />
+                </div>
+              )}
+              {currentQ.informativeImages && currentQ.informativeImages.length > 0 && (
+                <div className="mb-4"><ImageGallery images={currentQ.informativeImages} title="Imágenes informativas" maxImages={5} /></div>
+              )}
+              {currentQ.questionImages && currentQ.questionImages.length > 0 && (
+                <div className="mb-4"><ImageGallery images={currentQ.questionImages} title="Imágenes de la pregunta" maxImages={3} /></div>
+              )}
+              {currentQ.questionText && (
+                <div className={cn('leading-relaxed text-lg font-medium', appTheme === 'dark' ? 'text-white' : 'text-gray-900')}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.questionText)) }} />
+              )}
+            </div>
+            {renderQuestionOptions(currentQ, questionId)}
+          </CardContent>
+          <CardFooter className="flex justify-end gap-2">
+            <Button
+              onClick={handleSkipQuestion}
+              disabled={currentQuestion === quizData.questions.length - 1}
+              variant="outline" className={skipButtonClassName} style={{ transition: 'none' }}>
+              <HelpCircle className="h-4 w-4" /> No sé
+            </Button>
+            <Button
+              onClick={() => { currentQuestion === quizData.questions.length - 1 ? setShowWarning(true) : nextQuestion() }}
+              disabled={!answers[questionId] || isSubmitting}
+              variant="outline" className={cn('flex items-center gap-2', skipButtonClassName)} style={{ transition: 'none' }}>
+              {currentQuestion === quizData.questions.length - 1
+                ? isSubmitting
+                  ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />Enviando…</>
+                  : <>Finalizar examen <ChevronRight className="h-4 w-4" /></>
+                : <>Siguiente <ChevronRight className="h-4 w-4" /></>
+              }
+            </Button>
+          </CardFooter>
+        </Card>
+      )
+    }
 
     return (
       <div
@@ -985,139 +1284,48 @@ const UnifiedExamForm = () => {
             </div>
           </div>
 
-          {/* Card pregunta */}
-          <Card className={cn(`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className={cn('text-lg font-normal', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Pregunta {currentQuestion + 1}</CardTitle>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className={cn('px-2 py-1 rounded-full', appTheme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>{currentQ.topic}</span>
-                  <span className={cn('px-2 py-1 rounded-full', appTheme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>{currentQ.level}</span>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {groupedQuestionMessage && (
-                <GroupedQuestionNotice range={groupedQuestionMessage} theme={appTheme === 'dark' ? 'dark' : 'light'} />
-              )}
-              <div className="prose prose-lg max-w-none">
-                {currentQ.informativeText && (
-                  <div className={cn('mb-4 p-4 rounded-lg border', appTheme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
-                    <div className={cn('leading-relaxed', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.informativeText)) }} />
-                  </div>
-                )}
-                {currentQ.informativeImages && currentQ.informativeImages.length > 0 && (
-                  <div className="mb-4"><ImageGallery images={currentQ.informativeImages} title="Imágenes informativas" maxImages={5} /></div>
-                )}
-                {currentQ.questionImages && currentQ.questionImages.length > 0 && (
-                  <div className="mb-4"><ImageGallery images={currentQ.questionImages} title="Imágenes de la pregunta" maxImages={3} /></div>
-                )}
-                {currentQ.questionText && (
-                  <div className={cn('leading-relaxed text-lg font-medium', appTheme === 'dark' ? 'text-white' : 'text-gray-900')}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.questionText)) }} />
-                )}
-              </div>
-
-              {/* ── Opciones ── */}
-              {imageLayout ? (
-                <RadioGroup value={answers[questionId] ?? ''} onValueChange={v => handleAnswerChange(questionId, v)} className="mt-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    {currentQ.options.map(option => (
-                      <div key={option.id} onClick={() => handleAnswerChange(questionId, option.id)}
-                        className={cn(
-                          'relative rounded-lg p-2 transition-none cursor-pointer border-2',
-                          answers[questionId] === option.id
-                            ? appTheme === 'dark' ? 'border-purple-500 bg-purple-900/30' : 'border-purple-500 bg-purple-50'
-                            : appTheme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700' : 'border-gray-300 bg-white hover:border-purple-300 hover:bg-purple-50/50',
-                        )}>
-                        <RadioGroupItem value={option.id} id={`${questionId}-${option.id}`} className="absolute top-1.5 left-1.5 z-10" />
-                        <div className="flex flex-col items-center justify-center pt-5">
-                          <span className={cn('font-bold text-sm mb-1.5', appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
-                          {option.imageUrl && (
-                            <div className="relative w-full flex justify-center"
-                              onClick={e => { e.stopPropagation(); setZoomedImage(option.imageUrl ?? null) }}>
-                              <img src={option.imageUrl} alt={`Opción ${option.id}`}
-                                className="max-w-[180px] max-h-[120px] w-auto h-auto rounded-md cursor-zoom-in hover:opacity-90 transition-opacity object-contain" />
-                              <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/10 rounded-md">
-                                <ZoomIn className="h-6 w-6 text-white drop-shadow-lg" />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </RadioGroup>
-              ) : (
-                <RadioGroup value={answers[questionId] ?? ''} onValueChange={v => handleAnswerChange(questionId, v)} className="space-y-0.5 mt-6">
-                  {currentQ.options.map(option => (
-                    <div key={option.id} onClick={() => handleAnswerChange(questionId, option.id)}
-                      className={cn(
-                        'flex items-start space-x-3 rounded-lg p-4 transition-none relative cursor-pointer',
-                        appTheme === 'dark'
-                          ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700/90 border'
-                          : `${theme.answerBorder} ${theme.answerBackground} hover:bg-opacity-60`,
-                      )}
-                      style={appTheme === 'dark' ? {} : (theme.pattern ? { backgroundImage: theme.pattern, backgroundSize: '100% 100%' } : {})}>
-                      <RadioGroupItem value={option.id} id={`${questionId}-${option.id}`} className="mt-1 relative z-10" />
-                      <Label htmlFor={`${questionId}-${option.id}`} className="flex-1 cursor-pointer relative z-10">
-                        <div className="flex items-start gap-3">
-                          <span className={cn('font-bold mr-2 text-base flex-shrink-0', appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
-                          <div className="flex-1">
-                            {option.text && (
-                              <div className={cn('text-base leading-relaxed', appTheme === 'dark' ? 'text-gray-300' : theme.answerText)}
-                                dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(option.text)) }} />
-                            )}
-                            {option.imageUrl && (
-                              <div className="mt-2 flex justify-center"
-                                onClick={e => { e.stopPropagation(); setZoomedImage(option.imageUrl ?? null) }}>
-                                <div className="relative">
-                                  <img src={option.imageUrl} alt={`Opción ${option.id}`} className="option-image cursor-zoom-in hover:opacity-90 transition-opacity" />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/10 rounded">
-                                    <ZoomIn className="h-6 w-6 text-white drop-shadow-lg" />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              )}
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2">
-              <Button
-                onClick={handleSkipQuestion}
-                disabled={currentQuestion === quizData.questions.length - 1}
-                variant="outline" className={skipButtonClassName} style={{ transition: 'none' }}
-                onMouseEnter={e => { e.currentTarget.style.transition = 'background-color 150ms ease-in-out' }}
-                onMouseLeave={e => { e.currentTarget.style.transition = 'none' }}>
-                <HelpCircle className="h-4 w-4" /> No sé
-              </Button>
-              <Button
-                onClick={() => { currentQuestion === quizData.questions.length - 1 ? setShowWarning(true) : nextQuestion() }}
-                disabled={!answers[questionId] || isSubmitting}
-                variant="outline" className={cn('flex items-center gap-2', skipButtonClassName)} style={{ transition: 'none' }}
-                onMouseEnter={e => { e.currentTarget.style.transition = 'background-color 150ms ease-in-out' }}
-                onMouseLeave={e => { e.currentTarget.style.transition = 'none' }}>
-                {currentQuestion === quizData.questions.length - 1
-                  ? isSubmitting
-                    ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />Enviando…</>
-                    : <>Finalizar examen <ChevronRight className="h-4 w-4" /></>
-                  : <>Siguiente <ChevronRight className="h-4 w-4" /></>
-                }
-              </Button>
-            </CardFooter>
-          </Card>
+          {isIngles ? renderEnglishGroup() : renderSingleQuestion()}
         </div>
 
         {/* ── Panel lateral ── */}
         <div className="w-full lg:w-56 flex-shrink-0 relative z-10">
           <div className={cn(`${theme.cardBackground} border rounded-lg p-2.5 sticky top-4 shadow-lg backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
             <h3 className={cn('text-xs font-semibold mb-2 uppercase tracking-wide', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Navegación</h3>
+            {isIngles ? (
+              <div className="space-y-1.5 mb-3">
+                {englishGroups.map((group, gIdx) => {
+                  const firstQ = quizData.questions[group[0]]
+                  const groupAnswered = group.filter((idx) => {
+                    const qId = quizData.questions[idx].id || quizData.questions[idx].code
+                    return !!answers[qId]
+                  }).length
+                  const isCurrentG = gIdx === currentEnglishGroup
+                  const isComplete = groupAnswered === group.length
+                  return (
+                    <div key={gIdx}
+                      className={cn('rounded-lg px-2 py-1.5 text-xs font-medium border transition-colors',
+                        isCurrentG
+                          ? appTheme === 'dark' ? 'bg-purple-900/50 border-purple-600 text-purple-300' : 'bg-purple-100 border-purple-400 text-purple-700'
+                          : isComplete
+                          ? appTheme === 'dark' ? 'bg-green-900/30 border-green-700 text-green-400' : 'bg-green-50 border-green-300 text-green-700'
+                          : appTheme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-zinc-300' : 'bg-gray-100 border-gray-300 text-gray-600')}>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="truncate">{firstQ.topic}</span>
+                        {isComplete && <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />}
+                      </div>
+                      <div className={cn('text-[10px] mt-0.5', appTheme === 'dark' ? 'text-zinc-400' : 'text-gray-400')}>
+                        {groupAnswered}/{group.length} resp.
+                        {isClozeTestGroup(group.map((i) => quizData.questions[i]))
+                          ? ' · cloze'
+                          : isMatchingColumnsGroup(group.map((i) => quizData.questions[i]))
+                          ? ' · columnas'
+                          : ''}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
             <div className="grid grid-cols-6 gap-1.5 mb-3">
               {quizData.questions.map((q, idx) => {
                 const qId = q.id || q.code
@@ -1145,6 +1353,7 @@ const UnifiedExamForm = () => {
                 )
               })}
             </div>
+            )}
             <div className={cn('mt-3 pt-3 border-t', appTheme === 'dark' ? 'border-zinc-700' : '')}>
               <div className="flex items-center justify-between mb-1.5">
                 <span className={cn('text-xs font-semibold', appTheme === 'dark' ? 'text-white' : '')}>{answeredQuestions}/{quizData.questions.length}</span>
@@ -1351,7 +1560,7 @@ const UnifiedExamForm = () => {
       )}
       {examState === 'no_questions'  && <NoQuestionsScreen />}
       {examState === 'welcome'       && <WelcomeScreen />}
-      {examState === 'active'        && <ExamScreen />}
+      {examState === 'active'        && renderExamScreen()}
       {examState === 'completed'     && <CompletedScreen />}
       {examState === 'already_taken' && <AlreadyTakenScreen />}
 

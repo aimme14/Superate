@@ -1,5 +1,11 @@
 import type { Question } from '@/services/firebase/question.service'
 import { GRADE_CODE_TO_NAME } from '@/utils/subjects.config'
+import {
+  extractMatchingGroupId,
+  extractMatchingText,
+} from '@/utils/matchingColumns'
+
+export { extractMatchingGroupId, extractMatchingText }
 
 /** Extrae solo el texto sin tags HTML */
 export function stripHtmlTags(html: string): string {
@@ -7,25 +13,6 @@ export function stripHtmlTags(html: string): string {
   const tempDiv = document.createElement('div')
   tempDiv.innerHTML = html
   return tempDiv.textContent || tempDiv.innerText || ''
-}
-
-/** Extrae el texto real del usuario de matching/columnas (formato: MATCHING_COLUMNS_GROUP_ID|texto) */
-export function extractMatchingText(informativeText: string | undefined | null): string {
-  if (!informativeText) return ''
-  if (informativeText.includes('|')) {
-    const parts = informativeText.split('|')
-    return parts.slice(1).join('|')
-  }
-  return ''
-}
-
-/** Extrae el identificador de grupo de matching/columnas */
-export function extractMatchingGroupId(informativeText: string | undefined | null): string {
-  if (!informativeText) return ''
-  if (informativeText.includes('|')) {
-    return informativeText.split('|')[0]
-  }
-  return informativeText
 }
 
 /** Ordena preguntas por orden de creación (más antigua primero), con soporte para huecos en cloze */

@@ -1,7 +1,13 @@
 import { questionService, Question, QuestionFilters } from '@/services/firebase/question.service';
 import { SUBJECTS_CONFIG, GRADE_CODE_TO_NAME, GRADE_MAPPING } from '@/utils/subjects.config';
 import { shuffleArray } from '@/utils/arrayUtils';
-import { validateGroupedQuestionsConsecutive } from '@/utils/quizGroupedQuestions';
+import { validateGroupedQuestionsConsecutive, normalizeInformativeTextForGroup } from '@/utils/quizGroupedQuestions';
+import { isEnglishGroupComplete } from '@/utils/clozeTest';
+import {
+  isMatchingColumnsQuestion,
+  extractMatchingGroupId,
+  matchingGroupKey,
+} from '@/utils/matchingColumns';
 import { success, failure, Result } from '@/interfaces/db.interface';
 import ErrorAPI from '@/errors';
 import { normalizeError } from '@/errors/handler';
@@ -524,6 +530,63 @@ class QuizGeneratorService {
   }
 
   /**
+   * Clave para agrupar preguntas de inglés en el generador (cloze, lectura, matching).
+   */
+  private englishGroupStorageKey(question: Question, topicCode: string): string {
+    if (isMatchingColumnsQuestion(question)) {
+      return `matching:${matchingGroupKey(question)}`;
+    }
+    return `${normalizeInformativeTextForGroup(question.informativeText)}_${topicCode}_${question.grade}_${question.levelCode}_${JSON.stringify(question.informativeImages || [])}`;
+  }
+
+  /**
+   * Si el muestreo aleatorio trajo solo 1 ítem de un ejercicio matching, busca
+   * el resto de preguntas con el mismo ID de grupo en Firestore.
+   */
+  private async expandMatchingGroupsInPool(
+    questions: Question[],
+    topicCode: string,
+    levelCode: string,
+    gradeValues: string[],
+    excludeQuestionIds: Set<string>,
+  ): Promise<Question[]> {
+    const matchingIds = new Set<string>();
+    questions.forEach((q) => {
+      if (isMatchingColumnsQuestion(q)) {
+        matchingIds.add(extractMatchingGroupId(q.informativeText));
+      }
+    });
+    if (matchingIds.size === 0) return questions;
+
+    const expanded = [...questions];
+    const existingIds = new Set(expanded.map((q) => q.id || q.code));
+
+    for (const gradeValue of gradeValues.length > 0 ? gradeValues : [undefined]) {
+      const result = await questionService.getFilteredQuestions({
+        subjectCode: 'IN',
+        topicCode,
+        grade: gradeValue,
+        levelCode,
+        limit: 200,
+      });
+      if (!result.success) continue;
+
+      for (const q of result.data) {
+        if (!isMatchingColumnsQuestion(q)) continue;
+        if (excludeQuestionIds.has(q.id || q.code)) continue;
+        const id = extractMatchingGroupId(q.informativeText);
+        if (!matchingIds.has(id)) continue;
+        const key = q.id || q.code;
+        if (existingIds.has(key)) continue;
+        expanded.push(q);
+        existingIds.add(key);
+      }
+    }
+
+    return expanded;
+  }
+
+  /**
    * Lógica especial para Inglés: selecciona 1 pregunta agrupada por cada uno de los 7 temas
    * Las preguntas agrupadas comparten el mismo informativeText
    */
@@ -680,10 +743,10 @@ class QuizGeneratorService {
         const newQuestions = filtered.filter(q => !existingIds.has(q.id || q.code));
         allQuestions.push(...newQuestions);
 
-        // Verificar si hay al menos un grupo completo (agrupar temporalmente para verificar)
+        // Verificar si hay al menos un grupo COMPLETO (cloze: todos los huecos; matching: ≥2 ítems)
         const tempGroupsMap: { [key: string]: Question[] } = {};
         allQuestions.forEach(question => {
-          const groupKey = `${question.informativeText}_${topic.code}_${question.grade}_${question.levelCode}_${JSON.stringify(question.informativeImages || [])}`;
+          const groupKey = this.englishGroupStorageKey(question, topic.code);
           if (!tempGroupsMap[groupKey]) {
             tempGroupsMap[groupKey] = [];
           }
@@ -691,10 +754,11 @@ class QuizGeneratorService {
         });
 
         const tempGroups = Object.values(tempGroupsMap).filter(group => group.length > 0);
-        if (tempGroups.length > 0) {
+        const hasCompleteGroup = tempGroups.some((g) => isEnglishGroupComplete(g));
+        if (hasCompleteGroup) {
           foundCompleteGroup = true;
           logger.debug(`Grupo completo encontrado en intento ${attemptIndex + 1}`);
-          break; // Detener búsqueda al encontrar al menos un grupo
+          break;
         } else {
           logger.debug(`Intento ${attemptIndex + 1}: ${newQuestions.length} preguntas nuevas, sin grupo completo aún`);
         }
@@ -712,11 +776,19 @@ class QuizGeneratorService {
         );
       }
 
-      // Agrupar todas las preguntas encontradas (una sola vez al final)
+      // Completar ítems faltantes de ejercicios matching (el muestreo aleatorio suele traer solo 1)
+      allQuestions = await this.expandMatchingGroupsInPool(
+        allQuestions,
+        topic.code,
+        phase === 'first' ? 'F' : levelCode,
+        gradeValues,
+        excludeQuestionIds,
+      );
+
+      // Agrupar todas las preguntas encontradas (clave normalizada para unir el mismo pasaje)
       const groupsMap: { [key: string]: Question[] } = {};
       allQuestions.forEach(question => {
-        // Clave única para el grupo: informativeText + tema + grado + nivel + imágenes
-        const groupKey = `${question.informativeText}_${topic.code}_${question.grade}_${question.levelCode}_${JSON.stringify(question.informativeImages || [])}`;
+        const groupKey = this.englishGroupStorageKey(question, topic.code);
         if (!groupsMap[groupKey]) {
           groupsMap[groupKey] = [];
         }
@@ -756,9 +828,18 @@ class QuizGeneratorService {
       }
     }));  // cierre del Promise.all
 
-    // Seleccionar 1 grupo aleatorio de cada tema
+    // Seleccionar 1 grupo completo por tema (sin recortar: si el grupo tiene 3, van las 3)
     const selectedGroups: Question[][] = [];
     const usedGroupKeys = new Set<string>();
+
+    const getGroupKey = (group: Question[]) => {
+      const q = group[0];
+      if (!q) return '';
+      if (isMatchingColumnsQuestion(q)) {
+        return `matching:${matchingGroupKey(q)}`;
+      }
+      return `${normalizeInformativeTextForGroup(q.informativeText)}_${q.topicCode}_${q.grade}_${q.levelCode}`;
+    };
 
     for (const topic of topics) {
       const groups = topicGroupsMap[topic.code] || [];
@@ -767,35 +848,21 @@ class QuizGeneratorService {
         continue;
       }
 
-      // Mezclar los grupos para selección aleatoria
-      const shuffledGroups = shuffleArray(groups);
-      
-      // Seleccionar el primer grupo disponible (ya está mezclado)
-      const selectedGroup = shuffledGroups[0];
-      
-      // Verificar que no sea un grupo duplicado (mismo informativeText)
-      const groupKey = `${selectedGroup[0]?.informativeText}_${selectedGroup[0]?.topicCode}_${selectedGroup[0]?.grade}_${selectedGroup[0]?.levelCode}`;
-      if (!usedGroupKeys.has(groupKey)) {
-        selectedGroups.push(selectedGroup);
-        usedGroupKeys.add(groupKey);
-        logger.debug(`Seleccionado 1 grupo de ${selectedGroup.length} preguntas para ${topic.name}`);
-      } else {
-        // Si ya usamos este grupo, intentar con otro
-        const alternativeGroup = shuffledGroups.find(g => {
-          const key = `${g[0]?.informativeText}_${g[0]?.topicCode}_${g[0]?.grade}_${g[0]?.levelCode}`;
-          return !usedGroupKeys.has(key);
-        });
-        
-        if (alternativeGroup) {
-          selectedGroups.push(alternativeGroup);
-          const altKey = `${alternativeGroup[0]?.informativeText}_${alternativeGroup[0]?.topicCode}_${alternativeGroup[0]?.grade}_${alternativeGroup[0]?.levelCode}`;
-          usedGroupKeys.add(altKey);
-          logger.debug(`Seleccionado grupo alternativo de ${alternativeGroup.length} preguntas para ${topic.name}`);
-        } else {
-          logger.warn(`No se encontró grupo alternativo para ${topic.name}, usando el disponible`);
-          selectedGroups.push(selectedGroup);
-        }
+      const completeGroups = groups.filter((g) => isEnglishGroupComplete(g));
+      const pool = completeGroups.length > 0 ? completeGroups : groups;
+      const shuffledGroups = shuffleArray(pool);
+      const selectedGroup =
+        shuffledGroups.find(g => !usedGroupKeys.has(getGroupKey(g))) ?? shuffledGroups[0];
+
+      if (!isEnglishGroupComplete(selectedGroup)) {
+        logger.warn(
+          `Grupo incompleto para ${topic.name}: ${selectedGroup.length} pregunta(s) — puede faltar algún hueco del cloze`
+        );
       }
+
+      selectedGroups.push(selectedGroup);
+      usedGroupKeys.add(getGroupKey(selectedGroup));
+      logger.debug(`Seleccionado grupo de ${selectedGroup.length} preguntas para ${topic.name}`);
     }
 
     if (selectedGroups.length === 0) {
@@ -804,16 +871,22 @@ class QuizGeneratorService {
       }));
     }
 
-    // Mezclar aleatoriamente el orden de los grupos (para que cada estudiante tenga orden diferente)
+    if (selectedGroups.length < topics.length) {
+      logger.warn(
+        `Inglés: solo ${selectedGroups.length}/${topics.length} partes tienen preguntas disponibles`
+      );
+    }
+
     const shuffledSelectedGroups = shuffleArray(selectedGroups);
 
-    // Aplanar los grupos en un solo array de preguntas
     const finalQuestions: Question[] = [];
     shuffledSelectedGroups.forEach(group => {
       finalQuestions.push(...group);
     });
 
-    logger.debug(`Cuestionario de Inglés generado con ${selectedGroups.length} grupos (${finalQuestions.length} preguntas)`);
+    logger.debug(
+      `Cuestionario de Inglés generado con ${selectedGroups.length} grupos (${finalQuestions.length} preguntas en total)`
+    );
     return success(finalQuestions);
   }
 

@@ -15,8 +15,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { invalidateStudentEvaluationsAfterExamSave } from "@/hooks/query/useStudentEvaluations";
 import { quizGeneratorService, GeneratedQuiz } from "@/services/quiz/quizGenerator.service";
 import ImageGallery from "@/components/common/ImageGallery";
-import { detectGroupedQuestions } from "@/utils/quizGroupedQuestions";
+import { detectGroupedQuestions, buildEnglishGroups } from "@/utils/quizGroupedQuestions";
 import { GroupedQuestionNotice } from "@/components/quiz/GroupedQuestionNotice";
+import { ClozeTestInline } from "@/components/quiz/ClozeTestInline";
+import { MatchingColumnsInline } from "@/components/quiz/MatchingColumnsInline";
+import { isClozeTestGroup } from "@/utils/clozeTest";
+import { isMatchingColumnsGroup } from "@/utils/matchingColumns";
 import { sanitizeMathHtml } from "@/utils/sanitizeMathHtml";
 import { useThemeContext } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -84,6 +88,10 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
   const [groupedQuestionMessage, setGroupedQuestionMessage] = useState<{ start: number; end: number } | null>(null);
+  // Grupos de Inglés: array de arrays de índices de preguntas
+  const [englishGroups, setEnglishGroups] = useState<number[][]>([]);
+  // Índice del grupo actual (solo Inglés)
+  const [currentEnglishGroup, setCurrentEnglishGroup] = useState(0);
 
   // Estados para el seguimiento de tiempo por pregunta
   const [questionTimeData, setQuestionTimeData] = useState<{ [key: string]: QuestionTimeData }>({});
@@ -133,6 +141,16 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         const quiz = quizResult.data;
         setQuizData(quiz);
         setTimeLeft(quiz.timeLimit * 60);
+        if (quiz.subject === 'Ingl\u00e9s') {
+          setEnglishGroups(buildEnglishGroups(quiz.questions));
+          console.log('[DEBUG Ingl\u00e9s] Grupos generados:', buildEnglishGroups(quiz.questions).map((g, i) => ({
+            grupo: i + 1,
+            preguntas: g.length,
+            indices: g,
+            informativeTextPreview: quiz.questions[g[0]]?.informativeText?.slice(0, 80) || 'VACÍO'
+          })));
+          setCurrentEnglishGroup(0);
+        }
         setExamState('awaiting_validation');
 
       } catch (error) {
@@ -234,6 +252,29 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     // Inicializar tiempo de la nueva pregunta
     const newQuestionId = quizData.questions[newQuestionIndex].id || quizData.questions[newQuestionIndex].code;
     initializeQuestionTime(newQuestionId);
+  };
+
+  // Avanzar al siguiente grupo de Inglés
+  const nextEnglishGroup = () => {
+    if (!quizData) return;
+    // Finalizar tiempo de todas las preguntas del grupo actual
+    const group = englishGroups[currentEnglishGroup] || [];
+    group.forEach((qIdx) => {
+      const qId = quizData.questions[qIdx].id || quizData.questions[qIdx].code;
+      finalizeQuestionTime(qId);
+    });
+
+    if (currentEnglishGroup < englishGroups.length - 1) {
+      const nextGroupIdx = currentEnglishGroup + 1;
+      setCurrentEnglishGroup(nextGroupIdx);
+      setCurrentQuestion(englishGroups[nextGroupIdx][0]);
+      // Inicializar tiempo de la primera pregunta del nuevo grupo
+      const firstQId = quizData.questions[englishGroups[nextGroupIdx][0]].id ||
+                       quizData.questions[englishGroups[nextGroupIdx][0]].code;
+      initializeQuestionTime(firstQId);
+    } else {
+      showSubmitWarning();
+    }
   };
 
   // Función para formatear tiempo en minutos y segundos
@@ -1193,214 +1234,97 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   // Pantalla principal del examen
   const ExamScreen = () => {
     if (!quizData) return null;
-
-    const currentQ = quizData.questions[currentQuestion]
-    const answeredQuestions = Object.keys(answers).length
-    const questionId = currentQ.id || currentQ.code;
+    const isIngles = quizData.subject === 'Ingl\u00e9s';
+    const answeredQuestions = Object.keys(answers).length;
     const optionsContainerRef = useRef<HTMLDivElement>(null);
 
-    // Renderizar fórmulas matemáticas en las opciones y textos después de que se rendericen
     useEffect(() => {
       if (!optionsContainerRef.current) return;
-
-      // Pequeño delay para asegurar que el DOM esté completamente renderizado
       const timeoutId = setTimeout(() => {
-        // Buscar todas las fórmulas matemáticas que necesiten renderizado
         const mathElements = optionsContainerRef.current?.querySelectorAll('[data-latex], .katex, .katex-inline');
         mathElements?.forEach((el) => {
           const latex = (el as HTMLElement).getAttribute('data-latex');
           if (latex && !(el as HTMLElement).querySelector('.katex')) {
             try {
-              katex.render(latex, el as HTMLElement, {
-                throwOnError: false,
-                displayMode: false,
-                strict: false,
-              });
-            } catch (error) {
-              logger.debug('Error renderizando fórmula:', error);
-            }
+              katex.render(latex, el as HTMLElement, { throwOnError: false, displayMode: false, strict: false });
+            } catch (error) { logger.debug('Error renderizando fórmula:', error); }
           }
         });
       }, 100);
-
       return () => clearTimeout(timeoutId);
-    }, [currentQuestion, quizData]);
+    }, [currentQuestion, currentEnglishGroup, quizData]);
 
-    return (
-      <div className={cn("flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-4 pb-4", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-25')}>
-        {/* Contenido principal del examen */}
-        <div className="flex-1">
-          <div className={cn("border rounded-lg p-3 mb-2 shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
-                  <Calculator className={cn("w-12 h-12", theme === 'dark' ? 'text-blue-400' : 'text-blue-500')} />
-                </div>
-                <div>
-                  <h3 className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estás realizando:</h3>
-                  <h2 className={cn("text-base font-bold", theme === 'dark' ? 'text-white' : '')}>{quizData.title}</h2>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Tiempo restante */}
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm",
-                  timeLeft > 600
-                    ? (theme === 'dark' ? 'bg-green-900/50 text-green-300 border-green-700' : 'bg-green-100 text-green-700 border-green-200')
-                    : timeLeft > 300
-                      ? (theme === 'dark' ? 'bg-orange-900/50 text-orange-300 border-orange-700' : 'bg-orange-100 text-orange-700 border-orange-200')
-                      : (theme === 'dark' ? 'bg-red-900/50 text-red-300 border-red-700' : 'bg-red-100 text-red-700 border-red-200')
-                )}>
-                  <Clock className={cn("h-4 w-4", timeLeft > 600
-                      ? 'text-green-500'
-                      : timeLeft > 300
-                        ? 'text-orange-500'
-                        : 'text-red-500'
-                    )} />
-                  <span className={cn("text-sm font-medium font-mono", timeLeft > 600
-                      ? (theme === 'dark' ? 'text-green-300' : 'text-green-700')
-                      : timeLeft > 300
-                        ? (theme === 'dark' ? 'text-orange-300' : 'text-orange-700')
-                        : (theme === 'dark' ? 'text-red-300' : 'text-red-700')
-                    )}>
-                    {formatTimeLeft(timeLeft)}
-                  </span>
-                </div>
-                {/* Preguntas respondidas */}
-                <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", theme === 'dark' ? 'bg-blue-900/50 text-blue-300 border-blue-700' : 'bg-blue-50 text-blue-700 border-blue-200')}>
-                  <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
-                </div>
-                {/* Advertencias de cambio de pestaña */}
-                {tabChangeCount === 1 && (
-                  <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", theme === 'dark' ? 'bg-orange-900/50 border-orange-700' : 'bg-orange-50 border-orange-200')}>
-                    <AlertCircle className="h-4 w-4 text-orange-500" />
-                    <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-orange-300' : 'text-orange-700')}>
-                      1 intento de fraude detectado
-                    </span>
-                  </div>
-                )}
+    // ── RENDER DE UNA SOLA PREGUNTA (materias normales) ──────────────────────
+    const renderSingleQuestion = () => {
+      const currentQ = quizData.questions[currentQuestion];
+      const questionId = currentQ.id || currentQ.code;
+
+      return (
+        <Card className={cn("mb-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : '')}>
+                Pregunta {currentQuestion + 1}
+              </CardTitle>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
+                  {currentQ.topic}
+                </span>
+                <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>
+                  {currentQ.level}
+                </span>
               </div>
             </div>
-          </div>
-
-          <Card className={cn("mb-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : '')}>Pregunta {currentQuestion + 1}</CardTitle>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
-                    {currentQ.topic}
-                  </span>
-                  <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>
-                    {currentQ.level}
-                  </span>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {groupedQuestionMessage && (
-                <GroupedQuestionNotice range={groupedQuestionMessage} theme={theme === 'dark' ? 'dark' : 'light'} />
-              )}
-              
-              <div className="prose prose-lg max-w-none">
-                {/* Texto informativo - Material de apoyo */}
-                {currentQ.informativeText && currentQ.informativeText.trim() !== '' && (
-                  <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
-                    <div className={cn("text-sm font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
-                      Material de apoyo:
-                    </div>
-                    <div
-                      className={cn("leading-relaxed prose max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
-                      style={{ whiteSpace: 'pre-wrap' }}
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.informativeText) }}
-                    />
-                  </div>
-                )}
-
-                {/* Imágenes informativas - Material de apoyo */}
-                {currentQ.informativeImages && Array.isArray(currentQ.informativeImages) && currentQ.informativeImages.length > 0 && (
-                  <div className="mb-4">
-                    <div className={cn("text-sm font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
-                      Material de apoyo (imágenes):
-                    </div>
-                    <ImageGallery 
-                      images={currentQ.informativeImages} 
-                    />
-                  </div>
-                )}
-
-                {/* Imagen de la pregunta */}
-                {currentQ.questionImages && Array.isArray(currentQ.questionImages) && currentQ.questionImages.length > 0 && (
-                  <div className="mb-4">
-                    <ImageGallery images={currentQ.questionImages} />
-                  </div>
-                )}
-
-                {/* Texto de la pregunta */}
-                {currentQ.questionText && currentQ.questionText.trim() !== '' && (
-                  <div
-                    className={cn("leading-relaxed text-lg font-medium prose max-w-none mb-6 whitespace-pre-wrap", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+          </CardHeader>
+          <CardContent>
+            {groupedQuestionMessage && (
+              <GroupedQuestionNotice range={groupedQuestionMessage} theme={theme === 'dark' ? 'dark' : 'light'} />
+            )}
+            <div className="prose prose-lg max-w-none">
+              {currentQ.informativeText && currentQ.informativeText.trim() !== '' && (
+                <div className={cn("mb-4 p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                  <div className={cn("text-sm font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>Material de apoyo:</div>
+                  <div className={cn("leading-relaxed prose max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
                     style={{ whiteSpace: 'pre-wrap' }}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.questionText) }}
-                  />
-                )}
-              </div>
-              
-              {/* Opciones de respuesta */}
-              {currentQ.options && Array.isArray(currentQ.options) && currentQ.options.length > 0 ? (
-                <div ref={optionsContainerRef}>
-                <RadioGroup
-                  value={answers[questionId] || ""}
-                  onValueChange={(value) => handleAnswerChange(questionId, value)}
-                  className="space-y-2 mt-6"
-                >
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.informativeText) }} />
+                </div>
+              )}
+              {currentQ.informativeImages && Array.isArray(currentQ.informativeImages) && currentQ.informativeImages.length > 0 && (
+                <div className="mb-4">
+                  <div className={cn("text-sm font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>Material de apoyo (imágenes):</div>
+                  <ImageGallery images={currentQ.informativeImages} />
+                </div>
+              )}
+              {currentQ.questionImages && Array.isArray(currentQ.questionImages) && currentQ.questionImages.length > 0 && (
+                <div className="mb-4"><ImageGallery images={currentQ.questionImages} /></div>
+              )}
+              {currentQ.questionText && currentQ.questionText.trim() !== '' && (
+                <div className={cn("leading-relaxed text-lg font-medium prose max-w-none mb-6 whitespace-pre-wrap", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                  style={{ whiteSpace: 'pre-wrap' }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentQ.questionText) }} />
+              )}
+            </div>
+            {currentQ.options && Array.isArray(currentQ.options) && currentQ.options.length > 0 ? (
+              <div ref={optionsContainerRef}>
+                <RadioGroup value={answers[questionId] || ""} onValueChange={(value) => handleAnswerChange(questionId, value)} className="space-y-2 mt-6">
                   {currentQ.options.map((option) => (
-                  <div
-                    key={option.id}
-                    onClick={() => handleAnswerChange(questionId, option.id)}
-                    className={cn("flex items-start space-x-3 border rounded-lg p-3 cursor-pointer", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}
-                  >
-                    <RadioGroupItem
-                      value={option.id}
-                      id={`${questionId}-${option.id}`}
-                      className="mt-1 flex-shrink-0"
-                      onClick={(e) => {
-                        // Prevenir propagación del click para evitar doble selección
-                        e.stopPropagation();
-                      }}
-                    />
-                      <Label
-                        htmlFor={`${questionId}-${option.id}`}
-                        className="flex-1 cursor-pointer"
-                      >
+                    <div key={option.id} onClick={() => handleAnswerChange(questionId, option.id)}
+                      className={cn("flex items-start space-x-3 border rounded-lg p-3 cursor-pointer", theme === 'dark' ? 'border-zinc-700' : 'border-gray-300')}>
+                      <RadioGroupItem value={option.id} id={`${questionId}-${option.id}`} className="mt-1 flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()} />
+                      <Label htmlFor={`${questionId}-${option.id}`} className="flex-1 cursor-pointer">
                         <div className="flex items-start gap-3 w-full">
-                          <span className={cn("font-semibold mr-2 flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>
-                            {option.id}.
-                          </span>
+                          <span className={cn("font-semibold mr-2 flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
                           <div className="flex-1 min-w-0">
                             {option.text && option.text.trim() !== '' && (
-                              <span 
-                                className={cn("block", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
-                                dangerouslySetInnerHTML={{ __html: sanitizeHtml(option.text) }}
-                              />
+                              <span className={cn("block", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
+                                dangerouslySetInnerHTML={{ __html: sanitizeHtml(option.text) }} />
                             )}
                             {option.imageUrl && option.imageUrl.trim() !== '' && (
                               <div className={cn("mt-2", option.text && option.text.trim() !== '' ? '' : 'mt-0')}>
-                                <img 
-                                  src={option.imageUrl} 
-                                  alt={`Opción ${option.id}`}
-                                  className="max-w-full h-auto rounded-lg border shadow-sm"
-                                  onError={(e) => {
-                                    logger.debug('Error cargando imagen de opción');
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
+                                <img src={option.imageUrl} alt={`Opción ${option.id}`} className="max-w-full h-auto rounded-lg border shadow-sm"
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                               </div>
-                            )}
-                            {(!option.text || option.text.trim() === '') && (!option.imageUrl || option.imageUrl.trim() === '') && (
-                              <span className={cn("text-sm italic", theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}>
-                                Opción {option.id}
-                              </span>
                             )}
                           </div>
                         </div>
@@ -1408,134 +1332,305 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
                     </div>
                   ))}
                 </RadioGroup>
+              </div>
+            ) : (
+              <div className={cn("mt-6 p-4 rounded-lg border", theme === 'dark' ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200')}>
+                <Alert className={cn(theme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className={cn(theme === 'dark' ? 'text-red-200' : 'text-red-700')}>
+                    Esta pregunta no tiene opciones disponibles.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button onClick={() => { if (currentQuestion === quizData.questions.length - 1) { showSubmitWarning(); } else { nextQuestion(); } }}
+              disabled={currentQuestion === quizData.questions.length - 1 ? isSubmitting : false}
+              variant="outline"
+              className={cn("flex items-center gap-2 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit",
+                theme === 'dark' ? 'border-gray-600 text-gray-300 dark:hover:bg-transparent dark:hover:border-gray-600 dark:hover:text-gray-300' : 'border-gray-300 text-gray-700 hover:border-gray-300 hover:text-gray-700')}>
+              {currentQuestion === quizData.questions.length - 1
+                ? isSubmitting ? (<><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />Enviando...</>) : (<>Finalizar examen <ChevronRight className="h-4 w-4" /></>)
+                : (<>Siguiente <ChevronRight className="h-4 w-4" /></>)}
+            </Button>
+          </CardFooter>
+        </Card>
+      );
+    };
+
+    // ── RENDER DE GRUPO DE INGLÉS (todas las preguntas del grupo juntas) ───────
+    const renderEnglishGroup = () => {
+      const group = englishGroups[currentEnglishGroup] || [];
+      if (group.length === 0) return null;
+      const groupQuestions = group.map((idx) => quizData.questions[idx]);
+      const firstQ = groupQuestions[0];
+      const isClozeGroup = isClozeTestGroup(groupQuestions);
+      const isMatchingGroup = !isClozeGroup && isMatchingColumnsGroup(groupQuestions);
+      const isLastGroup = currentEnglishGroup === englishGroups.length - 1;
+      const groupAnswered = group.filter((idx) => {
+        const qId = quizData.questions[idx].id || quizData.questions[idx].code;
+        return !!answers[qId];
+      }).length;
+
+      return (
+        <Card className={cn("mb-6", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className={cn("text-xl", theme === 'dark' ? 'text-white' : '')}>
+                {firstQ.topic}
+                {isClozeGroup
+                  ? ` — ${group.length} huecos`
+                  : isMatchingGroup
+                  ? ` — ${group.length} ítem${group.length !== 1 ? 's' : ''}`
+                  : ` — Preguntas ${group[0] + 1} a ${group[group.length - 1] + 1}`}
+              </CardTitle>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')}>
+                  {groupAnswered}/{group.length} respondidas
+                </span>
+                <span className={cn("px-2 py-1 rounded-full", theme === 'dark' ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700')}>
+                  {firstQ.level}
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            {!isClozeGroup && !isMatchingGroup && firstQ.informativeText && firstQ.informativeText.trim() !== '' && !firstQ.informativeText.includes('MATCHING_COLUMNS_') && (
+              <div className={cn("p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200')}>
+                <div className={cn("text-sm font-semibold mb-2", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                  Material de apoyo:
                 </div>
-              ) : (
-                <div className={cn("mt-6 p-4 rounded-lg border", theme === 'dark' ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200')}>
-                  <Alert className={cn(theme === 'dark' ? 'border-red-800 bg-red-900/30' : 'border-red-200 bg-red-50')}>
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <AlertDescription className={cn(theme === 'dark' ? 'text-red-200' : 'text-red-700')}>
-                      Esta pregunta no tiene opciones disponibles. Por favor, contacta al administrador.
-                    </AlertDescription>
-                  </Alert>
+                <div className={cn("leading-relaxed prose max-w-none whitespace-pre-wrap", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}
+                  style={{ whiteSpace: 'pre-wrap' }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(firstQ.informativeText) }} />
+              </div>
+            )}
+
+            {firstQ.informativeImages && Array.isArray(firstQ.informativeImages) && firstQ.informativeImages.length > 0 && (
+              <div className={cn("p-4 rounded-lg border", theme === 'dark' ? 'bg-blue-900/20 border-blue-800' : 'bg-white border-blue-100')}>
+                <div className={cn("text-sm font-semibold mb-3", theme === 'dark' ? 'text-blue-300' : 'text-blue-800')}>
+                  Ejemplo:
                 </div>
-              )}
-            </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button
-                onClick={() => {
-                  if (currentQuestion === quizData.questions.length - 1) {
-                    showSubmitWarning();
-                  } else {
-                    nextQuestion();
-                  }
-                }}
-                disabled={currentQuestion === quizData.questions.length - 1 ? isSubmitting : false}
-                variant="outline"
-                className={cn(
-                  "flex items-center gap-2 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit",
-                  theme === 'dark' ? 'border-gray-600 text-gray-300 dark:hover:bg-transparent dark:hover:border-gray-600 dark:hover:text-gray-300' : 'border-gray-300 text-gray-700 hover:border-gray-300 hover:text-gray-700'
+                <ImageGallery images={firstQ.informativeImages} />
+              </div>
+            )}
+
+            {isClozeGroup && firstQ.informativeText ? (
+              <ClozeTestInline
+                clozeHtml={firstQ.informativeText}
+                questions={groupQuestions}
+                answers={answers}
+                onAnswerChange={handleAnswerChange}
+                sanitizeHtml={sanitizeHtml}
+                theme={theme === 'dark' ? 'dark' : 'light'}
+              />
+            ) : isMatchingGroup ? (
+              <MatchingColumnsInline
+                questions={groupQuestions}
+                informativeText={firstQ.informativeText}
+                answers={answers}
+                onAnswerChange={handleAnswerChange}
+                sanitizeHtml={sanitizeHtml}
+                theme={theme === 'dark' ? 'dark' : 'light'}
+              />
+            ) : (
+              <div ref={optionsContainerRef} className="space-y-8">
+                {group.map((qIdx, localIdx) => {
+                  const q = quizData.questions[qIdx];
+                  const qId = q.id || q.code;
+                  return (
+                    <div key={qId} className={cn("rounded-xl border p-4", theme === 'dark' ? 'bg-zinc-900/50 border-zinc-700' : 'bg-gray-50 border-gray-200')}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={cn("h-7 w-7 rounded-full flex items-center justify-center text-sm font-black text-white flex-shrink-0",
+                          answers[qId] ? "bg-purple-600" : "bg-gray-400")}>
+                          {qIdx + 1}
+                        </span>
+                        <span className={cn("text-xs font-medium", theme === 'dark' ? 'text-zinc-400' : 'text-gray-500')}>
+                          Pregunta {qIdx + 1} de {quizData.questions.length}
+                        </span>
+                        {answers[qId] && (
+                          <CheckCircle2 className="h-4 w-4 text-green-500 ml-auto" />
+                        )}
+                      </div>
+
+                      {q.questionImages && Array.isArray(q.questionImages) && q.questionImages.length > 0 && (
+                        <div className="mb-3"><ImageGallery images={q.questionImages} /></div>
+                      )}
+
+                      {q.questionText && q.questionText.trim() !== '' && (
+                        <div className={cn("leading-relaxed font-medium prose max-w-none mb-4 whitespace-pre-wrap", theme === 'dark' ? 'text-white' : 'text-gray-900')}
+                          style={{ whiteSpace: 'pre-wrap' }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.questionText) }} />
+                      )}
+
+                      {q.options && Array.isArray(q.options) && q.options.length > 0 ? (
+                        <RadioGroup value={answers[qId] || ""} onValueChange={(value) => handleAnswerChange(qId, value)} className="space-y-2">
+                          {q.options.map((option) => (
+                            <div key={option.id} onClick={() => handleAnswerChange(qId, option.id)}
+                              className={cn("flex items-start space-x-3 border rounded-lg p-3 cursor-pointer transition-colors",
+                                answers[qId] === option.id
+                                  ? theme === 'dark' ? 'border-purple-500 bg-purple-900/30' : 'border-purple-400 bg-purple-50'
+                                  : theme === 'dark' ? 'border-zinc-600 hover:border-zinc-500' : 'border-gray-300 hover:border-gray-400')}>
+                              <RadioGroupItem value={option.id} id={`${qId}-${option.id}-${localIdx}`} className="mt-1 flex-shrink-0"
+                                onClick={(e) => e.stopPropagation()} />
+                              <Label htmlFor={`${qId}-${option.id}-${localIdx}`} className="flex-1 cursor-pointer">
+                                <div className="flex items-start gap-2">
+                                  <span className={cn("font-semibold flex-shrink-0", theme === 'dark' ? 'text-purple-400' : 'text-purple-600')}>{option.id}.</span>
+                                  <div className="flex-1 min-w-0">
+                                    {option.text && option.text.trim() !== '' && (
+                                      <span className={cn("block", theme === 'dark' ? 'text-gray-300' : 'text-gray-900')}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(option.text) }} />
+                                    )}
+                                    {option.imageUrl && option.imageUrl.trim() !== '' && (
+                                      <img src={option.imageUrl} alt={`Opción ${option.id}`} className="max-w-full h-auto rounded-lg border shadow-sm mt-2"
+                                        onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                    )}
+                                  </div>
+                                </div>
+                              </Label>
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      ) : (
+                        <p className={cn("text-sm italic", theme === 'dark' ? 'text-zinc-500' : 'text-gray-400')}>Sin opciones disponibles.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+
+          <CardFooter className="flex justify-end">
+            <Button onClick={nextEnglishGroup}
+              disabled={isLastGroup && isSubmitting}
+              variant="outline"
+              className={cn("flex items-center gap-2 !transition-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent hover:border-inherit hover:text-inherit",
+                theme === 'dark' ? 'border-gray-600 text-gray-300' : 'border-gray-300 text-gray-700')}>
+              {isLastGroup
+                ? isSubmitting ? (<><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />Enviando...</>) : (<>Finalizar examen <ChevronRight className="h-4 w-4" /></>)
+                : (<>Siguiente parte <ChevronRight className="h-4 w-4" /></>)}
+            </Button>
+          </CardFooter>
+        </Card>
+      );
+    };
+
+    return (
+      <div className={cn("flex flex-col lg:flex-row gap-6 min-h-screen pt-2 px-4 pb-4", theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-25')}>
+        <div className="flex-1">
+          <div className={cn("border rounded-lg p-3 mb-2 shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <Calculator className={cn("w-12 h-12", theme === 'dark' ? 'text-blue-400' : 'text-blue-500')} />
+                <div>
+                  <h3 className={cn("text-xs font-medium", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Estás realizando:</h3>
+                  <h2 className={cn("text-base font-bold", theme === 'dark' ? 'text-white' : '')}>{quizData.title}</h2>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm",
+                  timeLeft > 600 ? (theme === 'dark' ? 'bg-green-900/50 text-green-300 border-green-700' : 'bg-green-100 text-green-700 border-green-200')
+                    : timeLeft > 300 ? (theme === 'dark' ? 'bg-orange-900/50 text-orange-300 border-orange-700' : 'bg-orange-100 text-orange-700 border-orange-200')
+                    : (theme === 'dark' ? 'bg-red-900/50 text-red-300 border-red-700' : 'bg-red-100 text-red-700 border-red-200'))}>
+                  <Clock className={cn("h-4 w-4", timeLeft > 600 ? 'text-green-500' : timeLeft > 300 ? 'text-orange-500' : 'text-red-500')} />
+                  <span className={cn("text-sm font-medium font-mono",
+                    timeLeft > 600 ? (theme === 'dark' ? 'text-green-300' : 'text-green-700')
+                      : timeLeft > 300 ? (theme === 'dark' ? 'text-orange-300' : 'text-orange-700')
+                      : (theme === 'dark' ? 'text-red-300' : 'text-red-700'))}>
+                    {formatTimeLeft(timeLeft)}
+                  </span>
+                </div>
+                <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border",
+                  theme === 'dark' ? 'bg-blue-900/50 text-blue-300 border-blue-700' : 'bg-blue-50 text-blue-700 border-blue-200')}>
+                  <span className="text-sm font-medium">{answeredQuestions} respondidas</span>
+                </div>
+                {tabChangeCount === 1 && (
+                  <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border",
+                    theme === 'dark' ? 'bg-orange-900/50 border-orange-700' : 'bg-orange-50 border-orange-200')}>
+                    <AlertCircle className="h-4 w-4 text-orange-500" />
+                    <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-orange-300' : 'text-orange-700')}>1 intento de fraude detectado</span>
+                  </div>
                 )}
-                style={{ transition: 'none' }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transition = 'background-color 150ms ease-in-out';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transition = 'none';
-                }}
-              >
-                {currentQuestion === quizData.questions.length - 1 ? (
-                  isSubmitting ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>Finalizar examen <ChevronRight className="h-4 w-4" /></>
-                  )
-                ) : (
-                  <>Siguiente <ChevronRight className="h-4 w-4" /></>
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
+              </div>
+            </div>
+          </div>
+
+          {isIngles ? renderEnglishGroup() : renderSingleQuestion()}
         </div>
 
-        {/* Panel lateral derecho con navegación de preguntas */}
         <div className="w-full lg:w-56 flex-shrink-0">
           <div className={cn("border rounded-lg p-3 sticky top-4 shadow-sm", theme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white')}>
-            <h3 className={cn("text-xs font-semibold mb-2.5 uppercase tracking-wide", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>
-              Navegación
-            </h3>
-            <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
-              {quizData.questions.map((q, index) => {
-                const qId = q.id || q.code;
-                const isAnswered = answers[qId];
-                const isCurrent = currentQuestion === index;
-                // TODOS los botones están bloqueados - solo son marcadores visuales
-                // No se puede navegar desde los botones, solo desde el botón "Siguiente"
-                
-                return (
-                  <button
-                    key={qId}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      // BLOQUEAR TODOS los clics - los botones son SOLO marcadores visuales
-                      return false;
-                    }}
-                    className={cn(
-                      "relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 cursor-not-allowed",
-                      isCurrent
-                        ? isAnswered
-                          ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1"
-                          : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
-                        : isAnswered
-                        ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
-                        : (theme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600 hover:bg-zinc-600 hover:border-purple-500" : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 hover:border-purple-300")
-                    )}
-                    title={`Pregunta ${index + 1}${isAnswered ? " - Respondida" : " - Sin responder"} - Solo marcador visual`}
-                    onMouseDown={(e) => {
-                      // Prevenir cualquier acción - los botones son solo marcadores visuales
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                  >
-                    {index + 1}
-                    {isAnswered && !isCurrent && (
-                      <CheckCircle2 className={cn("absolute -top-1 -right-1 h-3 w-3 text-green-500 rounded-full", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')} />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+            <h3 className={cn("text-xs font-semibold mb-2.5 uppercase tracking-wide", theme === 'dark' ? 'text-gray-300' : 'text-gray-700')}>Navegación</h3>
+
+            {isIngles ? (
+              <div className="space-y-1.5">
+                {englishGroups.map((group, gIdx) => {
+                  const firstQ = quizData.questions[group[0]];
+                  const groupAnswered = group.filter((idx) => {
+                    const qId = quizData.questions[idx].id || quizData.questions[idx].code;
+                    return !!answers[qId];
+                  }).length;
+                  const isCurrentG = gIdx === currentEnglishGroup;
+                  const isComplete = groupAnswered === group.length;
+                  return (
+                    <div key={gIdx}
+                      className={cn("rounded-lg px-2 py-1.5 text-xs font-medium border transition-colors",
+                        isCurrentG
+                          ? theme === 'dark' ? 'bg-purple-900/50 border-purple-600 text-purple-300' : 'bg-purple-100 border-purple-400 text-purple-700'
+                          : isComplete
+                          ? theme === 'dark' ? 'bg-green-900/30 border-green-700 text-green-400' : 'bg-green-50 border-green-300 text-green-700'
+                          : theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-zinc-300' : 'bg-gray-100 border-gray-300 text-gray-600')}>
+                      <div className="flex items-center justify-between">
+                        <span>{firstQ.topic}</span>
+                        {isComplete && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                      </div>
+                      <div className={cn("text-[10px] mt-0.5", theme === 'dark' ? 'text-zinc-400' : 'text-gray-400')}>
+                        {groupAnswered}/{group.length} resp.
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pb-2">
+                {quizData.questions.map((q, index) => {
+                  const qId = q.id || q.code;
+                  const isAnswered = answers[qId];
+                  const isCurrent = currentQuestion === index;
+                  return (
+                    <button key={qId}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
+                      className={cn("relative h-9 w-9 rounded-md flex items-center justify-center text-xs font-semibold transition-all duration-200 cursor-not-allowed",
+                        isCurrent
+                          ? isAnswered ? "bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-lg ring-2 ring-purple-400 ring-offset-1" : "bg-gradient-to-br from-purple-500 to-blue-400 text-white shadow-md ring-2 ring-purple-300 ring-offset-1"
+                          : isAnswered ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-sm hover:shadow-md"
+                          : (theme === 'dark' ? "bg-zinc-700 text-gray-300 border border-zinc-600" : "bg-gray-100 text-gray-600 border border-gray-300"))}>
+                      {index + 1}
+                      {isAnswered && !isCurrent && (
+                        <CheckCircle2 className={cn("absolute -top-1 -right-1 h-3 w-3 text-green-500 rounded-full", theme === 'dark' ? 'bg-zinc-800' : 'bg-white')} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <div className={cn("mt-4 pt-4 border-t", theme === 'dark' ? 'border-zinc-700' : '')}>
               <div className={cn("text-sm mb-2", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>Progreso del examen</div>
               <div className="flex items-center justify-between mb-2">
-                <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : '')}>
-                  {answeredQuestions}/{quizData.questions.length}
-                </span>
+                <span className={cn("text-sm font-medium", theme === 'dark' ? 'text-white' : '')}>{answeredQuestions}/{quizData.questions.length}</span>
                 <span className={cn("text-sm", theme === 'dark' ? 'text-gray-400' : 'text-gray-500')}>
                   {Math.round((answeredQuestions / quizData.questions.length) * 100)}%
                 </span>
               </div>
               <Progress value={(answeredQuestions / quizData.questions.length) * 100} className="h-2" />
-
-              <Button
-                onClick={showSubmitWarning}
-                disabled={isSubmitting}
-                className="w-full mt-4 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
-                    Enviando...
-                  </>
-                ) : (
-                  'Finalizar examen'
-                )}
+              <Button onClick={showSubmitWarning} disabled={isSubmitting}
+                className="w-full mt-4 bg-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-500 hover:shadow-lg">
+                {isSubmitting ? (<><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />Enviando...</>) : 'Finalizar examen'}
               </Button>
-
               {answeredQuestions < quizData.questions.length && (
                 <p className={cn("text-xs text-center mt-2", theme === 'dark' ? 'text-orange-400' : 'text-orange-500')}>
                   Tienes {quizData.questions.length - answeredQuestions} preguntas sin responder
@@ -1545,9 +1640,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           </div>
         </div>
       </div>
-    )
-  }
-
+    );
+  };
   // Modal de advertencia de cambio de pestaña
   const TabChangeWarningModal = () => {
     // No mostrar el modal si el examen está bloqueado o ya se alcanzó el límite

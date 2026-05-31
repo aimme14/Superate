@@ -64,6 +64,55 @@ export function detectGroupedQuestions(questions: any[]): GroupedQuestionsMap {
   return groups;
 }
 
+/**
+ * Agrupa preguntas de Inglés por texto informativo compartido (mismo pasaje / cloze).
+ * Preserva el orden del examen según la primera aparición de cada grupo.
+ */
+export function buildEnglishGroups(
+  questions: Array<{ topicCode?: string; topic?: string; informativeText?: string; informativeImages?: unknown[] }>
+): number[][] {
+  if (questions.length === 0) return [];
+
+  const visited = new Set<number>();
+  const groups: number[][] = [];
+
+  const groupKey = (q: typeof questions[0]) => {
+    const text = normalizeInformativeTextForGroup(q.informativeText);
+    const images = JSON.stringify(q.informativeImages ?? []);
+    if (
+      q.informativeText &&
+      typeof q.informativeText === 'string' &&
+      q.informativeText.includes('MATCHING_COLUMNS_')
+    ) {
+      const id = q.informativeText.includes('|')
+        ? q.informativeText.split('|')[0]
+        : q.informativeText;
+      return `matching:${id}`;
+    }
+    if (text) return `info:${text}::${images}`;
+    return `topic:${q.topicCode || q.topic || 'unknown'}`;
+  };
+
+  for (let i = 0; i < questions.length; i++) {
+    if (visited.has(i)) continue;
+    const key = groupKey(questions[i]);
+    const group: number[] = [];
+
+    questions.forEach((q, j) => {
+      if (visited.has(j)) return;
+      if (groupKey(q) === key) {
+        group.push(j);
+        visited.add(j);
+      }
+    });
+
+    group.sort((a, b) => a - b);
+    groups.push(group);
+  }
+
+  return groups;
+}
+
 export interface GroupValidationResult {
   /** true si todas las preguntas agrupadas están consecutivas */
   isValid: boolean;
