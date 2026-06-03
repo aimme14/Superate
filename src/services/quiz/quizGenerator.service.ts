@@ -304,8 +304,8 @@ class QuizGeneratorService {
         if (!englishResult.success) {
           return failure(englishResult.error);
         }
-        const sortedQuestions = englishResult.data;
-        
+        const sortedQuestions = this.deduplicateQuestionsInOrder(englishResult.data);
+
         // Generar ID único para el cuestionario
         const quizId = this.generateQuizId(subject, phase, grade);
 
@@ -366,7 +366,7 @@ class QuizGeneratorService {
 
       // Ordenar preguntas agrupadas por orden de creación (más antigua primero)
       // Las preguntas agrupadas tienen el mismo informativeText (especialmente para inglés)
-      const sortedQuestions = this.sortGroupedQuestionsByCreationOrder(questions, subject);
+      const sortedQuestions = this.prepareQuestionsForQuiz(questions, subject);
 
       // Validación: asegurar que grupos estén consecutivos (excluye Inglés)
       if (subject !== 'Inglés') {
@@ -389,12 +389,12 @@ class QuizGeneratorService {
         phase: phase,
         questions: sortedQuestions,
         timeLimit: config.timeLimit || 40,
-        totalQuestions: questions.length,
+        totalQuestions: sortedQuestions.length,
         instructions: PHASE_INSTRUCTIONS[phase],
         createdAt: new Date()
       };
 
-      logger.debug(`Cuestionario generado: ${quiz.title} con ${questions.length} preguntas`);
+      logger.debug(`Cuestionario generado: ${quiz.title} con ${sortedQuestions.length} preguntas`);
       return success(quiz);
 
     } catch (e) {
@@ -679,11 +679,20 @@ class QuizGeneratorService {
 
     const selected: TopicQuestion[] = [];
     const leftovers: Record<string, Question[]> = {};
+    const globalSeen = new Set<string>();
+
+    const trySelect = (question: Question, topicCode: string): boolean => {
+      const key = this.getQuestionDedupeKey(question);
+      if (!key || globalSeen.has(key)) return false;
+      globalSeen.add(key);
+      selected.push({ topicCode, question });
+      return true;
+    };
 
     for (const entry of topicEntries) {
       const target = Math.min(perTopicTarget, entry.questions.length);
       const initial = entry.questions.slice(0, target);
-      initial.forEach((question: Question) => selected.push({ topicCode: entry.code, question }));
+      initial.forEach((question: Question) => trySelect(question, entry.code));
       leftovers[entry.code] = entry.questions.slice(target);
     }
 
@@ -693,7 +702,7 @@ class QuizGeneratorService {
       const entry = topicEntries[index % topicEntries.length];
       if (leftovers[entry.code] && leftovers[entry.code].length > 0) {
         const question = leftovers[entry.code].shift()!;
-        selected.push({ topicCode: entry.code, question });
+        trySelect(question, entry.code);
       }
       index++;
     }
@@ -725,15 +734,80 @@ class QuizGeneratorService {
     return shuffleArray(selected.map(item => item.question));
   }
 
-  private dedupeQuestions(questions: Question[]): Question[] {
-    const map = new Map<string, Question>();
-    questions.forEach(question => {
-      const key = question.id || question.code;
-      if (!map.has(key)) {
-        map.set(key, question);
+  /** Clave estable para deduplicar (primera aparición gana). */
+  private getQuestionDedupeKey(question: Question): string | null {
+    const key = question.id || question.code;
+    return key ? String(key) : null;
+  }
+
+  /** Elimina duplicados preservando el orden; sin lecturas extra a Firestore. */
+  private deduplicateQuestionsInOrder(questions: Question[]): Question[] {
+    const seen = new Set<string>();
+    const result: Question[] = [];
+    for (const question of questions) {
+      const key = this.getQuestionDedupeKey(question);
+      if (!key) {
+        result.push(question);
+        continue;
       }
-    });
-    return Array.from(map.values());
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(question);
+    }
+    return result;
+  }
+
+  private appendUniqueQuestions(
+    target: Question[],
+    candidates: Question[],
+    seen: Set<string>,
+  ): void {
+    for (const question of candidates) {
+      const key = this.getQuestionDedupeKey(question);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      target.push(question);
+    }
+  }
+
+  /**
+   * Ordena grupos de lectura y garantiza un solo ítem por id/code en el cuestionario final.
+   */
+  private prepareQuestionsForQuiz(
+    questions: Question[],
+    subject: string,
+    shuffleGroupOrder = false,
+  ): Question[] {
+    const before = questions.length;
+    const dedupedInput = this.deduplicateQuestionsInOrder(questions);
+    if (dedupedInput.length < before) {
+      logger.warn(
+        `[${subject}] ${before - dedupedInput.length} pregunta(s) duplicada(s) eliminada(s) antes de ordenar`,
+      );
+    }
+    const sorted = this.sortGroupedQuestionsByCreationOrder(dedupedInput, subject, shuffleGroupOrder);
+    const final = this.deduplicateQuestionsInOrder(sorted);
+    if (final.length < sorted.length) {
+      logger.warn(
+        `[${subject}] ${sorted.length - final.length} duplicado(s) eliminado(s) tras ordenar grupos`,
+      );
+    }
+    return final;
+  }
+
+  private dedupeQuestions(questions: Question[]): Question[] {
+    return this.deduplicateQuestionsInOrder(questions);
+  }
+
+  private pushToGroupedMap(
+    groupedMap: Record<string, Question[]>,
+    groupKey: string,
+    question: Question,
+  ): void {
+    if (!groupedMap[groupKey]) groupedMap[groupKey] = [];
+    const key = this.getQuestionDedupeKey(question);
+    if (key && groupedMap[groupKey].some(q => this.getQuestionDedupeKey(q) === key)) return;
+    groupedMap[groupKey].push(question);
   }
 
   private getGradeSearchValues(grade?: string): string[] {
@@ -881,10 +955,7 @@ class QuizGeneratorService {
       questions.forEach(question => {
         if (question.informativeText && question.subjectCode === 'IN') {
           const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
-          if (!groupedMap[groupKey]) {
-            groupedMap[groupKey] = [];
-          }
-          groupedMap[groupKey].push(question);
+          this.pushToGroupedMap(groupedMap, groupKey, question);
         } else {
           ungrouped.push(question);
         }
@@ -917,20 +988,18 @@ class QuizGeneratorService {
       const processedIds = new Set<string>();
 
       questions.forEach(question => {
-        if (processedIds.has(question.id || question.code)) {
-          return;
-        }
+        const key = this.getQuestionDedupeKey(question);
+        if (key && processedIds.has(key)) return;
 
         if (question.informativeText && question.subjectCode === 'IN') {
           const groupKey = `${question.informativeText}_${question.subjectCode}_${question.topicCode}_${question.grade}_${question.levelCode}`;
           const group = groupedMap[groupKey];
           if (group) {
-            result.push(...group);
-            group.forEach(q => processedIds.add(q.id || q.code));
+            this.appendUniqueQuestions(result, group, processedIds);
           }
-        } else {
+        } else if (key) {
           result.push(question);
-          processedIds.add(question.id || question.code);
+          processedIds.add(key);
         }
       });
 
@@ -948,11 +1017,7 @@ class QuizGeneratorService {
         const normalizedText = this.normalizeInformativeTextForGroup(question.informativeText);
         const informativeImages = JSON.stringify(question.informativeImages || []);
         const groupKey = `${normalizedText}_${informativeImages}`;
-
-        if (!groupedMap[groupKey]) {
-          groupedMap[groupKey] = [];
-        }
-        groupedMap[groupKey].push(question);
+        this.pushToGroupedMap(groupedMap, groupKey, question);
       } else {
         ungrouped.push(question);
       }
@@ -996,17 +1061,17 @@ class QuizGeneratorService {
     finalGroupKeys.forEach(groupKey => {
       const group = groupedMap[groupKey];
       if (group) {
-        result.push(...group);
-        group.forEach(q => processedIds.add(q.id || q.code));
+        this.appendUniqueQuestions(result, group, processedIds);
       }
     });
 
     // Agregar después las preguntas no agrupadas (opción múltiple estándar)
     const ungroupedShuffled = shuffleGroupOrder ? shuffleArray([...ungrouped]) : ungrouped;
     ungroupedShuffled.forEach(question => {
-      if (!processedIds.has(question.id || question.code)) {
+      const key = this.getQuestionDedupeKey(question);
+      if (key && !processedIds.has(key)) {
         result.push(question);
-        processedIds.add(question.id || question.code);
+        processedIds.add(key);
       }
     });
 
@@ -1278,8 +1343,8 @@ class QuizGeneratorService {
         }));
       }
 
-      // Paso 5: Ordenar respetando grupos consecutivos (regla obligatoria para todas las fases)
-      const finalQuestions = this.sortGroupedQuestionsByCreationOrder(selectedQuestions, subject, true);
+      // Paso 5: Ordenar respetando grupos consecutivos y eliminar duplicados
+      const finalQuestions = this.prepareQuestionsForQuiz(selectedQuestions, subject, true);
 
       const validation = validateGroupedQuestionsConsecutive(finalQuestions, 'IN');
       if (!validation.isValid) {

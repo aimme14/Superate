@@ -103,7 +103,7 @@ export function Home() {
                 </span>
               </h2>
               <p className={cn("text-lg sm:text-xl max-w-3xl mx-auto", theme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>
-                Selecciona un módulo para comenzar tu evaluación solo cuando el docente de aula lo hay indicado .
+                Selecciona un módulo para comenzar tu evaluación solo cuando el docente de aula lo haya indicado .
               </p>
               <Suspense fallback={null}>
                 <Intento />
