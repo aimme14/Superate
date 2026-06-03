@@ -987,25 +987,40 @@ const UnifiedExamForm = () => {
     const answeredQuestions = Object.keys(answers).length
     const questionId = currentQ.id || currentQ.code
 
-    const renderQuestionOptions = (q: typeof currentQ, qId: string, localIdx?: number) => {
+    const renderQuestionOptions = (q: typeof currentQ, qId: string, localIdx?: number, mountKey?: string) => {
       const allHaveImages = q.options.every(o => o.imageUrl)
       const noText = q.options.every(o => !o.text || stripHtmlTags(o.text).trim().length === 0)
       const imageLayout = allHaveImages && noText
       const optionSuffix = localIdx != null ? `-${localIdx}` : ''
+      // Una pregunta por pantalla (no inglés): remontar UI al cambiar de ítem (evita radio “pegado” en grupos)
+      const isSingleQuestionView = localIdx === undefined
+      const radioGroupKey = isSingleQuestionView ? (mountKey ?? qId) : undefined
+      const optionKey = (optionId: string) => (isSingleQuestionView ? `${radioGroupKey}-${optionId}` : optionId)
+      const selectedAnswer = answers[qId] ?? ''
 
       if (imageLayout) {
         return (
-          <RadioGroup value={answers[qId] ?? ''} onValueChange={v => handleAnswerChange(qId, v)} className="mt-4">
+          <RadioGroup
+            {...(radioGroupKey ? { key: radioGroupKey } : {})}
+            value={selectedAnswer}
+            onValueChange={v => handleAnswerChange(qId, v)}
+            className="mt-4"
+          >
             <div className="grid grid-cols-2 gap-4">
               {q.options.map(option => (
-                <div key={option.id} onClick={() => handleAnswerChange(qId, option.id)}
+                <div key={optionKey(option.id)} onClick={() => handleAnswerChange(qId, option.id)}
                   className={cn(
                     'relative rounded-lg p-2 transition-none cursor-pointer border-2',
-                    answers[qId] === option.id
+                    selectedAnswer === option.id
                       ? appTheme === 'dark' ? 'border-purple-500 bg-purple-900/30' : 'border-purple-500 bg-purple-50'
                       : appTheme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700' : 'border-gray-300 bg-white hover:border-purple-300 hover:bg-purple-50/50',
                   )}>
-                  <RadioGroupItem value={option.id} id={`${qId}-${option.id}${optionSuffix}`} className="absolute top-1.5 left-1.5 z-10" />
+                  <RadioGroupItem
+                    {...(isSingleQuestionView ? { key: optionKey(option.id) } : {})}
+                    value={option.id}
+                    id={`${qId}-${option.id}${optionSuffix}`}
+                    className="absolute top-1.5 left-1.5 z-10"
+                  />
                   <div className="flex flex-col items-center justify-center pt-5">
                     <span className={cn('font-bold text-sm mb-1.5', appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
                     {option.imageUrl && (
@@ -1024,19 +1039,29 @@ const UnifiedExamForm = () => {
       }
 
       return (
-        <RadioGroup value={answers[qId] ?? ''} onValueChange={v => handleAnswerChange(qId, v)} className="space-y-0.5 mt-4">
+        <RadioGroup
+          {...(radioGroupKey ? { key: radioGroupKey } : {})}
+          value={selectedAnswer}
+          onValueChange={v => handleAnswerChange(qId, v)}
+          className="space-y-0.5 mt-4"
+        >
           {q.options.map(option => (
-            <div key={option.id} onClick={() => handleAnswerChange(qId, option.id)}
+            <div key={optionKey(option.id)} onClick={() => handleAnswerChange(qId, option.id)}
               className={cn(
                 'flex items-start space-x-3 rounded-lg p-4 transition-none relative cursor-pointer',
-                answers[qId] === option.id
+                selectedAnswer === option.id
                   ? appTheme === 'dark' ? 'border-purple-500 bg-purple-900/30 border' : 'border-purple-400 bg-purple-50 border'
                   : appTheme === 'dark'
                   ? 'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700/90 border'
                   : `${theme.answerBorder} ${theme.answerBackground} hover:bg-opacity-60`,
               )}
               style={appTheme === 'dark' ? {} : (theme.pattern ? { backgroundImage: theme.pattern, backgroundSize: '100% 100%' } : {})}>
-              <RadioGroupItem value={option.id} id={`${qId}-${option.id}${optionSuffix}`} className="mt-1 relative z-10" />
+              <RadioGroupItem
+                {...(isSingleQuestionView ? { key: optionKey(option.id) } : {})}
+                value={option.id}
+                id={`${qId}-${option.id}${optionSuffix}`}
+                className="mt-1 relative z-10"
+              />
               <Label htmlFor={`${qId}-${option.id}${optionSuffix}`} className="flex-1 cursor-pointer relative z-10">
                 <div className="flex items-start gap-3">
                   <span className={cn('font-bold mr-2 text-base flex-shrink-0', appTheme === 'dark' ? 'text-purple-400' : theme.primaryColor)}>{option.id}.</span>
@@ -1180,8 +1205,12 @@ const UnifiedExamForm = () => {
     }
 
     const renderSingleQuestion = () => {
+      const questionMountKey = `exam-q-${currentQuestion}`
       return (
-        <Card className={cn(`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}>
+        <Card
+          key={questionMountKey}
+          className={cn(`mb-6 ${theme.cardBackground} shadow-xl backdrop-blur-sm`, appTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : '')}
+        >
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className={cn('text-lg font-normal', appTheme === 'dark' ? 'text-gray-300' : 'text-gray-600')}>Pregunta {currentQuestion + 1}</CardTitle>
@@ -1213,7 +1242,7 @@ const UnifiedExamForm = () => {
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMathInHtml(currentQ.questionText)) }} />
               )}
             </div>
-            {renderQuestionOptions(currentQ, questionId)}
+            {renderQuestionOptions(currentQ, questionId, undefined, questionMountKey)}
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
             <Button

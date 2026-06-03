@@ -35,6 +35,7 @@
     "rebuild-ai-tools-consolidado": "npm run build && node lib/scripts/rebuildAIToolsConsolidado.js",
     "rebuild-weblinks-consolidado": "npm run build && node lib/scripts/rebuildWebLinksConsolidado.js",
     "rebuild-youtubelinks-consolidado": "npm run build && node lib/scripts/rebuildYoutubeLinksConsolidado.js",
+    "temp-find-duplicate-questions": "npm run build && node lib/scripts/findDuplicateQuestions.js",
     "lint": "eslint --ext .ts src/",
     "lint:fix": "eslint --ext .ts src/ --fix"
   },
