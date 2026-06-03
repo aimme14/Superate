@@ -923,7 +923,7 @@ const UnifiedExamForm = () => {
               <Shield className="h-4 w-4 text-orange-600" />
               <AlertTitle className={cn(appTheme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>Antitrampa</AlertTitle>
               <AlertDescription className={cn(appTheme === 'dark' ? 'text-orange-200' : 'text-orange-700')}>
-                Responde de manera sincera para obtener una mejora real en tu puntaje.
+                El sistema detectará si intentas salirte de la prueba.
               </AlertDescription>
             </Alert>
             <Alert className={cn(appTheme === 'dark' ? 'border-amber-800 bg-amber-900/30' : 'border-amber-200 bg-amber-50')}>
