@@ -932,7 +932,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
               <Shield className="h-4 w-4 text-orange-600" />
               <AlertTitle className={cn(theme === 'dark' ? 'text-orange-300' : 'text-orange-800')}>Antitrampa</AlertTitle>
               <AlertDescription className={cn(theme === 'dark' ? 'text-orange-200' : 'text-orange-700')}>
-                Responde de manera sincera para que puedas tener una mejora Real y puedas mejorar tu puntaje.
+                El sistema detectará si intentas salirte de la prueba.
               </AlertDescription>
             </Alert>
 
