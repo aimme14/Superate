@@ -520,13 +520,22 @@ export default function InteractiveCards() {
   return (
     <div className="w-full">
       {isStudent && !isFetched && (
-        <div className="flex justify-center px-4 pb-4 sm:pb-6">
+        <div className="flex justify-center px-4 pb-4 sm:pb-6 mt-2 sm:mt-4">
           <Button
             onClick={() => void refetch()}
             disabled={showStudentFirstFetchLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-70"
+            size="lg"
+            variant="success"
+            className={cn(
+              "!h-auto min-h-11 px-6 sm:px-8 py-3 sm:py-3.5",
+              "!bg-emerald-600 hover:!bg-emerald-500",
+              "!text-white font-semibold text-sm sm:text-base leading-snug max-w-xl text-center",
+              "disabled:opacity-80"
+            )}
           >
-            {showStudentFirstFetchLoading ? "Verificando…" : "Actualizar solo cuando se valla a iniciar Evaluación"}
+            {showStudentFirstFetchLoading
+              ? "Verificando…"
+              : "Presiona aquí cuando vayas a iniciar una Evaluación"}
           </Button>
         </div>
       )}
