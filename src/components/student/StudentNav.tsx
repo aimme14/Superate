@@ -29,6 +29,7 @@ import { useRole } from "@/hooks/core/useRole";
 import { fetchEvaluations } from "@/hooks/query/useStudentEvaluations";
 import { ESTUDIANTE_SESSION_CACHE } from "@/config/rutaPreparacionCache";
 import { STUDENT_HOME, isStudentHomePath } from "@/constants/routes";
+import { RUTA_PREPARACION_ENTRY_PATH, SHOW_RUTA_ACADEMICA_SIMULACROS } from "@/config/featureFlags";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -124,7 +125,11 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
   const isActive = (href: string, isRutaArea?: boolean) => {
     if (href === STUDENT_HOME) return isStudentHomePath(pathname);
     if (isRutaArea) {
-      return pathname === RUTA_ACADEMICA_PATH || pathname === PLAN_ESTUDIO_PATH || pathname === "/simulacros-ia";
+      return (
+        (SHOW_RUTA_ACADEMICA_SIMULACROS && pathname === RUTA_ACADEMICA_PATH) ||
+        pathname === PLAN_ESTUDIO_PATH ||
+        pathname === "/simulacros-ia"
+      );
     }
     if (href.includes("#")) {
       const [base] = href.split("#");
@@ -309,14 +314,14 @@ export function StudentNav({ theme = "light", extraItems = [] }: StudentNavProps
                 </Link>
               ))}
               <Link
-                to={RUTA_ACADEMICA_PATH}
+                to={RUTA_PREPARACION_ENTRY_PATH}
                 className={mobileLinkClass(
-                  pathname === RUTA_ACADEMICA_PATH ||
+                  (SHOW_RUTA_ACADEMICA_SIMULACROS && pathname === RUTA_ACADEMICA_PATH) ||
                     pathname === PLAN_ESTUDIO_PATH ||
                     pathname === "/simulacros-ia"
                 )}
                 onPointerEnter={() => {
-                  prefetchRutaAcademica();
+                  if (SHOW_RUTA_ACADEMICA_SIMULACROS) prefetchRutaAcademica();
                   prefetchPlanEstudioIA();
                   prefetchSimulacrosIA();
                 }}

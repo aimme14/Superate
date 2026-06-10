@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Pencil, BookOpen, Zap, Wrench, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SHOW_RUTA_ACADEMICA_SIMULACROS } from "@/config/featureFlags";
 
 const RUTA_ACADEMICA_PATH = "/ruta-academica-adaptativa";
 const PLAN_ESTUDIO_IA_PATH = "/plan-estudio-ia";
@@ -42,15 +43,17 @@ export function RutaPreparacionSubNav({ theme = "light" }: RutaPreparacionSubNav
         theme === "dark" ? "bg-zinc-800/50" : "bg-gray-100"
       )}
     >
-      <Link
-        to={RUTA_ACADEMICA_PATH}
-        className={cn(buttonClass(isRutaAcademicaActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
-        aria-current={isRutaAcademicaActive ? "page" : undefined}
-        aria-label="Ruta Académica Simulacros"
-      >
-        <Pencil className="w-5 h-5 flex-shrink-0" aria-hidden />
-        <span className="hidden sm:inline">Ruta Académica Simulacros</span>
-      </Link>
+      {SHOW_RUTA_ACADEMICA_SIMULACROS && (
+        <Link
+          to={RUTA_ACADEMICA_PATH}
+          className={cn(buttonClass(isRutaAcademicaActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}
+          aria-current={isRutaAcademicaActive ? "page" : undefined}
+          aria-label="Ruta Académica Simulacros"
+        >
+          <Pencil className="w-5 h-5 flex-shrink-0" aria-hidden />
+          <span className="hidden sm:inline">Ruta Académica Simulacros</span>
+        </Link>
+      )}
       <Link
         to={PLAN_ESTUDIO_IA_PATH}
         className={cn(buttonClass(isPlanEstudioActive), "flex-1 sm:flex-none min-h-[44px] sm:min-h-0 justify-center sm:justify-start")}

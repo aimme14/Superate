@@ -139,12 +139,25 @@ export async function computeSuperateClaims(uid: string): Promise<SuperateAuthCl
  */
 export async function syncClaimsForUid(uid: string): Promise<void> {
   try {
+    let existingSessionRev: number | undefined;
+    try {
+      const userRecord = await auth.getUser(uid);
+      const rev = userRecord.customClaims?.sessionRev;
+      if (typeof rev === 'number') existingSessionRev = rev;
+    } catch {
+      // ignorar: usuario nuevo o sin claims previos
+    }
+
     const computed = await computeSuperateClaims(uid);
     if (computed === null) {
       await setDeniedClaims(uid);
       return;
     }
-    await auth.setCustomUserClaims(uid, computed as unknown as { [key: string]: unknown });
+    const claims = {
+      ...computed,
+      ...(existingSessionRev !== undefined ? { sessionRev: existingSessionRev } : {}),
+    };
+    await auth.setCustomUserClaims(uid, claims as unknown as { [key: string]: unknown });
   } catch (e) {
     console.error('[syncClaimsForUid]', uid, e);
     throw e;

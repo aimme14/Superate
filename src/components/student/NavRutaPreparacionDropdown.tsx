@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Route } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RUTA_PREPARACION_ENTRY_PATH, SHOW_RUTA_ACADEMICA_SIMULACROS } from "@/config/featureFlags";
 
 const RUTA_ACADEMICA_PATH = "/ruta-academica-adaptativa";
 const PLAN_ESTUDIO_IA_PATH = "/plan-estudio-ia";
@@ -19,13 +20,13 @@ interface NavRutaPreparacionDropdownProps {
 export function NavRutaPreparacionDropdown({ theme = "light", onPrefetch }: NavRutaPreparacionDropdownProps) {
   const { pathname } = useLocation();
   const isActive =
-    pathname === RUTA_ACADEMICA_PATH ||
+    (SHOW_RUTA_ACADEMICA_SIMULACROS && pathname === RUTA_ACADEMICA_PATH) ||
     pathname === PLAN_ESTUDIO_IA_PATH ||
     pathname === SIMULACROS_IA_PATH;
 
   return (
     <Link
-      to={RUTA_ACADEMICA_PATH}
+      to={RUTA_PREPARACION_ENTRY_PATH}
       onMouseEnter={onPrefetch}
       className={cn(
         "flex shrink-0 items-center whitespace-nowrap text-sm xl:text-base",

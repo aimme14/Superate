@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useIsLgUp } from "@/hooks/ui/use-lg";
 import { STUDENT_HOME, isStudentHomePath } from "@/constants/routes";
+import { RUTA_PREPARACION_ENTRY_PATH, SHOW_RUTA_ACADEMICA_SIMULACROS } from "@/config/featureFlags";
 import { useAuthContext } from "@/context/AuthContext";
 import { useRole } from "@/hooks/core/useRole";
 import { fetchEvaluations } from "@/hooks/query/useStudentEvaluations";
@@ -81,15 +82,15 @@ function buildQuickItems(
       onPrefetch: () => prefetchPromedio(),
     },
     {
-      to: RUTA_ACADEMICA_PATH,
+      to: RUTA_PREPARACION_ENTRY_PATH,
       label: "Ruta",
       icon: Route,
       isActive: (p) =>
-        p === RUTA_ACADEMICA_PATH ||
+        (SHOW_RUTA_ACADEMICA_SIMULACROS && p === RUTA_ACADEMICA_PATH) ||
         p === PLAN_ESTUDIO_PATH ||
         p === "/simulacros-ia",
       onPrefetch: () => {
-        prefetchRutaAcademica();
+        if (SHOW_RUTA_ACADEMICA_SIMULACROS) prefetchRutaAcademica();
         prefetchPlanEstudioIA();
         prefetchSimulacrosIA();
         runRutaPreparacionPrefetch(queryClient, {

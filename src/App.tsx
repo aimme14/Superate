@@ -6,11 +6,13 @@ import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/layouts/ProtectedRoute";
 import { useAuthContext } from "@/context/AuthContext";
 import { STUDENT_HOME } from "@/constants/routes";
+import { SHOW_RUTA_ACADEMICA_SIMULACROS } from "@/config/featureFlags";
 import RoleProtectedRoute from "@/layouts/RoleProtectedRoute";
 import RootLayout from "@/layouts/Root";
 import StudentLayout from "@/layouts/StudentLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LazyRouteBoundary } from "@/components/common/RouteLoadingFallback";
+import { StudentSessionGuard } from "@/components/auth/StudentSessionGuard";
 
 // Bundle inicial reducido: páginas por ruta
 const HomePage = lazy(() => import("@/pages/HomePage"));
@@ -56,6 +58,7 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+          <StudentSessionGuard />
           <Routes>
             <Route
               path="/viewer/pdf"
@@ -206,11 +209,15 @@ function App() {
                 <Route
                   path="/ruta-academica-adaptativa"
                   element={
-                    <ErrorBoundary>
-                      <LazyRouteBoundary variant="student">
-                        <RutaAcademicaAdaptativaPage />
-                      </LazyRouteBoundary>
-                    </ErrorBoundary>
+                    SHOW_RUTA_ACADEMICA_SIMULACROS ? (
+                      <ErrorBoundary>
+                        <LazyRouteBoundary variant="student">
+                          <RutaAcademicaAdaptativaPage />
+                        </LazyRouteBoundary>
+                      </ErrorBoundary>
+                    ) : (
+                      <Navigate to="/plan-estudio-ia" replace />
+                    )
                   }
                 />
                 <Route
