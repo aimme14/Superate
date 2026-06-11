@@ -12,7 +12,6 @@ import RootLayout from "@/layouts/Root";
 import StudentLayout from "@/layouts/StudentLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LazyRouteBoundary } from "@/components/common/RouteLoadingFallback";
-import { StudentSessionGuard } from "@/components/auth/StudentSessionGuard";
 
 // Bundle inicial reducido: páginas por ruta
 const HomePage = lazy(() => import("@/pages/HomePage"));
@@ -58,7 +57,6 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <StudentSessionGuard />
           <Routes>
             <Route
               path="/viewer/pdf"

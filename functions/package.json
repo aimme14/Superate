@@ -30,7 +30,6 @@
     "temp-backfill-sede": "npm run build && node lib/scripts/tempBackfillSedeAcademicYear.js",
     "align-student-from-summary": "npm run build && node lib/scripts/alignStudentFromSummary.js",
     "sync-auth-claims": "npm run build && node lib/scripts/syncAllAuthClaims.js",
-    "revoke-student-sessions": "npm run build && node lib/scripts/revokeAllStudentSessions.js",
     "reconcile-auth-users": "npm run build && node lib/scripts/reconcileAuthUsers.js",
     "rebuild-tips-ia-consolidado": "npm run build && node lib/scripts/rebuildTipsIAConsolidado.js",
     "rebuild-ai-tools-consolidado": "npm run build && node lib/scripts/rebuildAIToolsConsolidado.js",

@@ -1,8 +1,6 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import type { Persister } from '@tanstack/query-persist-client-core'
-import { clearIndexedDbPersistence, getFirestore } from 'firebase/firestore'
-import { clearRutaPreparacionCache } from '@/lib/rutaPreparacionLocalCache'
-import { clearPdfViewerCache } from '@/lib/pdfViewerCache'
+import { clearAllAppCache } from '@/lib/clearAllAppCache'
 
 /** Clave en localStorage para la caché persistida. Usar para limpiar en logout. */
 export const PERSIST_CACHE_KEY = 'superate-query-cache'
@@ -78,28 +76,7 @@ export const persistOptions = {
   dehydrateOptions: { shouldDehydrateQuery },
 } as const
 
-/** Intenta vaciar IndexedDB de Firestore al cerrar sesión (best-effort; puede fallar si hay listeners activos). */
-function scheduleClearFirestoreIndexedDb(): void {
-  void (async () => {
-    try {
-      const { firebaseApp } = await import('@/services/db')
-      await clearIndexedDbPersistence(getFirestore(firebaseApp))
-    } catch {
-      // Ignorar: pestaña compartida, Firestore en uso, etc.
-    }
-  })()
-}
-
-/** Limpia la caché persistida (llamar en logout). */
+/** Limpia toda la caché local de la app (llamar en logout). */
 export function clearPersistedCache(): void {
-  try {
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(PERSIST_CACHE_KEY)
-      clearRutaPreparacionCache()
-      void clearPdfViewerCache()
-      scheduleClearFirestoreIndexedDb()
-    }
-  } catch {
-    // Ignorar si storage no disponible (SSR, privado, etc.)
-  }
+  clearAllAppCache()
 }

@@ -11,10 +11,6 @@ import { createContext, useContext, useEffect, useRef, useState } from "react"
 import type { User as FirebaseAuthUser } from "firebase/auth"
 import { useQueryClient } from "@tanstack/react-query"
 import { clearPersistedCache } from "@/lib/queryPersist"
-import {
-  captureStudentSessionRevFromUser,
-  clearStudentSessionRev,
-} from "@/lib/studentSession"
 import { logger } from "@/utils/logger"
 import { Result } from "@/interfaces/db.interface"
 import { LoginFormProps, RegisterFormProps } from "@/schemas/auth.schema"
@@ -82,7 +78,6 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
         authUidRef.current = null
         queryClient.clear()
         clearPersistedCache()
-        clearStudentSessionRev()
         setUser(undefined)
         setIsAuth(false)
         setLoading(false)
@@ -90,7 +85,6 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
       }
 
       authUidRef.current = auth.uid
-      void captureStudentSessionRevFromUser(auth).catch(() => undefined)
       const applyProfileFromCache = () => {
         const cached = queryClient.getQueryData([...CURRENT_USER_QUERY_KEY, auth.uid]) as
           | Record<string, unknown>
@@ -138,7 +132,6 @@ export const AuthProvider = ({ children }: Props): JSX.Element => {
         queryClient.setQueryData([...CURRENT_USER_QUERY_KEY, firebaseUser.uid], profile)
         setUser(mapUserDocToContext(firebaseUser.uid, profile))
         setIsAuth(true)
-        await captureStudentSessionRevFromUser(firebaseUser)
       } catch (e: any) {
         // Mostrar todos los errores de autenticación, especialmente los relacionados con usuarios inactivos
         const errorMessage = e.message || 'Error al iniciar sesión'
