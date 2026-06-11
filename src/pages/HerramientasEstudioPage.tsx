@@ -101,10 +101,11 @@ const NIVEL_PILL: Record<string, (d: boolean) => string> = {
 };
 
 const RANGOS_REF = [
-  { rango: "< 250",   label: "Por mejorar", dc: "bg-red-900/30 border-red-800/50 text-red-400",              lc: "bg-red-50 border-red-200 text-red-600"                },
-  { rango: "250–265", label: "Aceptable",   dc: "bg-blue-900/30 border-blue-800/50 text-blue-400",           lc: "bg-blue-50 border-blue-200 text-blue-700"             },
-  { rango: "266–299", label: "Buena",       dc: "bg-teal-900/30 border-teal-800/50 text-teal-400",           lc: "bg-teal-50 border-teal-200 text-teal-700"             },
-  { rango: "≥ 300",   label: "Muy buena",   dc: "bg-emerald-900/30 border-emerald-800/50 text-emerald-400", lc: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+  { rango: "0–220",   label: "Bajo",     dc: "bg-red-900/30 border-red-800/50 text-red-400",              lc: "bg-red-50 border-red-200 text-red-600"                },
+  { rango: "221–320", label: "Medio",    dc: "bg-blue-900/30 border-blue-800/50 text-blue-400",           lc: "bg-blue-50 border-blue-200 text-blue-700"             },
+  { rango: "321–350", label: "Bueno",    dc: "bg-teal-900/30 border-teal-800/50 text-teal-400",           lc: "bg-teal-50 border-teal-200 text-teal-700"             },
+  { rango: "350–380", label: "Alto",     dc: "bg-emerald-900/30 border-emerald-800/50 text-emerald-400", lc: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+  { rango: "381–500", label: "Muy alto", dc: "bg-purple-900/30 border-purple-800/50 text-purple-400",     lc: "bg-purple-50 border-purple-200 text-purple-700"       },
 ] as const;
 
 const LG_FILA = ["lg:row-start-2", "lg:row-start-3", "lg:row-start-4", "lg:row-start-5"] as const;
@@ -378,7 +379,7 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
                   dark ? "text-zinc-300" : "text-gray-700")}>
                   📊 Rangos de referencia
                 </p>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-5 gap-1.5">
                   {RANGOS_REF.map((r) => (
                     <div key={r.rango} className={cn("rounded-lg px-1 py-1.5 text-center border min-w-0",
                       dark ? r.dc : r.lc)}>
