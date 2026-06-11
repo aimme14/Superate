@@ -108,6 +108,14 @@ const RANGOS_REF = [
   { rango: "381–500", label: "Muy alto", dc: "bg-purple-900/30 border-purple-800/50 text-purple-400",     lc: "bg-purple-50 border-purple-200 text-purple-700"       },
 ] as const;
 
+function getNivelGlobal(global: number) {
+  if (global >= 381) return { nivel: "Muy alto", color: "purple" as const, descripcion: "Competitivo — te da ventaja en carreras de máxima demanda como Medicina o Ingenierías." };
+  if (global >= 350) return { nivel: "Alto",     color: "emerald" as const, descripcion: "Te permite acceder a becas y programas de alta exigencia académica." };
+  if (global >= 321) return { nivel: "Bueno",    color: "teal" as const,    descripcion: "Ideal para competir por cupos en instituciones de educación superior reconocidas." };
+  if (global >= 221) return { nivel: "Medio",    color: "blue" as const,    descripcion: "Te permite acceder a una gran variedad de carreras en universidades públicas y privadas." };
+  return              { nivel: "Bajo",     color: "red" as const,     descripcion: "Está por debajo del promedio nacional." };
+}
+
 const LG_FILA = ["lg:row-start-2", "lg:row-start-3", "lg:row-start-4", "lg:row-start-5"] as const;
 const ORDER_S1  = ["order-2", "order-3", "order-4", "order-5"] as const;
 const ORDER_S2  = ["order-7", "order-8", "order-9", "order-10"] as const;
@@ -149,16 +157,10 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
 
   const global = calcularGlobal(bloques);
 
-  const nivelGlobal =
-    global >= 300
-      ? { nivel: "Muy buena",   color: "emerald", descripcion: "Excelente preparación — amplio acceso a programas de alta exigencia." }
-      : global >= 266
-      ? { nivel: "Buena",       color: "teal",    descripcion: "Buen desempeño — acceso a diversos programas universitarios." }
-      : global >= 250
-      ? { nivel: "Aceptable",   color: "blue",    descripcion: "Preparación suficiente — cumple el mínimo para la mayoría de programas." }
-      : { nivel: "Por mejorar", color: "red",     descripcion: "Es importante reforzar todas las áreas antes del examen real." };
+  const nivelGlobal = getNivelGlobal(global);
 
   const nivelTextColor: Record<string, string> = {
+    purple:  dark ? "text-purple-400"  : "text-purple-700",
     emerald: dark ? "text-emerald-400" : "text-emerald-700",
     teal:    dark ? "text-teal-400"    : "text-teal-700",
     blue:    dark ? "text-blue-400"    : "text-blue-700",
@@ -166,6 +168,7 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
   };
 
   const nivelBg: Record<string, string> = {
+    purple:  dark ? "bg-purple-900/30 border-purple-700/50"   : "bg-purple-50 border-purple-200",
     emerald: dark ? "bg-emerald-900/30 border-emerald-700/50" : "bg-emerald-50 border-emerald-200",
     teal:    dark ? "bg-teal-900/30 border-teal-700/50"       : "bg-teal-50 border-teal-200",
     blue:    dark ? "bg-blue-900/30 border-blue-700/50"       : "bg-blue-50 border-blue-200",
@@ -173,6 +176,7 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
   };
 
   const globalBar =
+    nivelGlobal.color === "purple"  ? "linear-gradient(to right,#a855f7,#c084fc)" :
     nivelGlobal.color === "emerald" ? "linear-gradient(to right,#10b981,#34d399)" :
     nivelGlobal.color === "teal"    ? "linear-gradient(to right,#14b8a6,#2dd4bf)" :
     nivelGlobal.color === "blue"    ? "linear-gradient(to right,#3b82f6,#60a5fa)" :
@@ -335,7 +339,8 @@ function CalculadoraPuntaje({ dark }: { dark: boolean }) {
                   <div className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${(global / 500) * 100}%`, background: globalBar }} />
                 </div>
-                <p className={cn("text-xs leading-relaxed", dark ? "text-zinc-400" : "text-gray-500")}>{nivelGlobal.descripcion}</p>
+                <p className={cn("text-[10px] leading-snug line-clamp-3 min-h-[2.25rem]",
+                  dark ? "text-zinc-400" : "text-gray-500")}>{nivelGlobal.descripcion}</p>
               </div>
 
               {/* RESUMEN POR ÁREA */}
