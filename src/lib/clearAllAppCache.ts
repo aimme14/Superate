@@ -1,7 +1,9 @@
 import { clearIndexedDbPersistence, getFirestore } from 'firebase/firestore'
 import { clearPdfViewerCache } from '@/lib/pdfViewerCache'
 import { clearRutaPreparacionCache } from '@/lib/rutaPreparacionLocalCache'
-import { persister, PERSIST_CACHE_KEY } from '@/lib/queryPersist'
+
+/** Debe coincidir con `PERSIST_CACHE_KEY` en queryPersist.ts (no importar: evita ciclo de módulos). */
+const PERSIST_CACHE_KEY = 'superate-query-cache'
 
 const LOCAL_PREFIXES = [
   'superate:',
@@ -65,7 +67,6 @@ export function clearAllAppCache(): void {
     clearRutaPreparacionCache()
     removeSessionStorageByPrefixes()
     void clearPdfViewerCache()
-    void persister.removeClient()
     scheduleClearFirestoreIndexedDb()
   } catch {
     // modo privado, storage bloqueado
