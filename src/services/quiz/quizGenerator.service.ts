@@ -820,23 +820,26 @@ class QuizGeneratorService {
       return [];
     }
 
+    /** Décimo (0) comparte el banco de Undécimo (1). */
+    const forStudentBank = (code: string): string => (code === '0' ? '1' : code);
+
     const codeFromInput = this.toGradeCode(cleaned);
     if (codeFromInput) {
       // El banco guarda grade en código canónico (6,7,8,9,0,1).
       // Consultar únicamente por ese valor evita búsquedas ambiguas/lentas.
-      return [codeFromInput];
+      return [forStudentBank(codeFromInput)];
     }
 
     const numericFromInput = this.extractNumericGrade(cleaned);
     if (numericFromInput) {
       const codeFromNumeric = this.numericToGradeCode(numericFromInput);
       if (codeFromNumeric) {
-        return [codeFromNumeric];
+        return [forStudentBank(codeFromNumeric)];
       }
     }
 
     // Si no se pudo mapear, usar el valor original como último recurso.
-    return [cleaned];
+    return [forStudentBank(cleaned)];
   }
 
   private toGradeCode(value: string): string | null {
@@ -873,6 +876,7 @@ class QuizGeneratorService {
     if (!numeric) return null;
     switch (numeric) {
       case '10':
+        // Canónico Décimo = 0; getGradeSearchValues lo remapea a Undécimo (1) para el estudiante.
         return '0';
       case '11':
         return '1';

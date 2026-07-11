@@ -55,17 +55,18 @@ function formatTime(seconds: number): string {
 }
 
 /**
- * Mapea el grado del perfil del usuario al código que usa el banco de preguntas.
- * Ej: "11" -> "1", "10" -> "0"
+ * Mapea el grado del perfil al código del banco para el estudiante.
+ * Décimo usa el mismo banco que Undécimo ("1").
+ * Ej: "11" -> "1", "10" / "Décimo" -> "1"
  */
 function mapUserGradeToQuestionBank(gradeInput: string): string {
   const s = String(gradeInput).trim().toLowerCase();
   if (s === "11" || s === "undécimo" || s === "undecimo") return "1";
-  if (s === "10" || s === "décimo" || s === "decimo") return "0";
+  if (s === "10" || s === "décimo" || s === "decimo" || s === "0") return "1";
   if (["6", "7", "8", "9"].includes(s)) return s;
   // Formatos como "11°1", "10°2"
   if (s.startsWith("11")) return "1";
-  if (s.startsWith("10")) return "0";
+  if (s.startsWith("10")) return "1";
   if (s.startsWith("9")) return "9";
   if (s.startsWith("8")) return "8";
   if (s.startsWith("7")) return "7";
