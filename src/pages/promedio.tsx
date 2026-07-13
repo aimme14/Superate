@@ -39,6 +39,7 @@ import type {
   ICFESAnalysisInterfaceProps,
 } from './promedio/types'
 import { CLOUD_FUNCTIONS_HTTP_BASE } from '@/config/cloudFunctions'
+import { getAuthHeaders } from '@/services/firebase/httpAuth'
 import { MOTIVATIONAL_MESSAGES, STUDY_LINKS_INITIAL_PER_TOPIC, STUDY_VIDEOS_INITIAL_PER_TOPIC } from './promedio/constants'
 import {
   getTestDisplayName,
@@ -953,7 +954,7 @@ function PersonalizedStudyPlan({
       // Iniciar generación del plan (esto puede tardar varios minutos). Siempre enviamos grado en formato nombre (Sexto, Décimo, Undécimo).
       const response = await fetch(`${CLOUD_FUNCTIONS_HTTP_BASE}/generateStudyPlan`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           studentId,
           phase,
@@ -963,6 +964,18 @@ function PersonalizedStudyPlan({
       });
 
       const result = await response.json();
+
+      if (response.status === 409) {
+        // El servidor ya tiene un plan para esta materia/fase: no es error.
+        if (result.data) addPlanLocally(subject, result.data);
+        notifySuccess({
+          title: 'Ya tienes un plan',
+          message: `El plan de estudio para ${subject} ya estaba generado.`
+        });
+        clearedInRaf = true;
+        setTimeout(() => setGeneratingFor(null), 80);
+        return;
+      }
 
       if (result.success && result.data) {
         const planData = result.data;

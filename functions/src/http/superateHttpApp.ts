@@ -260,7 +260,7 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  app.post('/generateStudyPlan', async (req, res) => {
+  app.post('/generateStudyPlan', verifyBearerIdToken, async (req, res) => {
     cors(res, 'POST, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
@@ -292,6 +292,38 @@ export function createSuperateHttpApp(): express.Express {
         } as APIResponse);
         return;
       }
+      // Autorización: el propio estudiante ACTIVO, o un admin (soporte).
+      const claims = req.firebaseAuth?.decoded as Record<string, unknown> | undefined;
+      const role = typeof claims?.role === 'string' ? (claims.role as string).trim() : '';
+      const isActive = claims?.active === true;
+      const isOwner = req.firebaseAuth?.uid === studentId;
+      const isAdmin = role === 'admin';
+      if (!(isAdmin || (isOwner && isActive))) {
+        res.status(403).json({
+          success: false,
+          error: {
+            message:
+              'No autorizado para generar este plan de estudio.',
+          },
+        } as APIResponse);
+        return;
+      }
+
+      // Candado de costo: si ya existe plan para materia+fase, NO llamar a Gemini.
+      const existing = await studyPlanService.getStudyPlan(
+        studentId,
+        phase as 'first' | 'second' | 'third',
+        subject
+      );
+      if (existing) {
+        res.status(409).json({
+          success: false,
+          error: { message: 'Ya existe un plan de estudio para esta materia y fase.' },
+          data: existing,
+        } as APIResponse);
+        return;
+      }
+
       const result = await studyPlanService.generateStudyPlan({
         studentId,
         phase: phase as 'first' | 'second' | 'third',
