@@ -270,6 +270,8 @@ export function persistedSummaryFromCallableResult(res: unknown): PersistedSumma
 
  * Escucha `ResumenStudent/{studentId}/{phase}/resumenActual` (misma ruta que en Cloud Functions).
 
+ * `onError` evita spinner infinito cuando Firestore deniega el listener (p. ej. permission-denied).
+
  */
 
 export function subscribeResumenActual(
@@ -278,21 +280,35 @@ export function subscribeResumenActual(
 
   phase: 'first' | 'second' | 'third',
 
-  onData: (data: PersistedSummary | null) => void
+  onData: (data: PersistedSummary | null) => void,
+
+  onError?: (error: Error) => void
 
 ): () => void {
 
   const ref = doc(fs, 'ResumenStudent', studentId, phase, 'resumenActual');
 
-  return onSnapshot(ref, (snap) => {
+  return onSnapshot(
 
-    onData(snap.exists() ? (snap.data() as PersistedSummary) : null);
+    ref,
 
-  });
+    (snap) => {
+
+      onData(snap.exists() ? (snap.data() as PersistedSummary) : null);
+
+    },
+
+    (error) => {
+
+      logger.warn('subscribeResumenActual failed', { studentId, phase, code: (error as { code?: string }).code, message: error.message });
+
+      onError?.(error);
+
+    }
+
+  );
 
 }
-
-
 
 /**
 

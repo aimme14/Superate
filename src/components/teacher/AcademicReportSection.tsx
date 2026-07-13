@@ -37,14 +37,29 @@ export function AcademicReportSection({
 }: Props) {
   const { toast } = useToast()
   const [persisted, setPersisted] = useState<PersistedSummary | null | undefined>(undefined)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [generateBusy, setGenerateBusy] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
 
   useEffect(() => {
     setPersisted(undefined)
-    const unsub = subscribeResumenActual(studentId, phase, (data) => {
-      setPersisted(data)
-    })
+    setLoadError(null)
+    const unsub = subscribeResumenActual(
+      studentId,
+      phase,
+      (data) => {
+        setLoadError(null)
+        setPersisted(data)
+      },
+      (error) => {
+        setPersisted(null)
+        setLoadError(
+          error.message.includes('permission') || error.message.includes('insufficient')
+            ? 'No tienes permiso para ver este reporte académico.'
+            : error.message || 'No se pudo cargar el reporte académico.'
+        )
+      }
+    )
     return () => unsub()
   }, [studentId, phase])
 
@@ -97,6 +112,14 @@ export function AcademicReportSection({
       <div className="flex items-center justify-center py-10" aria-busy="true">
         <Loader2 className={cn('h-8 w-8 animate-spin', theme === 'dark' ? 'text-zinc-400' : 'text-gray-500')} />
       </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <p className={cn('text-sm text-center py-6', theme === 'dark' ? 'text-red-400' : 'text-red-600')}>
+        {loadError}
+      </p>
     )
   }
 

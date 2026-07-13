@@ -274,12 +274,13 @@ service cloud.firestore {
     }
 
     // Resumen académico IA — solo Cloud Functions escribe.
+    // sameInstitution: claims primero, fallback membresía Firestore (docente/rector sin claimsRev).
     match /ResumenStudent/{studentId}/{phase}/resumenActual {
       allow read: if isAdminOrToken() ||
         request.auth.uid == studentId ||
         (
           exists(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)) &&
-          tokenSameInstitution(
+          sameInstitution(
             get(/databases/$(database)/documents/superate/auth/userLookup/$(studentId)).data.institutionId
           )
         );
