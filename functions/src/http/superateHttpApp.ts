@@ -317,10 +317,12 @@ export function createSuperateHttpApp(): express.Express {
       // Autorización: el propio estudiante ACTIVO, o un admin (soporte).
       const claims = req.firebaseAuth?.decoded as Record<string, unknown> | undefined;
       const role = typeof claims?.role === 'string' ? (claims.role as string).trim() : '';
-      const isActive = claims?.active === true;
       const isOwner = req.firebaseAuth?.uid === studentId;
       const isAdmin = role === 'admin';
-      if (!(isAdmin || (isOwner && isActive))) {
+      // Solo bloquea baja EXPLÍCITA (active === false). Un token que no trae el
+      // claim `active` NO se considera dado de baja → evita 403 a usuarios legítimos.
+      const isDeactivated = claims?.active === false;
+      if (!(isAdmin || (isOwner && !isDeactivated))) {
         res.status(403).json({
           success: false,
           error: {
