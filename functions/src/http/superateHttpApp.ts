@@ -18,12 +18,30 @@ import {
 } from './studentSummaryUnified';
 import { verifyBearerIdToken } from './studentSummaryAuth.middleware';
 
+/**
+ * Orígenes autorizados para llamar a la API HTTP desde el navegador.
+ * Server-to-server (scripts admin) no manda `Origin`, así que CORS no le aplica.
+ */
+const ALLOWED_ORIGINS = new Set<string>([
+  'https://superate-aylopezm-ufpsoeducos-projects.vercel.app', // prod Vercel
+  'http://localhost:5173',
+  'http://127.0.0.1:5173', // dev Vite
+  'http://localhost:3000',
+  'http://127.0.0.1:3000', // dev alterno
+  'http://localhost:4173',
+  'http://127.0.0.1:4173', // vite preview / lighthouse local
+]);
+
+function isAllowedOrigin(origin?: string): boolean {
+  return !!origin && ALLOWED_ORIGINS.has(origin);
+}
+
 function cors(
   res: express.Response,
   methods: string,
   headers = 'Content-Type'
 ): void {
-  res.set('Access-Control-Allow-Origin', '*');
+  // El origen lo resuelve el middleware global (allowlist). Aquí solo métodos/headers.
   res.set('Access-Control-Allow-Methods', methods);
   res.set('Access-Control-Allow-Headers', headers);
 }
@@ -32,8 +50,12 @@ export function createSuperateHttpApp(): express.Express {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
   app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (isAllowedOrigin(origin)) {
+      res.set('Access-Control-Allow-Origin', origin as string);
+      res.set('Vary', 'Origin');
+    }
     if (req.method === 'OPTIONS') {
-      res.set('Access-Control-Allow-Origin', '*');
       res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.set(
         'Access-Control-Allow-Headers',
@@ -407,7 +429,6 @@ export function createSuperateHttpApp(): express.Express {
   });
 
   app.all('/getRandomEjerciciosIA', async (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.set('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') {
@@ -526,7 +547,6 @@ export function createSuperateHttpApp(): express.Express {
   });
 
   app.get('/health', async (_req, res) => {
-    res.set('Access-Control-Allow-Origin', '*');
     try {
       const geminiInfo = await geminiService.getInfo();
       const geminiAvailable = geminiInfo.available;
@@ -622,7 +642,6 @@ export function createSuperateHttpApp(): express.Express {
   });
 
   app.post('/rebuildSimulacrosConsolidatedHttp', async (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.set('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Secret');
     if (req.method === 'OPTIONS') {

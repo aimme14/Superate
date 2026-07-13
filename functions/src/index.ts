@@ -76,7 +76,7 @@ export const superateHttp = onRequest(
     memory: '512MiB',
     timeoutSeconds: SUPERATE_HTTP_TIMEOUT_SECONDS,
     secrets: ['YOUTUBE_API_KEY', 'GOOGLE_CSE_API_KEY', 'GOOGLE_CSE_ID'],
-    cors: true,
+    cors: false, // CORS lo maneja Express con allowlist (ver superateHttpApp.ts)
   },
   createSuperateHttpApp()
 );

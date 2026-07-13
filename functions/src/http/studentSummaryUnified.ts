@@ -121,7 +121,7 @@ export async function runStudentSummaryUnified(
 }
 
 function cors(res: Response): void {
-  res.set('Access-Control-Allow-Origin', '*');
+  // Origen resuelto por el middleware global (allowlist) en superateHttpApp.
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
@@ -240,7 +240,6 @@ export async function handleStudentSummaryPost(req: Request, res: Response): Pro
 }
 
 export async function handleGetStudentSummary(req: Request, res: Response): Promise<void> {
-  res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
