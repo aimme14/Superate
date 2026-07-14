@@ -66,7 +66,7 @@ Cada endpoint IA se protege como **slice vertical** (cliente→server) antes de 
   - 1.2 Middleware `verifyBearerIdToken` en `/generateStudyPlan` + tope "ya hay plan → 409 sin Gemini" (Paso B). *Requiere deploy tuyo.*
   - 1.3 CORS restringido (Paso C).
   - 1.4 Repetir slice para justification/weblinks/processBatch (admin).
-- **Fase 2 — C2:** borrar `studentRanking.service.ts` + `useStudentRanking.ts` (código muerto).
+- **Fase 2 — C2:** borrar `studentRanking.service.ts` + `useStudentRanking.ts` (código muerto). **[HECHO]** — build verde, sin referencias colgadas en `src/`. Nota: este C2 = **higiene/anti-regresión** (borrar código muerto), NO es el C-2 de `PLAN_ESCALABILIDAD` (materializar `rankings/*`). El win de costo del N+1 ya se cobró al desacoplar; la materialización es un **ticket de producto futuro** sin consumidor hoy. No reintroducir el service borrado si mañana se pide ranking de alumno: usar 1 doc materializado o summaries (estilo `fetchTeacherRanking`).
 - **Fase 3 — A1:** cerrar huecos de claims (asegurar `claimsRev` en tokens, reducir fallback `get()/exists()` a lo mínimo, no duplicar lecturas en cliente).
 - **Fase 4 — A2:** `maxInstances` en `superateHttp` + rate limit por uid si aparece abuso.
 - **Fase 5 — (diferido) A5 split / C3 reserva de rango:** solo si se mide dolor real.

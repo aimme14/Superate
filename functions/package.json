@@ -29,6 +29,7 @@
     "rebuild-student-summary": "npm run build && node lib/scripts/rebuildStudentProgressSummary.js",
     "temp-backfill-sede": "npm run build && node lib/scripts/tempBackfillSedeAcademicYear.js",
     "align-student-from-summary": "npm run build && node lib/scripts/alignStudentFromSummary.js",
+    "audit-claims": "npm run build && node lib/scripts/auditClaims.js",
     "sync-auth-claims": "npm run build && node lib/scripts/syncAllAuthClaims.js",
     "reconcile-auth-users": "npm run build && node lib/scripts/reconcileAuthUsers.js",
     "rebuild-tips-ia-consolidado": "npm run build && node lib/scripts/rebuildTipsIAConsolidado.js",
