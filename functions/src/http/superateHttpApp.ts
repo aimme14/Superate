@@ -2,6 +2,7 @@
  * API HTTP unificada: un solo despliegue con rutas bajo /superateHttp/<ruta>
  * (p. ej. .../superateHttp/health).
  */
+import { timingSafeEqual } from 'crypto';
 import express from 'express';
 import { justificationService } from '../services/justification.service';
 import { questionService } from '../services/question.service';
@@ -46,6 +47,44 @@ function cors(
   res.set('Access-Control-Allow-Headers', headers);
 }
 
+/** Comparación constant-time de secrets (evita timing attacks en `!==`). */
+function secretsEqual(provided: string, configured: string): boolean {
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(configured, 'utf8');
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Ops admin: exige header `X-Admin-Secret` == `SUPERATE_ADMIN_SECRET`.
+ * Fail-closed si el secret no está configurado. No depende de custom claims.
+ */
+function requireAdminSecret(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+): void {
+  const configured = process.env.SUPERATE_ADMIN_SECRET;
+  if (!configured) {
+    res.status(503).json({
+      success: false,
+      error: { message: 'Secret admin no configurado' },
+    } as APIResponse);
+    return;
+  }
+  const hdr = req.headers['x-admin-secret'];
+  const provided =
+    typeof hdr === 'string' ? hdr : Array.isArray(hdr) ? hdr[0] : '';
+  if (!provided || !secretsEqual(provided, configured)) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'No autorizado' },
+    } as APIResponse);
+    return;
+  }
+  next();
+}
+
 export function createSuperateHttpApp(): express.Express {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
@@ -67,8 +106,8 @@ export function createSuperateHttpApp(): express.Express {
     next();
   });
 
-  // --- Justificaciones ---
-  app.post('/generateJustification', async (req, res) => {
+  // --- Justificaciones (ops: X-Admin-Secret) ---
+  app.post('/generateJustification', requireAdminSecret, async (req, res) => {
     cors(res, 'POST, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
@@ -107,7 +146,7 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  app.post('/processBatch', async (req, res) => {
+  app.post('/processBatch', requireAdminSecret, async (req, res) => {
     cors(res, 'POST, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
@@ -142,7 +181,7 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  app.post('/regenerateJustification', async (req, res) => {
+  app.post('/regenerateJustification', requireAdminSecret, async (req, res) => {
     cors(res, 'POST, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
@@ -178,7 +217,7 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  app.get('/justificationStats', async (req, res) => {
+  app.get('/justificationStats', requireAdminSecret, async (req, res) => {
     cors(res, 'GET, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
@@ -208,7 +247,7 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  app.post('/validateJustification', async (req, res) => {
+  app.post('/validateJustification', requireAdminSecret, async (req, res) => {
     cors(res, 'POST, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
@@ -258,7 +297,7 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  app.get('/aiInfo', async (req, res) => {
+  app.get('/aiInfo', requireAdminSecret, async (req, res) => {
     cors(res, 'GET, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
@@ -498,7 +537,7 @@ export function createSuperateHttpApp(): express.Express {
     }
   });
 
-  app.post('/generateWebLinks', async (req, res) => {
+  app.post('/generateWebLinks', requireAdminSecret, async (req, res) => {
     cors(res, 'POST, OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
