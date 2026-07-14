@@ -75,8 +75,10 @@ export const superateHttp = onRequest(
     region: REGION,
     memory: '512MiB',
     timeoutSeconds: SUPERATE_HTTP_TIMEOUT_SECONDS,
-    secrets: ['YOUTUBE_API_KEY', 'GOOGLE_CSE_API_KEY', 'GOOGLE_CSE_ID', 'SUPERATE_ADMIN_SECRET'],
+    /** Solo el secret que el código lee (requireAdminSecret). CSE/YouTube no se usan. */
+    secrets: ['SUPERATE_ADMIN_SECRET'],
     cors: false, // CORS lo maneja Express con allowlist (ver superateHttpApp.ts)
+    maxInstances: 10, // Techo de gasto (superficie HTTP + IA)
   },
   createSuperateHttpApp()
 );
@@ -136,6 +138,7 @@ export const generateStudentAcademicSummary = onCall(
     memory: '256MiB',
     /** 5 min: generación IA del resumen. */
     timeoutSeconds: 300,
+    maxInstances: 5, // Techo de gasto (IA, baja frecuencia)
     /** Sin `secrets` aquí: evita solapamiento con vars del mismo nombre en `.env` (error Cloud Run 400). Gemini usa credenciales/Vertex por proyecto. */
   },
   async (request) => {
