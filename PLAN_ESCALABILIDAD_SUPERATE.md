@@ -98,6 +98,8 @@ if (origin && ALLOWED.has(origin)) {
 
 ### C-2 · Ranking del estudiante: N+1 en el navegador `[CRÍTICO]`
 
+> **Estado (actualización):** el servicio quedó **desconectado** (sin consumidores) y luego **borrado** (ver `PLAN_EJECUCION_C1.md`, Fase 2 / C2). El costo de Firestore de este N+1 **ya está mitigado** porque no se ejecuta en producción. **Ojo:** C-2 tal como está escrito abajo (materializar `rankings/*`, N×4 → 1 doc) NO está hecho ni es necesario hoy — es un **ticket de producto futuro** que solo aplica si se decide volver a mostrar el puesto al alumno. Si eso pasa, se implementa lectura de **1 doc materializado o summaries en memoria** (estilo `fetchTeacherRanking`), **nunca** reactivando el service borrado. No confundir "borrado (hecho)" con "materialización (pendiente de producto, sin consumidor)".
+
 **Qué y dónde.** `src/services/ranking/studentRanking.service.ts`, función `fetchStudentRanking` (líneas ~155-240) y `getPhaseEvaluationsForRanking` (líneas ~68-95).
 
 El flujo para *un solo estudiante* que quiere ver su puesto:
