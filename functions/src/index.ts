@@ -452,22 +452,32 @@ export const onInstitutionWriteSyncClaims = onDocumentWritten(
 // AUTH BLOCKING: claims en el token al iniciar sesión (Identity Platform)
 // =============================
 
+/**
+ * Refresca custom claims en cada login desde Firestore.
+ * En fallo o datos no reconocibles: NO devuelve customClaims (preserva los existentes).
+ * Devolver `{ customClaims: {} }` los pisa y fuerza fallback caro en reglas.
+ */
 export const setUserClaims = beforeUserSignedIn(
   { region: REGION, memory: '256MiB' },
-  (async (user: any, _context: any) => {
-    const uid = user?.uid;
+  async (event) => {
+    const uid = event.data?.uid;
     if (!uid) {
-      return { customClaims: {} };
+      console.warn('[setUserClaims] sin uid — no se tocan claims');
+      return;
     }
     try {
       const claims = await computeSuperateClaims(uid);
       if (claims === null) {
-        return { customClaims: {} };
+        console.warn(
+          '[setUserClaims] compute=null — NO se tocan claims (evita vaciado):',
+          uid
+        );
+        return;
       }
       return { customClaims: { ...claims } };
     } catch (err) {
-      console.error('[setUserClaims]', uid, err);
-      return { customClaims: {} };
+      console.error('[setUserClaims] error — NO se tocan claims:', uid, err);
+      return;
     }
-  }) as any
+  }
 );
