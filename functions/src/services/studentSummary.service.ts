@@ -25,7 +25,7 @@ if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'devel
   dotenv.config();
 }
 
-import { GEMINI_CONFIG } from '../config/gemini.config';
+import { GEMINI_CONFIG, THINKING_BUDGET_LONG_GEN } from '../config/gemini.config';
 import * as admin from 'firebase-admin';
 import { getStudentDatabase } from '../utils/firestoreHelpers';
 import { geminiCentralizedService } from './geminiService';
@@ -794,6 +794,7 @@ class StudentSummaryService {
         images: [],
         options: {
           timeout: GEMINI_CONFIG.GENERATION_SUMMARY_AND_PLAN_TIMEOUT_MS,
+          thinkingBudget: THINKING_BUDGET_LONG_GEN,
         },
       });
       

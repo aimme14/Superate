@@ -11,7 +11,7 @@ if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'devel
   dotenv.config();
 }
 
-import { geminiClient, GEMINI_CONFIG } from '../config/gemini.config';
+import { geminiClient, GEMINI_CONFIG, THINKING_BUDGET_LONG_GEN } from '../config/gemini.config';
 import { geminiCentralizedService } from './geminiService';
 import {
   getSubjectConfig,
@@ -123,7 +123,7 @@ export interface StudyPlanGenerationResult {
  * Servicio principal de Plan de Estudio
  */
 class StudyPlanService {
-  private static readonly TARGET_EXERCISE_COUNT = 10;
+  private static readonly TARGET_EXERCISE_COUNT = 7;
   /** Una promesa por materiaCode: evita cargas duplicadas del consolidado_* en paralelo. */
   private readonly webLinksConsolidatedPromises = new Map<
     string,
@@ -543,6 +543,7 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE ${StudyP
           retries: 3,
           timeout: GEMINI_CONFIG.GENERATION_SUMMARY_AND_PLAN_TIMEOUT_MS,
           responseMimeType: 'application/json',
+          thinkingBudget: THINKING_BUDGET_LONG_GEN,
         },
       });
 
@@ -553,6 +554,13 @@ Responde solo con JSON válido. No markdown ni texto extra. EXACTAMENTE ${StudyP
         parsed = this.parseModelJsonToStudyPlan(result.text);
       } catch (parseErr: unknown) {
         const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        console.log(JSON.stringify({
+          event: 'gemini_parse_fail',
+          processName: 'study_plan',
+          userId: input.studentId,
+          responseChars: result.text?.length ?? 0,
+          errorMessage: msg.slice(0, 300),
+        }));
         spErr('study_plan: error parseando JSON:', msg);
         throw parseErr instanceof Error
           ? parseErr

@@ -21,8 +21,9 @@ const VERTEX_REQUEST_TIMEOUT_MS = 30_000;
 /**
  * Plan de estudio y resúmenes académicos largos.
  * Debe ser menor que `timeoutSeconds` de `superateHttp` (Cloud Functions, p. ej. 540s).
+ * Plan normal ~35s → 90s da ~2.5× de holgura; evita spinners de 5+ min.
  */
-const VERTEX_LONG_GENERATION_TIMEOUT_MS = 300_000;
+const VERTEX_LONG_GENERATION_TIMEOUT_MS = 90_000;
 
 /**
  * Configuración de Gemini
@@ -63,6 +64,12 @@ const generationConfig = {
   topK: 64,
   maxOutputTokens: 65536, // Para planes de estudio y resúmenes largos
 };
+
+/**
+ * Tope de thinking tokens para generaciones largas (study_plan, student_summary).
+ * Guardrail de costo; A/B por proceso. Soft cap en Flash (0–24576).
+ */
+export const THINKING_BUDGET_LONG_GEN = 1024;
 
 /** Config para justificaciones: respuestas más cortas, menor costo en Vertex AI. */
 export const justificationGenerationConfig = {
@@ -278,6 +285,8 @@ class GeminiClient {
       responseMimeType?: 'application/json';
       /** Override de maxOutputTokens para esta llamada (p. ej. 4096 para justificaciones). */
       maxOutputTokens?: number;
+      /** Tope de thinking tokens (guardrail de costo). 0 = desactiva. */
+      thinkingBudget?: number;
     } = {}
   ): Promise<{ text: string; metadata: any }> {
     // Asegurar que VertexAI esté inicializado con las credenciales correctas
@@ -377,16 +386,24 @@ class GeminiClient {
         // Vertex AI estructura para contenido multimodal
         const request: {
           contents: { role: string; parts: any[] }[];
-          generationConfig?: typeof generationConfig & { responseMimeType?: string; maxOutputTokens?: number };
+          generationConfig?: typeof generationConfig & {
+            responseMimeType?: string;
+            maxOutputTokens?: number;
+            thinkingConfig?: { thinkingBudget: number };
+          };
         } = {
           contents: [{ role: 'user', parts }],
         };
-        if (options.responseMimeType || options.maxOutputTokens) {
+        if (options.responseMimeType || options.maxOutputTokens || options.thinkingBudget != null) {
+          // as any: SDK legacy (@google-cloud/vertexai) no tipa thinkingConfig
           request.generationConfig = {
             ...generationConfig,
             ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
             ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
-          };
+            ...(options.thinkingBudget != null
+              ? { thinkingConfig: { thinkingBudget: options.thinkingBudget } }
+              : {}),
+          } as typeof request.generationConfig;
         }
         
         const imagePartsCount = parts.filter(p => p.inlineData).length;
@@ -518,29 +535,26 @@ class GeminiClient {
           // Lanzar error con mensaje claro
           throw new Error(errorMessage);
         }
+
+        // Timeout: reintentar NO ayuda (el tope no crece) y re-paga la generación completa.
+        // Fallar rápido acota el costo máximo por click (evita el caso de 354s / doble cobro).
+        const isTimeout = error.message?.includes('Timeout') || error.message?.includes('timeout');
+        if (isTimeout) {
+          console.warn(`⏱️ Timeout intento ${attempt}/${maxRetries} — NO se reintenta (evita doble cobro).`);
+          throw error;
+        }
         
-        // Si no es el último intento, esperar antes de reintentar
+        // Si no es el último intento, esperar antes de reintentar (429 / transitorios)
         if (attempt < maxRetries) {
-          // Detectar tipo de error para ajustar estrategia de reintento
           const isRateLimitError = error.message?.includes('429') || 
                                    error.message?.includes('RESOURCE_EXHAUSTED') ||
                                    error.message?.includes('Too Many Requests');
-          const isTimeoutError = error.message?.includes('Timeout') || 
-                                error.message?.includes('timeout');
           
           let delayTime = GEMINI_CONFIG.RETRY_DELAY_MS * attempt;
           
           if (isRateLimitError) {
-            // Para errores 429, esperar 45 segundos adicionales (aumentado)
             delayTime = 45000 + (GEMINI_CONFIG.RETRY_DELAY_MS * attempt);
             console.log(`⚠️ Error 429 (Rate Limit) detectado. Esperando ${(delayTime / 1000).toFixed(1)}s antes de reintentar...`);
-          } else if (isTimeoutError) {
-            // Para timeouts, esperar un poco más pero no tanto como 429
-            delayTime = 15000 + (GEMINI_CONFIG.RETRY_DELAY_MS * attempt);
-            let nextTimeout = attempt === 1 ? Math.floor(baseTimeout * 1.5) : baseTimeout * 2;
-            nextTimeout = Math.min(nextTimeout, timeoutCap);
-            console.log(`⚠️ Timeout detectado en intento ${attempt}. El prompt puede ser muy largo${imageCount > 0 ? ` o hay ${imageCount} imagen(es) que procesar` : ''}.`);
-            console.log(`   El siguiente intento usará timeout de ${(nextTimeout / 1000).toFixed(0)}s. Esperando ${(delayTime / 1000).toFixed(1)}s...`);
           } else {
             console.log(`⏳ Reintentando en ${(delayTime / 1000).toFixed(1)}s...`);
           }
