@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,7 +69,10 @@ export default function AdminHerramientasIA({ theme }: AdminHerramientasIAProps)
     fetchNextPage,
     isFetchingNextPage,
   } = useAIToolsInfinite(10)
-  const tools = toolsPages?.pages.flatMap((page) => page.items) ?? []
+  const tools = useMemo(
+    () => toolsPages?.pages.flatMap((page) => page.items) ?? [],
+    [toolsPages]
+  )
   const invalidateAITools = useInvalidateAITools()
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)

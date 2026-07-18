@@ -1160,7 +1160,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       }
       
       // Primero, detectar y convertir texto LaTeX en el contenido
-      let processedHtml = detectarYConvertirLatexEnTexto(html)
+      const processedHtml = detectarYConvertirLatexEnTexto(html)
       
       // Crear un elemento temporal para procesar el HTML
       const tempDiv = document.createElement('div')

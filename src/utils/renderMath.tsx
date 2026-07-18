@@ -66,7 +66,7 @@ export function MathText({ text, className = '' }: { text: string; className?: s
           })
           mathEl.classList.add('katex-formula')
         } catch (err) {
-          ;(mathEl as HTMLElement).textContent = latex
+          (mathEl as HTMLElement).textContent = latex
         }
       }
     })

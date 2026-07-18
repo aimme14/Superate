@@ -1,10 +1,8 @@
 import { TerminalSquare, LogIn, Info, Home, UserPlus } from 'lucide-react'
 import { NavItemProps } from '@/interfaces/props.interface'
-import { useAuthContext } from '@/context/AuthContext'
 import { PermMedia } from '@mui/icons-material'
 
-export const links = (registrationEnabled: boolean = true) => {
-  const { isAuth } = useAuthContext()
+export const links = (registrationEnabled: boolean = true, isAuth: boolean = false) => {
   /*--------------------------------------------------guest--------------------------------------------------*/
   const navGuestItems: NavItemProps[] = [
     {/** home **/

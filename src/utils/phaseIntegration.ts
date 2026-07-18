@@ -58,7 +58,7 @@ export async function processExamResults(
 
     // Procesar según la fase
     switch (phaseType) {
-      case 'first':
+      case 'first': {
         // Analizar resultados de Fase 1
         logger.debug(`🔍 Procesando resultados Fase 1 para ${userId} en ${subject}`);
         const analysisResult = await phaseAnalysisService.analyzePhase1Results(
@@ -104,8 +104,9 @@ export async function processExamResults(
 
         logger.debug(`✅ Fase 1 procesada exitosamente para ${subject}`);
         break;
+      }
 
-      case 'second':
+      case 'second': {
         // Analizar progreso comparando con Fase 1
         logger.debug(`📈 Procesando resultados Fase 2 para ${userId} en ${subject}`);
 
@@ -166,8 +167,9 @@ export async function processExamResults(
 
         logger.debug(`✅ Fase 2 procesada exitosamente para ${subject}`);
         break;
+      }
 
-      case 'third':
+      case 'third': {
         // Generar resultado ICFES final
         logger.debug(`🎯 Procesando resultados Fase 3 (ICFES) para ${userId} en ${subject}`);
 
@@ -184,6 +186,7 @@ export async function processExamResults(
 
         logger.debug(`✅ Fase 3 procesada exitosamente para ${subject}`);
         break;
+      }
     }
 
     return { success: true };

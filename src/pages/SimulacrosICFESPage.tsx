@@ -137,7 +137,6 @@ function getCorrectOptionId(options: QuestionOption[]): string | undefined {
 function isAnswerCorrect(
   selectedOptionId: string | undefined,
   correctOptionId: string | undefined,
-  _options: QuestionOption[]
 ): boolean {
   if (!selectedOptionId || !correctOptionId) return false;
   return selectedOptionId.trim().toUpperCase() === correctOptionId.trim().toUpperCase();
@@ -323,7 +322,6 @@ export default function SimulacrosICFESPage() {
       (isAnswerCorrect(
         selectedAnswers[i],
         getCorrectOptionId(q.options ?? []),
-        q.options ?? []
       )
         ? 1
         : 0),
@@ -796,7 +794,6 @@ export default function SimulacrosICFESPage() {
                   const correct = isAnswerCorrect(
                     selectedId,
                     correctId,
-                    q.options ?? []
                   );
                   const correctOption = (q.options ?? []).find(
                     (o) => o.id === correctId

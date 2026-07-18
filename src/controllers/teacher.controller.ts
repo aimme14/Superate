@@ -212,8 +212,7 @@ export const deleteTeacherFromGrade = async (
         if (userToDelete) {
           // SIEMPRE eliminar de Firestore (bloquea el acceso aunque quede cuenta en Firebase Auth)
           const deleteResult = await dbService.deleteUser(userToDelete.id)
-          if (deleteResult.success) {
-          } else {
+          if (!deleteResult.success) {
             logger.warn('Error al eliminar usuario de Firestore, marcando como inactivo')
             // Si falla la eliminación, al menos marcar como inactivo - CRÍTICO para prevenir login
             const updateResult = await dbService.updateUser(userToDelete.id, { isActive: false, deletedAt: new Date().toISOString() })
@@ -371,7 +370,6 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
         if (!userUpdateResult.success) {
           logger.warn('Error al actualizar usuario en Firestore')
           // No fallar la operación principal si hay error al actualizar en Firestore
-        } else {
         }
       } catch (userError) {
         logger.warn('Error al actualizar usuario en Firestore')
@@ -446,8 +444,7 @@ export const updateTeacherInGrade = async (institutionId: string, campusId: stri
               data.adminPassword
             )
             
-            if (authUpdateResult.success) {
-            } else {
+            if (!authUpdateResult.success) {
               logger.error('Error al actualizar credenciales:', authUpdateResult.error)
               logger.warn('Las credenciales se actualizaron solo en Firestore')
             }

@@ -1,4 +1,4 @@
-import { CustomMutation_User, DeleteMutationProps, QueryReact_User, UpdateMutationProps } from '@/interfaces/hook.interface'
+import { CustomMutation_User, DeleteMutationProps, UpdateMutationProps } from '@/interfaces/hook.interface'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { ADMIN_LIST_CACHE } from '@/config/adminQueryCache'
 import { QueryOptions } from '@/interfaces/props.interface'
@@ -16,47 +16,31 @@ const QUERY_KEYS = {
 /*---------------------------------------------------------------------------------------------------------*/
 
 /*--------------------------------------------------useQuery--------------------------------------------------*/
-/** Hook personalizado para gestionar consultas de usuarios */
-export const useQueryUser = (): QueryReact_User => {
+/** Hook para obtener todos los usuarios. */
+export const useAllUsers = <T>() => {
   const user = useAuthContext()
-
-  /** Obtener todos los usuarios */
-  const fetchAllUsers = <T>() => useQuery({
+  return useQuery({
     queryFn: () => user.getAll<T>(),
     queryKey: QUERY_KEYS.users(),
     select: (data) => data || [],
     initialData: [],
     ...ADMIN_LIST_CACHE,
   })
+}
 
-  /**
-   * Obtener usuario por ID
-   * @param {string} id - Corresponde al id del usuario
-   * @param {boolean} enabled - Indica si la consulta debe ejecutarse
-   */
-  const fetchUserById = <T>(id: string, enabled: boolean = true) => useQuery({
+/**
+ * Hook para obtener un usuario por ID.
+ * @param {string} id - Corresponde al id del usuario
+ * @param {boolean} enabled - Indica si la consulta debe ejecutarse
+ */
+export const useUserById = <T>(id: string, enabled: boolean = true) => {
+  const user = useAuthContext()
+  return useQuery({
     queryKey: QUERY_KEYS.user(id),
     queryFn: () => user.getById<T>(id, enabled),
     select: (data) => data || undefined,
-    enabled: Boolean(id) && enabled
+    enabled: Boolean(id) && enabled,
   })
-
-  /**
-   * Buscar usuario por término
-   * @param {object} query - Elementos de busqueda
-   * @param {boolean} enabled - Indica si la consulta debe ejecutarse
-   */
-  //const fetchUserByQuery = (query: QueryOptions, enabled: boolean = true) => useQuery({ //disabled temporally
-  //  queryFn: () => user.getByQuery<T>(query, enabled),
-  //  queryKey: QUERY_KEYS.search(query),
-  //  enabled: Boolean(query) && enabled,
-  //  select: (data) => data || [],
-  //})
-
-  return {
-    fetchAllUsers,
-    fetchUserById: fetchUserById as QueryReact_User['fetchUserById']
-  }
 }
 /*---------------------------------------------------------------------------------------------------------*/
 

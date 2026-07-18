@@ -8,7 +8,8 @@ import { Button } from "#/ui/button"
 import { useState, useEffect } from "react"
 import { ColorPaletteSelector, SERIOUS_PALETTES, type ColorPalette } from "@/components/common/ColorPaletteSelector"
 
-const UserMenu = ({ }: ThemeContextProps) => {
+const UserMenu = (_props: ThemeContextProps) => {
+  void _props;
   const { user = {} as User, signout } = useAuthContext()
   const navigate = useNavigate()
   const [selectedPalette, setSelectedPalette] = useState<string>(

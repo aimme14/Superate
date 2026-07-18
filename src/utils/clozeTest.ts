@@ -58,7 +58,7 @@ export function parseClozeParts(clozeHtml: string): ClozePart[] {
 
 export function extractGapNumbersFromText(text: string): number[] {
   const matches = text.match(/\[(\d+)\]/g) || [];
-  return [...new Set(matches.map((m) => parseInt(m.replace(/[\[\]]/g, ''), 10)))].sort((a, b) => a - b);
+  return [...new Set(matches.map((m) => parseInt(m.replace(/[[\]]/g, ''), 10)))].sort((a, b) => a - b);
 }
 
 export function stripHtmlToPlainText(html: string): string {

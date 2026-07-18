@@ -32,7 +32,7 @@ export const Sidebar = () => {
   const isMobile = useIsMobile()
   const { isAuth } = useAuthContext()
   const { isEnabled: registrationEnabled } = useRegistrationConfig()
-  const allItems = links(registrationEnabled)
+  const allItems = links(registrationEnabled, isAuth)
   const items =
     !isAuth
       ? getGuestLinksForViewport(allItems, {

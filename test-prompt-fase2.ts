@@ -93,7 +93,6 @@ const previousPhaseMetrics = {
 
 // Construir el prompt como lo haría el código real
 const phaseName = 'Fase II';
-const phase = 'second';
 
 // Construir mapa de niveles de Fase II por materia para comparación
 const phase2MateriaLevels: { [key: string]: string } = {};
@@ -102,7 +101,7 @@ normalizedResults.forEach(r => {
 });
 
 // Construir sección de contexto comparativo
-let comparativeContextSection = `
+const comparativeContextSection = `
 ═══════════════════════════════════════════════════════════════
 CONTEXTO COMPARATIVO - ${previousPhaseMetrics.phase}
 ═══════════════════════════════════════════════════════════════

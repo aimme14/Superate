@@ -719,7 +719,7 @@ class QuizGeneratorService {
       }, {});
 
       const candidates = Object.entries(counts)
-        .filter(([_, count]) => count > 1)
+        .filter(([, count]) => count > 1)
         .sort((a, b) => b[1] - a[1]);
 
       const topicToReduce = (candidates[0]?.[0]) || Object.entries(counts)[0][0];

@@ -52,6 +52,12 @@ export const generatePhase3PDFHTML = (
   _studentRank?: number | null,
   _totalStudents?: number | null
 ): string => {
+  // Firmas mantenidas por compatibilidad con callers; aún no se usan en este PDF.
+  void _globalPercentile;
+  void _phaseMetrics;
+  void _studentRank;
+  void _totalStudents;
+
   const selectedQuote = PHILOSOPHICAL_QUOTES[getIndex(studentId, PHILOSOPHICAL_QUOTES.length)];
   const selectedVerse = BIBLE_VERSES[getIndex(studentId + 'verse', BIBLE_VERSES.length)];
 

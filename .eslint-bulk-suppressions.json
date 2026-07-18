@@ -1,0 +1,919 @@
+{
+  "suppressions": [
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.getNextAvailableOptionLetter",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleCreateQuestion",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleCreateQuestion.questionData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleDeleteQuestion",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleDeleteSelectedQuestions",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleEditQuestion",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleUpdateQuestion",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleUpdateQuestion.questionData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/admin/QuestionBank.tsx",
+      "scopeId": ".QuestionBank.handleUpdateQuestion.updates",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/charts/SubjectsProgressChart.tsx",
+      "scopeId": ".SubjectsProgressChart.CustomTooltip",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/charts/TopicProgressChart.tsx",
+      "scopeId": ".TopicProgressChart.CustomTooltip",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/MathEditor.tsx",
+      "scopeId": ".MathEditor",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/MathEditor.tsx",
+      "scopeId": ".MathEditor.handleInsert",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/MathEditor.tsx",
+      "scopeId": ".MathEditor.insertSymbol",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/MathEditor.tsx",
+      "scopeId": ".MathEditor.quickInsert",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/RichTextEditor.tsx",
+      "scopeId": ".",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/elements/Carousel.tsx",
+      "scopeId": ".Carousel",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/elements/Dialog.tsx",
+      "scopeId": ".DialogProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/elements/HeaderPage.tsx",
+      "scopeId": ".PageHeaderProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/fields/CardIterable.tsx",
+      "scopeId": ".CardIterable.handleAppend",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/common/fields/Select.tsx",
+      "scopeId": ".",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/studyPlan/VocabularyBank.tsx",
+      "scopeId": ".WordDefinition",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/ui/chart.tsx",
+      "scopeId": ".",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/components/ui/chart.tsx",
+      "scopeId": ".ChartTooltipProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/context/AuthContext.tsx",
+      "scopeId": ".AuthProvider._delete",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/context/AuthContext.tsx",
+      "scopeId": ".AuthProvider.getAll",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/context/AuthContext.tsx",
+      "scopeId": ".AuthProvider.getById",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/context/AuthContext.tsx",
+      "scopeId": ".AuthProvider.setAuthStatus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/context/AuthContext.tsx",
+      "scopeId": ".AuthProvider.signin",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/context/AuthContext.tsx",
+      "scopeId": ".AuthProvider.update",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/admin.controller.ts",
+      "scopeId": ".getRegistrationConfig",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/auth.controller.ts",
+      "scopeId": ".assignStudentToTeachers",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/auth.controller.ts",
+      "scopeId": ".register.dbUserData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/institution.controller.ts",
+      "scopeId": ".deleteCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/institution.controller.ts",
+      "scopeId": ".deleteGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/institution.controller.ts",
+      "scopeId": ".updateCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/institution.controller.ts",
+      "scopeId": ".updateGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/rector.controller.ts",
+      "scopeId": ".createRector",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/rector.controller.ts",
+      "scopeId": ".deleteRector",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/rector.controller.ts",
+      "scopeId": ".getAllRectors",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/rector.controller.ts",
+      "scopeId": ".getRectorByUserId",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/rector.controller.ts",
+      "scopeId": ".updateRector",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/rector.controller.ts",
+      "scopeId": ".updateRector.userUpdateData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/student.controller.ts",
+      "scopeId": ".assignStudentToTeachers",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/student.controller.ts",
+      "scopeId": ".createStudent.dbUserData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/student.controller.ts",
+      "scopeId": ".updateStudent",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/student.controller.ts",
+      "scopeId": ".updateStudent.updateData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/teacher.controller.ts",
+      "scopeId": ".createTeacher.teacherData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/teacher.controller.ts",
+      "scopeId": ".deleteTeacherFromGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/teacher.controller.ts",
+      "scopeId": ".updateTeacherInGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/controllers/teacher.controller.ts",
+      "scopeId": ".updateTeacherInGrade.userUpdateData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/errors/index.ts",
+      "scopeId": ".ErrorAPI",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/core/form/useAuthForm.ts",
+      "scopeId": ".useUserForm",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/core/useStepForm.ts",
+      "scopeId": ".UseStepFormProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/query/useAdminAnalysis.ts",
+      "scopeId": ".useStudentAnalysis.queryFn",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/query/useAdminAnalysis.ts",
+      "scopeId": ".useStudentAnalysis.queryFn.calculatePhaseMetrics",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/query/useRectorStats.ts",
+      "scopeId": ".useRectorStats",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/query/useTeacherDashboardStats.ts",
+      "scopeId": ".useTeacherDashboardStats",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/query/useTeacherQuery.ts",
+      "scopeId": ".useFilteredTeachers",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/query/useUserInstitution.ts",
+      "scopeId": ".useUserInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/hooks/useUserActivity.ts",
+      "scopeId": ".useUserActivity.updateActivity",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/interfaces/context.interface.ts",
+      "scopeId": ".AuthContext",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/interfaces/hook.interface.ts",
+      "scopeId": ".CustomMutation_User",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/interfaces/hook.interface.ts",
+      "scopeId": ".UpdateMutationProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/interfaces/props.interface.ts",
+      "scopeId": ".CheckProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/interfaces/props.interface.ts",
+      "scopeId": ".ConfirmTriggerProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/interfaces/props.interface.ts",
+      "scopeId": ".NavItemProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/interfaces/props.interface.ts",
+      "scopeId": ".QueryOptions",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/RutaAcademicaAdaptativaPage.tsx",
+      "scopeId": ".RutaAcademicaAdaptativaPage.safeCreatedAtMs",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/rector/RectorDashboard.tsx",
+      "scopeId": ".RectorDashboard",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/rector/RectorDashboard.tsx",
+      "scopeId": ".RectorDashboard.tooltip.formatter",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".PerformanceChart",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".StudentDetailDialog",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".StudentDetailDialog.phaseResults",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".StudentDetailDialog.processPhaseData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".StudentDetailDialog.subjectTopicGroups",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".StudentsTab",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".StudentsTab.handleStudentClick",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".TeacherDashboard.queryFn",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".TeacherEvolutionBySubjectChart",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".TeacherEvolutionBySubjectChart.point",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".TeacherRankingCard",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".WelcomeTab",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/dashboard/teacher/TeacherDashboard.tsx",
+      "scopeId": ".fetchTeacherRanking",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio.tsx",
+      "scopeId": ".ICFESAnalysisInterface.calculateAllPhasesData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio.tsx",
+      "scopeId": ".ICFESAnalysisInterface.getEmptyAnalysisData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio.tsx",
+      "scopeId": ".ICFESAnalysisInterface.processEvaluationData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio.tsx",
+      "scopeId": ".ICFESAnalysisInterface.processEvaluationData.subjectTopicGroups",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio.tsx",
+      "scopeId": ".StudyPlanSummary",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio.tsx",
+      "scopeId": ".StudyPlanSummary.isPlanComplete",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio/pdf/phase1And2.ts",
+      "scopeId": ".generatePhase1And2PDFHTML",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/pages/promedio/pdf/phase3.ts",
+      "scopeId": ".generatePhase3PDFHTML",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/scripts/diagnosePhaseProgress.ts",
+      "scopeId": ".diagnosePhaseProgress",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/scripts/diagnosePhaseProgress.ts",
+      "scopeId": ".diagnosePhaseProgress.studentsByGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/scripts/diagnoseQuizIssues.ts",
+      "scopeId": ".",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/sections/documents/reusables/client/HeadquarterFormFlow.tsx",
+      "scopeId": ".HeadquarterFormProps",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/analyticsSnapshots.service.ts",
+      "scopeId": ".computeEvolution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/analyticsSnapshots.service.ts",
+      "scopeId": ".computeInstitutionAverage",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/analyticsSnapshots.service.ts",
+      "scopeId": ".getStudentYear",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.addCampusToInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.addGradeToCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.addPrincipalToCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.addRectorToInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.cleanUndefinedValues",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.createInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.createTeacher",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.createTeacherInGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.createUser",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.createUserInNewStructure",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.deepCleanData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.deepCleanData.cleaned",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.deletePrincipalFromCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.deleteTeacherFromGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.deleteUser",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.enrichUserData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.executeUpdateWithRetry",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.findUserDocViaCollectionGroup",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getAllInstitutions",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getAllTeachers",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getAllUsers",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getAllUsersByRoleFromNewStructure",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getFilteredStudents",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getInstitutionById",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getPrincipalByCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getPrincipalById",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getRectorById",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getRectorByInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getStudentsByPrincipal",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getStudentsByTeacher",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getStudentsByTeacher.filters",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getTeacherById",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getTeachersByCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getTeachersByGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getTeachersByInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getUserById",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getUserByIdFromNewStructure",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getUserByQuery",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.getUsersByInstitutionFromNewStructure",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updatePrincipalInCampus",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateRectorInInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateTeacher",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateTeacherInGrade",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateUser",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateUser.cleanedData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateUserInNewStructure",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateUserInNewStructure.cleanedData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateUsersByInstitution",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/db.service.ts",
+      "scopeId": ".DatabaseService.updateUsersByInstitution.updateData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/question.service.ts",
+      "scopeId": ".AIJustification",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/question.service.ts",
+      "scopeId": ".QuestionService.createQuestion.question",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/question.service.ts",
+      "scopeId": ".QuestionService.deleteImage",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/question.service.ts",
+      "scopeId": ".QuestionService.deleteQuestion",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/question.service.ts",
+      "scopeId": ".QuestionService.executeTransactionWithRetry",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/question.service.ts",
+      "scopeId": ".QuestionService.getFilteredQuestions",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/firebase/question.service.ts",
+      "scopeId": ".QuestionService.getFilteredQuestionsPaginated",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phase1AIAnalysis.service.ts",
+      "scopeId": ".Phase1AIAnalysisService.analyzePhase1Exam",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phase1AIAnalysis.service.ts",
+      "scopeId": ".Phase1AIAnalysisService.generateConsolidatedAnalysis",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phase1AIAnalysis.service.ts",
+      "scopeId": ".Phase1AIAnalysisService.generateConsolidatedAnalysis.subjectMap",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phase1AIAnalysis.service.ts",
+      "scopeId": ".Phase1AIAnalysisService.getPhase1Results",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phaseAnalysis.service.ts",
+      "scopeId": ".PhaseAnalysisService.analyzePhase1Results",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phaseAnalysis.service.ts",
+      "scopeId": ".PhaseAnalysisService.analyzeProgress",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phaseAnalysis.service.ts",
+      "scopeId": ".PhaseAnalysisService.generateImprovementPlan",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phaseAnalysis.service.ts",
+      "scopeId": ".PhaseAnalysisService.generatePhase3Result",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phaseAnalysis.service.ts",
+      "scopeId": ".PhaseAnalysisService.generatePhaseComparison",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/phase/phaseAuthorization.service.ts",
+      "scopeId": ".PhaseAuthorizationService.checkGradePhaseCompletion",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/quiz/quizGenerator.service.ts",
+      "scopeId": ".QuizGeneratorService.generateQuiz",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/quiz/quizGenerator.service.ts",
+      "scopeId": ".QuizGeneratorService.getAnsweredQuestions",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/teacher/gradeSummary.service.ts",
+      "scopeId": ".fetchGradeSummaryForTeacher",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/teacher/gradeSummary.service.ts",
+      "scopeId": ".inferAcademicYear",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/teacher/gradeSummary.service.ts",
+      "scopeId": ".inferGradeId",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/services/teacher/gradeSummary.service.ts",
+      "scopeId": ".inferInstitutionId",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/types/mathlive.d.ts",
+      "scopeId": ".IntrinsicElements",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/debugFormData.ts",
+      "scopeId": ".",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/debugFormData.ts",
+      "scopeId": ".debugFormData",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/format.tsx",
+      "scopeId": ".formatError",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/format.tsx",
+      "scopeId": ".txt",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/phaseIntegration.ts",
+      "scopeId": ".processExamResults",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/quizGroupedQuestions.ts",
+      "scopeId": ".detectGroupedQuestions",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/subjects.config.ts",
+      "scopeId": ".validateQuestionCode",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/testTeacherCreation.ts",
+      "scopeId": ".",
+      "rule": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "file": "src/utils/testTeacherCreation.ts",
+      "scopeId": ".testTeacherCreation",
+      "rule": "@typescript-eslint/no-explicit-any"
+    }
+  ]
+}

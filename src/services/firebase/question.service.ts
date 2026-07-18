@@ -557,7 +557,7 @@ class QuestionService {
         Object.entries({
           ...question,
           createdAt: Timestamp.fromDate(question.createdAt),
-        }).filter(([_, value]) => value !== undefined)
+        }).filter(([, value]) => value !== undefined)
       );
 
       await setDoc(questionRef, firestoreData);

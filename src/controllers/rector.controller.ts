@@ -522,7 +522,6 @@ export const updateRector = async (institutionId: string, rectorId: string, data
         const userUpdateResult = await dbService.updateUser(rectorUid, userUpdateData)
         if (!userUpdateResult.success) {
           logger.warn('Error al actualizar usuario en Firestore')
-        } else {
         }
       } catch (userError) {
         logger.warn('Error al actualizar usuario en Firestore')
@@ -597,8 +596,7 @@ export const updateRector = async (institutionId: string, rectorId: string, data
               data.adminPassword
             )
             
-            if (authUpdateResult.success) {
-            } else {
+            if (!authUpdateResult.success) {
               logger.error('Error al actualizar credenciales:', authUpdateResult.error)
               logger.warn('Las credenciales se actualizaron solo en Firestore')
             }
@@ -645,8 +643,7 @@ export const deleteRector = async (
       try {
         // Intentar eliminar de Firestore (esto intenta en nueva estructura y colección antigua)
         const deleteResult = await dbService.deleteUser(rectorUid)
-        if (deleteResult.success) {
-        } else {
+        if (!deleteResult.success) {
           logger.warn('No se pudo eliminar usuario de Firestore')
           logger.warn('Intentando eliminar directamente de la estructura jerárquica')
           
@@ -657,8 +654,7 @@ export const deleteRector = async (
               institution.id, 
               'rector'
             )
-            if (deleteResultNewStructure.success) {
-            } else {
+            if (!deleteResultNewStructure.success) {
               // Si aún falla, marcar como inactivo - CRÍTICO para prevenir login
               logger.warn('No se pudo eliminar, marcando como inactivo')
               let markedAsInactive = false

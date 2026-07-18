@@ -1,8 +1,8 @@
 import { HeaderSpanProps, SelectOptionProps } from "@/interfaces/props.interface"
 import { ThemeContextProps } from "@/interfaces/context.interface"
-import { useFormContext, Controller } from "react-hook-form"
+import { useFormContext, Controller, useWatch } from "react-hook-form"
 import { cn } from "@/lib/utils"
-import React from "react"
+import React, { useEffect } from "react"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/ui/select"
 import HeaderCustom from "#/common/elements/HeaderCustom"
@@ -35,7 +35,18 @@ const SelectField = React.forwardRef<HTMLButtonElement, SelectFieldProps>(({
   name,
   span,
 }, ref) => {
-  const { control } = useFormContext()
+  const { control, setValue } = useFormContext()
+
+  // Inicializa como "otro" cuando el valor no está en las opciones. Vive en el
+  // nivel superior (no dentro del render de <Controller>) para respetar hooks.
+  const watchedValue = useWatch({ control, name }) as (string | { type?: string; value?: string } | undefined)
+  useEffect(() => {
+    const inOptions = options.some(opt => opt.value === watchedValue)
+    const isOtherValue = !inOptions && !!watchedValue && !!isAnother
+    if (isOtherValue && typeof watchedValue !== 'object') {
+      setValue(name, { type: "otro", value: watchedValue })
+    }
+  }, [watchedValue, options, isAnother, name, setValue])
 
   return (
     <FormItem>
@@ -58,12 +69,6 @@ const SelectField = React.forwardRef<HTMLButtonElement, SelectFieldProps>(({
           // Check if current value exists in options
           const currentOption = options.find(opt => opt.value === field.value)
           const isOtherValue = !currentOption && field.value && isAnother
-
-          // Initialize as "otro" if value exists
-          // Remember that show on another input
-          React.useEffect(() => {
-            if (isOtherValue && !field.value?.type) field.onChange({ type: "otro", value: field.value })
-          }, [])
 
           // Handle value changes
           const handleFieldChange = (val: string) => {

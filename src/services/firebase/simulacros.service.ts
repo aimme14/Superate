@@ -713,7 +713,7 @@ class SimulacrosService {
         const results = await Promise.all(uploads)
         for (const { key, result } of results) {
           if (result.success) {
-            ;(updatePayload as Record<string, string>)[key] = result.data
+            (updatePayload as Record<string, string>)[key] = result.data
           } else {
             await deleteDoc(docRef)
             return result

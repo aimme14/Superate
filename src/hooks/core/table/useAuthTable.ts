@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
-import { useUserMutation } from "@/hooks/query/useAuthQuery"
-import { useQueryUser } from "@/hooks/query/useAuthQuery"
+import { useUserMutation, useAllUsers } from "@/hooks/query/useAuthQuery"
 import { User } from "@/interfaces/context.interface"
 
 /*--------------------------------------------------user table--------------------------------------------------*/
@@ -10,7 +9,7 @@ export const useUserTable = () => {
   const { deleteUser: _delete } = useUserMutation()
   const isProcessing = useRef<boolean>(false)
 
-  const { data: users } = useQueryUser().fetchAllUsers<User>()
+  const { data: users } = useAllUsers<User>()
 
   /**
    * Función que se ejecuta cuando se elimina un usuario

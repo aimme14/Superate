@@ -1,4 +1,4 @@
-import { useQueryUser, useUserMutation } from "@/hooks/query/useAuthQuery"
+import { useUserById, useUserMutation } from "@/hooks/query/useAuthQuery"
 import { useFormSubmit } from "@/hooks/core/useFormSubmit"
 import { User } from "@/interfaces/context.interface"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -51,11 +51,10 @@ export const useForgotPasswordForm = () => {
  */
 export const useUserForm = (id?: string, onSuccess?: () => void) => {
   const { createUser, updateUser } = useUserMutation()
-  const queryUser = useQueryUser()
   const { isEnabled: registrationEnabled, isLoading: isLoadingConfig } = useRegistrationConfig()
   const { notifyError } = useNotification()
 
-  const { data: user } = queryUser.fetchUserById<User>(id as string, !!id)
+  const { data: user } = useUserById<User>(id as string, !!id)
 
   const methods = useForm<RegisterFormProps>({
     resolver: zodResolver(registerSchema),
@@ -74,8 +73,10 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
     mode: "onChange",
   })
 
+  const { reset } = methods
   useEffect(() => {
-    id && user && methods.reset({ 
+    if (!id || !user) return
+    reset({
       role: 'student' as const,
       userdoc: user.userdoc || '',
       email: user.email,
@@ -87,7 +88,7 @@ export const useUserForm = (id?: string, onSuccess?: () => void) => {
       representativePhone: (user as any).representativePhone || '',
       academicYear: (user as any).academicYear || new Date().getFullYear()
     })
-  }, [id, user])
+  }, [id, user, reset])
 
   const handleSubmit = useFormSubmit({
     onSubmit: async (data: RegisterFormProps) => {

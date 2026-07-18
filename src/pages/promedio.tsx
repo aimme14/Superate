@@ -773,7 +773,6 @@ function StudyPlanSummary({
     };
 
     loadPhase1Stats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase1Data, user?.uid]);
 
   const totalPhase1Subjects = phase1Data?.subjectsWithTopics?.length || 0;
@@ -1581,7 +1580,6 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     }, 7000)
 
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Lazy load: activar carga de Tips y Herramientas solo tras estar en tab Plan de estudio un momento
@@ -1747,6 +1745,8 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
       setSelectedPhase(planOnly ? phaseForPlans : phaseForOverview);
     });
 
+  // Helpers definidos más abajo en el mismo render; deps intencionales = datos de entrada.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- processEvaluationData / calculateAllPhasesData
   }, [user, evaluationsFromQuery, evaluationsLoading, planOnly]);
 
   const processEvaluationData = (evaluations: ExamResult[], user: any): AnalysisData => {
@@ -1873,7 +1873,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     // Sumamos los puntos de todas las fases (cada fase puede tener hasta 500 puntos)
     let globalScore = 0;
     
-    Object.entries(phaseSubjectResults).forEach(([_phase, subjects]) => {
+    Object.values(phaseSubjectResults).forEach((subjects) => {
       Object.entries(subjects).forEach(([subject, stats]) => {
         if (stats.total > 0) {
           const percentage = stats.percentage;
@@ -1901,7 +1901,7 @@ export default function ICFESAnalysisInterface({ planOnly = false }: ICFESAnalys
     const TOTAL_SUBJECTS = 7;
     const completedSubjectsSet = new Set<string>();
     
-    Object.entries(phaseSubjectResults).forEach(([_phase, subjects]) => {
+    Object.values(phaseSubjectResults).forEach((subjects) => {
       Object.keys(subjects).forEach(subject => {
         const normalizedSubject = normalizeSubjectName(subject);
         // Solo contar materias válidas (excluir 'General' y otras no válidas)

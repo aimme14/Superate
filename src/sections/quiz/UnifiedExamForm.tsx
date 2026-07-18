@@ -166,6 +166,9 @@ const UnifiedExamForm = () => {
   // Espejo en ref: el auto-cierre se dispara desde un closure de useEffect y el
   // estado quedaría obsoleto (guardaría 0). El ref siempre tiene el valor real.
   const tabChangeCountRef = useRef(0)
+  // Ref al último handleSubmit: los efectos antitrampa/timer lo invocan sin
+  // añadirlo a sus deps (evita re-suscribir listeners/timers en cada render).
+  const handleSubmitRef = useRef<(timeExpired?: boolean, lockedByTabChange?: boolean) => void>(() => {})
   const [examLocked, setExamLocked]                 = useState(false)
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
@@ -271,6 +274,11 @@ const UnifiedExamForm = () => {
 
   // ── Carga del cuestionario ────────────────────────────────────────────────
 
+  // Grado como primitivo: evita depender del objeto `user` (cuya identidad puede
+  // cambiar al refrescar el perfil) y así no re-disparar la carga del quiz.
+  const userGradeName = (user as { gradeName?: string; grade?: string })?.gradeName
+    ?? (user as { grade?: string })?.grade
+
   useEffect(() => {
     let isMounted = true
     const timeoutId = setTimeout(() => {
@@ -347,7 +355,6 @@ const UnifiedExamForm = () => {
         }
 
         // 5. Generar quiz (solo si no hay caché y pasó el gate)
-        const userGradeName = (user as { gradeName?: string; grade?: string })?.gradeName ?? (user as { grade?: string })?.grade
         const userGrade = gradeLabelToBankCode(userGradeName ?? '') ?? '1'
 
         const preloadedEvaluations = summaryPack?.summary
@@ -378,7 +385,7 @@ const UnifiedExamForm = () => {
 
     void loadQuiz()
     return () => { isMounted = false; clearTimeout(timeoutId) }
-  }, [userId, currentPhase, currentSubject, hasRecentValidation, buildValidationCacheKey, clearValidationCache, markValidationAsRecent, notifyError, buildQuizCacheKey, getQuizFromCache, saveQuizToCache, clearQuizCache, applyLoadedQuiz])
+  }, [userId, currentPhase, currentSubject, userGradeName, hasRecentValidation, buildValidationCacheKey, clearValidationCache, markValidationAsRecent, notifyError, buildQuizCacheKey, getQuizFromCache, saveQuizToCache, clearQuizCache, applyLoadedQuiz])
 
   // ── Validación manual ─────────────────────────────────────────────────────
 
@@ -483,7 +490,7 @@ const UnifiedExamForm = () => {
     let found: { start: number; end: number } | null = null
     Object.values(groups).forEach(g => { if (1 >= g.start && 1 <= g.end) found = g })
     setGroupedQuestionMessage(found)
-  }, [examState, quizData])
+  }, [examState, quizData, examStartTime])
 
   useEffect(() => {
     if (examState !== 'active' || !quizData) return
@@ -608,7 +615,7 @@ const UnifiedExamForm = () => {
         if (next === 2) {
           setShowTabChangeWarning(false)
           setShowFullscreenExit(false)
-          setTimeout(() => void handleSubmit(false, true), 50)
+          setTimeout(() => void handleSubmitRef.current(false, true), 50)
         } else {
           setShowTabChangeWarning(true)
         }
@@ -676,7 +683,7 @@ const UnifiedExamForm = () => {
     if (examState !== 'active' || timeLeft <= 0 || examLocked) return
     const id = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) { void handleSubmit(true, false); return 0 }
+        if (prev <= 1) { void handleSubmitRef.current(true, false); return 0 }
         return prev - 1
       })
     }, 1000)
@@ -698,6 +705,7 @@ const UnifiedExamForm = () => {
       notifyError({ title: 'No se pudo enviar el examen', message: 'Comprueba tu conexión e inténtalo de nuevo.' })
     }
   }
+  handleSubmitRef.current = handleSubmit
 
   const handleAnswerChange = (questionId: string, answer: string) =>
     setAnswers(prev => ({ ...prev, [questionId]: answer }))

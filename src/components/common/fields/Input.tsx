@@ -6,7 +6,7 @@ import { ThemeContextProps } from '@/interfaces/context.interface'
 import { HeaderSpanProps } from '@/interfaces/props.interface'
 import { useFormContext, Controller } from 'react-hook-form'
 import { Eye, EyeOff, LucideIcon } from 'lucide-react'
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 export type InputType = 'text' | 'number' | 'email' | 'password'
@@ -39,7 +39,9 @@ const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(({
 }, ref) => {
   const [showPassword, setShowPassword] = useState(false)
   const { control, setValue } = useFormContext()
-  useMemo(() => readOnly && setValue(name, value), [readOnly, value])
+  useEffect(() => {
+    if (readOnly) setValue(name, value)
+  }, [readOnly, value, name, setValue])
   return (
     <FormItem hidden={hidden}>
       {/* Header label */}

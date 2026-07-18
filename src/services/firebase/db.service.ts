@@ -1865,7 +1865,7 @@ class DatabaseService {
         )
       }
 
-      let students = allStudents
+      const students = allStudents
 
       // OPTIMIZADO: Enriquecer datos usando caché para evitar múltiples llamadas.
       // Usamos caché de promesas para deduplicar lecturas concurrentes por institución.
@@ -2784,7 +2784,7 @@ class DatabaseService {
 
       // Filtrar campos undefined
       const cleanUserData = Object.fromEntries(
-        Object.entries(userData).filter(([_, value]) => value !== undefined)
+        Object.entries(userData).filter(([, value]) => value !== undefined)
       )
 
       // Obtener referencia a la colección correcta según el rol

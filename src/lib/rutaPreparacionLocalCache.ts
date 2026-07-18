@@ -56,7 +56,8 @@ export function mergeRutaPreparacionCache(
 export function clearCachedIcfesTips(uid: string): void {
   const prev = readRutaPreparacionCache(uid)
   if (!prev || prev.icfesTips === undefined) return
-  const { icfesTips: _t, ...rest } = prev
+  const { icfesTips, ...rest } = prev
+  void icfesTips
   const next: RutaPreparacionLocalPayload = { ...rest, v: VERSION }
   if (next.herramientasIA === undefined) {
     try {
@@ -72,7 +73,8 @@ export function clearCachedIcfesTips(uid: string): void {
 export function clearCachedHerramientasIA(uid: string): void {
   const prev = readRutaPreparacionCache(uid)
   if (!prev || prev.herramientasIA === undefined) return
-  const { herramientasIA: _h, ...rest } = prev
+  const { herramientasIA, ...rest } = prev
+  void herramientasIA
   const next: RutaPreparacionLocalPayload = { ...rest, v: VERSION }
   if (next.icfesTips === undefined) {
     try {

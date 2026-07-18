@@ -5,7 +5,7 @@ import { Button } from '#/ui/button'
 import { ThemeContextProps } from '@/interfaces/context.interface'
 import { HeaderSpanProps } from '@/interfaces/props.interface'
 
-import { useFormContext, Controller } from 'react-hook-form'
+import { useFormContext, Controller, useWatch } from 'react-hook-form'
 import React, { useCallback, useState, useEffect } from 'react'
 import { Camera, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -34,6 +34,11 @@ const ImageField = React.forwardRef<HTMLInputElement, ImageFieldProps>(({
     reader.readAsDataURL(file)
   }, [])
 
+  // Sincroniza la vista previa observando el valor del campo desde el nivel
+  // superior (no dentro del render de <Controller>, que no es hook/componente).
+  const watchedValue = useWatch({ control, name }) as File | null
+  useEffect(() => { processFile(watchedValue) }, [watchedValue, processFile])
+
   return (
     <FormItem>
       {/* Header label */}
@@ -50,8 +55,7 @@ const ImageField = React.forwardRef<HTMLInputElement, ImageFieldProps>(({
       <Controller
         name={name}
         control={control}
-        render={({ field: { onChange, value, ...field }, fieldState: { error } }) => {
-          useEffect(() => { processFile(value) }, [value, processFile]) // Sync preview
+        render={({ field: { onChange, ...field }, fieldState: { error } }) => {
           return (
             <>
               <div className={cn(

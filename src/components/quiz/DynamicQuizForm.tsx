@@ -99,6 +99,11 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   // Espejo en ref: el auto-cierre se dispara desde un closure de useEffect y el
   // estado quedaría obsoleto (guardaría 0). El ref siempre tiene el valor real.
   const tabChangeCountRef = useRef(0)
+  // Ref al último handleSubmit: los efectos antitrampa/timer lo invocan sin
+  // añadirlo a sus deps (evita re-suscribir listeners/timers en cada render).
+  const handleSubmitRef = useRef<(timeExpired?: boolean, lockedByTabChange?: boolean) => void>(() => {})
+  // Contenedor de opciones para el render de KaTeX (ref a nivel superior).
+  const optionsContainerRef = useRef<HTMLDivElement>(null);
   const [examLocked, setExamLocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [existingExamData, setExistingExamData] = useState<PreviousExamSnapshot | null>(null);
@@ -181,7 +186,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     };
 
     loadQuiz();
-  }, [userId, subject, phase, grade]);
+  }, [userId, subject, phase, grade, notifyError]);
 
   const runValidationFromSummary = useCallback(async () => {
     if (!userId || !quizData) return;
@@ -315,7 +320,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       });
       setGroupedQuestionMessage(foundGroup);
     }
-  }, [examState, quizData]);
+  }, [examState, quizData, examStartTime]);
 
   // Detectar cuando estamos en un grupo de preguntas agrupadas
   useEffect(() => {
@@ -595,7 +600,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
           // Finalizar el examen inmediatamente
           setExamLocked(true);
           setTimeout(() => {
-            handleSubmit(true, true);
+            handleSubmitRef.current(true, true);
           }, 50);
         } else if (newCount === 1) {
           // Primera vez: mostrar advertencia
@@ -974,7 +979,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       interval = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
-            handleSubmit(true, false)
+            handleSubmitRef.current(true, false)
             return 0
           }
           return prev - 1
@@ -984,6 +989,24 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
     return () => clearInterval(interval)
   }, [examState, timeLeft, examLocked])
+
+  // Render de fórmulas KaTeX en las opciones visibles. Vive en el nivel superior
+  // (no dentro de un componente anidado) para respetar las reglas de hooks.
+  useEffect(() => {
+    if (examState !== 'active' || !optionsContainerRef.current) return;
+    const timeoutId = setTimeout(() => {
+      const mathElements = optionsContainerRef.current?.querySelectorAll('[data-latex], .katex, .katex-inline');
+      mathElements?.forEach((el) => {
+        const latex = (el as HTMLElement).getAttribute('data-latex');
+        if (latex && !(el as HTMLElement).querySelector('.katex')) {
+          try {
+            katex.render(latex, el as HTMLElement, { throwOnError: false, displayMode: false, strict: false });
+          } catch (error) { logger.debug('Error renderizando fórmula:', error); }
+        }
+      });
+    }, 100);
+    return () => clearTimeout(timeoutId);
+  }, [currentQuestion, currentEnglishGroup, quizData, examState]);
 
   // Función para manejar el envío del examen
   const handleSubmit = async (timeExpired = false, lockedByTabChange = false) => {
@@ -1010,6 +1033,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
       })
     }
   }
+  handleSubmitRef.current = handleSubmit
 
   // Modal de salida de pantalla completa
   const FullscreenExitModal = () => {
@@ -1240,23 +1264,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
     if (!quizData) return null;
     const isIngles = quizData.subject === 'Ingl\u00e9s';
     const answeredQuestions = Object.keys(answers).length;
-    const optionsContainerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-      if (!optionsContainerRef.current) return;
-      const timeoutId = setTimeout(() => {
-        const mathElements = optionsContainerRef.current?.querySelectorAll('[data-latex], .katex, .katex-inline');
-        mathElements?.forEach((el) => {
-          const latex = (el as HTMLElement).getAttribute('data-latex');
-          if (latex && !(el as HTMLElement).querySelector('.katex')) {
-            try {
-              katex.render(latex, el as HTMLElement, { throwOnError: false, displayMode: false, strict: false });
-            } catch (error) { logger.debug('Error renderizando fórmula:', error); }
-          }
-        });
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }, [currentQuestion, currentEnglishGroup, quizData]);
 
     // ── RENDER DE UNA SOLA PREGUNTA (materias normales) ──────────────────────
     const renderSingleQuestion = () => {

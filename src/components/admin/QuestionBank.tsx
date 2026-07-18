@@ -136,7 +136,9 @@ const renderMathInHtml = (html: string): string => {
         textNode.parentNode?.replaceChild(wrapper, textNode)
       }
     })
-  } catch {}
+  } catch {
+    /* ignore: best-effort HTML transform */
+  }
   
   return tempDiv.innerHTML
 }
@@ -913,33 +915,31 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
   }
 
   // Función para convertir archivos a base64 (optimizada y con límite de tamaño)
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Si el archivo es muy grande (>2MB), usar una versión muy comprimida
-        if (file.size > 2 * 1024 * 1024) {
-                    const compressedFile = await compressImage(file, 400, 0.5) // Más compresión
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(compressedFile)
-        } else {
-          // Comprimir normalmente
-          const compressedFile = await compressImage(file, 600, 0.7)
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(compressedFile)
-        }
-      } catch (error) {
-        // Si falla la compresión, usar el archivo original pero con timeout
-                const reader = new FileReader()
-        
-        // Timeout extendido para evitar que se quede colgado
+  const fileToBase64 = async (file: File): Promise<string> => {
+    const readAsDataURL = (blob: Blob) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+
+    try {
+      // Si el archivo es muy grande (>2MB), usar una versión muy comprimida
+      if (file.size > 2 * 1024 * 1024) {
+        const compressedFile = await compressImage(file, 400, 0.5)
+        return await readAsDataURL(compressedFile)
+      }
+      const compressedFile = await compressImage(file, 600, 0.7)
+      return await readAsDataURL(compressedFile)
+    } catch {
+      // Si falla la compresión, usar el archivo original pero con timeout
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
         const timeout = setTimeout(() => {
           reject(new Error('Timeout convirtiendo imagen a Base64'))
-        }, 30000) // 30 segundos
-        
+        }, 30000)
+
         reader.onloadend = () => {
           clearTimeout(timeout)
           resolve(reader.result as string)
@@ -949,8 +949,8 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           reject(new Error('Error leyendo archivo'))
         }
         reader.readAsDataURL(file)
-      }
-    })
+      })
+    }
   }
 
   const handleCreateQuestion = async () => {
@@ -1006,7 +1006,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const gapMatches = text.match(/\[(\d+)\]/g) || []
           const gaps = new Set<number>()
           gapMatches.forEach(match => {
-            const num = parseInt(match.replace(/[\[\]]/g, ''))
+            const num = parseInt(match.replace(/[[\]]/g, ''))
             gaps.add(num)
           })
           gaps.forEach(gapNum => {
@@ -1575,7 +1575,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const gapMatches = text.match(/\[(\d+)\]/g) || []
         const gaps = new Set<number>()
         gapMatches.forEach(match => {
-          const num = parseInt(match.replace(/[\[\]]/g, ''))
+          const num = parseInt(match.replace(/[[\]]/g, ''))
           gaps.add(num)
         })
         
@@ -2873,7 +2873,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           const gapMatches = text.match(/\[(\d+)\]/g) || []
           const gaps = new Set<number>()
           gapMatches.forEach(match => {
-            const num = parseInt(match.replace(/[\[\]]/g, ''))
+            const num = parseInt(match.replace(/[[\]]/g, ''))
             gaps.add(num)
           })
           gaps.forEach(gapNum => {
@@ -3282,8 +3282,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         }
 
         newCode = codeResult.data
-              } else {
-              }
+      }
 
       // Manejar actualización de Cloze Test
       if (isEditingClozeTest) {
@@ -3294,7 +3293,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
         const gapMatches = text.match(/\[(\d+)\]/g) || []
         const gaps = new Set<number>()
         gapMatches.forEach(match => {
-          const num = parseInt(match.replace(/[\[\]]/g, ''))
+          const num = parseInt(match.replace(/[[\]]/g, ''))
           gaps.add(num)
         })
         
@@ -4374,8 +4373,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
           
           if (mq.id && mq.id.trim() !== '' && !isTemporaryId) {
             relatedQuestion = related.find(q => q.id === mq.id) || null
-                      } else {
-                      }
+          }
           
           // Si no se encontró por ID o no hay ID válido, buscar por índice
           if (!relatedQuestion && i < related.length) {
@@ -5370,8 +5368,6 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                 </div>
                 <Select value={inglesModality} onValueChange={(value: any) => {
                   setInglesModality(value)
-                  if (value !== 'standard_mc') {
-                                      }
                 }}>
                   <SelectTrigger className={cn(
                     theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : '',
@@ -5805,7 +5801,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         
                         const gaps = new Set<number>()
                         allMatches.forEach(match => {
-                          const num = parseInt(match.replace(/[\[\]]/g, ''))
+                          const num = parseInt(match.replace(/[[\]]/g, ''))
                           if (!isNaN(num)) {
                             gaps.add(num)
                           }
@@ -7184,7 +7180,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                         
                         const gaps = new Set<number>()
                         allMatches.forEach(match => {
-                          const num = parseInt(match.replace(/[\[\]]/g, ''))
+                          const num = parseInt(match.replace(/[[\]]/g, ''))
                           if (!isNaN(num)) {
                             gaps.add(num)
                           }
@@ -9255,7 +9251,7 @@ export default function QuestionBank({ theme }: QuestionBankProps) {
                                   const gapMatches = text.match(/\[(\d+)\]/g) || []
                                   const gaps = new Set<number>()
                                   gapMatches.forEach(match => {
-                                    const num = parseInt(match.replace(/[\[\]]/g, ''))
+                                    const num = parseInt(match.replace(/[[\]]/g, ''))
                                     gaps.add(num)
                                   })
                                   
