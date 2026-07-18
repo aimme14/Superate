@@ -272,8 +272,10 @@ const UnifiedExamForm = () => {
   // ── Carga del cuestionario ────────────────────────────────────────────────
 
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>
     let isMounted = true
+    const timeoutId = setTimeout(() => {
+      if (isMounted) setExamState(prev => prev === 'loading' ? 'network_error' : prev)
+    }, 30_000)
 
     const loadQuiz = async () => {
       if (!userId) return
@@ -373,10 +375,6 @@ const UnifiedExamForm = () => {
         if (isMounted) setExamState(resolveQuizLoadFailureExamState(error))
       }
     }
-
-    timeoutId = setTimeout(() => {
-      if (isMounted) setExamState(prev => prev === 'loading' ? 'network_error' : prev)
-    }, 30_000)
 
     void loadQuiz()
     return () => { isMounted = false; clearTimeout(timeoutId) }

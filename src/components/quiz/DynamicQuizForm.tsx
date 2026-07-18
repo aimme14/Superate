@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import { processExamResults, checkPhaseAccess } from "@/utils/phaseIntegration";
 import { useNotification } from "@/hooks/ui/useNotification";
 import { getPhaseName } from "@/utils/firestoreHelpers";
-import { saveExamResultsAndRegister } from "@/services/firebase/examResults.service";
+import { saveExamResultsAndRegister, type ExamResultData } from "@/services/firebase/examResults.service";
 import {
   validateExamPresentationGate,
   type StudentProgressSummaryPack,
@@ -44,9 +44,22 @@ interface QuestionTimeData {
   endTime?: number; // timestamp
 }
 
+/** Subconjunto del snapshot de un examen ya presentado que consume la UI. */
+interface PreviousExamSnapshot {
+  endTime?: string | number;
+  timestamp?: number;
+  timeSpent?: number;
+  totalExamTimeSeconds?: number;
+  score: {
+    correctAnswers: number;
+    totalQuestions: number;
+    overallPercentage: number;
+  };
+}
+
 
 // Guarda los resultados del examen y los registra en el contador del admin (servicio unificado)
-const saveExamResults = async (userId: string, examId: string, examData: any) => {
+const saveExamResults = async (userId: string, examId: string, examData: ExamResultData) => {
   const result = await saveExamResultsAndRegister(userId, examId, examData);
   if (!result.success) {
     throw result.error;
@@ -88,7 +101,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const tabChangeCountRef = useRef(0)
   const [examLocked, setExamLocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [existingExamData, setExistingExamData] = useState<any | null>(null);
+  const [existingExamData, setExistingExamData] = useState<PreviousExamSnapshot | null>(null);
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
   const [groupedQuestionMessage, setGroupedQuestionMessage] = useState<{ start: number; end: number } | null>(null);
@@ -191,7 +204,7 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         return;
       }
       if (outcome.type === 'already_taken') {
-        setExistingExamData(outcome.examSnapshot);
+        setExistingExamData(outcome.examSnapshot as unknown as PreviousExamSnapshot);
         setExamState('already_taken');
         return;
       }
@@ -233,17 +246,6 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         }
       }));
     }
-  };
-
-  // Función para cambiar de pregunta con seguimiento de tiempo
-  // BLOQUEA TODA navegación desde los botones de navegación (solo permite avanzar con el botón "Siguiente")
-  // Nota: Esta función se mantiene por diseño pero no se usa activamente (navegación bloqueada)
-  // @ts-expect-error - Función mantenida para referencia pero no utilizada activamente
-  const changeQuestion = (_newQuestionIndex: number) => {
-    // BLOQUEAR TODA navegación desde los botones de navegación
-    // Solo permitir cambiar de pregunta cuando se usa el botón "Siguiente"
-    // Los botones de navegación son SOLO marcadores visuales
-    return;
   };
 
   // Función interna para cambiar de pregunta (solo usada por nextQuestion)
@@ -470,7 +472,10 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   // Función para entrar en pantalla completa
   const enterFullscreen = async (): Promise<boolean> => {
     try {
-      const el = document.documentElement as any;
+      const el = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void>;
+        msRequestFullscreen?: () => void;
+      };
 
       if (el.requestFullscreen) {
         await el.requestFullscreen();
