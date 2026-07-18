@@ -386,6 +386,33 @@ export default function EvaluationsTab() {
               </Card>
             )}
 
+            {/* Señales blandas de fraude (no cierran el examen, solo se registran) */}
+            {(() => {
+              const s = selectedExam.fraudSignals;
+              if (!s) return null;
+              const items: string[] = [];
+              if (s.copyPaste > 0) items.push(`Copiar/pegar bloqueado (${s.copyPaste})`);
+              if (s.contextMenu > 0) items.push(`Menú contextual bloqueado (${s.contextMenu})`);
+              if (s.devtools > 0) items.push(`Atajos de DevTools bloqueados (${s.devtools})`);
+              if (s.secondScreen) items.push('Pantalla extendida detectada');
+              if (items.length === 0) return null;
+              return (
+                <Card className={cn("mb-6", theme === 'dark' ? 'border-amber-700 bg-amber-900/20' : 'border-amber-300 bg-amber-50')}>
+                  <CardContent className="pt-6">
+                    <div className={cn("flex items-start gap-3", theme === 'dark' ? 'text-amber-200' : 'text-amber-800')}>
+                      <Shield className="h-6 w-6 flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold">Señales de comportamiento durante el examen</h3>
+                        <ul className={cn("text-sm mt-1 list-disc pl-5 space-y-0.5", theme === 'dark' ? 'text-amber-200/90' : 'text-amber-700')}>
+                          {items.map((it) => <li key={it}>{it}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
             {/* Detalles por pregunta */}
             <Card className={cn(theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : '')}>
               <CardHeader>

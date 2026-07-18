@@ -23,6 +23,7 @@ import {
 } from "@/services/quiz/validateExamPresentationGate"
 import { fetchStudentProgressSummaryByUserId, examResultsFromSummaryData } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary"
 import { usePrefetchAdjacentQuizImagesLinear } from "@/hooks/usePrefetchAdjacentQuizImages"
+import { useFraudSignals } from "@/hooks/useFraudSignals"
 import { getQuizTheme, getQuizBackgroundStyle } from "@/utils/quizThemes"
 import { useThemeContext } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
@@ -162,6 +163,9 @@ const UnifiedExamForm = () => {
   const [isFullscreen, setIsFullscreen]             = useState(false)
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount]         = useState(0)
+  // Espejo en ref: el auto-cierre se dispara desde un closure de useEffect y el
+  // estado quedaría obsoleto (guardaría 0). El ref siempre tiene el valor real.
+  const tabChangeCountRef = useRef(0)
   const [examLocked, setExamLocked]                 = useState(false)
   const [showFullscreenExit, setShowFullscreenExit] = useState(false)
   const [fullscreenExitWithTabChange, setFullscreenExitWithTabChange] = useState(false)
@@ -171,6 +175,10 @@ const UnifiedExamForm = () => {
   const [groupedQuestionMessage, setGroupedQuestionMessage] = useState<{ start: number; end: number } | null>(null)
   const [englishGroups, setEnglishGroups] = useState<number[][]>([])
   const [currentEnglishGroup, setCurrentEnglishGroup] = useState(0)
+
+  const { fraudSignalsRef, resetFraudSignals } = useFraudSignals({
+    active: examState === 'active' && !examLocked,
+  })
 
   const isEnglishSubject = currentSubject === 'Inglés'
   const englishPrefetchIndex = englishGroups[currentEnglishGroup]?.[0] ?? currentQuestion
@@ -533,7 +541,9 @@ const UnifiedExamForm = () => {
       const examResult: ExamResultData = {
         userId, examId: quizData.id, examTitle: quizData.title,
         subject: quizData.subject, phase: quizData.phase,
-        answers, score, timeExpired, lockedByTabChange, tabChangeCount,
+        answers, score, timeExpired, lockedByTabChange,
+        tabChangeCount: tabChangeCountRef.current,
+        fraudSignals: fraudSignalsRef.current,
         startTime: new Date(examStartTime).toISOString(),
         endTime: new Date(examEndTime).toISOString(),
         timeSpent: totalExamTime, completed: true,
@@ -596,6 +606,7 @@ const UnifiedExamForm = () => {
       processing = true
       setTabChangeCount(prev => {
         const next = prev + 1
+        tabChangeCountRef.current = next
         if (next === 2) {
           setShowTabChangeWarning(false)
           setShowFullscreenExit(false)
@@ -694,7 +705,8 @@ const UnifiedExamForm = () => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }))
 
   const startExam = async () => {
-    setTabChangeCount(0); setShowTabChangeWarning(false)
+    setTabChangeCount(0); tabChangeCountRef.current = 0; setShowTabChangeWarning(false)
+    resetFraudSignals()
     const entered = await enterFullscreen()
     setExamState('active')
     if (!entered) setTimeout(() => {

@@ -154,6 +154,9 @@ function mapSnapshotToExamResult(
     timestamp: toMillis(raw.timestamp),
     tabChangeCount: typeof raw.tabChangeCount === 'number' ? raw.tabChangeCount : 0,
     lockedByTabChange: raw.lockedByTabChange === true,
+    fraudSignals: (raw.fraudSignals && typeof raw.fraudSignals === 'object')
+      ? (raw.fraudSignals as ExamResult['fraudSignals'])
+      : undefined,
     completed: raw.completed !== false,
     answers: (raw.answers as ExamResult['answers']) || {},
     score: raw.score as ExamResult['score'],

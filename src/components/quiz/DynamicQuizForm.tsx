@@ -34,6 +34,7 @@ import {
 } from "@/services/quiz/validateExamPresentationGate";
 import { fetchStudentProgressSummaryByUserId } from "@/services/studentProgressSummary/fetchEvaluationsFromSummary";
 import { usePrefetchAdjacentQuizImagesLinear } from "@/hooks/usePrefetchAdjacentQuizImages";
+import { useFraudSignals } from "@/hooks/useFraudSignals";
 
 // Tipo para el seguimiento de tiempo por pregunta
 interface QuestionTimeData {
@@ -82,6 +83,9 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showTabChangeWarning, setShowTabChangeWarning] = useState(false)
   const [tabChangeCount, setTabChangeCount] = useState(0)
+  // Espejo en ref: el auto-cierre se dispara desde un closure de useEffect y el
+  // estado quedaría obsoleto (guardaría 0). El ref siempre tiene el valor real.
+  const tabChangeCountRef = useRef(0)
   const [examLocked, setExamLocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [existingExamData, setExistingExamData] = useState<any | null>(null);
@@ -99,6 +103,10 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(0);
   /** Una sola lectura userLookup + studentSummaries por visita; reutilizada en validación final. */
   const summaryPackRef = useRef<StudentProgressSummaryPack | undefined>(undefined);
+
+  const { fraudSignalsRef, resetFraudSignals } = useFraudSignals({
+    active: examState === 'active' && !examLocked,
+  });
 
   usePrefetchAdjacentQuizImagesLinear(
     examState === "active" && !!quizData?.questions?.length,
@@ -382,7 +390,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
         score,
         timeExpired,
         lockedByTabChange,
-        tabChangeCount,
+        tabChangeCount: tabChangeCountRef.current,
+        fraudSignals: fraudSignalsRef.current,
         startTime: new Date(examStartTime).toISOString(),
         endTime: new Date(examEndTime).toISOString(),
         timeSpent: totalExamTime,
@@ -528,26 +537,13 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
         if (!isCurrentlyFullscreen) {
           logger.debug('Salida de pantalla completa detectada durante examen activo');
-          
-          // Verificar si también se cambió de pestaña
+
           if (isHidden) {
-            logger.debug('También se cambió de pestaña');
-            // Se salió de pantalla completa Y cambió de pestaña
+            // Salió de pantalla completa Y cambió de pestaña. El conteo lo maneja
+            // exclusivamente 'visibilitychange' (única fuente de verdad); aquí solo
+            // marcamos el motivo para el modal y evitamos el doble incremento.
+            logger.debug('También se cambió de pestaña (conteo delegado a visibilitychange)');
             setFullscreenExitWithTabChange(true);
-            setTabChangeCount(prev => {
-              const newCount = prev + 1;
-              logger.debug('Tab change count:', newCount);
-              
-              // Si es la segunda vez que sale de pantalla completa Y cambia de pestaña, finalizar
-              if (newCount >= 2) {
-                logger.debug('Finalizando examen por segunda salida con cambio de pestaña');
-                setExamLocked(true);
-                handleSubmit(false, true);
-              } else {
-                setShowFullscreenExit(true);
-              }
-              return newCount;
-            });
           } else {
             logger.debug('Solo salida de pantalla completa, sin cambio de pestaña');
             // Solo salió de pantalla completa (sin cambiar de pestaña)
@@ -583,7 +579,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
 
       setTabChangeCount(prev => {
         const newCount = prev + 1;
-        
+        tabChangeCountRef.current = newCount;
+
         // Si es la segunda vez (newCount === 2), finalizar examen automáticamente
         if (newCount === 2) {
           // Cerrar cualquier modal abierto
@@ -644,6 +641,8 @@ const DynamicQuizForm = ({ subject, phase, grade }: DynamicQuizFormProps) => {
   const startExam = async () => {
     // Restablecer contador de intentos de fraude al iniciar el examen
     setTabChangeCount(0);
+    tabChangeCountRef.current = 0;
+    resetFraudSignals();
     setShowTabChangeWarning(false);
     const entered = await enterFullscreen()
     setExamState('active')

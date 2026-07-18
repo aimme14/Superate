@@ -20,6 +20,12 @@ export interface ExamResult {
   timeExpired: boolean
   lockedByTabChange: boolean
   tabChangeCount: number
+  fraudSignals?: {
+    copyPaste: number
+    contextMenu: number
+    devtools: number
+    secondScreen: boolean
+  }
   startTime: string
   endTime: string
   timeSpent: number
